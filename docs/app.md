@@ -3592,6 +3592,18 @@ The kanban starts right under the tabs. Above its columns, the Rail tab shows **
   a station is added from the Stations tab (`Add a station`). The age of the reading is on hover of the status line, and
   visible only when the reading is stale.
 
+**The TODO from the keyboard (#4646).** Each entry of the unfolded TODO takes the focus (Tab). On the focused entry,
+`1` to `5` answer its choices in order, exactly as its buttons do; Enter answers the recommended choice (nothing when the
+card recommends none; on a button inside the entry, Enter stays that button's click); Esc folds the entry to one line,
+`#N <title> · later`, and Enter on that line (or a click) opens it again. Keys typed in a field of the entry (the park
+control) are text. An answered entry — by keyboard or mouse — no longer vanishes: it folds to one line,
+`#N <title> · answered: “<the answer sent>”`, leaves the `TODO (N)` count, and the focus moves to the next entry still
+waiting. The view keeps the answered and the `later` entries from one render to the next (an answer refused gives the
+buttons back; a ticket that leaves the TODO is forgotten), and an entry answered on its card's sheet folds the same way.
+The phone's cards are unchanged.
+*Code: `parkedTodo` in `app/src/vue/parked/parked-todo.js`, `setTheTodo` in `app/src/vue/kitchen/kitchen.js`,
+`foldsOfTodo` and `renderTheKeyboard` in `app/src/vue/vue.js`. Test: `app/test/vue/parked/todo-keyboard.test.ts`.*
+
 Captures (in git history): `docs/captures/4354/` — `rail-avant.png` / `rail-apres.png` (a project read on GitHub with its backlog),
 `rail-equipe-avant.png` / `rail-equipe-apres.png` (its team read: the badges, one line), `rail-todo-avant.png` /
 `rail-todo-ouvert-apres.png` (no team read: the two cards, and `2 wait for you` unfolded).

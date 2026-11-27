@@ -1,4 +1,6 @@
 // Test d'acceptation gelé (#4281). Critère 3 : un bouton appelle l'action de réponse une fois, avec le ticket et la réponse choisie ; l'item quitte le TODO ; aucun texte n'est copié à la main.
+// Depuis #4646, l'item répondu ne disparaît plus d'un coup : il se replie sur une ligne qui dit la réponse envoyée, et quitte
+// le TODO à la lecture suivante.
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { parkedTodo } from "../../src/vue/parked/parked-todo.js";
@@ -17,7 +19,8 @@ test("a button calls answer once with the ticket and the chosen answer, then the
   (item(31) ?? assert.fail("no item")).dessous("button").find((b) => b.textContent.trim() === "drop it")?.click();
   await repos();
   assert.deepEqual(calls, [[31, "drop it"]]);
-  assert.equal(item(31), undefined, "the answered item leaves");
+  assert.deepEqual(item(31)?.children.filter(({ hidden }) => !hidden).map(({ textContent }) => textContent), ["#31 · answered: “drop it”"], "the answered item folds to one line saying the answer");
+  assert.equal(todo.dessous("p").find(({ className }) => className === "tete-du-todo")?.textContent, "TODO (1)");
   assert.ok(item(32), "the other item stays");
   assert.equal(todo.dessous("textarea").length + todo.dessous("input").length, 0, "nothing to type or paste");
 });

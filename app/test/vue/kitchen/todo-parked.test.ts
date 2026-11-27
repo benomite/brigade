@@ -192,12 +192,14 @@ describe("la vue : le TODO, ses questions et ses boutons", () => {
   });
 
   test("« resume » et « it arrived » d'une carte de WAITING parked pour le chef partent comme depuis sa carte", async () => {
+    // Répondue, l'entrée se replie (#4646) : chaque geste se joue sur une vue neuve.
     const vue = await show(WORLD);
     (buttons(entryOf(vue, 51)).find(({ textContent }) => textContent === "resume") ?? assert.fail("pas de « resume »")).click();
     await repos();
-    (buttons(entryOf(vue, 51)).find(({ textContent }) => textContent === "it arrived, back to the kitchen") ?? assert.fail("pas de « it arrived »")).click();
+    const other = await show(WORLD);
+    (buttons(entryOf(other, 51)).find(({ textContent }) => textContent === "it arrived, back to the kitchen") ?? assert.fail("pas de « it arrived »")).click();
     await repos();
-    assert.deepEqual(callsOf(vue, "attente").map(([project, id, ticket]) => [project, id, ticket]), [[PARADE, "attente-reprendre", 51], [PARADE, "attente-arrivee", 51]]);
+    assert.deepEqual([...callsOf(vue, "attente"), ...callsOf(other, "attente")].map(([project, id, ticket]) => [project, id, ticket]), [[PARADE, "attente-reprendre", 51], [PARADE, "attente-arrivee", 51]]);
   });
 
   test("un projet en lecture seule : le TODO dit ses questions, sans un bouton", async () => {

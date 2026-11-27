@@ -887,6 +887,10 @@ const arrivalsOfCards = new Map();
 // par projet et ticket — gardés d'un rendu à l'autre.
 /** @type {Map<string, Set<number>>} */
 const parkOpen = new Map();
+// Les entrées du TODO répondues d'ici, et ce qui a été répondu ; celles que le chef a remises à plus tard (Échap, ticket
+// 4646) — par projet, gardées d'un rendu à l'autre.
+/** @type {Map<string, { answered: Map<number, string>, later: Set<number> }>} */
+const foldsOfTodo = new Map();
 // Ce que le chef a déplié en tête du rail (ticket 4354), par projet : le détail d'une carte d'agent, et la liste du TODO
 // (« todo ») — gardés d'un rendu à l'autre.
 /** @type {Map<string, Set<string>>} */
@@ -4977,6 +4981,7 @@ function setTheRail(project) {
     // et tapé se garde d'un rendu à l'autre.
     opened: parkOpen.get(project.nom) ?? parkOpen.set(project.nom, new Set()).get(project.nom),
     deplie: { get ouvert() { return unfoldsOf(project.nom).has("todo"); }, set ouvert(yes) { void (yes ? unfoldsOf(project.nom).add("todo") : unfoldsOf(project.nom).delete("todo")); } },
+    ...(foldsOfTodo.get(project.nom) ?? foldsOfTodo.set(project.nom, { answered: new Map(), later: new Set() }).get(project.nom)),
     control: ({ ticket, step }) => parkControl(document, { project: project.nom, ticket, step, gesture: parkByTheBridge, form: parkInputs.get(`${project.nom}#${ticket}`) ?? parkInputs.set(`${project.nom}#${ticket}`, {}).get(`${project.nom}#${ticket}`) }),
   });
   // À côté du TODO, hors des colonnes : le projet pas préparé pour Brigade (ticket 2628), qui n'est pas un ticket ; les
@@ -5086,7 +5091,8 @@ function resumptionOfKeyboard() {
 /** @param {ReturnType<typeof resumptionOfKeyboard>} resumption */
 function renderTheKeyboard(resumption) {
   if (resumption === undefined) return;
-  const resumed = /** @type {HTMLInputElement[]} */ ([...rail.querySelectorAll("input, textarea")]).find(({ dataset }) => dataset.cle === resumption.cle && dataset.champ === resumption.champ);
+  // Une entrée du TODO tient le clavier aussi (ticket 4646) : on y répond par ses touches.
+  const resumed = /** @type {HTMLInputElement[]} */ ([...rail.querySelectorAll("input, textarea, li")]).find(({ dataset }) => dataset.cle === resumption.cle && dataset.champ === resumption.champ);
   resumed?.focus();
   if (resumed !== undefined && resumption.debut !== null && resumption.fin !== null) resumed.setSelectionRange?.(resumption.debut, resumption.fin);
 }

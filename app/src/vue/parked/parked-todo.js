@@ -8,6 +8,10 @@
 // d'un clic (`openTitle` au survol). `control` : le contrôle de park d'un item (park-control.js), derrière « park or
 // unpark… » ; `opened` garde les items dont il est ouvert d'un rendu à l'autre. En lecture seule (`readOnly`, la raison),
 // l'item se lit sans bouton.
+// Au clavier (ticket 4646) : un item qui a le focus se répond — `1` à `5` ses choix, Entrée le recommandé, Échap le replie
+// sur une ligne (« later »), qu'Entrée rouvre. Répondu, à la souris ou au clavier, un item se replie sur une ligne qui dit la
+// réponse envoyée, et le focus passe au suivant. `answered` et `later` gardent ces lignes d'un rendu à l'autre ; `data-cle`
+// sur l'item laisse la vue lui rendre le clavier quand le rail est redessiné.
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément, la vue lui donne le sien et les tests un faux.
 
 import { button } from "../components/button/button.js";
@@ -19,7 +23,8 @@ import { waitingFor } from "./records.js";
 /**
  * @typedef {{ records: readonly ParkedRecord[], chef: string, choices: readonly string[] | ((record: ParkedRecord) => readonly Choice[]),
  *   answer: (ticket: number, choice: string) => unknown, readOnly?: string, open?: (ticket: number) => void,
- *   openTitle?: (ticket: number) => string, control?: (record: ParkedRecord) => any, opened?: Set<number> }} Options
+ *   openTitle?: (ticket: number) => string, control?: (record: ParkedRecord) => any, opened?: Set<number>,
+ *   answered?: Map<number, string>, later?: Set<number> }} Options
  */
 
 const OPEN_PARK = "park or unpark…";
@@ -27,6 +32,14 @@ const NO_WHAT = "for what: not given";
 const NO_UNTIL = "no date set";
 /** @param {number} n */
 const headOf = (n) => `TODO (${n})`;
+export const LATER = "later";
+export const ANSWERED = "answered";
+// La clé d'un item, que la vue reconnaît pour lui rendre le clavier (vue.js, `renderTheKeyboard`).
+export const KEY_OF_ENTRY = "entree-du-todo";
+// Les touches qui choisissent : `1` le premier choix, jusqu'à `5`.
+const CHOICE_KEYS = ["1", "2", "3", "4", "5"];
+// Une frappe dans un champ (le contrôle de park) est du texte, jamais un choix.
+const TYPING = ["INPUT", "TEXTAREA", "SELECT"];
 
 // Qui il attend et jusqu'à quand, sur une ligne ; et pour quoi, quand rien ne le dit au-dessus.
 /** @param {Fabrique} doc @param {ParkedRecord} record */
@@ -38,14 +51,14 @@ function whoAndWhen(doc, { who, what, until }) {
 }
 
 /** @param {Fabrique} doc @param {Options} options */
-export function parkedTodo(doc, { records, chef, choices, answer, readOnly, open, openTitle = (ticket) => `open #${ticket}'s card`, control, opened = new Set() }) {
+export function parkedTodo(doc, { records, chef, choices, answer, readOnly, open, openTitle = (ticket) => `open #${ticket}'s card`, control, opened = new Set(), answered = new Map(), later = new Set() }) {
   const itsOwn = waitingFor(records, chef);
   const frame = doc.createElement("div");
   frame.className = "todo-du-rail";
   frame.ariaLabel = "What awaits you";
   const head = doc.createElement("p");
   head.className = "tete-du-todo";
-  let remaining = itsOwn.length;
+  let remaining = itsOwn.filter(({ ticket }) => !answered.has(ticket)).length;
   head.textContent = headOf(remaining);
   const list = doc.createElement("ol");
   list.className = "entrees-du-todo";
@@ -56,6 +69,21 @@ export function parkedTodo(doc, { records, chef, choices, answer, readOnly, open
       item.className = "entree-du-todo";
       item.dataset.ticket = String(ticket);
       const name = `#${ticket}${record.title === undefined ? "" : ` ${record.title}`}`;
+      // Sa ligne repliée : ce qui a été répondu, ou « later ».
+      const folded = doc.createElement("span");
+      folded.className = "pli-du-todo";
+      /** @param {string} text */
+      const foldTo = (text) => {
+        folded.textContent = `${name} · ${text}`;
+        for (const child of item.children) child.hidden = child !== folded;
+        if (folded.parentElement !== item) item.append(folded);
+        item.dataset.plie = "";
+      };
+      const said = answered.get(ticket);
+      if (said !== undefined) {
+        foldTo(`${ANSWERED}: “${said}”`);
+        return item;
+      }
       if (open === undefined) item.append(Object.assign(doc.createElement("strong"), { textContent: name }));
       else item.append(Object.assign(button(doc, name, () => open(ticket), { sorte: "discret" }), { title: openTitle(ticket) }));
       if (record.what !== null) item.append(Object.assign(doc.createElement("p"), { className: "demande-du-todo", textContent: record.what }));
@@ -63,24 +91,29 @@ export function parkedTodo(doc, { records, chef, choices, answer, readOnly, open
       if (readOnly !== undefined) return item;
       /** @type {readonly Choice[]} */
       const theChoice = typeof choices === "function" ? choices(record) : choices.map((text) => ({ texte: text }));
-      let answered = false;
-      const buttons = theChoice.map(({ texte: text, recommande: recommended, ouvre: opens }) =>
-        button(
-          doc,
-          text,
-          () => {
-            // Un bouton qui ouvre la carte (la réponse s'y écrit) ne quitte pas le TODO : la carte, une fois répondue, le fera.
-            if (opens === true && open !== undefined) return open(ticket);
-            if (answered) return;
-            answered = true;
-            item.remove();
-            remaining -= 1;
-            head.textContent = headOf(remaining);
-            answer(ticket, text);
-          },
-          { sorte: recommended === true ? "recommande" : "secondaire" },
-        ),
-      );
+      // Le prochain item qui attend encore une réponse, après celui-ci, sinon avant : il prend le focus.
+      const next = () => {
+        /** @type {any[]} */
+        const all = [...list.children];
+        const others = all.filter((other) => other.tabIndex === 0 && !("plie" in other.dataset));
+        return others.find((other) => all.indexOf(other) > all.indexOf(item)) ?? others.find((other) => other !== item);
+      };
+      /** @param {Choice} choice */
+      const choose = ({ texte: text, ouvre: opens }) => {
+        // Un bouton qui ouvre la carte (la réponse s'y écrit) ne quitte pas le TODO : la carte, une fois répondue, le fera.
+        if (opens === true && open !== undefined) return open(ticket);
+        if (answered.has(ticket)) return;
+        answered.set(ticket, text);
+        later.delete(ticket);
+        remaining -= 1;
+        head.textContent = headOf(remaining);
+        foldTo(`${ANSWERED}: “${text}”`);
+        item.tabIndex = -1;
+        // Le focus d'abord : la réponse redessine le rail, qui rend le clavier à l'item qui l'a.
+        next()?.focus();
+        answer(ticket, text);
+      };
+      const buttons = theChoice.map((choice) => button(doc, choice.texte, () => choose(choice), { sorte: choice.recommande === true ? "recommande" : "secondaire" }));
       /** @type {any} */
       let pose = control !== undefined && opened.has(ticket) ? control(record) : undefined;
       if (control !== undefined) {
@@ -109,6 +142,36 @@ export function parkedTodo(doc, { records, chef, choices, answer, readOnly, open
         item.append(answers);
       }
       if (pose !== undefined) item.append(pose);
+      item.tabIndex = 0;
+      item.dataset.cle = `${KEY_OF_ENTRY}#${ticket}`;
+      item.dataset.champ = KEY_OF_ENTRY;
+      const unfold = () => {
+        later.delete(ticket);
+        delete item.dataset.plie;
+        folded.remove();
+        for (const child of item.children) child.hidden = false;
+      };
+      folded.title = "Enter opens it again";
+      folded.addEventListener("click", unfold);
+      if (later.has(ticket)) foldTo(LATER);
+      item.addEventListener("keydown", (/** @type {KeyboardEvent} */ event) => {
+        if (event.ctrlKey || event.metaKey || event.altKey || TYPING.includes(/** @type {any} */ (event.target)?.tagName)) return;
+        const folds = "plie" in item.dataset;
+        if (event.key === "Escape" && !folds) {
+          later.add(ticket);
+          foldTo(LATER);
+        } else if (event.key === "Enter" && event.target === item) {
+          if (folds) unfold();
+          else {
+            const recommended = theChoice.find(({ recommande }) => recommande === true);
+            if (recommended === undefined) return;
+            choose(recommended);
+          }
+        } else if (!folds && CHOICE_KEYS.includes(event.key) && theChoice[Number(event.key) - 1] !== undefined) choose(/** @type {Choice} */ (theChoice[Number(event.key) - 1]));
+        else return;
+        event.preventDefault();
+        event.stopPropagation();
+      });
       return item;
     }),
   );

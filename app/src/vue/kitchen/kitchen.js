@@ -11,7 +11,7 @@
 // Il ne touche pas `document` : il reçoit de quoi créer un élément, la vue lui donne le sien et les tests un faux.
 
 import { recommendationOf } from "../bricks.js";
-import { seenOfTheCard } from "../card-todo.js";
+import { answerSaid, seenOfTheCard } from "../card-todo.js";
 import { button } from "../components/button/button.js";
 import { hourUtc } from "../activity-of-cook.js";
 import { brand } from "../components/pill/pill.js";
@@ -170,10 +170,22 @@ export function actionsOfTodo(card, actions) {
  * demandé ; qui, jusqu'à quand ; ses boutons, qui y répondent. Les entrées sont celles du TODO parked (parked/, ticket
  * 4281), qui ajoute à chacune son contrôle de park (`control`, `opened`). `deplie` garde, d'un rendu à l'autre, que le chef
  * l'a ouvert. Sans `gestes` — un projet en lecture seule —, ses cartes se lisent sans bouton. Rien du tout quand rien ne
- * l'attend.
- * @param {Fabrique} doc @param {{ cartes: readonly Card[], ouvrir: (card: Card) => void, gestes?: ActionsOfTodo, control?: (record: import("../parked/records.js").ParkedRecord) => any, opened?: Set<number>, deplie: { ouvert: boolean } }} todo
+ * l'attend. `answered` et `later` (ticket 4646) gardent d'un rendu à l'autre les entrées répondues d'ici, repliées sur la
+ * réponse envoyée, et celles que le chef a remises à plus tard : une carte partie du TODO les quitte ; une réponse refusée
+ * rend ses boutons ; une carte répondue ailleurs — sa fiche — se replie sur sa réponse aussi.
+ * @param {Fabrique} doc @param {{ cartes: readonly Card[], ouvrir: (card: Card) => void, gestes?: ActionsOfTodo, control?: (record: import("../parked/records.js").ParkedRecord) => any, opened?: Set<number>, deplie: { ouvert: boolean }, answered?: Map<number, string>, later?: Set<number> }} todo
  */
-export function setTheTodo(doc, { cartes: cards, ouvrir: open, gestes: actions, control, opened, deplie: unfolded }) {
+export function setTheTodo(doc, { cartes: cards, ouvrir: open, gestes: actions, control, opened, deplie: unfolded, answered = new Map(), later = new Set() }) {
+  const present = new Set(cards.map(({ ticket }) => ticket));
+  for (const ticket of [...answered.keys(), ...later]) if (!present.has(ticket)) void (answered.delete(ticket), later.delete(ticket));
+  for (const { ticket, todo } of cards) {
+    if (actions === undefined || todo === undefined || isOneValidation(todo)) continue;
+    const state = actions.etat(ticket, todo);
+    const seen = seenOfTheCard(todo, state);
+    if (seen.vu === "refus") answered.delete(ticket);
+    else if (seen.vu === "attente" || seen.vu === "jouee") answered.set(ticket, seen.reponse);
+    else if (state.etape === "envoi" && !answered.has(ticket)) answered.set(ticket, answerSaid(todo, state.reponse));
+  }
   if (cards.length === 0) return undefined;
   const byTicket = new Map(cards.map((card) => [card.ticket, { carte: card, siens: actions === undefined ? [] : actionsOfTodo(card, actions) }]));
   /** @param {number} ticket */
@@ -187,7 +199,7 @@ export function setTheTodo(doc, { cartes: cards, ouvrir: open, gestes: actions, 
         const action = of(ticket).siens.find((itsOwn) => itsOwn.texte === text);
         if (action !== undefined && action.ouvre !== true) actions?.jouer(ticket, action.sorte, action.reponse);
       },
-      ...(actions === undefined ? { readOnly: READ_ONLY } : { control, opened }),
+      ...(actions === undefined ? { readOnly: READ_ONLY } : { control, opened, answered, later }),
       open: (ticket) => open(of(ticket).carte),
       openTitle: (ticket) => {
         const { parque: parked } = of(ticket).carte;

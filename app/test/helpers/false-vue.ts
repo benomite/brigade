@@ -158,6 +158,8 @@ export class Fake {
   }
   // Combien de fois il a pris le clavier.
   focalise = 0;
+  // S'il prend le clavier à la tabulation (0), ou non (-1), comme un élément du DOM.
+  tabIndex = -1;
   focus(): void {
     this.focalise++;
   }
