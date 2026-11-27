@@ -5,9 +5,6 @@
 # macOS
 .DS_Store
 
-# Résultats de `claude plugin eval` : artefacts de run, jamais des sources.
-evals/results/
-
 # État local du runtime, propre à chaque worktree (créé par worktree-setup.sh).
 .brigade-state/
 
