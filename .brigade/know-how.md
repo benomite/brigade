@@ -56,6 +56,8 @@
 - Un redessin du rail venu du dehors (minuterie, lectures) ne doit jamais reposer un champ où le chef tape : seuls les gestes propres du bloc le font (#4570)
 - A kitchen test whose fake cook ends with a short message (under 40 characters) now gets a "delivered without a report" log line and ticket comment: give the fake a real report (#4574)
 - The kitchen's supervisor reads main's `tests` run and last merge through `mainFacts` (runtime/src/kitchen/github.ts); a ticket refused 3 times is `parked` for the supervisor, never `parked:chef` (#4600)
+- A shell tab scrolls back because the multiplexer draws on the normal screen (tmux `terminal-overrides` `smcup@:rmcup@`, screen `termcapinfo * ti@:te@`); screen reads termcapinfo only from a `-c` rc file at creation, `-X termcapinfo` and `-c` at attach do nothing (#4576)
+- `screen -dmS` does not read its `-c` rc at creation but at the first attach: a rc deleted right after `-dmS` is lost (alternate screen comes back); keep it in a 0700 user dir (`~/.brigade/screen`), never a predictable /tmp name (#4576)
 - A TODO entry of a card answered in words only (`parked:chef`, `todo.repondre`) has no choice buttons: its `Answer` opens the card (fiche or phone list), where the field and the posting Answer live; the kanban draws no `bon`, so `renderCard` carries the TODO card itself (#4593)
 - A comment in a vue file must not carry a `#1234` ticket number: `app/test/skin.test.ts` reads it as a hard-coded colour (#4593)
 - The CI plans its matrix in tests.yml's `plan` job from tests-touches.mjs: a zone with no test touched has no shard (skipped jobs count as success for `gates`); Windows runs on main only (#4607)
