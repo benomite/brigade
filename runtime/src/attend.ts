@@ -558,7 +558,7 @@ function direSetupBloqueEn({ setup }: Extract<Attente, { quoi: "setup" }>): stri
 function direRefusDeLaFermetureEn(retenue: Refus): string {
   switch (retenue.reason) {
     case "unconfigured":
-      return `the closer is not set on this project — set its calibration in `.claude/brigade/projet.json` (`closer`) by a pull request: it applies once merged`;
+      return `the closer is not set on this project — set its calibration in \`.claude/brigade/projet.json\` (\`closer\`) by a pull request: it applies once merged`;
     case "stopped":
       return `the kitchen has been stopped by the chef since ${retenue.detail} — ${BOUTON_REPRENDRE_LA_CUISINE} first`;
     case "breaker":
