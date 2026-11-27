@@ -20,7 +20,7 @@ Autonomy is the goal. Trust is what lets you take it: an agent you must watch is
 
 An agent left alone must not run away. Each ticket runs inside limits you did not have to set.
 
-- A cap on simultaneous cooks per project (`PLACES`, four by default), and a ticket refused three times is parked for the chef instead of being tried again. Proof: `runtime/src/kitchen/projects.ts` and `TRIES_MAX` in `runtime/src/kitchen/decide.ts`.
+- A cap on simultaneous cooks per project (`PLACES`, four by default), and a ticket refused three times is parked for the supervisor (`parked`, never `parked:chef`) instead of being tried again. Proof: `runtime/src/kitchen/projects.ts` and `TRIES_MAX` in `runtime/src/kitchen/decide.ts`.
 - Each agent runs in its own worktree, inside a sandbox, behind its project's network filter. Proof: `runtime/src/bac-a-sable/kitchen-launch.ts`.
 
 ### 2. It is judged

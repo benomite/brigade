@@ -30,6 +30,8 @@ function fakeGh() {
       return JSON.stringify({ check_runs: [{ name: "tests", conclusion: pr.checks.toLowerCase(), html_url: `https://github.com/o/r/actions/runs/7/job/${pr.number}` }] });
     }
     if (args[0] === "run" && args[1] === "view") return (prs.find((p) => String(p.number) === args[3]) as FakePr).log ?? "";
+    if (args[0] === "api" && args[1]?.startsWith("repos/o/r/actions/workflows/tests.yml/runs")) return JSON.stringify({ workflow_runs: [{ conclusion: "failure", updated_at: "2026-11-27T12:00:00Z" }] });
+    if (args[0] === "api" && args[1]?.startsWith("repos/o/r/commits?sha=main")) return JSON.stringify([{ commit: { committer: { date: "2026-11-27T11:00:00Z" } } }]);
     if (args[0] === "api" && args[1]?.startsWith("repos/")) {
       const i = issues.get(Number(args[1].split("/").pop())) as FakeIssue;
       return JSON.stringify({ title: i.title, body: i.body, author_association: "OWNER", labels: i.labels.map((name) => ({ name })) });
@@ -403,6 +405,48 @@ test("a red delivery goes back to a cook with the last lines of its failing chec
   assert.match(comment, /token \[secret:GH_TOKEN\] rejected/);
   assert.doesNotMatch(comment, /ghp_secretvalue1234/);
   assert.deepEqual(fake.issues.get(issue)?.labels, ["try:1"]);
+});
+
+test("a ticket refused for the third time is parked for the supervisor, never for the chef (#4600)", async () => {
+  const root = mkdtempSync(join(tmpdir(), "kitchen-"));
+  const fake = fakeGh();
+  const issue = fake.add("Add a feature", ["in-pass", "try:2"]);
+  fake.prs.push({ number: 100, head: "cook/1-github", checks: "FAILURE", merged: false, log: "tests\tRun tests\tnot ok\n" });
+  const kitchen = openKitchen({
+    repo: "o/r", base: "main", clone: root, worktrees: join(root, "wt"), state: join(root, "state"), gh: fake.gh, git: gitCli(process.env),
+    launch: () => {
+      throw new Error("no agent is launched");
+    },
+    places: () => 2, riskPaths: () => [], supervisorEveryMs: Number.MAX_SAFE_INTEGER, log: () => {},
+  });
+  await kitchen.turn();
+  const ticket = fake.issues.get(issue);
+  assert.ok(ticket?.labels.includes("parked"), (ticket?.labels ?? []).join(","));
+  assert.ok(!ticket?.labels.includes("parked:chef"));
+  assert.match(ticket?.comments.at(-1) ?? "", /^Parked for the supervisor: refused 3 times\. Last reason: the CI is red: tests/);
+});
+
+test("the supervisor is given main's last tests conclusion, the last merge time and each parked ticket's last comment (#4600)", async () => {
+  const root = mkdtempSync(join(tmpdir(), "kitchen-"));
+  const agent = join(root, "agent.sh");
+  writeFileSync(agent, AGENT, { mode: 0o755 });
+  const fake = fakeGh();
+  const issue = fake.add("Looping", ["parked"]);
+  (fake.issues.get(issue) as FakeIssue).comments.push("Sent back", "Parked for the supervisor: refused 3 times. Last reason: no PR description");
+  let given = "";
+  const kitchen = openKitchen({
+    repo: "o/r", base: "main", clone: root, worktrees: join(root, "wt"), state: join(root, "state"), gh: fake.gh, git: gitCli(process.env),
+    launch: (kind: Kind, cwd, _write, _calibration, input) => {
+      if (kind === "supervisor") given = input;
+      return { command: agent, args: [], input, cwd, env: process.env, secrets: {} };
+    },
+    places: () => 2, riskPaths: () => [], supervisorEveryMs: 0, log: () => {},
+  });
+  await kitchen.turn();
+  assert.match(given, /dernier run `tests` : failure à 2026-11-27T12:00:00Z/);
+  assert.match(given, /dernière fusion : 2026-11-27T11:00:00Z/);
+  assert.match(given, /#1: Parked for the supervisor: refused 3 times\. Last reason: no PR description/);
+  assert.doesNotMatch(given, /#1: Sent back/);
 });
 
 test("a pass that ends while the CI's workflow still runs does not merge: the PR waits for the next pass, once the workflow is over (#4589)", async () => {

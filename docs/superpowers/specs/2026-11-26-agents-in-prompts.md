@@ -43,7 +43,7 @@ The chef's question: why is epic splitting not simply in the manager, and superv
 | 9. House rules locked | GitHub branch protection | no merge without green required checks; no agent can bypass it |
 | 10. Risk decides where the chef is required | scheduler | a PR touching a risk zone of the sheet is parked for the chef, never merged |
 | 11. Stages | `manager.md` | a staged ticket is split into one issue per stage, chained by `Depends on #N` |
-| 12. Three tries in total | scheduler | `try:n` label; the third refusal parks for the chef with what was tried |
+| 12. Three tries in total | scheduler | `try:n` label; the third refusal parks the ticket (`parked`, for the supervisor, never for the chef) with the tries and the last reason (#4600) |
 | 13. Parked | label + comment | the scheduler never takes a parked ticket; the date or the chef unparks it |
 | 14. Supervisor | `supervisor.md` | every 15 min; it may park, fix labels and open defect tickets; it never relaunches |
 | 15. Closer | `closer.md` | daily; its PR goes through the pass |
