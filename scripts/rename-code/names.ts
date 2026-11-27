@@ -777,7 +777,7 @@ export const NAMES: Record<string, string> = {
   "choixDesCapacites": "capacitiesChoice",
   "choixDeCapacites": "capacityChoice",
   "lectureSousBudget": "readingUnderBudget",
-  "app/src/vue/projet/stations/ArretStation.js#arreter": "stopTheStation",
+  "app/src/vue/projet/stations/ArretStation.js#arreter": "haltStation",
   "app/test/notifications-todo.test.ts#sonde": "prober",
   "app/test/parcours-projet-bout-en-bout.test.ts#AUCUNE": "NOT_ONE",
   "app/test/vue/carte-todo.test.ts#ENVOI": "SENDING",
