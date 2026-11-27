@@ -23,7 +23,6 @@ const SCOPE = [
   "settings-of-the-station.ts",
   "box.ts",
   "team-of-the-box.ts",
-  "agents-of-the-box.ts",
   "connection-github.ts",
   "tools-required.ts",
   "vue/stations-tab",

@@ -141,16 +141,6 @@ describe("chaque message du haut offre un geste", () => {
 });
 
 describe("la bande du haut et l'équipe (#4354)", () => {
-  test("l'équipe lue montre le supervisor et le closer dans ses badges : la bande n'en repose pas de carte", async () => {
-    const vue = await open({ lireLesAgents: () => structuredClone(TEAM) });
-    const rail = await show(vue, { rail: [entry(41, "pris")] });
-    await repos();
-    const band = rail.children.find(({ className }) => className === "bande-du-haut") ?? assert.fail("pas de bande du haut");
-    assert.deepEqual(band.dessous("button"), []);
-    const badges = vue.element("equipe-du-projet").dessous("button").filter(({ className }) => className.split(" ").includes("badge"));
-    assert.deepEqual(badges.slice(0, 2).map(({ dataset }) => dataset.agent), ["supervisor", "closer"]);
-  });
-
   test("le bloc de l'équipe : l'agent du projet lu, rien d'un autre ; une lecture qui change l'équipe le dit, une qui ne change rien, non", async () => {
     const readOne: string[] = [];
     const before = { ...source };
@@ -202,17 +192,6 @@ describe("le plan, colonne par colonne", () => {
 });
 
 describe("le haut du rail, sous la bande", () => {
-  test("l'équipe lue après le rail : la bande se repose, ses cartes cèdent la place aux badges", async () => {
-    let read: (team: unknown) => void = () => {};
-    const vue = await open({ lireLesAgents: () => new Promise((resolved) => (read = resolved)) });
-    const rail = await show(vue, { rail: [entry(41, "pris")] });
-    const cards = () => rail.dessous("button").filter(({ className }) => className.split(" ").includes("carte-d-agent")).map(({ dataset }) => dataset.agent);
-    assert.deepEqual(cards(), ["supervisor", "closer"]);
-    read(structuredClone(TEAM));
-    await repos();
-    assert.deepEqual(cards(), []);
-  });
-
   test("le disjoncteur ouvert n'est plus sur le rail : la bande de l'espace le dit — pas la ligne du projet éteint, que son interrupteur dit", async () => {
     const vue = await open({ geste: () => undefined });
     await show(vue, { rail: [entry(21, "en attente")] });

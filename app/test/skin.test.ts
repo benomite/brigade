@@ -168,9 +168,9 @@ describe("les polices : Archivo pour l'interface, JetBrains Mono pour ce qui se 
     // Ce que la page charge est à côté d'elle, ou dans les dépendances de l'app.
     for (const [, target = ""] of html.matchAll(/(?:href|src)="([^"]+)"/g)) assert.ok(existsSync(join(VUE, target)), `index.html charge « ${target} », qui n'est pas dans l'app`);
     const [, politique = ""] = /http-equiv="Content-Security-Policy" content="([^"]+)"/.exec(html) ?? [];
-    // Une image ne vient que du process principal, en `data:` : les captures d'une livraison (captures.ts). Une demande ne
-    // part que vers lui aussi : l'API des agents, sur `brigade-agents:` (agents-of-the-box.ts, ticket 4224).
-    assert.deepEqual(politique.split("; "), ["default-src 'none'", "connect-src brigade-agents:", "script-src 'self' 'unsafe-inline'", "style-src 'self' 'unsafe-inline'", "font-src 'self'", "img-src data:"]);
+    // Une image ne vient que du process principal, en `data:` : les captures d'une livraison (captures.ts). Aucune demande
+    // ne part de la page : l'onglet Agents passe par le pont (ticket 4569).
+    assert.deepEqual(politique.split("; "), ["default-src 'none'", "script-src 'self' 'unsafe-inline'", "style-src 'self' 'unsafe-inline'", "font-src 'self'", "img-src data:"]);
     // Et le module de la vue ne va rien chercher lui-même.
     assert.doesNotMatch(read("vue.js"), /\bfetch\(|XMLHttpRequest|WebSocket|EventSource|new FontFace|import\(\s*["'`]https?:/);
   });
