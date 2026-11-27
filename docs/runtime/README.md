@@ -41,12 +41,6 @@ tool launches beside it:
 | `reseau-cli.ts`, `bac-a-sable/detection-projet.ts`, `essai-projet/declaration-cli.ts` | by hand, from the project folder: they write `.claude/brigade/reseau`, `.claude/brigade/bac-a-sable.json` and `.brigade/try.json` when absent |
 | `second-init/pr-de-setup.ts` | the repository setup, in the session the app opens in the second (`app/src/setup/instructions.md`) |
 | `fermeture-alerte-publication.ts` | `.github/workflows/publier-app.yml`: closes the alerts of a release once it is published |
-| `station/geste.ts` | the app (`ACTION`, `app/src/box.ts`): `node src/station/geste.ts <project> <command> [arguments…]`, run from `runtime/` with `BRIGADE_STATION_DIR` |
-| the scripts of `runtime/package.json` but `start`, `test` and `typecheck` | `station/geste.ts`, which runs the file its command's script names |
-
-The commands behind the gesture are the ones the app launches, and only those: `manager`, and
-`help`, which lists them (`commandes.ts`). `app/test/geste-serves-every-command.test.ts` collects what the app
-launches and runs each one through the real `geste.ts`: a command dropped while the app still launches it fails there.
 
 ## Declaring a project
 
@@ -81,6 +75,13 @@ the repository; a pull request headed `epic/<n>` belongs to epic `<n>` (#4697). 
 split one) and splits it whole: up to 30 children, opened `fire` at the epic's priority, and the branch `epic/<n>` created from
 `main` before they open (#4700). The supervisor no longer splits epics. The design is in
 `docs/superpowers/specs/2026-11-27-epic-branches-design.md`, its plan in `docs/superpowers/plans/2026-11-27-epic-branches.md`.
+
+A child (`Epic: #<n>` in its body) whose epic has an `epic/<n>` branch goes through the kitchen on that branch, not on
+the base: its cook starts from `origin/epic/<n>`, its pull request is opened with `--base epic/<n>`, the base merged
+into its worktree is `epic/<n>`, and a conflict with it goes back to a cook like a conflict with `main`. Once merged,
+the kitchen closes it with `Merged into epic/<n>: ships with #<n>.` (GitHub's `Closes` acts only on the default
+branch). A child's risk zones are not checked at its merge: they are judged at the epic's pull request. A child of an
+epic with no branch (split before epic branches) and a lone ticket keep the base and its risk zones (#4699).
 
 ## Where it runs
 

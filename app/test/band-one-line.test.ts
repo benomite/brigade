@@ -30,7 +30,7 @@ const GRANT_OF_BEFORE = "grant      merge ACTIF, BIENTÔT ÉTEINT : encore 30 mi
 const statusWith = (...heads: string[]) => ["projet     parade", "cuisine    ouverte", ...heads, "", "rail       vide", ""].join("\n");
 const value = (line: string) => line.slice(11);
 
-// `manager`, tel que le runtime l'écrit, allumé par le chef (runtime/src/manager-cli.ts).
+// `manager`, tel que le runtime l'écrit, allumé par le chef.
 const MANAGER_LIT = "manager               ALLUMÉ depuis le 2026-10-13T09:25:21.838Z (par chef) — il juge les issues ouvertes, pose `fire` et le calibrage\n";
 
 const FACTS: Facts = {

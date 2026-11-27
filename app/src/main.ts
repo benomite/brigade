@@ -1363,6 +1363,8 @@ ipcMain.handle("ouvrirLectureSeule", (_, name: unknown, page: unknown) => {
 });
 // Un projet refusé n'a pas d'espace, mais sa box se lit quand même.
 ipcMain.on("regarder", (_, name: unknown, request: number) => (see = () => look(projects().filter((candidate) => candidate.nom === name), ["status"], request, true))());
+// L'onglet de contenu affiché : aucun ne lit plus la box (TABS est vide, #4710) — le canal reste pour la vue, qui n'y lit rien.
+ipcMain.on("onglet", () => {});
 // « Tous les projets » : le `status` de chacun — ce qui bloque un projet, depuis quand ses décisions
 // attendent, une station saturée : ce que l'accueil dit en une ligne et que `faits` ne porte pas.
 ipcMain.on("tous", (_, request: number) => (see = () => look(projects(), ["status"], request))());
@@ -1393,7 +1395,7 @@ ipcMain.handle("lireFeu", async (_, name: unknown) => {
 });
 // Un ticket du rail s'ouvre sur son issue, dans le navigateur du poste : la vue nomme le
 // projet et le ticket, l'adresse est celle que la box a rendue (facts.ts) — ou, pour une issue
-// qui n'est pas encore sur le rail, celle que `manager upstream` a donnée (upstream.ts). Rend si elle a été ouverte.
+// qui n'est pas encore sur le rail, celle que la lecture de l'amont a donnée (upstream.ts). Rend si elle a été ouverte.
 ipcMain.handle("ouvrirIssue", (_, name: unknown, ticket: unknown) => {
   const address = facts.adresse(name, ticket) ?? upstreams.adresse(name, ticket) ?? (typeof ticket === "number" ? (adressesOfFire.get(String(name))?.get(ticket) ?? addressesLooked.get(String(name))?.get(ticket)) : undefined);
   return address === undefined ? false : shell.openExternal(address).then(

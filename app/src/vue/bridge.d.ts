@@ -7,7 +7,6 @@ import type { Reading } from "../box.ts";
 import type { PALETTE, Role } from "../colors.ts";
 import type { BANNER, Drawable } from "../facts.ts";
 import type { ACTIONS_OF_WAIT, Input as InputOfWait } from "../wait.ts";
-import type { Seen } from "../manager.ts";
 import type { Tab, Heading } from "../tabs.ts";
 import type { Block } from "../ordinary.ts";
 import type { RenderedOfOutage } from "../outages/actions.ts";
@@ -362,7 +361,7 @@ export type Bridge = {
   surActivites(receive: (published: import("./activity-of-cook.js").Published) => void): void;
   // Ce que la commande de l'onglet affiché a rendu, mot pour mot. `manager` : dans l'onglet
   // Manager, ce qui se pose au-dessus — l'état du manager, lu dans cette sortie (manager.ts).
-  surContenu(receive: (reading: Reading, manager: Seen | undefined) => void): void;
+  surContenu(receive: (reading: Reading, manager: undefined) => void): void;
   // Ce que `faits` a rendu pour un projet : de quoi dessiner, ou ce qui a été obtenu à la place.
   // Un essai du projet nommé a changé : la vue relit `essais`.
   surEssais(receive: (project: string) => void): void;

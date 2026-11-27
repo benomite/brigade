@@ -23,7 +23,7 @@ name: tests
 # garé sous `refs/brigade/parked/<branche>` : ni une branche, ni la tête d'une PR, il ne déclenche rien.
 on:
   pull_request:
-    branches: [main]
+    branches: [main, "epic/**"]
   push:
     branches: [main]
   workflow_dispatch:
