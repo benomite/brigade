@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- The gates of the station: the relay each project's cooks go out through, one allowlist per project.
+     Delivered by the brigade-station archive and replaced by install.sh at each update: do not edit. -->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.brigade.station.gate</string>
+  <key>UserName</key>
+  <string>brigade</string>
+  <key>GroupName</key>
+  <string>brigade</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/opt/brigade-station/current/node/bin/node</string>
+    <string>src/station/tenir-portes.ts</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>/opt/brigade-station/current/runtime</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>HOME</key>
+    <string>/Library/Application Support/brigade/home</string>
+    <key>BRIGADE_STATION_DIR</key>
+    <string>/Library/Application Support/brigade</string>
+    <key>BRIGADE_STATION_PORTES</key>
+    <string>/Library/Application Support/brigade/portes.json</string>
+  </dict>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <dict>
+    <key>SuccessfulExit</key>
+    <false/>
+  </dict>
+  <key>ThrottleInterval</key>
+  <integer>5</integer>
+  <key>StandardOutPath</key>
+  <string>/Library/Application Support/brigade/log/gate.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Library/Application Support/brigade/log/gate.log</string>
+</dict>
+</plist>
