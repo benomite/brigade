@@ -8,7 +8,10 @@ import { after, describe, test } from "node:test";
 import { auMoins, VERSION_MINIMALE } from "../../runtime/src/bac-a-sable/detection.ts";
 import { readProjects } from "../../runtime/src/kitchen/projects.ts";
 import type { LocalCopy } from "../src/first-launch.ts";
-import { serveHere, type Options, type Probes } from "../src/serve-here.ts";
+import { serveHere } from "../src/serve-here.ts";
+
+type Options = Parameters<typeof serveHere>[0];
+type Probes = ReturnType<Options["probes"]>;
 
 const MAC: Probes = { platform: "darwin", seatbelt: true, claude: `${VERSION_MINIMALE} (Claude Code)`, minimum: VERSION_MINIMALE, atLeast: auMoins };
 const made: string[] = [];

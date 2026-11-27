@@ -10,7 +10,7 @@ import type { LocalCopy } from "./first-launch.ts";
 export type ProjectToServe = { nom: string; dossier: string; base?: string };
 export type ReadOfServed = { depots: string[] } | { refus: string; detail?: string };
 // What the new kitchen's sandbox detection says of this machine (runtime/src/bac-a-sable/detection.ts), without its words.
-export type Probes = { platform: string; seatbelt: boolean; claude: string | null; minimum: string; atLeast(version: string, minimum: string): boolean };
+type Probes = { platform: string; seatbelt: boolean; claude: string | null; minimum: string; atLeast(version: string, minimum: string): boolean };
 // The runtime's own detection, loaded from the runtime folder the app runs with (the kitchen's launch uses the same module).
 export async function probesOfTheRuntime(runtimeDir: string, claude: string): Promise<() => Probes> {
   const detection = (await import(pathToFileURL(join(runtimeDir, "src", "bac-a-sable", "detection.ts")).href)) as typeof import("../../runtime/src/bac-a-sable/detection.ts");
@@ -19,7 +19,7 @@ export async function probesOfTheRuntime(runtimeDir: string, claude: string): Pr
     return { platform: probes.plateforme, seatbelt: probes.existe(detection.SEATBELT), claude: probes.versionDeClaude(), minimum: detection.VERSION_MINIMALE, atLeast: detection.auMoins };
   };
 }
-export type Options = {
+type Options = {
   stationDir: string;
   repository: string;
   project: ProjectToServe | undefined;
