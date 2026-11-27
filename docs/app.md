@@ -1362,9 +1362,7 @@ earlier "ready"** until it has answered.
 
 The `Remove this project from the app's sidebar` line of Settings has its one control `Remove from the
 app…`, which asks for a `yes, remove "<name>" from the app` before anything happens: a project is not removed by a
-stray click. It takes the project off the bar and out of the projects file, and uninstalls the app's plugin from
-its folder's local Claude Code settings (see "`/brigade:dev` and `/brigade:ask` in every project the app opens"),
-and nothing else: its open terminals are stopped, nothing else in its folder is touched — a `brigade` plugin you
+stray click. It takes the project off the bar and out of the projects file, and nothing else: its open terminals are stopped, nothing else in its folder is touched — a `brigade` plugin you
 installed yourself stays —, nothing is sent to its station — the project stays installed there, its log
 intact — and a notice says so over the screen: `"calculus" is removed from the app.` Uninstalling a project from a
 station is not done from the app: it is done on the station itself (`docs/installer.md`, "Uninstall"). To bring the
@@ -2550,26 +2548,11 @@ The command plays the same two functions as the app's buttons (`parquer`, `depar
 computer's `gh` token: no box, on any project. It says in one line what was written, or why nothing was, and exits 0
 (done), 1 (refused by the form or by GitHub) or 2 (a malformed command). The hook always exits 0.
 
-**The role is given again once the setup's pull request is merged (#2689).** A second opened on a project not set up yet has no
-bindings in its context: it starts the setup, which ends with a PR to merge (#3167, below). So the launch settings also carry
-`app/src/second/role-after-init.ts` twice. At each start (`SessionStart`), it notes whether the folder's `CLAUDE.md` has the
-`## Équipe multi-agents` section — what `claude` just loaded — in a file of the computer's temporary folder, per session.
-At each of your messages (`UserPromptSubmit`), for a session born without the section only, it reads `CLAUDE.md` on the
-project's integration branch (`base`, or the repository's default branch) with `gh api`. As soon as the section is there
-— the init's PR merged — that message carries, as additional context, the role's text, the section as read on GitHub, and
-the queue read fresh: the same session answers as the second, with nothing to type or invoke. Once only; a session born
-with the section costs its messages nothing — no `gh`, no output. The hook always exits 0. Neither the role nor the end
-of the repository setup points to `/brigade:po` or any V1 role, and model and effort are left to the manager.
-
-**The second's hard limits are held by a hook, not only by its role.** The launch settings carry a
-`PreToolUse` hook on `Bash`, `Read` and `Grep` that runs `app/src/second/refusal.ts`. It denies any
-`gh pr merge` (with flags, after `&&` or `;`, in a subshell or a `bash -c`) and any read of the chef's
-secrets: `.env.local` files, the Max token (the file named by `BRIGADE_CLAUDE_TOKEN_FILE`, the variable
-`CLAUDE_CODE_OAUTH_TOKEN`). The denial names the gesture the chef types instead, with `!` in front
-(`!gh pr merge <N> --squash`). The protected names live in one list, `SECRETS`, in that module. The hook
-is only in the Second tab's `--settings`: no project file carries it, so another Claude session in the
-same folder is not restricted. It is a guard against a slip, not a sandbox: a command that hides the
-name it reads (built string, indirection) is not caught.
+**A question about a blockage gets the project's view (#4121).** The launch settings carry a `UserPromptSubmit`
+hook (`app/src/second/hook-of-blockage.ts`) that runs `app/src/second/blockage-of-second.ts <name>`. When your
+message asks why things are blocked or what is happening, it adds, as context, the project's view as the app last
+wrote it in the computer's temporary folder (banners first, then the cards); any other message, or no view written,
+gets nothing. The hook always exits 0.
 
 **Each project has its second, and a project's product questions go to *its* second.**
 Triaging `calculus`'s issues is asked in `calculus`'s space, not in `brigade`'s:
@@ -2671,42 +2654,6 @@ the runtime's `pr-de-setup.ts` and the setup script copied there, executable (`a
 
 *Code: `app/src/setup/`; tests: `app/test/setup/setup.test.ts`, a fresh repository set up against a bare `origin`
 and a stand-in `gh` by the script the rendered instructions name.*
-
-### `/brigade:dev` and `/brigade:ask` in every project the app opens (#2160)
-
-Every project of the projects file gets the app's plugin: in any Claude Code session of its folder — the
-second, a shell of the app, or a terminal of your own — `/brigade:dev <number>` and `/brigade:ask <number>`
-answer, with nothing to install by hand. These two commands, and only these: no V1 role
-(`/brigade:po`, `/brigade:manager`, `/brigade:designer`, `/brigade:sync`), no setup command and no agent — the app
-and the stations replace them.
-
-- **It is a Claude Code plugin in local scope**, `brigade-app`: Claude Code enables it in
-  `.claude/settings.local.json` of the project's folder. If git does not already ignore that file, the app adds
-  `/.claude/settings.local.json` to the clone's `.git/info/exclude` — never to a `.gitignore`: `git status`
-  shows nothing new, and nothing gets committed.
-- **Its marketplace is the app's own**, `brigade-app`, written next to the projects file
-  (`~/.config/brigade/plugin-app/`) from the commands the app ships — `commands/dev.md` and `commands/ask.md`,
-  copied into the installed app under `plugin/commands/`. It is declared once in your Claude Code user settings.
-  The `brigade` marketplace and its plugin (`brigade@brigade`, [plugin.md](plugin.md)) are not touched.
-- **Beside the published plugin, nothing collides** (#4525). A project can also have `brigade@brigade`, the plugin
-  published from `main` (`/brigade:start`, `/brigade:ask`, `/brigade:ticket`, `/brigade:todo`). Both type their commands as `/brigade:…`: the only
-  command both carry, `/brigade:ask`, is the same `commands/ask.md`, so either copy says the same thing;
-  `/brigade:dev` comes only from the app's, `/brigade:start`, `/brigade:ticket` and `/brigade:todo` only from the published one.
-- **The version is the app's.** The installed app installs its own version; launched from the repository
-  (where it says `0.0.0`), the version is `0.0.0-` and a fingerprint of the two commands. At launch, each
-  project at another version is updated: after an app update, the installed version is the new app's. A
-  project added while the app runs gets it at once.
-- **Removing a project from the app uninstalls `brigade-app`** from its folder's local scope, and nothing
-  else: a `brigade` V1 plugin you installed yourself stays, and the app's marketplace stays declared for the
-  other projects (removing it would uninstall the plugin from all of them).
-- A failure (`claude` missing, not logged in) installs nothing and is said in the terminal that launched the
-  app (`brigade: the app's plugin was not installed in “calculus” — …`); the next launch tries again.
-- A session already open keeps the commands it started with: Claude Code loads plugins at startup.
-- **A trial launched with `BRIGADE_CLAUDE_BIN` installs the plugin nowhere**, and removes it from nowhere: the
-  stand-in `claude` is a session, not Claude Code's plugin manager. The app says so once in its terminal.
-
-*Code: `app/src/plugin-app.ts`; tests: `app/test/plugin-app.test.ts`, against the real `git`
-and a stand-in `claude` that keeps its registry like the real one (claude 2.1.300).*
 
 ### A project's colors
 
@@ -4136,9 +4083,6 @@ instructions (`rôle : …`).
 - **No test launches Electron.** What can be proven lives in twenty modules run by
   `node --test`: `config.ts` (the projects file: reading it, creating it, adding a project to it,
   moving one to another place in it — a legacy key naming a host, boxes or played stations is read and ignored),
-  `plugin-app.ts` (the app's plugin: `/brigade:dev` and `/brigade:ask` installed in local scope in each project,
-  at the app's version, `git status` left clean, and uninstalled from a removed project only — against the real
-  `git` and a stand-in `claude`),
   `nom.ts` (the shape of the name, held against the rule of the installation action: the test calls
   `lireDemande` of `runtime/src/installateur.ts`), `ajout.ts` (adding a project: the fields
   with no default, the repository and the branch read from the chosen clone, and the project written to the real projects file),

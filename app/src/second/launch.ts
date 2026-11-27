@@ -1,6 +1,6 @@
 // Ce que `claude` reçoit quand l'onglet Second le lance (terminals.ts) : le rôle du second, ajouté à son
 // prompt système, et les réglages de ce lancement. Le rôle n'est donc pas un message de la conversation,
-// comme l'était `/brigade:po` invoqué au démarrage : une compaction ne le résume pas, et `claude --continue`
+// comme l'était la commande du rôle de la V1 invoquée au démarrage : une compaction ne le résume pas, et `claude --continue`
 // le reçoit comme une session neuve.
 //
 // Le rôle est un fichier livré avec l'app (`role.md`, à côté de ce module : le paquet porte `src/` entier,

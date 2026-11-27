@@ -1,6 +1,6 @@
 // @ts-check
 // The project know-how, a section of Settings (ticket 4239, epic 4135): the entries of `.brigade/know-how.md` of the project's
-// repository — the lessons its cooks keep for the next ones (agents/cook.md) —, grouped by section, `Conventions`,
+// repository — the lessons its cooks keep for the next ones (agents/kitchen/cook.md) —, grouped by section, `Conventions`,
 // `Pitfalls`, `Tools` first, each with its source ticket. The chef edits the text of an entry or removes it: the change
 // is proposed by a pull request on the integration branch (know-how-github.ts), which the pass reviews, and the list
 // keeps what is in force until it is merged. A missing file, or one without an entry, says so in one line.

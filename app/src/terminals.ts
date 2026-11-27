@@ -14,9 +14,8 @@ import { HERE, WITHOUT_SESSION } from "./platform.ts";
 import { destroy as destroySession, scroll as scrollSession, nameOfSession, attachment, type Target, type Session } from "./persistence.ts";
 import { hooksOfTurns, SAYS, PROOF, settingsFile, followInput, type Input, type Turns } from "./input.ts";
 import { hooksOfTheFile } from "./second/hook-of-the-file.ts";
-import { hooksOfRole } from "./second/hook-of-role.ts";
+import { hooksOfBlockage } from "./second/hook-of-blockage.ts";
 import { hooksOfParking } from "./second/hook-of-parking.ts";
-import { hooksOfRefusal } from "./second/refusal.ts";
 import { argumentsOfSecond, settingsOfSecond, type Hooks } from "./second/launch.ts";
 import { argumentsOfSetup, setupInWords, setTheSetupInTemporary } from "./setup/setup.ts";
 import type { Reminder, Memory, Memories } from "./memories.ts";
@@ -308,22 +307,19 @@ export function openTerminals(options: {
   // second/hook-of-the-file.ts).
   const theFile = (held: Held): Hooks => (options.node === undefined ? {} : hooksOfTheFile({ node: options.node, gh: options.gh ?? "gh", cible: held.cible }));
 
-  // Le rôle redit au prompt qui suit le merge de l'init, quand la session est née sans les bindings
-  // (second/role-after-init.ts, déclaré par second/hook-of-role.ts).
-  const theRole = (held: Held): Hooks => (options.node === undefined ? {} : hooksOfRole({ node: options.node, gh: options.gh ?? "gh", cible: held.cible }));
+  // La vue du projet, rendue à une question de blocage du chef (second/blockage-of-second.ts, déclaré par
+  // second/hook-of-blockage.ts).
+  const theBlockage = (held: Held): Hooks => (options.node === undefined ? {} : hooksOfBlockage({ node: options.node, cible: held.cible }));
 
   // La commande qui parque et déparque un ticket comme les boutons de l'app, donnée à chaque début de session
   // (second/parking.ts, déclarée par second/hook-of-parking.ts, #4262).
   const theParking = (held: Held): Hooks => (options.node === undefined ? {} : hooksOfParking({ node: options.node, cible: held.cible }));
 
-  // Ce que le second ne fait jamais — merger, lire les secrets du chef — refusé avant l'appel (second/refusal.ts).
-  const theRefusal = (): Hooks => (options.node === undefined ? {} : hooksOfRefusal({ node: options.node }));
-
   function launchSecond(held: Held, resumption: boolean): void {
     held.titre = TITLE_SECOND;
     if (resumption) held.note = `thread resumed: \`claude --continue\`, the latest conversation in this folder — whichever it is, not necessarily a second's; it runs ${ROLE}`;
     else held.note = `new session: \`claude\`, ${ROLE}`;
-    launch(held, options.claude, (hooks) => argumentsOfSecond({ reprise: resumption, reglages: settingsOfSecond(hooks, theFile(held), theRefusal(), theRole(held), theParking(held)) }), (code) => {
+    launch(held, options.claude, (hooks) => argumentsOfSecond({ reprise: resumption, reglages: settingsOfSecond(hooks, theFile(held), theBlockage(held), theParking(held)) }), (code) => {
       if (resumption && code !== 0) {
         launchSecond(held, false);
         if (held.empeche === undefined) held.note = `new session: \`claude --continue\` exited with code ${code}, the thread was not resumed — \`claude\`, ${ROLE}`;

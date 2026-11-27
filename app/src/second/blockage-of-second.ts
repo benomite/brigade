@@ -1,5 +1,5 @@
 // Le crochet du second pour une question de blocage (#4121) : la vue du projet que l'app a déposée, mise en texte par
-// contexte-du-blocage.ts. Appelé par role-after-init.ts (moment `vue`).
+// contexte-du-blocage.ts. Déclaré par hook-of-blockage.ts.
 import { readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -32,4 +32,14 @@ export function blockage(entry: { prompt?: string }, target: Target, views: stri
   if (!entry.prompt || !QUESTION_OF_BLOCKAGE.test(entry.prompt) || EVENT_OF_BACKGROUND.test(entry.prompt)) return "";
   const vue = readTheVue(views, target.nom);
   return vue === undefined ? "" : JSON.stringify({ hookSpecificOutput: { hookEventName: "UserPromptSubmit", additionalContext: contextOfBlockage(entry.prompt, vue) } });
+}
+
+// Joué par `claude` : `node blockage-of-second.ts <nom>`, le message du chef sur l'entrée standard. Le crochet sort
+// toujours en 0 et ne bloque jamais la session ; ce qui échoue ne rend rien.
+if (import.meta.main) {
+  try {
+    const output = blockage(JSON.parse(readFileSync(0, "utf8")) as { prompt?: string }, { nom: process.argv[2] ?? "" });
+    if (output !== "") process.stdout.write(`${output}\n`);
+  } catch {}
+  process.exit(0);
 }

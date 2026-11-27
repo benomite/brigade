@@ -109,7 +109,6 @@ import { holdAnswered } from "./answered.ts";
 import { APP, holdDelays } from "./delay.ts";
 import { openTurns } from "./input.ts";
 import { holdRemovals } from "./removal.ts";
-import { FOLDER as FOLDER_OF_PLUGIN, launchReally, withoutPluginApp, holdThePluginApp } from "./plugin-app.ts";
 import { FOLDER as FOLDER_OF_SETUP, setTheSetup } from "./setup/setup.ts";
 import { holdServices } from "./service.ts";
 import { installerTheStation } from "./workstation/installer.ts";
@@ -526,26 +525,10 @@ const checkAll = () => {
   for (const project of projects()) if (kitchens.cuisineDe(project) !== undefined) void services.controler(project);
 };
 
-// Le plugin de l'app (plugin-app.ts, #2160) : `/brigade:dev` et `/brigade:ask` dans chaque projet qu'elle ouvre, en
-// scope local de son dossier, à la version qu'elle porte — posé dès le lancement, et pour chaque projet qui entre dans
-// le fichier ; retiré du dossier d'un projet retiré de l'app. Un essai lancé avec un `claude` de remplacement
-// (`BRIGADE_CLAUDE_BIN`) ne le pose nulle part : ce remplaçant est une session, pas le gestionnaire de plugins.
-const pluginApp = process.env.BRIGADE_CLAUDE_BIN
-  ? withoutPluginApp((line) => console.error(line))
-  : holdThePluginApp({
-      lancer: launchReally(process.env),
-      claude: "claude",
-      marketplace: join(dirname(pathConfiguration()), FOLDER_OF_PLUGIN),
-      commandes: locations.commandes,
-      versionDeLApp: app.getVersion(),
-      dire: (line) => console.error(line),
-    });
-// Retirer un projet de l'app (removal.ts) : n'écrit que le fichier des projets — rien ne part vers sa station —, et
-// désinstalle le plugin de l'app de son dossier.
+// Retirer un projet de l'app (removal.ts) : n'écrit que le fichier des projets — rien ne part vers sa station.
 const removals = holdRemovals({
   chemin: pathConfiguration(),
   retirer: (name) => tracking.retirer(name),
-  desinstaller: (project) => void pluginApp.retirer(project),
 });
 // Ce que la veille de `status` lit en ce moment, tel que la vue l'a demandé en dernier :
 // rejoué, il se relit avec les projets tels que l'app les montre maintenant.
@@ -577,8 +560,6 @@ const tracking = followConfiguration({
     tellTheHome(home.relire());
     // La barre des menus aussi — et le chef l'a peut-être allumée ou éteinte.
     setTheMenuBar();
-    // Un projet qui vient d'y entrer reçoit le plugin de l'app.
-    void pluginApp.suivre(projects());
     // Un projet qui vient d'y entrer — ajouté depuis l'app, ou écrit à la main — reçoit ses
     // couleurs : écrites, elles reviennent ici par une relecture, qui n'a plus rien à tirer. Un
     // fichier qui n'a pas pu être relu attend de l'être : l'app n'y écrit rien.
@@ -602,8 +583,6 @@ const shownEntry = () => forTheBar(tracking.configuration(), readable, kitchens.
 const knownOne = (name: unknown) => projects().find((candidate) => candidate.nom === name);
 // Le même, tel que le fichier le déclare.
 const declare = (name: unknown) => tracking.configuration().projets.find((candidate) => candidate.nom === name);
-// Les projets du fichier reçoivent le plugin de l'app, à la version qu'elle porte : une app mise à jour le met à jour.
-void pluginApp.suivre(projects());
 
 // Le code de l'app vient d'un clone, et rien d'autre ne le surveille : son retard sur son
 // origine est lu au démarrage, puis à chaque retour à la fenêtre — et celui du clone d'un

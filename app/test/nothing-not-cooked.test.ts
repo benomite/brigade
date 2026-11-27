@@ -1,7 +1,7 @@
 // Une base rouge que son ticket de réparation travaille : `status` l'écrit en tête, d'une seule
 // ligne, hors du bloc `attend` — rien n'y attend le chef —, et la carte du projet la pose
 // telle quelle. Verte, ou réparation échouée, elle n'est plus lue nulle part : c'est la ligne
-// `base` du bloc `attend` qui prend le relais (base-red.test.ts). Ce que la box rend est la sortie
+// `base` du bloc `attend` qui prend le relais. Ce que la box rend est la sortie
 // de `status` de l'ancien runtime, recopiée telle qu'il l'écrivait (runtime/src/status.ts, supprimé
 // avec lui, #4499).
 import assert from "node:assert/strict";

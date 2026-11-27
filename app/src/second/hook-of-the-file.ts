@@ -12,7 +12,7 @@ export const MATCHER = "startup|resume|compact";
 const DELAY_OF_HOOK_S = 45;
 
 // Le projet tel que la file se lit : son nom, et son dépôt GitHub quand le fichier des projets le donne — sinon
-// celui de l'`origin` du dossier de la session ; `base`, sa branche d'intégration, quand il la donne (hook-of-role.ts).
+// celui de l'`origin` du dossier de la session ; `base`, sa branche d'intégration, quand il la donne.
 export type Target = { nom: string; depot?: string; base?: string };
 
 // Citée pour le shell qui joue le crochet. Sous Windows, `claude` le joue par le `bash` de Git, qui lit `C:/…`.

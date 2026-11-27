@@ -138,7 +138,8 @@ test("assembler : l'AppDir porte AppRun, Electron renommé, l'app, le runtime, l
 
   assert.equal(readFileSync(join(resources, "runtime", "src", "kitchen", "main.ts"), "utf8"), "// la station");
   assert.equal(JSON.parse(readFileSync(join(resources, "runtime", "package.json"), "utf8")).version, "1.2.3+gabc");
-  assert.deepEqual(readdirSync(join(resources, "plugin", "commands")).sort(), ["ask.md", "dev.md"]);
+  // Le paquet ne porte plus de plugin à installer dans les projets.
+  assert.equal(existsSync(join(resources, "plugin")), false);
   assert.deepEqual(readFileSync(join(resources, NODE_OF_PACKAGE)), readFileSync(node));
   assert.equal(statSync(join(resources, NODE_OF_PACKAGE)).mode & 0o777, MODE_EXECUTABLE);
 });

@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { test } from "node:test";
-import { hooksOfRole } from "../../src/second/hook-of-role.ts";
+import { hooksOfBlockage } from "../../src/second/hook-of-blockage.ts";
 import { blockage } from "../../src/second/blockage-of-second.ts";
 
 const VUE = {
@@ -45,19 +45,22 @@ test("rien pour un autre message, sans vue déposée, ou avec une vue illisible"
 });
 
 test("le crochet de la vue est déclaré à UserPromptSubmit", () => {
-  const commands = (hooksOfRole({ node: "node", gh: "gh", cible: { nom: "espace" } }).UserPromptSubmit ?? []).flatMap((c) => c.hooks.map((h) => h.command));
-  assert.ok(commands.some((c) => /role-after-init\.ts' 'vue' 'espace'/.test(c)));
+  const hooks = hooksOfBlockage({ node: "node", cible: { nom: "espace" }, separateur: "/" });
+  assert.deepEqual(Object.keys(hooks), ["UserPromptSubmit"]);
+  const commands = (hooks.UserPromptSubmit ?? []).flatMap((c) => c.hooks.map((h) => h.command));
+  assert.equal(commands.length, 1);
+  assert.match(commands[0] ?? "", /blockage-of-second\.ts' 'espace'$/);
 });
 
-test("le crochet lancé au moment `vue` écrit la vue du projet, et rien au moment `debut`", () => {
+test("le crochet lancé écrit la vue du projet à une question de blocage, et rien à un autre message", () => {
   const tmp = mkdtempSync(join(tmpdir(), "vue-4121-main-"));
   try {
     mkdirSync(join(tmp, "brigade-second-vue"));
     writeFileSync(join(tmp, "brigade-second-vue", "espace.json"), JSON.stringify(VUE));
-    const launches = (moment: string) =>
-      spawnSync(process.execPath, ["src/second/role-after-init.ts", moment, "espace"], { input: JSON.stringify({ prompt: "pourquoi on est bloqués ?" }), env: { ...process.env, TMPDIR: tmp, TEMP: tmp, TMP: tmp }, encoding: "utf8" }).stdout;
-    assert.match(launches("vue"), /FAULT #221/);
-    assert.equal(launches("debut"), "");
+    const launches = (prompt: string) =>
+      spawnSync(process.execPath, ["src/second/blockage-of-second.ts", "espace"], { input: JSON.stringify({ prompt }), env: { ...process.env, TMPDIR: tmp, TEMP: tmp, TMP: tmp }, encoding: "utf8" }).stdout;
+    assert.match(launches("pourquoi on est bloqués ?"), /FAULT #221/);
+    assert.equal(launches("bonjour"), "");
   } finally {
     rmSync(tmp, { recursive: true, force: true });
   }
