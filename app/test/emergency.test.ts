@@ -15,15 +15,12 @@ import type { Fait } from "../../runtime/src/evenements.ts";
 import { ouvrirJournal } from "../../runtime/src/journal.ts";
 import { principal as manager } from "../../runtime/src/manager-cli.ts";
 import { alerts, MANAGER_NOT_SAYS, signalOf, holdBands, type Alert, type Band } from "../src/alerts.ts";
-import { POWER_UP } from "../src/power-up.ts";
 import { putAside } from "../src/awaiting.ts";
 import { forTheBar } from "../src/bar.ts";
 import type { Reading } from "../src/box.ts";
 import { EXAMPLE, type Project } from "../src/config.ts";
 import { PALETTE } from "../src/colors.ts";
-import { KITCHEN_ACTIONS } from "../src/kitchen.ts";
 import { BANNER, understand } from "../src/facts.ts";
-import { CONFIRMED, DIRECT } from "../src/actions.ts";
 import { EFFORTS, MODELS } from "../src/projects/projects.ts";
 import { TABS, HEADINGS } from "../src/tabs.ts";
 import { playTheVue, repos } from "./helpers/false-vue.ts";
@@ -160,7 +157,7 @@ describe("l'urgence à l'écran", () => {
         exemple: EXAMPLE,
         onglets: TABS,
         rubriques: HEADINGS,
-        gestes: { allumage: POWER_UP, cuisine: KITCHEN_ACTIONS, directs: DIRECT, confirmes: CONFIRMED },
+        gestes: {},
         banniere: BANNER,
         calibrage: { modeles: MODELS, efforts: EFFORTS },
         code: undefined,
@@ -168,7 +165,7 @@ describe("l'urgence à l'écran", () => {
       espace: () => [],
     });
   const URGENT: Alert = { sujet: "urgence", verifie: true, ton: "rouge", dit: "the whole kitchen is waiting for your merge of #535 — at a standstill for 5 h 28", releve: "#535  livraison verte — à merger à la main", geste: "do what #535 waits for, as the station writes it", appel: { demande: true }, prix: "none" };
-  const ORDINARY: Alert = { sujet: "cuisine", verifie: true, ton: "rouge", dit: "kitchen stopped by your “stop”: no cook goes, until “resume”", geste: "resume the kitchen", appel: { geste: "reprendre" }, prix: "—" };
+  const ORDINARY: Alert = { sujet: "cuisine", verifie: true, ton: "rouge", dit: "kitchen stopped by your “stop”: no cook goes, until “resume”", geste: "resume the kitchen", appel: { demande: true }, prix: "—" };
 
   test("la ligne d'urgence est posée la première, marquée « URGENT », et dit ce que la box écrit", async () => {
     const vue = await open();

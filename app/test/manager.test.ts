@@ -12,7 +12,6 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test } from "node:test";
 import { ACTION, type Reading } from "../src/box.ts";
-import { CONFIRMED, DIRECT, writeAction, ACTIONS, WITHOUT_YES } from "../src/actions.ts";
 import { COMMAND, managerOf, see, type Manager } from "../src/manager.ts";
 import { commandOf, TABS } from "../src/tabs.ts";
 import { SAYS } from "../src/input.ts";
@@ -312,43 +311,6 @@ describe("la lecture du manager et ses deux gestes", () => {
     assert.equal(COMMAND, "manager");
     assert.equal(commandOf("manager"), undefined);
     assert.equal(TABS.some(({ id, titre: title }) => id === "manager" || title === "Manager"), false);
-  });
-
-  test("le manager n'a plus de geste à lui : l'interrupteur du projet l'allume et l'éteint avec le reste (#1406)", () => {
-    assert.equal(ACTIONS.some(({ id, commande: command }) => id.startsWith("manager-") || /^manager (?:on|off)$/.test(command)), false);
-    assert.deepEqual(
-      ACTIONS.filter(({ id }) => id.startsWith("projet-")).map(({ id, commande: command }) => [id, command]),
-      [
-        ["projet-allumer", "switch on"],
-        ["projet-eteindre", "switch off"],
-      ],
-    );
-  });
-
-  test("« éteindre » le projet, direct, et « allumer », confirmé, envoient leur commande dans le second — sans « oui », allumer ne part pas ; d'un second qui démarre, rien ne part, et aucun shell ne s'ouvre", async () => {
-    const writtenOnes: string[][] = [];
-    const terminals = openTerminals({
-      claude: "claude",
-      shell: "/bin/zsh",
-      ouvrirPty() {
-        const receivedOnes: string[] = [];
-        writtenOnes.push(receivedOnes);
-        return { ecrire: (data) => void receivedOnes.push(data), redimensionner: () => {}, tuer: () => {} };
-      },
-      surSortie: () => {},
-      surEtat: () => {},
-    });
-    terminals.espace(PARADE);
-
-    assert.deepEqual(["projet-allumer", "projet-eteindre"].map((id) => (CONFIRMED.includes(id) ? "confirmé" : DIRECT.includes(id) ? "direct" : "?")), ["confirmé", "direct"]);
-    assert.deepEqual(writeAction(terminals, "projet-allumer", PARADE, false, KITCHEN), { refus: WITHOUT_YES });
-
-    const [turnOn, turnOff] = await Promise.all([writeAction(terminals, "projet-allumer", PARADE, true, KITCHEN), writeAction(terminals, "projet-eteindre", PARADE, false, KITCHEN)]);
-
-    // Le second vient d'être lancé, il n'est pas dit libre : rien n'est écrit, et le refus le dit — avec la commande.
-    assert.deepEqual(turnOn, { refus: `${SAYS.demarre} — the command did not go, and nothing is written: \`!(cd '/tmp/runtime' && BRIGADE_STATION_DIR='/tmp/station' node ${ACTION} parade switch on)\`` });
-    assert.deepEqual(turnOff, { refus: `${SAYS.demarre} — the command did not go, and nothing is written: \`!(cd '/tmp/runtime' && BRIGADE_STATION_DIR='/tmp/station' node ${ACTION} parade switch off)\`` });
-    assert.deepEqual(writtenOnes, [[]]);
   });
 
   test("le module ne lance rien : il lit une sortie que la veille a déjà rendue", () => {

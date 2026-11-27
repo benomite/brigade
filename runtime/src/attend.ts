@@ -258,7 +258,7 @@ export const QUI_ATTEND: Record<Attente["quoi"], { sorte: SorteDAttente; pourquo
 // fichier restent ceux des messages écrits pour la box (journald, issues,
 // réponses de commandes).
 const BOUTON_LOG_IN = "the `log in` button on the station's page in the app, opened by a click on its line of the home screen";
-export const BOUTON_REPRENDRE_LA_CUISINE = "the `resume the kitchen` button on the `Kitchen` line of the project's Settings";
+export const BOUTON_REPRENDRE_LA_CUISINE = "resuming the kitchen (no app button for it yet)";
 // Un réglage du projet gardé dans son dépôt se change sur sa ligne de Settings : changée, elle ouvre sa PR (#2920).
 const SANS_BOUTON = "no app button for it yet";
 

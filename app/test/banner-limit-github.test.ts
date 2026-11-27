@@ -10,14 +10,11 @@ import { describe, test, type TestContext } from "node:test";
 import { faits as runtimeFacts, lireEtat } from "../../runtime/src/etat.ts";
 import { ouvrirJournal } from "../../runtime/src/journal.ts";
 import { holdBands, type Alert } from "../src/alerts.ts";
-import { POWER_UP } from "../src/power-up.ts";
 import { forTheBar } from "../src/bar.ts";
 import type { Reading } from "../src/box.ts";
 import { EXAMPLE, type Project } from "../src/config.ts";
 import { PALETTE } from "../src/colors.ts";
-import { KITCHEN_ACTIONS } from "../src/kitchen.ts";
 import { BANNER, understand } from "../src/facts.ts";
-import { CONFIRMED, DIRECT } from "../src/actions.ts";
 import { TABS, HEADINGS } from "../src/tabs.ts";
 import { EFFORTS, MODELS } from "../src/projects/projects.ts";
 import { limitRead, lineOfTheLimit } from "../src/vue/banner-limit-github.ts";
@@ -124,7 +121,7 @@ describe("à l'écran", () => {
         palette: PALETTE,
         exemple: EXAMPLE,
         onglets: TABS, rubriques: HEADINGS,
-        gestes: { allumage: POWER_UP, cuisine: KITCHEN_ACTIONS, directs: DIRECT, confirmes: CONFIRMED },
+        gestes: {},
         banniere: BANNER,
         calibrage: { modeles: MODELS, efforts: EFFORTS },
         code: undefined,

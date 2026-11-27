@@ -1,15 +1,11 @@
 // Ce que le process principal offre à la vue (preload.cjs).
 import type { Home } from "../home.ts";
 import type { Band } from "../alerts.ts";
-import type { POWER_UP, Account } from "../power-up.ts";
 import type { Seen as SeenUpstream } from "../upstream.ts";
 import type { Shown } from "../bar.ts";
 import type { Reading } from "../box.ts";
 import type { PALETTE, Role } from "../colors.ts";
-import type { KITCHEN_ACTIONS } from "../kitchen.ts";
 import type { BANNER, Drawable } from "../facts.ts";
-import type { Confirmation } from "../confirmation.ts";
-import type { CONFIRMED, DIRECT } from "../actions.ts";
 import type { ACTIONS_OF_WAIT, Input as InputOfWait } from "../wait.ts";
 import type { Seen } from "../manager.ts";
 import type { Tab, Heading } from "../tabs.ts";
@@ -31,7 +27,7 @@ import type { Choice, StationsOfAccount } from "../stations-of-account.ts";
 
 export type Bridge = {
   // `poste` : le nom que l'écran donne à cet ordinateur (« this Mac », « this PC »), et s'il est un Mac — les raccourcis du terminal en dépendent.
-  demarrage(): Promise<{ poste?: { nom: string; mac: boolean }; configuration: Shown; palette: typeof PALETTE; exemple: string; onglets: readonly Tab[]; rubriques: readonly Heading[]; gestes: { allumage: typeof POWER_UP; cuisine: typeof KITCHEN_ACTIONS; directs: typeof DIRECT; confirmes: typeof CONFIRMED; attente?: typeof ACTIONS_OF_WAIT }; banniere: typeof BANNER; calibrage: { modeles: typeof MODELS; efforts: typeof EFFORTS }; code: SeenOfCode | undefined; stations?: SeenOfStations; projetsDesStations?: SeenOfProjects; accueil?: Home; miseAJour?: StateOfUpdate; telephone?: Phone }>;
+  demarrage(): Promise<{ poste?: { nom: string; mac: boolean }; configuration: Shown; palette: typeof PALETTE; exemple: string; onglets: readonly Tab[]; rubriques: readonly Heading[]; gestes: { attente?: typeof ACTIONS_OF_WAIT }; banniere: typeof BANNER; calibrage: { modeles: typeof MODELS; efforts: typeof EFFORTS }; code: SeenOfCode | undefined; stations?: SeenOfStations; projetsDesStations?: SeenOfProjects; accueil?: Home; miseAJour?: StateOfUpdate; telephone?: Phone }>;
   // Change la couleur d'onglet ou d'accent d'un projet, par le nom d'une couleur de la palette ou
   // une couleur libre `#rrggbb` (colors.ts). Rend la raison, si elle ne l'a pas été. Écrite, elle
   // arrive par `surConfiguration`.
@@ -131,15 +127,6 @@ export type Bridge = {
   // de la ligne et ce qu'elle dit ; la phrase vient de ce que la bande en dit. Rien pour une ligne
   // qu'elle ne dit plus.
   demanderAlerte(project: string, subject: string, said: string): Promise<Terminal | { refus: string } | undefined>;
-  // Un geste du socle (actions.ts) : sa commande part dans le second du projet. Rend le second, dont
-  // la note dit ce qui est parti — ou pourquoi rien ne l'est, sans y toucher, quand il n'est pas dit
-  // libre (occupé, devant un dialogue, saisie entamée). Rien, pour un projet sans box. Un geste confirmé (`gestes.confirmes`, au
-  // démarrage) ne part qu'avec `oui` à `true` — la vue ne le passe qu'au « oui » du chef, devant sa
-  // confirmation : sans lui, rien n'est écrit, et le refus le dit.
-  geste(project: string, id: string, yes?: true): Promise<Terminal | { refus: string } | undefined>;
-  // Ce qu'un geste confirmé coûte, à dire avant son « oui » (confirmation.ts) : tiré des derniers
-  // faits lus du projet. Rien ne part. Rien, pour un geste qui ne se confirme pas.
-  confirmer(project: string, id: string): Promise<Confirmation | { refus: string } | undefined>;
   // Un geste de WAITING (wait.ts), sur la carte d'un ticket ou sa fiche : sa commande part dans le second du
   // projet, comme un geste du socle, quand sa cuisine tourne sur ce poste — sinon il s'écrit sur l'issue
   // (vue/wait/wait-github.ts, ticket 3075). `saisie` : ce que le chef a rempli pour « waiting for… » — ce
@@ -258,7 +245,6 @@ export type Bridge = {
   // ne les porte pas (le téléphone) ne montre pas la section.
   lireUnFichierDuProjet?(project: string, path: string): Promise<string | null>;
   ecrireUnFichierDuProjet?(project: string, path: string, text: string): Promise<void>;
-  envoyerUnMot?(project: string, entry: { ticket: number; text: string }): Promise<import("./word-at-cook/source.js").Answer>; // le mot au cook (ticket 4048)
   // Les plafonds de durée du projet, sur Kitchen > Health (ticket 2490) : les seuils `drift.*` que son dépôt déclare
   // (`.claude/brigade/projet.json`), lus sur sa branche d'intégration, sur GitHub, et changés par une pull request vers elle
   // (ticket 2920, caps-duration.ts) : la PR rendue s'ouvre par `ouvrirLaProposition`.
@@ -332,10 +318,6 @@ export type Bridge = {
   // Écrit, dans le gist d'une station du compte, les projets qu'elle sert : la sélection entière — ou pourquoi elle
   // n'est pas écrite, en une ligne, son détail à part.
   choisirLesProjets?(id: string, repositories: string[]): Promise<Choice>;
-  // Ce qu'engage l'allumage du manager, chiffré (power-up.ts) : les issues ouvertes du projet, et
-  // celles qui sont parquées (`parked`) — `manager backlog`, lancée une fois sur sa box. Demandé
-  // quand la confirmation d'« allumer » s'ouvre : son « oui » n'attend pas cette lecture. Rien, pour un projet sans box.
-  compter(project: string): Promise<Account | undefined>;
   // La réponse du chef à la carte de TODO d'un ticket (card-todo.ts) : un choix par son rang, ou son texte. Rien pour un projet sans box.
   repondreCarte(project: string, ticket: number, answer: import("../card-todo.ts").Answer): Promise<import("../card-todo.ts").Rendered | undefined>;
   // Un geste du chef sur la carte « Validate its screen » d'un ticket (validation-design/, ticket 3185) : valider, ou renvoyer

@@ -8,14 +8,11 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test } from "node:test";
-import { POWER_UP } from "../src/power-up.ts";
 import { putAside } from "../src/awaiting.ts";
 import { forTheBar } from "../src/bar.ts";
 import { EXAMPLE } from "../src/config.ts";
 import { PALETTE } from "../src/colors.ts";
-import { KITCHEN_ACTIONS } from "../src/kitchen.ts";
 import { BANNER, holdFacts, type Drawable, type Facts } from "../src/facts.ts";
-import { CONFIRMED, DIRECT } from "../src/actions.ts";
 import { actionsOfCard, PRICE } from "../src/card-actions.ts";
 import { hourHM } from "../src/format.ts";
 import { EFFORTS, MODELS } from "../src/projects/projects.ts";
@@ -36,7 +33,7 @@ const startup = (projects: Parameters<typeof forTheBar>[0]["projets"] = [{ nom: 
   palette: PALETTE,
   exemple: EXAMPLE,
   onglets: TABS, rubriques: HEADINGS,
-  gestes: { allumage: POWER_UP, cuisine: KITCHEN_ACTIONS, directs: DIRECT, confirmes: CONFIRMED },
+  gestes: {},
   banniere: BANNER,
   calibrage: { modeles: MODELS, efforts: EFFORTS },
   code: undefined,
@@ -431,13 +428,8 @@ describe("le haut du rail est allégé (#623)", () => {
     const rail = vue.element("rail");
     assert.equal(rail.dessous("h3").some((pose) => /read at|stop the kitchen/.test(pose.textContent)), false);
     assert.equal(rail.dessous("button").some((pose) => /stop the kitchen/.test(pose.textContent)), false);
-    // L'arrêt est une ligne de Settings, sous le projet (#1700) : la cuisine, en marche, et son geste.
-    const stop = vue.element("arreter-cuisine");
-    assert.equal(stop.hidden, false);
-    const button = stop.dessous("button").find((pose) => /stop the kitchen/.test(pose.textContent)) ?? assert.fail("pas de bouton d'arrêt");
-    assert.equal(button.dataset.arret, "");
-    assert.equal(stop.dessous("p").find(({ className }) => className === "valeur")?.textContent, "running");
-    assert.deepEqual(stop.dessous("span").filter(({ className }) => className === "nom").map(({ textContent }) => textContent), ["Kitchen"]);
+    // L'app n'arrête ni ne reprend la cuisine (#4681) : ni ligne « Kitchen » dans Settings, ni bouton d'arrêt.
+    assert.throws(() => vue.element("arreter-cuisine"), /aucun élément/);
   });
 
   test("une lecture vieille se dit en tête, avec son âge ; une lecture neuve ne dit rien", async () => {

@@ -6,7 +6,6 @@ import { describe, test, type TestContext } from "node:test";
 import { attentesDuChef } from "../src/attend.ts";
 import { decrireEtat, lireEtat } from "../src/etat.ts";
 import type { Fait } from "../src/evenements.ts";
-import { principal as gardeFous } from "../src/garde-fous-cli.ts";
 import { ouvrirJournal } from "../src/journal.ts";
 import { demanderPause, leverPause, pauseAccordee, pauseEnCours, repondre } from "../src/pause/pause.ts";
 import { lireRail } from "../src/projections/rail.ts";
@@ -137,32 +136,5 @@ describe("la carte de la pause", () => {
         ["pause.released", "chef"],
       ],
     );
-  });
-
-  test("le chef répond par `guardrails pause yes` ou `pause no`, en anglais ; sans pause demandée, rien n'est écrit", async (t) => {
-    const { repertoire, journal, demander } = journalEcrit(t);
-    const commande = async (...args: string[]) => {
-      const cli = appeler(gardeFous, args, { BRIGADE_STATE_DIR: repertoire });
-      return { code: await cli.fin, sortie: cli.sortie() };
-    };
-
-    const sansDemande = await commande("pause", "yes");
-    assert.equal(sansDemande.code, 1);
-    assert.match(sansDemande.sortie, /no code rename asks for a pause: nothing is written/);
-    assert.equal((await commande("pause")).code, 2);
-    assert.equal((await commande("pause", "maybe")).code, 2);
-
-    demander();
-    const vue = await commande();
-    assert.match(vue.sortie, /^code rename +asks to pause the kitchen for about 45 min since .* — `pause yes` to agree, `pause no` to decline$/m);
-    const oui = await commande("pause", "yes");
-    assert.equal(oui.code, 0);
-    assert.match(oui.sortie, /“yes”: paused for the code rename — no other merge, no new cook, for about 45 min; the cooks in flight finish their work, their deliveries wait/);
-    assert.match((await commande("pause", "yes")).sortie, /already paused for the code rename since .*: nothing is written/);
-    assert.match((await commande()).sortie, /^kitchen +PAUSED for the code rename since .* — no other merge, no new cook; `pause no` to end it now$/m);
-    const non = await commande("pause", "no");
-    assert.match(non.sortie, /“no”: the pause for the code rename is over — the kitchen goes on by itself/);
-    assert.equal(pauseEnCours(journal.base), null);
-    for (const sortie of [sansDemande.sortie, vue.sortie, oui.sortie, non.sortie]) sansMotFrancais(sortie.split("\n"));
   });
 });

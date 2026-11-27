@@ -50,8 +50,6 @@ const bridge = {
   lireFeu: (project) => ipcRenderer.invoke("lireFeu", project),
   relireBox: (request) => ipcRenderer.send("relireBox", request),
   repondreQuestion: (project, ticket, answer) => ipcRenderer.invoke("repondreQuestion", project, ticket, answer),
-  geste: (project, id, yes) => ipcRenderer.invoke("geste", project, id, yes),
-  confirmer: (project, id) => ipcRenderer.invoke("confirmer", project, id),
   // Essayer une livraison (trial.ts, #3215) : l'état des essais d'un projet, « try it », « stop » ; `surEssais` dit qu'il a changé.
   essais: (project) => ipcRenderer.invoke("essais", project),
   essayer: (project, ticket) => ipcRenderer.invoke("essayer", project, ticket),
@@ -100,7 +98,6 @@ const bridge = {
   // La fiche du projet, sous Settings (ticket 4240) : lue et écrite dans le dossier du projet (card-project/card-project-folder.ts).
   lireUnFichierDuProjet: (project, path) => ipcRenderer.invoke("lireUnFichierDuProjet", project, path),
   ecrireUnFichierDuProjet: (project, path, text) => ipcRenderer.invoke("ecrireUnFichierDuProjet", project, path, text),
-  envoyerUnMot: (project, entry) => ipcRenderer.invoke("envoyerUnMot", project, entry), // le mot au cook (ticket 4048, mot-au-cook/)
   // Les plafonds de durée du projet, sur Kitchen > Health (ticket 2490) : lus et écrits dans son dépôt, sur GitHub.
   plafondsDuree: (project) => ipcRenderer.invoke("plafondsDuree", project),
   changerPlafondDuree: (project, key, input) => ipcRenderer.invoke("changerPlafondDuree", project, key, input),
@@ -141,7 +138,6 @@ const bridge = {
   // son gist.
   stationsDuCompte: () => ipcRenderer.invoke("stationsDuCompte"),
   choisirLesProjets: (id, repositories) => ipcRenderer.invoke("choisirLesProjets", id, repositories),
-  compter: (project) => ipcRenderer.invoke("compter", project),
   repondreCarte: (project, ticket, answer) => ipcRenderer.invoke("repondreCarte", project, ticket, answer),
   gesteDeValidation: (project, ticket, action) => ipcRenderer.invoke("gesteDeValidation", project, ticket, action),
   ouvrirBilan: (project, url) => ipcRenderer.invoke("ouvrirBilan", project, url),

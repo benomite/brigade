@@ -8,13 +8,10 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test } from "node:test";
 import type { Faits as FactsOfRuntime } from "../../runtime/src/etat.ts";
-import { POWER_UP } from "../src/power-up.ts";
 import { forTheBar } from "../src/bar.ts";
 import { EXAMPLE } from "../src/config.ts";
 import { PALETTE } from "../src/colors.ts";
-import { KITCHEN_ACTIONS } from "../src/kitchen.ts";
 import { BANNER, holdFacts, type Facts } from "../src/facts.ts";
-import { CONFIRMED, DIRECT } from "../src/actions.ts";
 import { actionsOfCard } from "../src/card-actions.ts";
 import { ACCESS_IN_WRITING, pageOfTheReadOnly } from "../src/read-only.ts";
 import { TABS, HEADINGS } from "../src/tabs.ts";
@@ -37,7 +34,7 @@ const startup = () => ({
   exemple: EXAMPLE,
   onglets: TABS,
   rubriques: HEADINGS,
-  gestes: { allumage: POWER_UP, cuisine: KITCHEN_ACTIONS, directs: DIRECT, confirmes: CONFIRMED },
+  gestes: {},
   banniere: BANNER,
   calibrage: { modeles: MODELS, efforts: EFFORTS },
   code: undefined,
@@ -119,9 +116,6 @@ describe("un projet en lecture seule", () => {
     for (const absent of ["Relaunch", "Close as already done"]) assert.ok(!texts(refused).includes(absent), absent);
     assert.ok(cardOfTicket(vue, 23) !== undefined, "la carte prise se voit");
     assert.ok(!vue.element("rail").dessous("button").some(({ disabled, textContent }) => disabled === true && ["Relaunch", "send", ...PRODUCT.choix.map(({ texte: text }) => text)].includes(textContent)), "rien de grisé à la place");
-    // Ni l'interrupteur du projet, ni l'arrêt de la cuisine.
-    assert.equal(vue.element("interrupteur-projet").hidden, true);
-    assert.deepEqual(vue.element("arreter-cuisine").dessous("button"), []);
   });
 
   test("Stations : ses stations se voient, et pas « Choose who cooks it »", async () => {
@@ -150,8 +144,6 @@ describe("un projet en lecture seule", () => {
     assert.equal("lectureSeule" in vue.element("etat").dataset, false);
     assert.equal(slip(vue, 21).dessous("button").filter(({ className }) => className === "choix").length, PRODUCT.choix.length, "les choix reviennent");
     assert.ok(texts(slip(vue, 22)).includes("Relaunch"));
-    assert.equal(vue.element("interrupteur-projet").hidden, false, "l'interrupteur revient");
-    assert.equal(vue.element("arreter-cuisine").dessous("button").length, 1, "l'arrêt de la cuisine revient");
     // Sur Stations, la station qui le cuit garde ses gestes (#3195) : l'ajout d'une station ne s'offre que quand personne ne le cuit.
     await openTab(vue, "Stations");
     assert.ok(texts(vue.element("rail")).includes(DISPLACE));

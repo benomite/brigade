@@ -33,7 +33,6 @@
     <link rel="stylesheet" href="banner-outage/banner-outage.css" />
     <link rel="stylesheet" href="card-wait/card-wait.css" />
     <link rel="stylesheet" href="card-ticket/card-ticket.css" />
-    <link rel="stylesheet" href="word-at-cook/word-at-cook.css" />
     <link rel="stylesheet" href="card-tests/card-tests.css" />
     <link rel="stylesheet" href="card-diagram/card-diagram.css" />
     <link rel="stylesheet" href="vue.css" />
@@ -105,8 +104,6 @@
         <div id="onglets-du-projet" role="tablist" aria-label="Project menu" hidden></div>
         <!-- La station du projet et son état — cooking, stopped, paused —, à côté de l'onglet Stations (ticket 3523). -->
         <span id="etiquette-de-station" hidden></span>
-        <!-- L'interrupteur de l'espace, un seul pour tout le projet (ticket 1406) — allumé ou éteint, toujours en vue ; un clic le bascule. -->
-        <div id="interrupteur-projet" class="interrupteur-de-tete" hidden></div>
       </header>
       <!-- L'équipe du projet (ticket 4029, autonomy/team.js) : un badge par agent — supervisor et closer d'abord —, son état,
            son dernier geste et sa prochaine passe ; un clic ouvre son fil, son niveau d'autonomie et ce qui attend l'OK du chef.
@@ -160,11 +157,6 @@
             <div id="barre-de-menus" aria-label="The kitchen's state in the menu bar" hidden></div>
             <div id="fiche-du-projet" hidden></div>
             <div id="retrait" aria-label="Remove this project from the app's sidebar" hidden></div>
-          </section>
-          <!-- La cuisine, sa section à elle comme dans l'artboard `Settings.dc.html` : sa seule rangée n'est pas entre des réglages. -->
-          <section id="reglages-cuisine" class="groupe" aria-label="Kitchen" hidden>
-            <h2 id="titre-cuisine" class="niveau-du-groupe">Kitchen</h2>
-            <div id="arreter-cuisine" class="gestes" aria-label="The kitchen" hidden></div>
           </section>
           <!-- Les plafonds de durée, le closer et les lignes de tous les projets (tickets 2921, 3013, 3014) : leur section à eux
                de Settings, qui les a repris de la ligne repliée en tête de Stations. -->

@@ -9,10 +9,8 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, test } from "node:test";
-import { ACTIONS } from "../src/actions.ts";
-import { launchHere, words, type Locale, type Read, type Rendered } from "../src/box.ts";
-import { COMMAND as POWER_UP } from "../src/power-up.ts";
-import { plugTheWordAtCook } from "../src/vue/word-at-cook/word-at-cook-box.ts";
+import { launchHere, words, type Locale } from "../src/box.ts";
+import { COMMAND as MANAGER } from "../src/manager.ts";
 import { CACHE_OF_COMPILATION } from "./helpers/cache-of-compilation.ts";
 
 const SRC = join(import.meta.dirname, "..", "src");
@@ -21,21 +19,9 @@ const PROJECT = "calculus";
 // The gesture's own refusals (box.ts `CASE`, docs/runtime/exploitation.md): none of them is the command's answer.
 const OF_THE_GESTURE = [64, 65, 66, 67];
 
-// What the app launches, recorded: each launcher answers an empty success, and nothing leaves the test.
-async function commandsTheAppLaunches(): Promise<string[]> {
-  const launched: string[] = [];
-  const nothing: Rendered = { lance: "", erreur: null, sortie: "", erreurs: "" };
-  const record = async (_: Read | string, command: string) => (launched.push(command), nothing);
-  const readOne: Read = { nom: PROJECT, cuisine: { locale: { node: "node", runtime: RUNTIME, racine: tmpdir(), env: {} } } };
-  const quietly = (run: () => Promise<unknown>) => run().catch(() => undefined);
-
-  // The gestures written into the second (actions.ts), and switching a project on (power-up.ts).
-  launched.push(...ACTIONS.map(({ commande }) => commande), POWER_UP);
-  // The word to a cook: written by the station.
-  let send: ((event: unknown, ...args: unknown[]) => unknown) | undefined;
-  plugTheWordAtCook({ handle: (_, listen) => (send = listen) }, () => ({ vise: { nom: PROJECT }, lu: readOne }), record);
-  await quietly(async () => send?.(undefined, PROJECT, { ticket: 1, text: "hello" }));
-  return launched;
+// What the app launches: through the gesture, main.ts launches nothing now; the manager's read (manager.ts) is the one command left.
+function commandsTheAppLaunches(): string[] {
+  return [MANAGER];
 }
 
 // A station of this computer serving one project, as the app reads it: its directory, its configuration, this `node`.
@@ -49,17 +35,18 @@ function station(): { locale: Locale; remove: () => void } {
 describe("#4499 — the station's gesture serves every command the app launches", () => {
   test("the app launches its commands from the same places as when this test was written: a new place adds its command above", () => {
     // Who imports a launcher of the gesture from box.ts, and how often main.ts launches through it.
-    const importers = ["main.ts", "power-up.ts", "actions.ts"];
+    const importers: string[] = [];
     const places = readFileSync(join(SRC, "main.ts"), "utf8").split("\n").filter((line) => /\blaunchOnTheKitchen\b|\blaunchThe\(/.test(line)).length;
-    assert.equal(places, 3, "main.ts launches a command through the gesture in a new place: add it to commandsTheAppLaunches");
+    assert.equal(places, 0, "main.ts launches a command through the gesture: add it to commandsTheAppLaunches");
     for (const file of importers) assert.match(readFileSync(join(SRC, file), "utf8"), /\b(launchThe|launchHere|ACTION)\b/, file);
   });
 
   test("each command the app launches has a handler behind the real geste.ts: it answers itself, never the gesture's “not a runtime command”", async (t) => {
-    const launched = await commandsTheAppLaunches();
+    const launched = commandsTheAppLaunches();
     const heads = [...new Set(launched.map((command) => words(command)[0] ?? ""))].sort();
     // What the app launched when this test was written: a command added since is checked too, never one dropped silently.
-    for (const known of ["guardrails", "manager", "send-word", "switch"]) assert.ok(heads.includes(known), known);
+    // What the app launched when this test was written: a command added since is checked too, never one dropped silently.
+    for (const known of ["manager"]) assert.ok(heads.includes(known), known);
     const { locale, remove } = station();
     t.after(remove);
     for (const head of heads) {
@@ -77,6 +64,6 @@ describe("#4499 — the station's gesture serves every command the app launches"
     t.after(remove);
     const rendered = await launchHere(locale, PROJECT, "status", 60_000);
     assert.equal(rendered.erreur?.code, 66);
-    assert.match(rendered.erreurs, /« status » n'est pas une commande du runtime — celles de cette station : .*\bguardrails\b/);
+    assert.match(rendered.erreurs, /« status » n'est pas une commande du runtime — celles de cette station : .*\bmanager\b/);
   });
 });

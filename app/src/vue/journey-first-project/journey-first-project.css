@@ -2,8 +2,7 @@
    fois, à la place du rail. Tant qu'elle est posée (`main[data-parcours]`), rien d'autre de la page ne lui dispute la
    place — ni le menu du projet, ni ses bandes, ni le centre : l'en-tête garde le nom du projet, le second reste à droite. */
 main[data-parcours] > :not(header):not(#parcours-premier-projet),
-main[data-parcours] #onglets-du-projet,
-main[data-parcours] #interrupteur-projet {
+main[data-parcours] #onglets-du-projet {
   display: none !important;
 }
 #parcours-premier-projet {

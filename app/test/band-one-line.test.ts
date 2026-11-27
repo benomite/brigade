@@ -7,17 +7,13 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { holdBands, type Band } from "../src/alerts.ts";
-import { POWER_UP } from "../src/power-up.ts";
 import { putAside } from "../src/awaiting.ts";
 import { forTheBar } from "../src/bar.ts";
 import type { Reading } from "../src/box.ts";
 import { EXAMPLE, type Project } from "../src/config.ts";
 import type { Kitchen } from "../src/box.ts";
-import { confirmationOf } from "../src/confirmation.ts";
 import { PALETTE } from "../src/colors.ts";
-import { KITCHEN_ACTIONS } from "../src/kitchen.ts";
 import { BANNER, type Facts } from "../src/facts.ts";
-import { CONFIRMED, DIRECT } from "../src/actions.ts";
 import { EFFORTS, MODELS } from "../src/projects/projects.ts";
 import { TABS, HEADINGS } from "../src/tabs.ts";
 import { type Fake, type Played, playTheVue, type Answers, repos } from "./helpers/false-vue.ts";
@@ -66,14 +62,12 @@ async function open(answers: Answers = {}): Promise<Played> {
       exemple: EXAMPLE,
       onglets: TABS,
       rubriques: HEADINGS,
-      gestes: { allumage: POWER_UP, cuisine: KITCHEN_ACTIONS, directs: DIRECT, confirmes: CONFIRMED },
+      gestes: {},
       banniere: BANNER,
       calibrage: { modeles: MODELS, efforts: EFFORTS },
       code: undefined,
     }),
     espace: () => [],
-    confirmer: (_, id) => confirmationOf(id, PARADE, { sans: "pas lus" }, KITCHEN),
-    geste: () => undefined,
     ...answers,
   });
   vue.element("projets").children[1]?.click();
@@ -88,7 +82,6 @@ const buttonsOf = (line: Fake) => (line.children[0]?.children ?? []).filter(({ b
 const controlOf = (line: Fake) => buttonsOf(line).find(({ className }) => className !== "detail") ?? assert.fail("pas de contrôle");
 const detailOf = (line: Fake) => buttonsOf(line).find(({ className }) => className === "detail") ?? assert.fail("pas de « detail »");
 const confirmationOf_ = (line: Fake) => line.children.find(({ className }) => className === "confirmation");
-const toggle = (vue: Played, id: string): Fake => vue.element(id).dessous("button").find(({ className }) => className === "bascule") ?? assert.fail(`pas d'interrupteur dans #${id}`);
 const callsOf = (vue: Played, ...actions: string[]) => vue.appels.filter(({ geste: action }) => actions.includes(action)).map(({ geste: action, args }) => [action, ...args]);
 
 describe("une alerte : une ligne, un contrôle", () => {
@@ -208,7 +201,7 @@ describe("le prix est dans la confirmation, au clic", () => {
 // Un seul interrupteur pour tout le projet (#1406). Le grant `merge` n'existe plus : une ligne `grant` de `status`,
 // que le runtime n'écrit plus, ne dit rien de plus.
 describe("l'espace n'a qu'un interrupteur", () => {
-  test("la bande ne porte que l'état du projet, et l'espace n'a que l'interrupteur du projet", async () => {
+  test("la bande ne porte que l'état du projet, et l'espace n'a aucun interrupteur", async () => {
     assert.equal("merge" in bandRead(statusWith(), "ouverte"), false);
     const vue = await open();
     vue.dire("surAlertes", bandRead(statusWith(), "ouverte"));
@@ -216,9 +209,8 @@ describe("l'espace n'a qu'un interrupteur", () => {
 
     assert.throws(() => vue.element("interrupteur-merge"), /aucun élément/);
     assert.throws(() => vue.element("interrupteur-manager"), /aucun élément/);
-    const switches = vue.poses().filter(({ className }) => className === "interrupteur-de-tete");
-    assert.deepEqual(switches.map(({ id }) => id), ["interrupteur-projet"]);
-    assert.equal(toggle(vue, "interrupteur-projet").textContent, "project on");
+    assert.deepEqual(vue.poses().filter(({ className }) => className === "interrupteur-de-tete"), []);
+    assert.throws(() => vue.element("interrupteur-projet"), /aucun élément/);
   });
 
   test("une ligne `grant` d'avant, dans `status`, ne fait ni ligne de bande ni interrupteur", async () => {

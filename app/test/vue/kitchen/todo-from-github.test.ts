@@ -3,14 +3,11 @@
 // jouée. Le jour où l'un de ces maillons retire la carte, ce test le dit.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { POWER_UP } from "../../../src/power-up.ts";
 import { ACTIONS_OF_WAIT } from "../../../src/wait.ts";
 import { forTheBar } from "../../../src/bar.ts";
 import { EXAMPLE } from "../../../src/config.ts";
 import { PALETTE } from "../../../src/colors.ts";
-import { KITCHEN_ACTIONS } from "../../../src/kitchen.ts";
 import { BANNER, holdFacts } from "../../../src/facts.ts";
-import { CONFIRMED, DIRECT } from "../../../src/actions.ts";
 import { TABS, HEADINGS } from "../../../src/tabs.ts";
 import { EFFORTS, MODELS } from "../../../src/projects/projects.ts";
 import { putAside } from "../../../src/awaiting.ts";
@@ -44,7 +41,7 @@ const github = (assignees: string[]): CallGitHub => async (address) => {
 const startup = () => ({
   configuration: forTheBar({ chemin: "/tmp/app.json", projets: [{ nom: PARADE, dossier: "/tmp/parade" }] }, () => true),
   palette: PALETTE, exemple: EXAMPLE, onglets: TABS, rubriques: HEADINGS,
-  gestes: { allumage: POWER_UP, cuisine: KITCHEN_ACTIONS, directs: DIRECT, confirmes: CONFIRMED, attente: ACTIONS_OF_WAIT },
+  gestes: { attente: ACTIONS_OF_WAIT },
   banniere: BANNER, calibrage: { modeles: MODELS, efforts: EFFORTS }, code: undefined, telephone: { github: { compte: "chef" } },
 });
 

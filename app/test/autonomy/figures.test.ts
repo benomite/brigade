@@ -5,13 +5,10 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { PERIODES as PERIODS_OF_RUNTIME, chiffresDAutonomie, type DonneesDuDepot } from "../../src/vue/autonomy/compute.ts";
-import { POWER_UP } from "../../src/power-up.ts";
 import { forTheBar } from "../../src/bar.ts";
 import { EXAMPLE, type Project } from "../../src/config.ts";
 import { PALETTE } from "../../src/colors.ts";
-import { KITCHEN_ACTIONS } from "../../src/kitchen.ts";
 import { BANNER } from "../../src/facts.ts";
-import { CONFIRMED, DIRECT } from "../../src/actions.ts";
 import { TABS, HEADINGS } from "../../src/tabs.ts";
 import { EFFORTS, MODELS } from "../../src/projects/projects.ts";
 import { nameTheProjects, WITHOUT_READ as WITHOUT_READ_OF_PROCESS, type ReadOfAutonomy } from "../../src/vue/autonomy/autonomy-github.ts";
@@ -204,7 +201,7 @@ describe("les chiffres d'autonomie dans la vue (#3222)", () => {
         exemple: EXAMPLE,
         onglets: TABS,
         rubriques: HEADINGS,
-        gestes: { allumage: POWER_UP, cuisine: KITCHEN_ACTIONS, directs: DIRECT, confirmes: CONFIRMED },
+        gestes: {},
         banniere: BANNER,
         calibrage: { modeles: MODELS, efforts: EFFORTS },
         code: undefined,

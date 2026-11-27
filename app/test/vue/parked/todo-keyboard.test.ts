@@ -3,15 +3,12 @@
 // réponse envoyée, et le focus passe à la suivante. D'abord le module seul, puis le TODO du rail, puis la vue jouée.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { POWER_UP } from "../../../src/power-up.ts";
 import { ACTIONS_OF_WAIT } from "../../../src/wait.ts";
 import { forTheBar } from "../../../src/bar.ts";
 import type { CardOfTodo } from "../../../src/card-todo.ts";
 import { EXAMPLE } from "../../../src/config.ts";
 import { PALETTE } from "../../../src/colors.ts";
-import { KITCHEN_ACTIONS } from "../../../src/kitchen.ts";
 import { BANNER, holdFacts, type Card, type Facts } from "../../../src/facts.ts";
-import { CONFIRMED, DIRECT } from "../../../src/actions.ts";
 import { TABS, HEADINGS } from "../../../src/tabs.ts";
 import { EFFORTS, MODELS } from "../../../src/projects/projects.ts";
 import { parkedTodo } from "../../../src/vue/parked/parked-todo.js";
@@ -160,7 +157,7 @@ const WORLD: Facts = {
 const startup = () => ({
   configuration: forTheBar({ chemin: "/tmp/app.json", projets: [{ nom: PARADE, dossier: "/tmp/parade" }] }, () => true),
   palette: PALETTE, exemple: EXAMPLE, onglets: TABS, rubriques: HEADINGS,
-  gestes: { allumage: POWER_UP, cuisine: KITCHEN_ACTIONS, directs: DIRECT, confirmes: CONFIRMED, attente: ACTIONS_OF_WAIT },
+  gestes: { attente: ACTIONS_OF_WAIT },
   banniere: BANNER, calibrage: { modeles: MODELS, efforts: EFFORTS }, code: undefined,
 });
 async function show(): Promise<Played> {
