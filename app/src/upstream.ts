@@ -11,7 +11,6 @@ import type { Reading } from "./box.ts";
 import { isOutsideLine, titleOfFailure, type Card } from "./facts.ts";
 import { header, type Header } from "./card.ts";
 import { see as seeManager, type Seen as SeenManager } from "./manager.ts";
-import type { Progress } from "./vue/backlog/progress-github.ts";
 
 export const COMMAND = "manager upstream";
 
@@ -19,8 +18,9 @@ export const COMMAND = "manager upstream";
 // lit d'un besoin (#3460), quand la lecture de GitHub le donne — la box ne le donne pas : `tickets`, ceux de son
 // découpage ; `servis`, ceux d'entre eux qui sont fermés ; `contexte`, le premier paragraphe de son issue ; `servieLe`,
 // la fermeture d'une épique toute servie (board/read.ts) ; `avancement`, ses tickets servis sur leur total, tels que la
-// liste de cases à cocher de son corps les dit (vue/backlog/progress-github.ts, #3480) ; `horizon`, celui de son label
-// `horizon:N` (1 à 3, le plus petit s'il en porte plusieurs) ; `idee`, s'il porte le label `idea` (#3590).
+// liste de cases à cocher de son corps les dit (#3480) ; `horizon`, celui de son label `horizon:N` (1 à 3, le plus petit
+// s'il en porte plusieurs) ; `idee`, s'il porte le label `idea` (#3590).
+export type Progress = { servis: number; total: number };
 export type Need = { tickets?: number[]; servis?: number[]; contexte?: string; servieLe?: string; avancement?: Progress; horizon?: number; idee?: true };
 export type Data = { ticket: number; titre: string; url: string; priorite: number | null; etat: string; dit: string } & Need;
 // La sortie de `manager upstream` : l'heure de la box à la lecture des issues, le dépôt lu, les issues.

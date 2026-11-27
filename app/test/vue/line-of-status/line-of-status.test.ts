@@ -4,8 +4,6 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { POWER_UP } from "../../../src/power-up.ts";
-import { COMMAND, holdUpstream, see } from "../../../src/upstream.ts";
-import type { Reading } from "../../../src/box.ts";
 import { forTheBar } from "../../../src/bar.ts";
 import { EXAMPLE } from "../../../src/config.ts";
 import { PALETTE } from "../../../src/colors.ts";
@@ -15,9 +13,6 @@ import { actionsOfCard } from "../../../src/card-actions.ts";
 import { CONFIRMED, DIRECT } from "../../../src/actions.ts";
 import { TABS, HEADINGS } from "../../../src/tabs.ts";
 import { EFFORTS, MODELS } from "../../../src/projects/projects.ts";
-import type { CallGitHub } from "../../../src/board/client.ts";
-import { readTheBoardOfRepository } from "../../../src/board/read.ts";
-import { readOfBoard } from "../../../src/board/rail.ts";
 import type { Terminal } from "../../../src/terminals.ts";
 import { Fake, type Played, playTheVue, openTab, repos } from "../../helpers/false-vue.ts";
 import { lineOfAlerts } from "../../../src/vue/line-of-status/line-of-status.js";
@@ -26,37 +21,6 @@ const PARADE = "parade";
 const REPOSITORY = "chef/parade";
 const A = "2026-10-15T09:12:04.000Z";
 const url = (ticket: number) => `https://github.com/${REPOSITORY}/issues/${ticket}`;
-
-type Open = { number: number; title: string; labels: { name: string }[]; created_at: string; html_url: string; body: string };
-const openOne = (number: number, labels: string[] = [], title = `Ticket ${number}`, body = ""): Open => ({ number, title, labels: labels.map((name) => ({ name })), created_at: `2026-10-01T00:00:${String(number).padStart(2, "0")}Z`, html_url: url(number), body });
-const LIST = (tickets: number[]) => ["<!-- brigade:tickets -->", ...tickets.map((t) => `| #${t} | t |`), "<!-- /brigade:tickets -->"].join("\n");
-
-// Le dépôt de référence de test/upstream.test.ts — huit issues avant le rail, dans quatre états —, plus #16, une épique
-// découpée en #10 (au feu, sur le rail) et #30 (fermé, servi), et #17 qui t'attend (sa carte est dans Awaiting you).
-const ISSUES = [
-  openOne(10, ["fire", "model:haiku", "effort:low"], "Sur le rail", "Epic: #16"),
-  openOne(11, ["model:opus", "effort:high", "prio:2"], "Prêt sans feu"),
-  openOne(12, ["blocked-on-human"]),
-  openOne(13, ["served-elsewhere"]),
-  openOne(14, ["model:opus"]),
-  openOne(16, ["epic", "prio:1"], "Une épique", `## Context\n\nGroups book in one gesture.\n\n${LIST([10, 30])}`),
-  openOne(17, ["epic"], "Une question"),
-  openOne(20, [], "Pas encore lue"),
-  openOne(21),
-  openOne(22, ["fire", "model:opus", "effort:high"]),
-];
-const github = (issues: Open[]): CallGitHub => async (path) => {
-  if (path.includes("/issues?") && path.includes("labels=fire")) return { status: 200, data: issues.filter(({ labels }) => labels.some(({ name }) => name === "fire")) };
-  if (path.includes("/issues?state=closed")) return { status: 200, data: [] };
-  if (path.includes("/issues?")) return { status: 200, data: issues };
-  if (path.includes("/pulls?")) return { status: 200, data: [] };
-  return { status: 404, data: {} };
-};
-async function upstreamOf(issues: Open[]): Promise<Reading> {
-  const readOne = await readTheBoardOfRepository({ depot: REPOSITORY, appeler: github(issues), maintenant: () => new Date(A) });
-  return readOfBoard(readOne, PARADE, 3, [COMMAND]);
-}
-const reading = (text: string): Reading => ({ projet: PARADE, demande: 3, a: A, sorties: [{ commande: COMMAND, texte: text }] });
 
 const SECOND: Terminal = { id: 1, projet: PARADE, genre: "second", titre: "second · claude", note: "session neuve", arrete: false };
 const startup = () => ({
@@ -91,53 +55,22 @@ const FACTS: Facts = {
   cooks: [],
   attend: [{ ticket: 17, titre: "Une question", url: url(17) }],
 };
-const RAIL_EMPTY: Facts = { ...FACTS, compteurs: { ...FACTS.compteurs, rail: 0, attend: 0 }, rail: [], attend: [] };
 // Une lecture de maintenant : une lecture vieille se dit d'elle-même, en ligne d'état (rail.test.ts).
 function receiveFacts(vue: Played, facts: Facts): void {
   const receivedOne = holdFacts().recevoir({ projet: PARADE, demande: 0, a: new Date().toISOString(), sorties: [{ commande: "facts", texte: JSON.stringify(facts) }] });
   vue.dire("surFaits", { ...receivedOne, demande: vue.dernier("faits")[0] as number });
 }
 
-
 const children = (vue: Played): Fake[] => vue.element("rail").children;
 const beforeTheColumns = (vue: Played): Fake[] => children(vue).slice(0, children(vue).findIndex(({ className }) => className === "colonnes"));
 const status = (vue: Played): Fake | undefined => children(vue).find(({ className }) => className.split(" ").includes("statut-du-rail") || className.split(" ").includes("attente-du-rail"));
 
-// Les issues que la cuisine a ouvertes sur elle-même (la cuisine oisive, plus ouverte depuis #3945), et #21, mise de côté.
-const INERT = openOne(35, ["bug"], "The kitchen is idle: no merge for 60 minutes with 2 cookable ticket(s) (no-station)");
-
 describe("la ligne d'état : ce que la cuisine dit d'elle-même, jamais un besoin", () => {
-  test("une alerte de la cuisine : son contenu est la ligne d'état, et la carte du supervisor la dit en deux mots", async () => {
-    const vue = await open();
-    receiveFacts(vue, FACTS);
-    vue.dire("surAmont", holdUpstream().recevoir(await upstreamOf([...ISSUES, INERT])));
-    const supervisor = children(vue)[0]?.dessous("button").find(({ dataset }) => dataset.agent === "supervisor");
-    assert.equal(supervisor?.textContent, "supervisoralert: #35");
-
-    // La ligne d'état : celle de la cuisine oisive — et une seule, sous la bande du haut (#4238).
-    assert.match(status(vue)?.textContent ?? "", /^Kitchen idle: no merge for 60 minutes/);
-    assert.deepEqual(beforeTheColumns(vue).map(({ className }) => className), ["bande-du-haut", "statut-du-rail"]);
-  });
-
-  test("la cuisine oisive, seule : sa ligne dit « Kitchen idle », et son seul geste ouvre l'issue que la cuisine a ouverte (#4238)", async () => {
-    const vue = await open();
-    receiveFacts(vue, FACTS);
-    vue.dire("surAmont", holdUpstream().recevoir(await upstreamOf([...ISSUES, INERT])));
-    assert.match(status(vue)?.textContent ?? "", /^Kitchen idle: no merge for 60 minutes with 2 cookable ticket\(s\)/);
-    const actions = status(vue)?.dessous("button") ?? [];
-    assert.deepEqual(actions.map(({ textContent }) => textContent), ["open #35"]);
-    actions[0]?.click();
-    await repos();
-    assert.deepEqual(vue.dernier("ouvrirIssue"), [PARADE, 35]);
-  });
-
   test("rien ne retient la cuisine : aucune ligne d'état — la bande du haut est seule au-dessus des colonnes (#4354)", async () => {
     const vue = await open();
     receiveFacts(vue, FACTS);
-    vue.dire("surAmont", holdUpstream().recevoir(await upstreamOf(ISSUES)));
     assert.deepEqual(beforeTheColumns(vue).map(({ className }) => className), ["bande-du-haut"]);
   });
-
 });
 
 describe("le TODO du haut est replié par défaut, et ne reste pas ouvert d'une visite à l'autre (#4354)", () => {

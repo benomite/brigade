@@ -14,7 +14,6 @@
 import { vueOfPostMortems, type VueOfPostMortems } from "./projects/post-mortems.ts";
 import { digestRead, threadsRead, type DigestRead, type ThreadsRead } from "./log/threads.ts";
 import { logOfDay, type LogOfDay } from "./projects/log-of-day.ts";
-import { topOfBacklogRead, type TopOfBacklog } from "./vue/rail/rail.ts";
 import { kitchenBoardRead, type KitchenBoard } from "./board/kitchen-board.ts";
 import type { ActionOfWait } from "./wait.ts";
 import { saysOf, ticketsOf, type Shown } from "./awaiting.ts";
@@ -240,9 +239,6 @@ export type Facts = {
   githubSeulRefuse?: { reason: string; since: string };
   // Le dépôt du projet, quand le compte GitHub de l'app ne peut pas y écrire (board/read.ts, `lectureSeule`, #3163) ; absent sinon, et quand GitHub ne l'a pas dit.
   lectureSeule?: { depot: string };
-  // Le rail, haut du backlog (vue/rail/, #4223) : les issues calibrées et prêtes, par priorité puis âge, et leur écran ;
-  // absent d'une lecture qui ne le compose pas.
-  hautDuBacklog?: TopOfBacklog;
   // Le kanban d'un projet de la nouvelle cuisine (board/kitchen-board.ts, #4482) : ses six colonnes, tirées des labels seuls ;
   // absent d'un projet du runtime d'avant.
   kitchenBoard?: KitchenBoard;
@@ -384,8 +380,6 @@ export type Board = {
   // en tête, mot pour mot — absente quand `status` n'est pas lu ou ne la porte pas.
   rienNeCuit?: string;
   rail: Rail;
-  // Le rail, haut du backlog (vue/rail/, #4223) : au-dessus des colonnes, sous le bandeau Backlog. Absent sans lecture qui le porte.
-  hautDuBacklog?: TopOfBacklog;
   // Le kanban d'un projet de la nouvelle cuisine (#4482) : la vue le dessine à la place du plan de la cuisine.
   kitchenBoard?: KitchenBoard;
   // Le dépôt du projet quand le compte GitHub de l'app ne peut pas y écrire (#3163) : la vue l'ouvre en lecture seule —
@@ -682,7 +676,6 @@ export function understand(output: string): Facts | { informe: string } {
       ...quotaRead(root.quotaGithub),
       ...refusalGitHubOnlyRead(root.githubSeul),
       ...readOnlyRead(root.lectureSeule),
-      ...topOfBacklogRead(root.hautDuBacklog),
       ...kitchenBoardRead(root.kitchenBoard),
       ...(root.appelsGithub === undefined ? {} : { appelsGithub: callsRead(root.appelsGithub) }),
       compteurs: {
@@ -1370,7 +1363,6 @@ export function board(facts: Facts, awaiting?: BlockRead, status?: StatusRead, a
     auTravail: ticketsAtWork(facts),
     ...(facts.lectureSeule === undefined ? {} : { lectureSeule: facts.lectureSeule }),
     ...(facts.quotaGithub === undefined ? {} : { quotaGithub: facts.quotaGithub }),
-    ...(facts.hautDuBacklog === undefined ? {} : { hautDuBacklog: facts.hautDuBacklog }),
     ...(facts.kitchenBoard === undefined ? {} : { kitchenBoard: facts.kitchenBoard }),
     ...(facts.stations === undefined ? {} : { stations: { ...cookingOf(facts.stations, facts.cooks, facts.lu, facts.agents, facts.rail), ...(facts.stationsSurGithub === undefined ? {} : { surGithub: facts.stationsSurGithub }) } }),
     ...(facts.rolesCuisine === undefined ? {} : { rolesCuisine: facts.rolesCuisine }),

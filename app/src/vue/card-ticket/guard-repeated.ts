@@ -1,5 +1,5 @@
-// Un ticket tué deux fois par le même garde-fou (ticket 3650) : ce que la box en dit (`gardeRepetee` d'un ticket du rail,
-// runtime/src/gardes-historique/) et la ligne que sa carte en tire. Rien n'est calculé ici que des mots.
+// Un ticket tué deux fois par le même garde-fou (ticket 3650) : ce que la box en dit (`gardeRepetee` d'un ticket du rail)
+// et la ligne que sa carte en tire. Rien n'est calculé ici que des mots.
 import { hourHM } from "../../format.ts";
 
 export type StopRead = { run: string; at: string; activity: string | null };
