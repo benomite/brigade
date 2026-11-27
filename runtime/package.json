@@ -13,7 +13,6 @@
     "start": "node src/kitchen/main.ts",
     "facts": "node src/faits.ts",
     "log": "node src/relire.ts",
-    "station": "node src/montrer-station.ts",
     "setting": "node src/reglage-cli.ts",
     "humans": "node src/humains-cli.ts",
     "contributor-stations": "node src/contributor-stations-cli.ts",
@@ -21,7 +20,6 @@
     "manager": "node src/manager-cli.ts",
     "send-word": "node src/send-word-cli.ts",
     "guardrails": "node src/garde-fous-cli.ts",
-    "installation": "node src/installation-cli.ts",
     "agents": "node src/agents-cli.ts",
     "help": "node src/aide.ts"
   },

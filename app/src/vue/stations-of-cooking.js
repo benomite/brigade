@@ -98,13 +98,10 @@ export function linesOfCooks(doc, itsOwn, agents, cooked = false) {
   return cooks;
 }
 
-// Le plafond du projet sur une station, comme sa box le dit (`3 at most — 8 cores`) : une rangée qui se lit — le champ qui le
-// change est celui de sa déclaration (project/stations/StationSettings.js), qui la remplace quand le projet la déclare
-// (`declaree`).
-/** @param {Fabrique} doc @param {Caps} cap @param {{ declaree: boolean }} options */
-export function capRead(doc, cap, { declaree: declaredOne }) {
-  const lines = declaredOne ? [] : [rowOfSetting(doc, { nom: CAP, cle: "cooks", niveau: levelOf(doc, "cooks"), valeur: [created(doc, "strong", cap.plafond.dit)], controle: [], dessous: [] })];
-  return lines;
+// Le plafond du projet sur une station, comme sa box le dit (`3 at most — 8 cores`) : une rangée qui se lit.
+/** @param {Fabrique} doc @param {Caps} cap */
+export function capRead(doc, cap) {
+  return [rowOfSetting(doc, { nom: CAP, cle: "cooks", niveau: levelOf(doc, "cooks"), valeur: [created(doc, "strong", cap.plafond.dit)], controle: [], dessous: [] })];
 }
 
 // Le détail de git, que la raison d'un accès bloqué porte entre parenthèses à sa fin : au survol (repository-held.js).

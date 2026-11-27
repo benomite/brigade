@@ -8,7 +8,7 @@ import { describe, test, type TestContext } from "node:test";
 import type { ExecFileException } from "node:child_process";
 import type { Rendered } from "../src/box.ts";
 import type { Facts } from "../src/facts.ts";
-import { startTheStationOfProject, playTheAction, readTheProjects, type Launch } from "../src/tray-background/read.ts";
+import { playTheAction, readTheProjects, type Launch } from "../src/tray-background/read.ts";
 import { keepTheIcon, registerTheBackground, quitTheStation, stationOfBackgroundInstalled } from "../src/tray-background/system.ts";
 
 type System = Parameters<typeof registerTheBackground>[0];
@@ -69,12 +69,12 @@ describe("un geste joué sur la station", () => {
     assert.deepEqual(launched, ["brigade switch off", "parade switch off"]);
     assert.equal(failures.length, 1);
     assert.match(failures[0] ?? "", /^parade: switch off failed — \$ node geste\.ts\nno log\n→ exit code 1$/);
-    assert.deepEqual(await playTheAction("arret", projects.slice(0, 1), launch, 30_000), []);
-    assert.equal(launched.at(-1), "brigade station stop mac/claude");
+    assert.deepEqual(await playTheAction("reprise", projects.slice(0, 1), launch, 30_000), []);
+    assert.equal(launched.at(-1), "brigade switch on");
   });
 
   test("rien de lu : rien n'est envoyé, et c'est dit", async () => {
-    const failures = await playTheAction("arret", [{ nom: "brigade", faits: undefined }], async () => assert.fail("rien ne part"), 30_000);
+    const failures = await playTheAction("pause", [], async () => assert.fail("rien ne part"), 30_000);
     assert.deepEqual(failures, ["no project of this station could be read: nothing was sent"]);
   });
 });
@@ -242,20 +242,5 @@ describe("le binaire de l'app, branché sur l'icône de fond", () => {
     assert.ok(process.includes("await playTheAction(action, projects, launch, DELAY_MS)"));
     assert.ok(process.includes("const text = confirmationOfQuit(projects);"));
     assert.match(process, /if \(response !== 0\) return;\n\s+await tell\(await quitTheStation\(/);
-  });
-});
-
-describe("« Start this computer's station » sur l'alerte d'un projet (#3637)", () => {
-  test("c'est le `station start <station>` du geste `demarrage` de l'icône, pour ce projet", async () => {
-    const launched: string[] = [];
-    const rendered = await startTheStationOfProject({ nom: "parade", faits: facts(0, 0) }, async (project, command) => (launched.push(`${project} ${command}`), ok("")), 30_000);
-    assert.deepEqual(launched, ["parade station start mac/claude"]);
-    assert.deepEqual(rendered, {});
-  });
-
-  test("la station qui ne démarre pas rend sa raison ; un projet dont rien ne se lit n'envoie rien", async () => {
-    const refusal = await startTheStationOfProject({ nom: "parade", faits: facts(0, 0) }, async () => rate(1, "no node"), 30_000);
-    assert.match(refusal.refus ?? "", /^parade: station start mac\/claude failed — .*→ exit code 1$/s);
-    assert.deepEqual(await startTheStationOfProject({ nom: "parade", faits: undefined }, async () => assert.fail("rien ne part"), 30_000), { refus: "no project of this station could be read: nothing was sent" });
   });
 });

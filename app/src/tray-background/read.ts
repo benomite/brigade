@@ -1,6 +1,6 @@
 // Ce que l'icône de fond (#3631) lit et lance, sans Electron : les projets que la station de cet ordinateur sert
 // (workstation/kitchen-here.ts, `servisPar`), les `facts` de chacun lus par son geste comme la veille de l'app les lit
-// (box.ts, `lancerIci` ; facts.ts, `comprendre`), et les commandes de pause, d'arrêt et de leur retour (tray-background.ts).
+// (box.ts, `lancerIci` ; facts.ts, `comprendre`), et les commandes de pause et de leur retour (tray-background.ts).
 //
 // Une lecture qui échoue — la station ne répond pas, sa sortie n'est pas la forme des faits — laisse le projet sans
 // faits : il est compté « not read », jamais pour « 0 ». Une commande qui échoue est rendue avec sa raison, et les
@@ -34,11 +34,4 @@ export async function playTheAction(action: Parameters<typeof commandsOfAction>[
     if (rendered.erreur !== null) failures.push(`${project}: ${command} failed — ${failureOf({ ...rendered, erreur: rendered.erreur }, delayMs).erreur}`);
   }
   return failures;
-}
-
-// « Start the station » depuis un projet de l'app (#3637) : le même `station start <station>` que le geste `demarrage` de
-// l'icône de fond, joué pour ce seul projet. Rend la raison de ce qui a échoué, ou rien.
-export async function startTheStationOfProject(project: ProjectRead, launch: Launch, delayMs: number): Promise<{ refus?: string }> {
-  const failures = await playTheAction("demarrage", [project], launch, delayMs);
-  return failures.length === 0 ? {} : { refus: failures.join("\n") };
 }

@@ -93,7 +93,6 @@ import { setEngine, WITHOUT_ENGINE } from "./delivery-engine/display.js";
 import { holdTheFiguresOfAutonomy } from "./autonomy/figures.js";
 import { holdTheTeam } from "./autonomy/team.js";
 import { holdTheAgents } from "./agents/agents.js";
-import { capacityOfNeed, capacityChoice, comeBack, ONLY, stationAOpen } from "./stations-declared.js";
 import { SAYS_TEMPORARY, TEMPORARY } from "./learning.js";
 import { keepTheKeyboard } from "./keep-the-keyboard.js";
 import { ELSEWHERE, setTheCard as setTheCardOfChef, setTheCardAside, setTheList as setTheListOfCards, setTheSend } from "./cards-of-chef/cards-of-chef.js";
@@ -166,7 +165,6 @@ import { AGENTS, MENU, KNOW_HOW, STATIONS } from "./project/menu/menu.js";
 import { toggleSwitch as switchOfTheApp } from "./components/switch/switch.js";
 import { DONE_SAYS, stationsAPropose, holdTheAdditionOfStation } from "./project/stations/AddStation.js";
 import { haltStation, actionOfStop, WITHOUT_ACTION } from "./project/stations/StopStation.js";
-import { ORDINARY_IN_PROGRESS, settingsOfTheStation, inputOf } from "./project/stations/StationSettings.js";
 import { connectionAtTheStation, linesOfTheStationLocale } from "./project/stations/LocalStation.js";
 import { mountThePanel } from "./project/panel-second/panel-second.js";
 import { setAddition, setBlockOfProjects } from "./home/projects/ProjectsBlock.js";
@@ -232,7 +230,6 @@ let railPoseOf = "";
 const rows = new Map();
 /** @typedef {import("../power-up.ts").Account} Account */
 /** @typedef {import("../confirmation.ts").Confirmation} Confirmation */
-/** @typedef {import("../service.ts").Guide} Guide */
 /** @typedef {import("../removal.ts").Removal} Removal */
 /** @typedef {import("../delay.ts").Seen} SeenOfCode */
 
@@ -473,10 +470,6 @@ function actionsOfServer(project, entrust) {
 const settingsOfProject = element("reglages-du-projet");
 const settingsExtra = element("reglages-du-projet-en-plus");
 const opinion = element("avis");
-// Les stations que la box de chaque projet déclare, telles que le dernier contrôle de son installation les a lues
-// (service.ts, `controle.stations`) : gardées d'un guide à l'autre, jusqu'à la lecture suivante.
-/** @type {Map<string, import("../service.ts").StationsRead>} */
-const declaredEntries = new Map();
 // « report to brigade », sous chaque panne que l'app montre (ticket 1977) : une issue préremplie, ouverte dans le navigateur.
 // Sur le téléphone, rien ne l'ouvrirait : le bouton n'y est pas.
 const report = holdTheReport({ doc: document, pont: brigade, actif: () => phoneSeen === undefined });
@@ -2092,190 +2085,6 @@ function render(receivedOne, head, body) {
   if ("erreur" in receivedOne) body.replaceChildren(...obtainedInOneLine(project, receivedOne, ACTION));
 }
 
-// Ce qu'une vérification a donné. En tête, son verdict en une phrase ; dessous, une ligne par
-// manque — qui agit, et pour le chef le bouton qui fait le geste ou la commande exacte, à copier ;
-// les lignes « à savoir » à part, plus discrètes. Sans verdict, le même cas et le même renvoi que sous `status`.
-/**
- * @param {Project} project @param {Guide["verification"]} verification
- * @param {(text: string, gesture: () => Promise<unknown>) => HTMLButtonElement} action
- * @param {boolean} [withTitle] faux : la phrase est déjà dite au-dessus (une alerte plantée la porte en titre)
- * @returns {HTMLElement[]}
- */
-function setVerdict(project, verification, action, withTitle = true) {
-  if (verification === undefined) return [];
-  const head = block("p", verification.titre);
-  head.className = "verdict";
-  head.dataset.verdict = verification.etat;
-  if (verification.etat === "en-cours") return [head];
-  if (verification.etat === "sans-verdict") {
-    head.textContent = `${verification.titre} — verified at ${hourOf(verification.a)}`;
-    return [head, ...obtainedInOneLine(project, { ...verification.echec, projet: project.nom }, ACTION)];
-  }
-  const setOne = document.createElement("div");
-  setOne.className = "verification";
-  if (withTitle) setOne.append(head);
-  if (verification.etat === "illisible") {
-    setOne.append(...verification.suite.map((line) => block("p", line)));
-    return [setOne];
-  }
-  if (verification.manques.length > 0) {
-    const gaps = document.createElement("ul");
-    gaps.className = "manques";
-    gaps.append(...verification.manques.map((lack) => setMissing(project, lack, action)));
-    setOne.append(gaps);
-  }
-  if (verification.panne !== null) setOne.append(block("p", verification.panne));
-  if (verification.aSavoir.length > 0) {
-    const aKnowledge = document.createElement("div");
-    aKnowledge.className = "a-savoir";
-    aKnowledge.append(block("strong", "Good to know — nothing waits on these"));
-    for (const line of verification.aSavoir) aKnowledge.append(line.geste === null ? block("p", line.texte) : saysAndHelp("p", line.texte, line.geste));
-    setOne.append(aKnowledge);
-  }
-  return [setOne];
-}
-
-// Un manque : qui agit, ce qui manque en mots simples, et ce que le chef a pour le lever — un
-// bouton quand l'app fait le geste, sinon la commande exacte, au survol. Ce que brigade
-// lève seule n'a rien de tout cela.
-/**
- * @param {Project} project @param {import("../service.ts").LineOfMissing} lack
- * @param {(text: string, gesture: () => Promise<unknown>) => HTMLButtonElement} action
- */
-function setMissing(project, lack, action) {
-  const line = document.createElement("li");
-  line.dataset.acteur = lack.acteur;
-  line.append(block("strong", `${lack.qui}:`), " ", lack.texte);
-  const { geste: gesture } = lack;
-  if (gesture === null) return line;
-  if ("action" in gesture) {
-    const id = gesture.action;
-    if (id === "init") line.append(action(gesture.libelle, () => primeService(project)));
-    else if (id === "protection") line.append(action(gesture.libelle, () => brigade.proteger(project.nom)));
-    // Les stations et les décisions se choisissent sur la page du projet : la ligne n'a pas de bouton.
-    return line;
-  }
-  // Ni commande ni phrase de mode d'emploi à plat : elles se lisent au survol.
-  line.append(hover(document, "commande" in gesture ? gesture.commande : gesture.dit));
-  return line;
-}
-
-/** @param {Project} project */
-async function readService(project) {
-  holdDeclared(await brigade.service(project.nom));
-}
-
-// Les stations déclarées qu'un guide porte sont retenues pour son projet ; affiché, son bloc se repose.
-/** @param {import("../service.ts").Guide | undefined} guide */
-function holdDeclared(guide) {
-  const readEntries = guide?.controle?.stations;
-  if (guide === undefined || readEntries === undefined) return;
-  declaredEntries.set(guide.projet, readEntries);
-  if (current?.nom === guide.projet) restTheStations(current);
-}
-
-// Les stations déclarées se lisent dans « Details » de la carte de chacune, sur l'onglet Stations : il se repose.
-/** @param {Project} project */
-function restTheStations(project) {
-  if (current?.nom === project.nom) restTheTabStations();
-}
-
-// Les gestes des réglages d'une station déclarée, dans « Details » de sa carte (ticket 2488) : un plafond ou des capacités
-// changés partent aussitôt ; la case des tickets ordinaires de ce poste s'écrit comme dans Settings.
-/** @param {Project} project @returns {import("./project/stations/StationSettings.js").Actions} */
-function actionsOfSettings(project) {
-  return {
-    appliquer: (name, key, wanted) => void changeTheStation(project, name, key, wanted),
-    ordinaires: (taken) => void setTheOrdinaryHere(project, taken),
-  };
-}
-// Le changement part — la rangée `cle` dit qu'il est en route —, puis elle dit ce qu'il a rendu ; refusé, la saisie revient
-// à la déclaration en vigueur. La déclaration relue arrive par `surGuide`, et le bloc s'y repose.
-/** @param {Project} project @param {string} name @param {string} key @param {import("../service.ts").StationWanted} wanted */
-async function changeTheStation(project, name, key, wanted) {
-  const input = inputsOfStations.get(project.nom)?.get(name);
-  if (input === undefined || input.envoi) return;
-  input.envoi = true;
-  input.ou = key;
-  input.rendu = undefined;
-  restTheTabStations();
-  /** @type {import("../service.ts").StationChanged} */
-  let rendered;
-  try {
-    rendered = await brigade.changerUneStation(project.nom, name, wanted);
-  } catch (error) {
-    rendered = { refus: "Nothing was changed: the app did not answer", detail: error instanceof Error ? error.message : String(error) };
-  }
-  input.envoi = false;
-  input.rendu = rendered;
-  if ("refus" in rendered) comeBack(input, declaredEntries.get(project.nom)?.declarees.find((readEntry) => readEntry.nom === name));
-  if (current?.nom === project.nom) restTheTabStations();
-}
-// Les projets dont la case des tickets ordinaires de ce poste est en route, sur « Station settings ».
-/** @type {Set<string>} */
-const ordinaryInProgress = new Set();
-// La case des tickets ordinaires de ce poste : la même écriture que Settings, la limite de cooks gardée telle qu'elle est.
-/** @param {Project} project @param {boolean} taken */
-async function setTheOrdinaryHere(project, taken) {
-  const readOne = ordinarySeen.get(project.nom);
-  if (readOne === undefined || !readOne.reglable || ordinaryInProgress.has(project.nom)) return;
-  ordinaryInProgress.add(project.nom);
-  restTheTabStations();
-  /** @type {string | undefined} */
-  let refusal;
-  try {
-    refusal = await brigade.reglerOrdinaires(project.nom, taken, readOne.limite);
-  } catch (error) {
-    refusal = `nothing was written: ${error instanceof Error ? error.message : String(error)}`;
-  } finally {
-    ordinaryInProgress.delete(project.nom);
-  }
-  ordinaryRefused = { projet: project.nom, refus: refusal ?? "" };
-  ordinaryPose = "";
-  // Relue, l'option se repose à la valeur en vigueur — celle d'avant, quand le changement est refusé.
-  if (current?.nom === project.nom) await setOrdinary(project);
-}
-
-// « Cook it on a station that has it » (ticket 1511) ouvre, sur Stations, « Details » de la carte de la station de ce poste :
-// la capacité qui manque y est offerte, décochée, à côté de celles qu'elle déclare — et ce que cet ordinateur sait déclarer,
-// lu comme pour « + station » (ticket 1307). La cocher la déclare : chaque case s'applique dès qu'elle change (ticket 2920).
-/** @type {{ projet: string, nom: string } | undefined} */
-let capacityOffered;
-/** @param {Project} project @param {string} name @param {string} [called] */
-async function offerTheCapacity(project, name, called) {
-  const readEntries = declaredEntries.get(project.nom);
-  const station = readEntries?.declarees.find((readEntry) => readEntry.nom === name);
-  if (readEntries === undefined || station === undefined) return;
-  const inputs = inputsOfStations.get(project.nom) ?? new Map();
-  inputsOfStations.set(project.nom, inputs);
-  const input = inputOf(inputs, station, readEntries);
-  input.choix = capacityChoice(station, readEntries, [], called);
-  capacityOffered = { projet: project.nom, nom: name };
-  restTheTabStations();
-  const defaults = await defaultsOfThisComputer(project.nom);
-  if ("refus" in defaults || inputs.get(name) !== input) return;
-  input.choix = capacityChoice(station, readEntries, defaults.capacites, called);
-  if (current?.nom === project.nom) restTheTabStations();
-}
-
-// Un geste de l'installation a rendu un terminal — le second, pour la session d'init ; un
-// shell, pour le démarrage — ou la raison pour laquelle rien n'est fait. Le terminal est
-// montré, à droite : c'est sa note qui dit ce qui a été lancé, ou écrit. La raison se lit là
-// où il se serait montré : à droite, sous les onglets des terminaux.
-/** @param {Project} project @param {Terminal | { refus: string }} rendered */
-function followAction(project, rendered) {
-  notWritten = notWrittenSecond = "";
-  actionRate = undefined;
-  if (!("refus" in rendered)) keep(project.nom, rendered);
-  else notWrittenSecond = rendered.refus;
-  if (current?.nom === project.nom) show();
-}
-
-/** @param {Project} project */
-async function primeService(project) {
-  followAction(project, await brigade.amorcer(project.nom));
-}
-
 // Une ligne de Settings (ticket 1700) : la rangée de réglage de l'app (components/setting, ticket 2920) — son nom, sa
 // valeur en vigueur, son contrôle, qui s'applique dès qu'il change ; puis, sous elle, ce que le contrôle a ouvert ou rendu
 // (une confirmation, un refus). `niveau` : sa clé, et la marque de son niveau (levels.js), posée à côté de son nom.
@@ -2544,9 +2353,6 @@ let ordinaryPose = "";
 /** @param {Project} project */
 async function setOrdinary(project) {
   const received = await brigade.ordinaires(project.nom);
-  // L'onglet Stations dit l'option sur la station de ce poste (ticket 2488), et le bac à sable de la station locale le
-  // même (ticket 2489).
-  ordinarySeen.set(project.nom, received);
   const locale = stationLocaleRead.projet === project.nom && JSON.stringify(stationLocaleRead.ordinaires) !== JSON.stringify(received ?? null);
   if (locale) stationLocaleRead.ordinaires = received ?? null;
   // Le chef a pu ouvrir un autre projet pendant la lecture.
@@ -4386,8 +4192,7 @@ function readOfServing(project, now) {
   const cooking = held !== undefined && "tableau" in held && !silentOnes.has(project.nom) ? held.tableau.stations : undefined;
   const stations = stationsViews?.stations ?? [];
   const locale = projectsSeen?.locale ?? null;
-  const readEntries = cooking !== undefined || (stationsViews !== undefined && projectsSeen !== undefined) || declaredEntries.has(project.nom);
-  const theDeclared = declaredEntries.get(project.nom)?.declarees ?? [];
+  const readEntries = cooking !== undefined || (stationsViews !== undefined && projectsSeen !== undefined);
   const readThe = held === undefined ? Number.NaN : Date.parse(held.a);
   // Ce que la liste de la station de cet ordinateur dit du projet (tickets 3399, 3402) : elle fait foi pour sa carte.
   const hereServes = servedByThisComputer(project);
@@ -4395,7 +4200,6 @@ function readOfServing(project, now) {
     projet: project.nom,
     lignes: cooking?.lignes ?? [],
     stations,
-    declarees: theDeclared.map(({ nom: name, distante: remote }) => ({ nom: name, distante: remote })),
     locale,
     ici: project.ici === true,
     maintenant: now,
@@ -4474,13 +4278,7 @@ function tabOfStations(project) {
   /** @type {Map<string, any[]>} */
   const details = new Map();
   for (const station of reading ? [] : servingOnes) {
-    const { lignes: lines, declaree: declaredOne } = detailsOfTheStation(project, station, cooking?.lignes);
-    details.set(keyOf(station), lines);
-    // La station où « Cook it on a station that has it » offre une capacité : son « Details » s'ouvre.
-    if (capacityOffered?.projet === project.nom && declaredOne?.nom === capacityOffered.nom) {
-      openOnes.add(keyOf(station));
-      capacityOffered = undefined;
-    }
+    details.set(keyOf(station), detailsOfTheStation(project, station));
   }
 
   const pose = setTheTabOfStations(
@@ -4573,10 +4371,8 @@ async function stopTheStation(project, station) {
   const repository = project.depot ?? projectsSeen?.projets.find(({ nom: name }) => name === project.nom)?.depot ?? "";
   const readEntries = recordedAbsent ? undefined : stateOfRecorded.stations;
   const recordedOne = readEntries?.state === "listed" ? readEntries.stations.find(({ id }) => id === station.id) : undefined;
-  const theDeclared = declaredEntries.get(project.nom)?.declarees ?? [];
   const readEntry = servedOnes.etat?.lecture;
   const servedHere = readEntry !== undefined && "depots" in readEntry ? readEntry.depots : undefined;
-  const declaredOne = theDeclared.find(({ nom: name }) => name === station.nom || name === nameOfTaking(station.nom));
   const gesture = actionOfStop(
     {
       projet: project.nom,
@@ -4584,18 +4380,15 @@ async function stopTheStation(project, station) {
       station: { nom: station.nom, ici: station.ici },
       ...(servedHere === undefined ? {} : { liste: servedHere }),
       ...(recordedOne === undefined ? {} : { selection: { id: recordedOne.id, depots: recordedOne.selection ?? [] } }),
-      ...(declaredOne === undefined ? {} : { declaree: { nom: declaredOne.nom, seule: theDeclared.length <= 1 } }),
     },
     {
       retirerIci: async (oneOf) => (await brigade.servirUnProjet?.(oneOf, false)) ?? { refus: NOT_REACHED(`${THIS_COMPUTER}'s station`) },
       choisir: async (id, repositories) => (await brigade.choisirLesProjets?.(id, repositories)) ?? { refus: "the app gave no answer" },
-      retirerDeclaree: (name) => brigade.changerUneStation(project.nom, name, { retiree: true }),
     },
   );
-  if (gesture === undefined || "seule" in gesture) {
+  if (gesture === undefined) {
     stopRequest = undefined;
-    // La seule station que le projet déclare ne se retire pas (stations-declared.js) : sans elle, aucun cook ne part.
-    stopSaysFor = { projet: project.nom, texte: gesture === undefined ? WITHOUT_ACTION(station.nom) : `nothing was changed: ${ONLY}`, refus: true, detail: "" };
+    stopSaysFor = { projet: project.nom, texte: WITHOUT_ACTION(station.nom), refus: true, detail: "" };
     return restTheTabStations();
   }
   stopRequest.enCours = true;
@@ -4608,72 +4401,16 @@ async function stopTheStation(project, station) {
   if (current?.nom === project.nom) restTheTabStations();
 }
 
-// « Details » d'une station : ses réglages et ses lectures, chacun avec son contrôle. Ceux de cet ordinateur — ses dossiers,
-// son bac à sable, sa connexion à Claude (project/stations/LocalStation.js) — ; sa connexion à Claude, pour une autre ; et,
-// quand le projet la déclare, combien de cooks elle fait tourner à la fois, ce qu'elle fournit et si elle prend les tickets
-// ordinaires (project/stations/StationSettings.js).
-/**
- * @param {Project} project @param {import("./stations-tab/state.js").Serving} station @param {readonly import("../cooking.ts").LineOfStation[] | undefined} lines
- * @returns {{ lignes: any[], declaree: import("../service.ts").StationDeclared | undefined }}
- */
-function detailsOfTheStation(project, station, lines) {
+// « Details » d'une station : ses lectures, chacune avec son contrôle. Celles de cet ordinateur — ses dossiers, son bac à
+// sable, sa connexion à Claude (project/stations/LocalStation.js) — ; sa connexion à Claude, pour une autre.
+/** @param {Project} project @param {import("./stations-tab/state.js").Serving} station */
+function detailsOfTheStation(project, station) {
   const readEntry = (stationsViews?.stations ?? []).find(({ id }) => id === station.id);
-  const readEntries = declaredEntries.get(project.nom);
-  // Sa déclaration : celle qui porte son nom, ou son nom de prise — une seule carte par station déclarée.
-  const declaredOne = readEntries?.declarees.find((one) => one.nom === station.nom || one.nom === station.prise || one.nom === nameOfTaking(station.nom));
   const here = station.ici ? linesOfThisComputer(project) : readEntry === undefined ? [] : [connectionAtTheStation(document, readEntry)];
   // Le plafond du projet sur elle, comme sa box le dit (ticket 1292), et ce qui la sature.
   const caps = homeSeen?.plafonds?.[project.nom];
   const cap = caps?.[station.prise ?? station.nom] ?? caps?.[station.nom] ?? caps?.[nameOfTaking(station.nom)];
-  return {
-    lignes: [...here, ...(cap === undefined ? [] : capRead(document, cap, { declaree: declaredOne !== undefined })), ...(declaredOne === undefined || readEntries === undefined ? [] : [settingsOfTheStationDeclared(project, declaredOne, readEntries, lines)])],
-    declaree: declaredOne,
-  };
-}
-
-// Les réglages d'une station que le projet déclare (ticket 2488) : ce que le chef y saisit est gardé, par projet puis par
-// station ; l'option des tickets ordinaires de ce poste, telle que sa dernière lecture l'a rendue (`poserOrdinaires`).
-/** @type {Map<string, Map<string, import("./project/stations/StationSettings.js").Input>>} */
-const inputsOfStations = new Map();
-/** @type {Map<string, import("../ordinary.ts").Block | undefined>} */
-const ordinarySeen = new Map();
-/**
- * @param {Project} project @param {import("../service.ts").StationDeclared} declaredOne @param {import("../service.ts").StationsRead} readEntries
- * @param {readonly import("../cooking.ts").LineOfStation[] | undefined} lines
- */
-function settingsOfTheStationDeclared(project, declaredOne, readEntries, lines) {
-  const inputs = inputsOfStations.get(project.nom) ?? new Map();
-  inputsOfStations.set(project.nom, inputs);
-  const ordinary = ordinarySeen.get(project.nom);
-  // Ce que le dernier changement des tickets ordinaires de ce poste a rendu, sous leur rangée : en route, ou refusé.
-  const ordinarySays = ordinaryInProgress.has(project.nom) ? ORDINARY_IN_PROGRESS : ordinaryRefused.projet === project.nom && ordinaryRefused.refus !== "" ? { refus: ordinaryRefused.refus } : undefined;
-  // Ses cases : celles qu'elle déclare, celles des autres stations, et ce que cet ordinateur sait déclarer (ticket 1307).
-  const input = inputOf(inputs, declaredOne, readEntries);
-  for (const offered of capacityChoice(declaredOne, readEntries, catalogOf(project))) if (!input.choix.some(({ capacite: capacity }) => capacity === offered.capacite)) input.choix.push(offered);
-  return settingsOfTheStation(document, declaredOne, input, {
-    ici: project.ici === true,
-    ...(ordinary === undefined ? {} : { ordinaires: ordinary }),
-    ...(ordinarySays === undefined ? {} : { ordinairesDit: ordinarySays }),
-    ...(lines === undefined ? {} : { lignes: lines }),
-    gestes: actionsOfSettings(project),
-  });
-}
-
-// Ce que cet ordinateur sait déclarer — le catalogue de « + station » (ticket 1307) —, lu une fois par projet : les cases
-// des capacités de chaque station déclarée l'offrent. Illisible, elles n'offrent que ce que les stations déclarent.
-/** @type {Map<string, readonly import("../projects/projects.ts").CapacityOfTheMachine[]>} */
-const cataloguesRead = new Map();
-/** @param {Project} project */
-function catalogOf(project) {
-  const readOne = cataloguesRead.get(project.nom);
-  if (readOne !== undefined) return readOne;
-  cataloguesRead.set(project.nom, []);
-  void defaultsOfThisComputer(project.nom).then((defaults) => {
-    if ("refus" in defaults || defaults.capacites.length === 0) return;
-    cataloguesRead.set(project.nom, defaults.capacites);
-    if (current?.nom === project.nom) restTheTabStations();
-  });
-  return [];
+  return [...here, ...(cap === undefined ? [] : capRead(document, cap))];
 }
 
 // La station de cet ordinateur (ticket 2489, project/stations/LocalStation.js) : ses dossiers, son bac à sable, sa
@@ -4729,7 +4466,6 @@ async function readTheOrdinaryLocal(readOne) {
   try {
     const received = await brigade.ordinaires(readOne.projet);
     readOne.ordinaires = received ?? null;
-    ordinarySeen.set(readOne.projet, received);
   } catch (error) {
     readOne.ordinaires = null;
     readOne.refusOrdinaires = `the sandbox could not be read: ${rateSays(error)}`;
@@ -4762,7 +4498,7 @@ function linesOfThisComputer(project) {
     regler: async (active, limit, or) => {
       const before = stationLocaleRead;
       if (before.reglageDit !== undefined && "enCours" in before.reglageDit.dit) return;
-      before.reglageDit = { ou: or, dit: ORDINARY_IN_PROGRESS };
+      before.reglageDit = { ou: or, dit: { enCours: "applying…" } };
       restTheStationLocale(before);
       /** @type {string | undefined} */
       let refusal;
@@ -6780,6 +6516,9 @@ function setTheBlockages(project) {
 // Les choix que le projet affiché attend (ticket 1400) : une carte par besoin. Un clic écrit l'issue
 // dans sa demande (projects/projects.ts, `choisir`) ; écrite, la carte part, sans attendre que la station la relise.
 // Ce que la vue retient s'oublie dès que la station ne publie plus le choix en attente.
+// L'issue « Cook it on a station that has it » déclarait une capacité sur une station : l'app ne lit plus les stations
+// qu'un projet déclare, elle ne la propose plus.
+const COOK_ELSEWHERE = "cook-elsewhere";
 /** @param {Project | undefined} project */
 function setTheChoice(project) {
   const seenOne = project === undefined ? undefined : projectsSeen?.projets.find(({ nom: name }) => name === project.nom);
@@ -6789,28 +6528,9 @@ function setTheChoice(project) {
   for (const id of heldOnes.retenus) if (!choice.some((oneOf) => oneOf.id === id && oneOf.status === "pending")) heldOnes.retenus.delete(id);
   for (const id of heldOnes.refus.keys()) if (!choice.some((oneOf) => oneOf.id === id)) heldOnes.refus.delete(id);
   choiceHeld.set(name, heldOnes);
-  const pose = setChoice(document, { projet: name, choix: choice, choisis: seenOne?.choisis, retenus: heldOnes.retenus, enCours: heldOnes.enCours, refus: heldOnes.refus, choisir: (id, issue) => void (issue === "cook-elsewhere" ? openTheStationWhoTHE(name, id, choice) : chooseOneIssue(name, id, issue)) });
+  const pose = setChoice(document, { projet: name, choix: choice.map((oneOf) => ({ ...oneOf, options: oneOf.options.filter(({ id }) => id !== COOK_ELSEWHERE) })), choisis: seenOne?.choisis, retenus: heldOnes.retenus, enCours: heldOnes.enCours, refus: heldOnes.refus, choisir: (id, issue) => void chooseOneIssue(name, id, issue) });
   choiceOfProject.hidden = pose === null;
   choiceOfProject.replaceChildren(...(pose === null ? [] : [pose]));
-}
-
-// « Cook it on a station that has it » (ticket 1511) n'écrit rien : il ouvre, sur Stations, les réglages d'une station de ce
-// poste avec la capacité qui manque offerte. Le chef l'enregistre, ou non ; la station relit ses capacités.
-// Aucune station lue, une ligne sous la carte le dit.
-/** @param {string} name @param {string} id @param {readonly import("../projects/request.ts").Choice[]} choice */
-function openTheStationWhoTHE(name, id, choice) {
-  const project = current?.nom === name ? current : undefined;
-  const readEntries = declaredEntries.get(name);
-  const station = project === undefined || readEntries === undefined ? undefined : stationAOpen(readEntries, { ici: project.ici === true });
-  const heldOnes = choiceHeld.get(name);
-  if (project === undefined || station === undefined) {
-    heldOnes?.refus.set(id, { refus: `${NOT_STILL("station of the project read")} The next check of the installation reads them.` });
-    return setStationsOfProject();
-  }
-  heldOnes?.refus.delete(id);
-  const need = choice.find((oneOf) => oneOf.id === id)?.need;
-  chooseTab(STATIONS);
-  void offerTheCapacity(project, station.nom, need === undefined ? undefined : capacityOfNeed(need));
 }
 
 /** @param {string} name @param {string} id @param {string} issue */
@@ -7232,11 +6952,10 @@ const placeOfTheAlert = ({ sujet: subject, dit: said }) => (subject === "urgence
 
 // Une ligne de la bande (ticket 907) : une seule ligne — ce qui ne va pas — et un seul contrôle, le
 // geste qui le lève. Son prix n'est pas posé à côté : le clic ouvre la confirmation, qui le dit. Ce
-// que la ligne sait de plus — pourquoi, ce que la box en écrit mot pour mot, le verdict d'une
-// vérification — est replié derrière « detail », dessous.
+// que la ligne sait de plus — pourquoi, ce que la box en écrit mot pour mot — est replié derrière « detail », dessous.
 /** @param {Project} project @param {Alert} alert */
 function setAlert(project, alert) {
-  const { sujet: subject, verifie: checks, ton: your, dit: said, pourquoi: why, releve: reading, verification } = alert;
+  const { sujet: subject, verifie: checks, ton: your, dit: said, pourquoi: why, releve: reading } = alert;
   const line = document.createElement("div");
   line.className = "alerte";
   line.dataset.sujet = subject;
@@ -7259,7 +6978,6 @@ function setAlert(project, alert) {
   const detail = [
     ...(why === undefined || why.trim() === "" ? [] : [block("p", why)]),
     ...(reading === undefined || reading.trim() === "" ? [] : [exact("pre", reading)]),
-    ...(verification === undefined ? [] : setVerdict(project, verification, (text, gesture) => button(text, () => void gesture()), verification.titre !== said)),
   ];
   if (detail.length > 0) {
     const unfold = button("detail", () => {
@@ -8407,8 +8125,6 @@ async function open(project) {
   // Dès maintenant : la carte et la bannière du projet quitté ne restent pas sur celui-ci
   // pendant que son espace s'ouvre.
   draw();
-  // Les stations que sa box déclare viennent avec la lecture de son installation (service.ts).
-  void readService(project);
   // Ni sa ligne de retrait : elle nomme son projet.
   removal.hidden = true;
   void readRemoval(project);
@@ -8516,8 +8232,6 @@ brigade.surUrgence(async (name) => {
   setAlerts(current);
   actionOfTheEmergency?.focus();
 });
-// L'installation d'un projet a été relue : les stations que sa box déclare se reposent, si c'est le projet affiché.
-brigade.surGuide(holdDeclared);
 // Ce qui n'est pas encore sur le rail d'un projet : le sien se repose, s'il est affiché.
 brigade.surAmont((seenOne) => {
   upstreams.set(seenOne.projet, seenOne);

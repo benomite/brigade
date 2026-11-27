@@ -21,9 +21,6 @@
 // sa ligne de tête dit qu'il l'est, son entrée `setup` du bloc `attend` en dit la cause et le
 // geste — c'est elle que la ligne de la bande reprend. Ce que la box dit se pose mot pour mot ; l'app n'y
 // ajoute que ses propres mots, à part. Aucun fait nouveau n'est demandé au runtime.
-// Un projet installé dit aussi ce qu'il a perdu depuis son installation : une station que la box
-// ne fournit plus, un geste de box qui n'y est plus (« Ce qu'un projet installé a perdu », plus
-// bas). Ce n'est pas l'écran d'installation qui revient : c'est une ligne de la bande, avec son geste.
 // Le geste d'une ligne est collé à l'état qu'il change, sous l'une de ses trois formes : un
 // geste du socle (actions.ts), direct ou confirmé — la confirmation dit son prix
 // (confirmation.ts) ; ou, quand le lever demande de lire, juger ou agir sur la box à côté du
@@ -38,11 +35,9 @@ import { COMMAND as FACTS, understand, duration, isOutsideLine, tick, titleOfFai
 import { COMMAND as MANAGER, managerOf, type Switch } from "./manager.ts";
 import { hourHM } from "./format.ts";
 import { lineOfTheLimit } from "./vue/banner-limit-github.ts";
-import type { Control, Shown as Verification } from "./service.ts";
 
-// `station` et `box` : ce qu'un projet installé a perdu — une station, un geste de box. `urgence` :
-// toute la cuisine attend le chef.
-export type Subject = "urgence" | "github" | "manager" | "cuisine" | "station" | "box" | "renouvellement" | "verification" | "injoignable";
+// `urgence` : toute la cuisine attend le chef.
+export type Subject = "urgence" | "github" | "manager" | "cuisine" | "injoignable";
 // Ce que le bouton d'une ligne appelle : un geste du socle (actions.ts) ;
 // une demande au second, faite de ce que la ligne dit (request.ts) ; un onglet de
 // contenu (tabs.ts).
@@ -52,13 +47,12 @@ export type Call = { geste: string } | { demande: true } | { onglet: string } | 
 // `dit` : ce qui ne va pas, dans les mots de l'app ; `pourquoi` : ce qu'elle en sait de plus,
 // dans ses mots aussi. `releve` : ce que la box en a écrit, mot pour mot — absent quand elle
 // n'en a rien écrit. `geste` : ce qui le lève ; `appel` : ce que son bouton appelle — absent,
-// le geste ne se joue pas depuis l'app. `prix` : ce que le geste coûte. `verification` : pour une ligne qui vient d'une vérification,
-// le verdict que l'écran Verify pose — la même phrase, les mêmes lignes de manque.
+// le geste ne se joue pas depuis l'app. `prix` : ce que le geste coûte.
 // `bouton` : ce que dit le bouton du geste, en quelques mots — jamais une commande ni une phrase de
 // mode d'emploi : celles-là (`geste`, `pourquoi`, `releve`, `prix`) se lisent au survol. Absent, la
 // ligne n'a pas de geste à faire depuis l'app. `disjoncteur` : la ligne du disjoncteur ouvert — une information, sans
 // bouton : le chef ne le referme pas (#3911) ; le rail ne la pose donc pas (#4238), la bande la dit.
-export type Alert = { sujet: Subject; verifie: boolean; ton: string; dit: string; pourquoi?: string; consignes?: string[]; releve?: string; geste: string; bouton?: string; appel?: Call; prix: string; verification?: Verification; disjoncteur?: true };
+export type Alert = { sujet: Subject; verifie: boolean; ton: string; dit: string; pourquoi?: string; consignes?: string[]; releve?: string; geste: string; bouton?: string; appel?: Call; prix: string; disjoncteur?: true };
 // La bande d'un projet : vide, les quatre états ont été lus, et vont bien.
 // Ce que la bande d'un projet dit de lui sur sa case de la barre : toute la cuisine qui l'attend, une
 // chose à faire, ou rien de vérifié. Une bande vide n'a pas de signal — c'est que les quatre états
@@ -79,9 +73,7 @@ export type Band = { projet: string; alertes: Alert[]; signal?: Signal; manager?
 export type Without = { sans: string };
 // Ce que la bande lit d'un projet. `status` : sa sortie, le bloc `attend` mis à part ou non ;
 // `attend` : ce bloc, quand il a été mis à part (awaiting.ts, `mettreAPart`).
-// `controle` : ce que la box a dit d'un projet installé, ses stations et ses manques (service.ts) —
-// absent, rien n'en a été lu : un projet pas encore installé, ou pas encore contrôlé.
-export type Read = { projet: string; faits: Facts | Without; status: string | Without; attend?: string; manager: Switch | Without; controle?: Control; limite?: LimitOfTheApp };
+export type Read = { projet: string; faits: Facts | Without; status: string | Without; attend?: string; manager: Switch | Without; limite?: LimitOfTheApp };
 
 // Ce que l'app a lu de sa propre limite : GitHub refuse ses appels, et `reprise` est l'instant où il les rend, nul s'il ne le dit pas.
 export type LimitOfTheApp = { reprise: string | null };
@@ -471,141 +463,6 @@ function ofTheKitchen(project: string, facts: Facts | Without, status: string | 
   }
 }
 
-// --- Ce qu'un projet installé a perdu ---------------------------------------------
-//
-// Une fois l'installation terminée, l'écran d'installation ne revient jamais (service.ts,
-// `termine`) : ce que le projet perd ensuite se dit ici, comme une alerte, avec son geste. La box
-// le dit par deux commandes du runtime, que l'app relit pour un projet installé (service.ts,
-// `controler`) : `installation stations --json` — les stations que la machine fournit, celles
-// que le projet déclare — et `installation`, dont chaque ligne `MANQUE` porte la flèche du geste
-// qui la lève. Deux pertes s'en lisent :
-//   une station    déclarée sur cette machine, et que la box ne fournit plus — son moteur n'y est
-//                  plus trouvé ; ou plus aucune station déclarée
-//   un geste de box  le geste d'installation, que la vérification dit manquer — la flèche le
-//                  rattache à sa section de docs/installer.md
-// Le reste de ce que `installation` dit manquer n'entre pas ici : c'est l'installation qui le
-// règle, ou une autre ligne de la bande qui le dit déjà. Rien de lu, rien de dit : un contrôle
-// qui n'a pas pu se faire n'invente aucune perte — et la box pas jointe, les autres lignes le disent.
-
-// Les gestes de box, par la section de docs/installer.md que la flèche de leur manque nomme
-// (`jugerReglageDuGeste`), et ce que
-// leur absence empêche, en mots simples.
-const ACTIONS_OF_BOX = [
-  { section: "« Le geste d'installation »", nom: "install a project", empeche: "installing a project on this station by its installation action would be refused" },
-] as const;
-const ON_THE_BOX = "the station itself: whoever has `sudo` there runs it — the app sends nothing";
-const RECHECKS = "the alert leaves once the station says it is back: the app checks again every 5 min, and when this space opens";
-
-// Combien de passages de suite le renouvellement de la session Max peut rater avant que la bande
-// le dise : un seul échec peut être un accident, deux de suite sont un renouvellement qui ne se
-// rétablit pas. À changer ici, nulle part ailleurs.
-export const FAILURES_FOR_ALERT = 2;
-
-// Le renouvellement en échec répété : la ligne reste tant que la vérification le dit, et sort au
-// premier passage réussi. L'échéance de la session n'est pas relue ici : une session tombée, la
-// file le dit d'elle-même (une station déconnectée).
-// Le verdict d'une vérification lue, joint à la ligne qui en vient — pas une panne : celle-là a sa ligne.
-const verdictOf = (control: Control): { verification?: Verification } => {
-  const { verification } = control;
-  return verification !== undefined && (verification.etat === "pret" || verification.etat === "pas-pret") ? { verification } : {};
-};
-
-// Une vérification plantée : un problème de brigade, pas du projet — le chef n'a rien à faire, et la
-// ligne ne lui demande rien. Elle sort au premier contrôle qui va au bout.
-function ofAOutage(control: Control | undefined): Alert[] {
-  const verification = control?.verification;
-  if (verification === undefined || verification.etat !== "plantee") return [];
-  return [
-    {
-      sujet: "verification",
-      verifie: true,
-      ton: "jaune",
-      dit: verification.titre,
-      geste: "nothing to do: this is on brigade, which fixes it — the check is replayed by itself",
-      prix: NO,
-      verification,
-    },
-  ];
-}
-
-function ofRenewal(control: Control | undefined): Alert[] {
-  const failure = control?.renouvellement;
-  if (failure === undefined || failure.echecs < FAILURES_FOR_ALERT) return [];
-  return [
-    {
-      sujet: "renouvellement",
-      verifie: true,
-      ton: "rouge",
-      dit: `Max renewal failing: ${failure.echecs} runs in a row — the session will expire if it is not restored`,
-      releve: failure.raison,
-      geste: "`journalctl -u brigade-renouvellement.service` on the station says more; fix what it names",
-      appel: REQUEST,
-      prix: `none for the kitchen: it is done on ${ON_THE_BOX}; ${RECHECKS}`,
-      ...(control === undefined ? {} : verdictOf(control)),
-    },
-  ];
-}
-
-function ofLosses(control: Control | undefined, status: string | Without): Alert[] {
-  if (control === undefined) return [];
-  const { stations, manques: gaps = [] } = control;
-  const losses: Alert[] = [];
-  if (stations !== undefined) {
-    const provided = new Set(stations.proposees.map(({ nom: name }) => name));
-    // Une station distante tourne sur un poste : ce que cette machine fournit n'en dit rien.
-    for (const { nom: name, moteur: engine } of stations.declarees.filter(({ distante: remote }) => !remote)) {
-      // Le manque qui dit son moteur introuvable par le service : la station ne lance rien, même
-      // si la commande qui la propose le trouve encore — et il porte le geste qui le remet, mot pour mot.
-      const notFound = gaps.find(({ texte: text }) => text.startsWith(`\`${engine}\` est introuvable`));
-      if (provided.has(name) && notFound === undefined) continue;
-      const reading = notFound?.texte ?? stations.absent;
-      losses.push({
-        sujet: "station",
-        verifie: true,
-        ton: "rouge",
-        dit: `station “${name}” missing: its main station no longer provides it — no cook goes there`,
-        ...(reading === null ? {} : { releve: reading }),
-        geste: notFound?.geste ?? `put \`${engine}\` back on the station, where the service finds it — \`installation\` there gives the exact command`,
-        appel: REQUEST,
-        prix: `none for the kitchen: it is done on ${ON_THE_BOX}; ${RECHECKS}`,
-        ...verdictOf(control),
-      });
-    }
-  }
-  // Plus aucune station déclarée : la ligne `stations` de `status`, quand elle est lue, le dit déjà.
-  const saysByStatus = typeof status === "string" && headsOf(status).some(({ titre: title }) => title === "stations");
-  const withoutStation = gaps.find(({ etape: step }) => step === "stations");
-  if (withoutStation !== undefined && !saysByStatus && (stations === undefined || stations.declarees.length === 0)) {
-    losses.push({
-      sujet: "station",
-      verifie: true,
-      ton: "rouge",
-      dit: "no station declared any more: no cook goes, tickets wait on the rail",
-      releve: withoutStation.texte,
-      geste: withoutStation.geste ?? "declare a station again: `installation stations` on its main station lists those it provides",
-      appel: REQUEST,
-      prix: `none: the declaration is read at the runtime's next wake-up, without a restart; ${RECHECKS}`,
-      ...verdictOf(control),
-    });
-  }
-  for (const { section, nom: name, empeche: prevents } of ACTIONS_OF_BOX) {
-    const lack = gaps.find(({ geste: action }) => action?.includes(section));
-    if (lack === undefined) continue;
-    losses.push({
-      sujet: "box",
-      verifie: true,
-      ton: "jaune",
-      dit: `station action “${name}” missing: ${prevents}`,
-      releve: lack.texte,
-      geste: lack.geste ?? `set it up again on the station — docs/installer.md, ${section}`,
-      appel: REQUEST,
-      prix: `none: no cook is interrupted — it is done on ${ON_THE_BOX}; ${RECHECKS}`,
-      ...verdictOf(control),
-    });
-  }
-  return losses;
-}
-
 // Le mot du bouton d'un geste, d'après ce que l'alerte appelle : le geste du socle par son nom, une
 // demande au second, un onglet. Un geste que l'app ne sait pas nommer garde le début de sa phrase,
 // avant tout ce qui ressemble à une commande ou à une explication.
@@ -623,9 +480,9 @@ const withButton = (alert: Alert): Alert => {
 };
 
 // La bande d'un projet, d'après ce qui en a été lu : l'urgence, le manager, la cuisine — et
-// son setup —, et ce que le projet installé a perdu.
-export function alerts({ projet: project, faits: facts, status, attend: awaiting, manager, controle: control, limite: limit }: Read): Alert[] {
-  return byGravite([...ofTheEmergency(facts), ...ofRefusalOfGitHubOnly(facts), ...ofHeld(facts), ...ofTheLimit(facts, limit), ...ofWritesHeld(status), ...ofManager(manager), ...ofTheKitchen(project, facts, status), ...ofSetup(facts, status, awaiting), ...ofLosses(control, statusRead(status)), ...ofRenewal(control), ...ofAOutage(control)].map(withButton));
+// et son setup.
+export function alerts({ projet: project, faits: facts, status, attend: awaiting, manager, limite: limit }: Read): Alert[] {
+  return byGravite([...ofTheEmergency(facts), ...ofRefusalOfGitHubOnly(facts), ...ofHeld(facts), ...ofTheLimit(facts, limit), ...ofWritesHeld(status), ...ofManager(manager), ...ofTheKitchen(project, facts, status), ...ofSetup(facts, status, awaiting)].map(withButton));
 }
 
 // La plus grave d'abord : l'urgence au-dessus de tout, puis une alerte lue avant un état non vérifié,
@@ -713,17 +570,13 @@ export const DISPLAY_MINIMUM = 20_000;
 // Ce qui est dit « pas encore lu » le temps d'une première lecture ne se montre jamais : l'app attend son résultat.
 const IN_PROGRESS = [FACTS_NOT_YET, STATUS_NOT_STILL, MANAGER_NOT_SAYS];
 
-type Source = "faits" | "status" | "manager" | "controle";
+type Source = "faits" | "status" | "manager";
 // Quelles lectures disent chaque sujet : une réception ne compte que pour les alertes qu'elle a relues.
 const READS_OF: Record<Subject, readonly Source[]> = {
   urgence: ["faits"],
   github: ["faits", "status"],
   manager: ["manager"],
   cuisine: ["faits", "status"],
-  station: ["controle", "status"],
-  box: ["controle", "status"],
-  renouvellement: ["controle"],
-  verification: ["controle"],
   injoignable: ["faits"],
 };
 const key = ({ sujet: subject, dit: said }: Alert) => `${subject}\u0000${said}`;
@@ -734,8 +587,6 @@ export function holdBands({ maintenant: now = Date.now, etablir: establish = REA
   // Le bloc `attend` du dernier `status` lu, mis à part : il ne vit qu'avec lui.
   const attends = new Map<string, string>();
   const managers = new Map<string, Switch | Without>();
-  // Le dernier contrôle d'un projet installé (service.ts) : il vaut jusqu'au suivant.
-  const checks = new Map<string, Control>();
   // La limite que l'app a lue elle-même sur GitHub : elle vaut jusqu'à la lecture suivante des stations.
   let limitOfTheApp: LimitOfTheApp | undefined;
   // Ce que la bande de chaque projet dit maintenant : le suivi de chaque ligne, et la bande rendue.
@@ -759,14 +610,12 @@ export function holdBands({ maintenant: now = Date.now, etablir: establish = REA
   };
   const raw = (project: string): Alert[] => {
     const awaiting = attends.get(project);
-    const control = checks.get(project);
     return alerts({
       projet: project,
       faits: facts.get(project) ?? { sans: FACTS_NOT_YET },
       status: statuses.get(project) ?? { sans: STATUS_NOT_READ },
       ...(awaiting === undefined ? {} : { attend: awaiting }),
       manager: managers.get(project) ?? { sans: MANAGER_NOT_SAYS },
-      ...(control === undefined ? {} : { controle: control }),
       ...(limitOfTheApp === undefined ? {} : { limite: limitOfTheApp }),
     });
   };
@@ -862,7 +711,7 @@ export function holdBands({ maintenant: now = Date.now, etablir: establish = REA
     // lu est oublié ; un projet qui n'en est plus n'a plus rien de tenu.
     ouvrir(projects: readonly string[]): Band[] {
       facts.clear();
-      for (const heldOnes of [statuses, attends, managers, checks, silences, outsideLine, tracked, renderedEntries]) for (const project of heldOnes.keys()) if (!projects.includes(project)) heldOnes.delete(project);
+      for (const heldOnes of [statuses, attends, managers, silences, outsideLine, tracked, renderedEntries]) for (const project of heldOnes.keys()) if (!projects.includes(project)) heldOnes.delete(project);
       return projects.map((project) => band(project));
     },
     // Une lecture de `faits`.
@@ -913,13 +762,6 @@ export function holdBands({ maintenant: now = Date.now, etablir: establish = REA
         "erreur" in reading ? { sans: rate(MANAGER, reading) } : readOne === undefined ? { sans: "the reading did not return `manager`" } : "informe" in readOne ? { sans: `the output of \`manager\` does not have the expected shape: ${readOne.informe}` } : readOne.interrupteur,
       );
       return band(reading.projet, "manager");
-    },
-    // Ce que l'installation d'un projet dit de lui (service.ts, `Guide`) : installé et contrôlé, ce
-    // qu'il a perdu ; sinon rien — un projet qui s'installe a son écran, pas d'alerte de perte.
-    controle(project: string, control: Control | undefined): Band {
-      if (control === undefined) checks.delete(project);
-      else checks.set(project, control);
-      return band(project, "controle");
     },
     // La ligne que la vue nomme par son sujet et ce qu'elle dit, telle que la bande la dit
     // maintenant — rien, si elle n'y est plus : la vue ne fait pas dire à la bande ce qu'elle a cessé de dire.

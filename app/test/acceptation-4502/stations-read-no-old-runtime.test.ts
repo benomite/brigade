@@ -27,7 +27,6 @@ const SCOPE = [
   "tools-required.ts",
   "vue/stations-tab",
   "vue/stations-of-account.js",
-  "vue/stations-declared.js",
   "vue/cooks",
   "vue/add-server",
   "vue/identities-github.js",
