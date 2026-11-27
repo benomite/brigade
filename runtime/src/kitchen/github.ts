@@ -72,7 +72,7 @@ export async function readState(gh: Gh, repo: string): Promise<{ issues: Issue[]
     const data = JSON.parse(await gh(args)).data.repository;
     for (const raw of data.issues.nodes as RawIssue[]) {
       const labels = raw.labels.nodes.map((label) => label.name);
-      issues.push({ number: raw.number, title: raw.title, labels, trusted: TRUSTED.has(raw.authorAssociation) || labels.includes(ACCEPTED), dependsOn: [...new Set([...dependsOn(raw.body), ...(raw.blockedBy?.nodes ?? []).filter((one) => one.state === "OPEN").map((one) => one.number)])] });
+      issues.push({ number: raw.number, title: raw.title, labels, trusted: TRUSTED.has(raw.authorAssociation) || labels.includes(ACCEPTED), epic: Number(/^Epic: #(\d+)/m.exec(raw.body)?.[1]) || undefined, dependsOn: [...new Set([...dependsOn(raw.body), ...(raw.blockedBy?.nodes ?? []).filter((one) => one.state === "OPEN").map((one) => one.number)])] });
     }
     if (cursor === null) {
       prs = (data.pullRequests.nodes as RawPr[]).flatMap((raw) => {
@@ -123,7 +123,7 @@ export function gestures(gh: Gh, repo: string) {
         await edit();
       });
     },
-    close: (issue: number, body: string) => gh(["issue", "close", String(issue), ...r, "--reason", "not planned", "--comment", body]),
+    close: (issue: number, body: string, reason = "not planned") => gh(["issue", "close", String(issue), ...r, "--reason", reason, "--comment", body]),
     // Adds lines at the end of the issue's body.
     appendToBody: async (issue: number, lines: string) => {
       const body = (JSON.parse(await gh(["api", `repos/${repo}/issues/${issue}`])) as { body: string | null }).body ?? "";

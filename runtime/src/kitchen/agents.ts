@@ -92,7 +92,9 @@ export async function applyAgentActions(actions: AgentAction[], context: { act: 
         log(`${who}: #${action.calibrate} calibrated ${action.model}/${action.effort}`);
       } else if ("split" in action && known(action.split) && Array.isArray(action.tickets) && action.tickets.length > 0 && action.tickets.length <= 10) {
         const children: number[] = [];
-        for (const ticket of action.tickets) children.push(await act.open(ticket.title, `${ticket.body}\n\nEpic: #${action.split}`));
+        // A child is work the manager put on the rail: it is fired, at its parent's priority.
+        const labels = [LABELS.ready, ...(issues.get(action.split)?.labels.filter((label) => /^prio:\d+$/.test(label)) ?? [])];
+        for (const ticket of action.tickets) children.push(await act.open(ticket.title, `${ticket.body}\n\nEpic: #${action.split}`, labels));
         await act.labels(action.split, [LABELS.epic], [LABELS.ready]);
         await act.comment(action.split, `Split by the manager into ${children.map((n) => `#${n}`).join(", ")}.`);
         acted.add(action.split);
