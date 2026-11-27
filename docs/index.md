@@ -14,7 +14,7 @@ contribute and the release notes — go back to the [repository root](../README.
 
 - [Install brigade and cook your first ticket](installation.md) — the whole path for Mac and
   Windows, from the download to the first merged pull request, with the steps for the unsigned app.
-  Linux is not covered there.
+- [Install brigade on Linux](installation-linux.md) — the Linux x64 app, as an AppImage.
 - [Tutorial: add a first project and cook its first ticket](tutoriels/premier-projet.md) — add one
   project, open one ticket as a GitHub issue, watch a cook work it, review the delivery at the pass,
   and merge.

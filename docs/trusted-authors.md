@@ -8,7 +8,7 @@ The kitchen trusts the text of three kinds of author, and only these:
 
 1. **The chef**: the human who decides.
 2. **Collaborators with write access** to the repository: the owner, the members and the collaborators (the author associations `OWNER`, `MEMBER` and `COLLABORATOR`). A `TODO` answer, a question answered on an issue, and a trusted comment are taken from them.
-3. **The kitchen's own agents**: the `manager`, the `cook`s, the `pass`, the `reviewer` and the `second`.
+3. **The kitchen's own agents**: the `manager`, the `cook`s, the `pass` and the `supervisor`.
 
 ## Why trust is limited to these authors
 
@@ -20,9 +20,9 @@ So the trust is not granted to everyone who can read the repository. It is limit
 
 Text from an author outside the three kinds above is held:
 
-- no agent acts on it before the chef accepts it. The `manager` reads it once, to propose a choice for the chef; no `cook` works on it and no `pass` judges it;
-- it is shown once in the chef's `TODO`, with its author and the choices to answer it. For a stranger's issue, the choices are `Put it on the rail` and `Close it`. Accepting it puts the ticket on the rail; nothing else happens before that;
-- the ticket waits as `parked` for the chef, and it is not on the rail until then.
+- no agent acts on a stranger's issue before the chef accepts it: a collaborator with write access labels it `accepted`. Until then no `manager` sorts it, no `cook` works on it and no `pass` judges it;
+- its body never reaches an agent: an agent reads `(body withheld: its author is not trusted)` in its place;
+- a stranger's comment never reaches an agent, on any issue: only the comments of trusted authors do.
 
-A `label` set by an author without write access has no effect. The kitchen reads its labels only from the authors it trusts, so a `fire` or a `prio:` label that a stranger puts on an issue moves nothing. The issue waits in the chef's `TODO` like any other text from a stranger.
+A `label` set by an author without write access has no effect. A `fire` or a `prio:` label on a stranger's issue moves nothing: the kitchen takes no issue it does not trust.
 
