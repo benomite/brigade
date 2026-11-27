@@ -76,8 +76,10 @@ export const LECTURES_INTERDITES = [
 // `declaration` : ce que le dépôt déclare dans `bac-a-sable.json`
 // (`declaration.ts`) ; ses dossiers d'`ecriture` s'ajoutent à ceux du cook,
 // dans les limites de `ecritureDeclaree`. `etat` : le répertoire où le
-// runtime tient son état — aucun dossier déclaré n'y touche.
-export type Cook = { worktree: string; caches: string[]; hotes: Regle[]; home: string; prod?: string[]; lit?: string[]; brigade?: boolean; services?: ServiceLocal[]; declaration?: DeclarationBacASable; etat?: string };
+// runtime tient son état — aucun dossier déclaré n'y touche. `lecture` : un
+// lancement qui relit sans écrire (reviewer, manager) — il n'écrit nulle part,
+// ni dans le répertoire où il part, ni dans les caches.
+export type Cook = { worktree: string; caches: string[]; hotes: Regle[]; home: string; prod?: string[]; lit?: string[]; brigade?: boolean; services?: ServiceLocal[]; declaration?: DeclarationBacASable; etat?: string; lecture?: boolean };
 
 export type Reglages = {
   env: { npm_config_manage_package_manager_versions: "false" };
@@ -198,8 +200,8 @@ export function configurer(cook: Cook): ConfigDeBacASable {
   // Les `ports` de la déclaration n'ajoutent rien ici : le bac à sable de
   // Claude Code n'ouvre la boucle locale qu'en entier (`allowLocalBinding`),
   // sans champ qui la borne à un port, et l'ouvre déjà (#3541).
-  const declares = (cook.declaration?.ecriture ?? []).map((entree) => ecritureDeclaree(entree, { worktree, home, interdits, etat: cook.etat }));
-  const ecrits = unique([worktree, ...cook.caches.map((cache) => chemin(cache, home, "cache du projet")), ...droitsDInstallation(home), ...declares]);
+  const declares = cook.lecture === true ? [] : (cook.declaration?.ecriture ?? []).map((entree) => ecritureDeclaree(entree, { worktree, home, interdits, etat: cook.etat }));
+  const ecrits = cook.lecture === true ? [] : unique([worktree, ...cook.caches.map((cache) => chemin(cache, home, "cache du projet")), ...droitsDInstallation(home), ...declares]);
   for (const lieu of ecrits) {
     // Écrire au-dessus du compte, c'est écrire partout dessous : ses fichiers
     // de démarrage, ses clés.
