@@ -22,7 +22,7 @@ test("a manager split opens its children fired, at the parent's priority (#4672)
 
 test("an epic whose children are all closed is closed; one with an open child stays (#4672)", async () => {
   const closed: number[] = [];
-  const act = { close: async (n: number) => void closed.push(n) };
+  const act = { close: async (n: number) => (closed.push(n), "") };
   const issue = (number: number, labels: string[], epic?: number) => ({ number, title: "t", labels, trusted: true, dependsOn: [], epic });
   const comments = async () => [{ body: "Split by the manager into #11, #12." }];
   await closeFinishedEpics([issue(10, ["epic"])], comments, act, () => {});
