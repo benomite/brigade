@@ -70,7 +70,9 @@ test("the chef's TODO lists the parked tickets that wait for the chef, with who,
   const arrival = entry(vue, 51).dessous("button").find((b) => b.textContent === "it arrived, back to the kitchen") ?? assert.fail("pas de bouton");
   const todo = todoOf(vue);
   arrival.click();
-  assert.equal(todo.dessous("li").some(({ dataset }) => dataset.ticket === "51"), false, "the entry leaves the TODO");
+  // Répondue, l'entrée se replie sur une ligne qui dit la réponse (#4646), et le redessin la garde ainsi.
+  assert.equal(todo.dessous("li").find(({ dataset }) => dataset.ticket === "51")?.dataset.plie, "", "the entry folds");
+  assert.equal(entry(vue, 51).children.filter(({ hidden }) => !hidden).map(({ textContent }) => textContent).join(""), "#51 Ticket 51 · answered: “it arrived, back to the kitchen”");
   opened = false;
   await repos();
   assert.deepEqual(waits(vue), [[PARADE, "attente-arrivee", 51]]);

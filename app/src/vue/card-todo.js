@@ -94,7 +94,7 @@ export function afterRendered(answer, rendered) {
 
 // La réponse du chef dite en mots, comme le process principal la dit (card-todo.ts, `reponseDite`).
 /** @param {CardOfTodo} card @param {Answer} answer */
-const answerSaid = (card, answer) => ("choix" in answer ? (card.choix[answer.choix - 1]?.texte ?? `choice ${answer.choix}`) : answer.texte);
+export const answerSaid = (card, answer) => ("choix" in answer ? (card.choix[answer.choix - 1]?.texte ?? `choice ${answer.choix}`) : answer.texte);
 
 // Ce que le tableau dit de la dernière réponse, dans les mots de la carte.
 /** @param {SendSeen} sending @returns {Seen} */
