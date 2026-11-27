@@ -56,11 +56,7 @@ export const LECTURES_DE_L_ETAT = ["rail", "log", "station", "base", "installati
 export const RACINE_DE_BRIGADE = "/opt/brigade";
 // La doc du runtime est découpée en pages sous `docs/runtime/` : l'index d'abord,
 // puis chaque page.
-export const PAGES_DU_RUNTIME = [
-  "README.md", "code-layout.md", "autonomie.md", "github-seul.md", "journal-et-rail.md", "garde-fous.md", "station.md", "station-machine.md", "mac-new-kitchen.md", "quota-github.md", "station-cook.md", "station-distante.md", "station-navigateur.md",
-  "manager.md", "pass.md", "pass-merge.md", "risk-levels.md", "etat-et-mesures.md", "fermeture.md", "fiche-projet.md", "carnet-lecons.md", "identites-et-secrets.md", "cloison-et-arbitre.md", "isolation-and-network-filter.md", "conflits-avec-main.md", "bac-a-sable.md", "declaration-bac-a-sable.md", "exploitation.md", "passage-v2-main.md",
-  "settings-ownership.md", "role-produit.md", "windows-ci-runner-failure.md", "github-rate-limit-2026-11-03.md", "claim-wait-2026-11-07.md", "claim-wait-2026-11-13.md", "claim-wait-espace-2026-11-13.md", "claim-wait-2026-11-15.md",
-].map((page) => `runtime/${page}`);
+export const PAGES_DU_RUNTIME = ["README.md", "mac-new-kitchen.md", "bac-a-sable.md", "isolation-and-network-filter.md"].map((page) => `runtime/${page}`);
 export const DOCS_DE_LA_BOX = ["installer.md", ...PAGES_DU_RUNTIME, "app.md", "glossary.md"] as const;
 
 // Le fichier de l'app, hors du dépôt, d'où le second ne prend que `nom` et

@@ -1,5 +1,6 @@
-// How the new kitchen launches its agents on macOS: inside Claude Code's
-// sandbox, with the project's network allowlist — or not at all.
+// How the new kitchen launches its agents: on macOS inside Claude Code's
+// sandbox, with the project's network allowlist; elsewhere inside bwrap — or
+// not at all.
 import assert from "node:assert/strict";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -80,6 +81,14 @@ test("on Linux, the launch goes through bwrap unchanged, without Claude Code's s
   assert.ok(launch.args.includes("claude"));
   assert.equal(launch.args[launch.args.indexOf("--permission-mode") + 1], "bypassPermissions");
   assert.ok(!launch.args.includes("--settings"));
+});
+
+test("off macOS without bwrap — Windows, a Linux desktop —, no agent is launched and the one-line reason says why", () => {
+  for (const plateforme of ["win32", "linux"] as const) {
+    const launcher = launcherOf(place({ plateforme, existe: () => false, versionDeClaude: () => null }));
+    assert.ok("refused" in launcher, plateforme);
+    assert.equal(launcher.refused, `no agent launched: on ${plateforme} every agent runs inside the bwrap partition, and BRIGADE_SANDBOX_BIN is not set`);
+  }
 });
 
 test("the project's hosts are the base ones when the base branch declares none", async () => {

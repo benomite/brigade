@@ -22,7 +22,7 @@ merge — never replayed by a cook on the box.
    does not ask for a login again.
 2. **The code**: the started station shows it in its service log
    (`journalctl -u brigade-station`) — `brigade : station à appairer — tape ce code dans l'app :
-   7KQ2-M9XD …` —, and you type it in the app, on "All projects" ([`runtime/`](runtime/station-machine.md),
+   7KQ2-M9XD …` —, and you type it in the app, on "All projects" ([`runtime/`](runtime/README.md),
    "Une station par machine").
 
 What the command says during the switchover:
@@ -63,7 +63,7 @@ resumes where it stopped.
   no chef action: each project's queue says so, one line per version — `passée en version … à …`
   ([`installation-station.md`](installation-station.md), "6. Updating, on its own").
 - **A fourth project is added in under 10 minutes**, from the app, without a terminal
-  ([`runtime/`](runtime/station-machine.md), "Ajouter un projet à une station depuis l'app, sans terminal").
+  ([`runtime/`](runtime/README.md), "Ajouter un projet à une station depuis l'app, sans terminal").
 
 The takeover is tested, before the merge, on a test installation — never on the box: three
 projects served the old way, a cook in flight, the real package installed, log, decisions and

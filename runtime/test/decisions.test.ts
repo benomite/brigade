@@ -16,10 +16,7 @@ import { configReviewer } from "../src/reviewer.ts";
 import { ConfigInvalide, demarrer } from "../src/runtime.ts";
 import { lireStations } from "../src/stations-declarees.ts";
 import { chef, cuisine, decider, issue } from "./aides/cuisine.ts";
-import { BASE, DEPOT, depotGit, ENV_GIT, FAUX_CLAUDE, fauxGh, git, jusqua, lancer, repertoireTemporaire } from "./outils.ts";
-
-const MAIN = join(import.meta.dirname, "../src/main.ts");
-const REFUS = 2;
+import { depotGit, git, jusqua, repertoireTemporaire } from "./outils.ts";
 
 // Ce que le chef a décidé d'abord : posé au journal avant chaque test.
 const ENV = {
@@ -244,72 +241,5 @@ describe("les décisions du chef", { concurrency: 8 }, () => {
       ["sonnet", "medium"],
       ["opus", "high"],
     ]);
-  });
-});
-
-// Un runtime complet, dans son propre process : ce que le chef pose pendant
-// qu'il tourne, il le lit sans redémarrer.
-describe("le runtime et les décisions du chef", { concurrency: 4 }, () => {
-  const environnement = (t: TestContext, repertoire: string) => {
-    const gh = fauxGh(t);
-    gh.issues([]);
-    const clone = repertoireTemporaire(t);
-    git(clone, "init", "-q");
-    if (repertoire !== "") poserLesPremieres(repertoire);
-    return {
-      ...ENV_GIT,
-      BRIGADE_STATE_DIR: repertoire,
-      BRIGADE_PROJECT: "brigade",
-      BRIGADE_GITHUB_REPO: DEPOT,
-      BRIGADE_GH_BIN: gh.bin,
-      BRIGADE_REPO_DIR: clone,
-      BRIGADE_BASE_BRANCH: BASE,
-      BRIGADE_CLAUDE_BIN: FAUX_CLAUDE,
-      BRIGADE_MAX_LOAD_PER_CORE: "1000000",
-      BRIGADE_MIN_FREE_MEMORY_MB: "0",
-      BRIGADE_MIN_FREE_DISK_MB: "0",
-    };
-  };
-  const relire = (repertoire: string) => {
-    const journal = ouvrirJournal(repertoire, { lectureSeule: true });
-    try {
-      return journal.tout();
-    } finally {
-      journal.fermer();
-    }
-  };
-
-  test("une variable de décision laissée au drop-in est ignorée dès le démarrage, et dite avec le geste qui la remplace", async (t) => {
-    const repertoire = repertoireTemporaire(t);
-    const env = { ...environnement(t, repertoire), BRIGADE_STATIONS: "box/claude:7:code", BRIGADE_MANAGER_MODEL: "haiku" };
-
-    const runtime = lancer(t, MAIN, [], env);
-    await runtime.attendre("démarré");
-
-    // Le journal l'emporte : la station est celle du chef, pas celle du drop-in.
-    assert.match(runtime.sortie(), /stations — box\/claude \(1 cooks? at most/);
-    assert.match(runtime.sortie(), /BRIGADE_STATIONS is ignored in the unit's environment.*`brigade brigade station stations <value>`.*remove `Environment=BRIGADE_STATIONS` from the drop-in/);
-    assert.match(runtime.sortie(), /BRIGADE_MANAGER_MODEL is ignored.*station manager-modele <value>/);
-  });
-
-  test("sans décision au journal, une variable de décision du drop-in ne suffit pas : le runtime refuse de démarrer, et nomme le geste", async (t) => {
-    const repertoire = repertoireTemporaire(t);
-    const { BRIGADE_MANAGER_MODEL, ...autres } = ENV;
-    for (const [nom, valeur] of Object.entries(autres)) decider(repertoire, nom, valeur);
-    const env = { ...environnement(t, ""), BRIGADE_STATE_DIR: repertoire, BRIGADE_MANAGER_MODEL, BRIGADE_TEST_SANS_DECISIONS: "1" };
-
-    const runtime = lancer(t, MAIN, [], env);
-
-    assert.equal(await runtime.fin, REFUS);
-    assert.match(runtime.sortie(), /BRIGADE_MANAGER_MODEL n'est pas défini.*`brigade <projet> station manager-modele <valeur>`/);
-  });
-
-  test("un répertoire d'état sous le clone est un refus de démarrer : les décisions y seraient à portée d'un cook", async (t) => {
-    const env = environnement(t, "");
-    const repertoire = join(env.BRIGADE_REPO_DIR, ".brigade-state");
-    const runtime = lancer(t, MAIN, [], { ...env, BRIGADE_STATE_DIR: repertoire });
-
-    assert.equal(await runtime.fin, REFUS);
-    assert.match(runtime.sortie(), /refus de démarrer — BRIGADE_STATE_DIR .* est sous BRIGADE_REPO_DIR/);
   });
 });

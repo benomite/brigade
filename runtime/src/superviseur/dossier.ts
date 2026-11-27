@@ -1,5 +1,5 @@
-// Le dossier que le superviseur remet au manager (#3943, spec
-// 2026-11-20-kitchen-spinning, section B) : la file, la queue du journal,
+// Le dossier que le superviseur remet au manager (#3943, épique
+// #3904) : la file, la queue du journal,
 // l'étape de CI en échec avec ses lignes de log, l'historique du ticket en
 // faute, et le fil du superviseur : ses derniers gestes et ses compteurs (#4037).
 //

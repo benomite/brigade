@@ -8,12 +8,11 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
-import type { CopieLocale, OptionsDOuverture, Progres } from "../../runtime/src/projets/copie-locale.ts";
 import { readConfiguration } from "../src/config.ts";
-import { openOfAStation } from "../src/first-launch.ts";
+import { openOfAStation, type LocalCopy, type OptionsOfOpen, type Progress } from "../src/first-launch.ts";
 import { followConfiguration } from "../src/tracking.ts";
 
-type Request = Pick<OptionsDOuverture, "repository" | "project" | "folder" | "progres">;
+type Request = Parameters<OptionsOfOpen["ouvrirLaCopie"]>[0];
 
 function oneFile(t: TestContext, content?: unknown) {
   const folder = mkdtempSync(join(tmpdir(), "brigade-app-premier-"));
@@ -26,7 +25,7 @@ function oneFile(t: TestContext, content?: unknown) {
 }
 
 // Le runtime, doublé : il note chaque demande, dit ses étapes, et rend la copie qu'on lui dicte.
-function oneRuntime(render: (request: Request) => CopieLocale | Promise<CopieLocale>) {
+function oneRuntime(render: (request: Request) => LocalCopy | Promise<LocalCopy>) {
   const requests: Request[] = [];
   return {
     demandes: requests,
@@ -44,7 +43,7 @@ test("sans copie : le runtime clone, ses étapes partent à la vue, et le projet
   const copy = join(folder, "projects", "parade");
   // Le clone que le runtime a posé : le fichier ne prend qu'un dossier qui existe.
   const runtime = oneRuntime(() => (mkdirSync(copy, { recursive: true }), { state: "open", project: "parade", repository: "benomite/parade", folder: copy, cloned: true }));
-  const steps: Array<[string, Progres]> = [];
+  const steps: Array<[string, Progress]> = [];
   const bases: string[] = [];
   const open = openOfAStation({ ...runtime, lireLaBase: async (it) => (bases.push(it), "v2"), configuration: tracking.configuration, ajouter: tracking.ajouter, progres: (repository, step) => steps.push([repository, step]) });
   assert.deepEqual(await open("parade", "benomite/parade"), { state: "open", project: "parade", repository: "benomite/parade", folder: copy, cloned: true });
@@ -93,7 +92,7 @@ test("un projet que le fichier a déjà : sa copie est reprise par son dossier, 
 
 test("le clone qui échoue : l'état du runtime passe tel quel, et le fichier n'est pas touché", async (t) => {
   const { suivi: tracking, lu: readOne } = oneFile(t, { projets: [] });
-  const failure: CopieLocale = { state: "failed", project: "parade", repository: "benomite/parade", cause: "git-missing", reason: "Git is not installed on this computer, so benomite/parade cannot be cloned: install it, then open the project again.", link: "https://git-scm.com/downloads" };
+  const failure: LocalCopy = { state: "failed", project: "parade", repository: "benomite/parade", cause: "git-missing", reason: "Git is not installed on this computer, so benomite/parade cannot be cloned: install it, then open the project again.", link: "https://git-scm.com/downloads" };
   const open = openOfAStation({ ...oneRuntime(() => failure), lireLaBase: async () => "main", configuration: tracking.configuration, ajouter: tracking.ajouter, progres: () => {} });
   assert.deepEqual(await open("parade", "benomite/parade"), failure);
   assert.deepEqual(readOne().projets, []);
@@ -118,8 +117,8 @@ test("une copie faite que le fichier refuse : la phrase le dit, et le refus du f
 
 test("un clone à la fois ; sans dépôt, rien ne part", async (t) => {
   const { suivi: tracking } = oneFile(t, { projets: [] });
-  let finish: (copy: CopieLocale) => void = () => {};
-  const runtime = oneRuntime(() => new Promise<CopieLocale>((resolve) => (finish = resolve)));
+  let finish: (copy: LocalCopy) => void = () => {};
+  const runtime = oneRuntime(() => new Promise<LocalCopy>((resolve) => (finish = resolve)));
   const open = openOfAStation({ ...runtime, lireLaBase: async () => "main", configuration: tracking.configuration, ajouter: tracking.ajouter, progres: () => {} });
   const first = open("parade", "benomite/parade");
   assert.deepEqual(await open("brigade", "benomite/brigade"), { state: "failed", project: "brigade", repository: "benomite/brigade", cause: "busy", reason: "parade is being opened: wait until it is, then open brigade." });

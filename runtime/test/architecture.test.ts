@@ -35,7 +35,6 @@ const VERS = {
   "mise-a-jour/publications.ts": "les releases du dépôt de brigade sur GitHub, pour la mise à jour de la station",
   "porte.ts": "les hôtes de la liste blanche du projet, pour ses lancements — elle écoute sur 127.0.0.1",
   "reseau.ts": "la porte du projet, et la sonde du filtre de son unité",
-  "station-update/releases.ts": "les releases du dépôt de brigade sur GitHub, pour la mise à jour de la station de l'ordinateur",
 };
 
 test("la déclaration d'une station distante ne porte aucune adresse : la box ne sait pas où elle est, elle ne peut donc pas la joindre", () => {
@@ -66,20 +65,11 @@ test("`runtime/src` : seuls neuf modules touchent au réseau, aucun vers une sta
 test("`runtime/src` : aucun programme qui joint une autre machine n'est lancé par son nom — ni `ssh`, ni `scp`, ni `curl`", () => {
   // Les seuls programmes que le runtime lance par un nom écrit en dur.
   const lances = new Set(sources().flatMap((fichier) => [...lire(fichier).matchAll(/(?<![.\w])(?:spawn|spawnSync|execFile|execFileSync|exec|execSync)\(\s*"([^"]+)"/g)].map((trouve) => trouve[1])));
-  // `systemctl` : pour la seule bascule, jouée sous root par le paquet de la
-  // station, qui arrête les anciennes unités de la machine
-  // (`bascule/basculer.ts`) — il ne parle qu'au systemd local.
-  // `tar` : pour la mise à jour de la station de l'ordinateur, qui extrait la
-  // release qu'elle a téléchargée (`station-update/archive.ts`) — un fichier local.
   // `ps` : pour dire quel processus tient le processeur quand la machine est
   // saturée (`consommateur.ts`, #4090) — il ne lit que la table des processus locale.
-  assert.deepEqual([...lances].sort(), ["du", "git", "ps", "systemctl", "tar"]);
+  assert.deepEqual([...lances].sort(), ["du", "git", "ps"]);
   // Ni nommé ailleurs dans le code — un commentaire peut le citer, pas une chaîne.
-  // Sauf par la vérification des outils du second (#1433), qui cherche `ssh`
-  // dans le PATH du chef pour dire s'il manque, et ne lance rien.
-  const OUTILS_DU_SECOND = join(SRC, "second", "outils.ts");
-  assert.doesNotMatch(lire(OUTILS_DU_SECOND), /node:child_process|\bspawn\(|\bexecFile(Sync)?\(/);
-  for (const fichier of sources().filter((fichier) => fichier !== OUTILS_DU_SECOND)) {
+  for (const fichier of sources()) {
     const code = lire(fichier)
       .split("\n")
       .filter((ligne) => !ligne.trimStart().startsWith("//"))

@@ -9,7 +9,7 @@ import { describe, test } from "node:test";
 import { POWER_UP } from "../../../src/power-up.ts";
 import { forTheBar } from "../../../src/bar.ts";
 import { EXAMPLE, type Project } from "../../../src/config.ts";
-import type { StationEnregistree } from "../../../../runtime/src/enregistrement-station/stations-du-compte.ts";
+import type { StationRecorded } from "../../../src/stations-of-account.ts";
 import { PALETTE } from "../../../src/colors.ts";
 import { KITCHEN_ACTIONS } from "../../../src/kitchen.ts";
 import { BANNER, holdFacts, type Facts } from "../../../src/facts.ts";
@@ -134,7 +134,7 @@ const MISSING = { ready: false, missingBindings: ["Gates"], missingLabels: ["fir
 const READY = { ready: true, missingBindings: [], missingLabels: [] };
 const NO_STATION = { a: A, stations: [] } as unknown as SeenOfStations;
 // Une station du compte, hors ligne depuis hier : choisie, elle ne sert le projet qu'à son retour.
-const ATELIER: StationEnregistree = {
+const ATELIER: StationRecorded = {
   id: "g1",
   name: "atelier",
   platform: "linux",
