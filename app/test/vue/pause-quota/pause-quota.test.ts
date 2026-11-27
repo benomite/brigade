@@ -17,14 +17,13 @@ import { CONFIRMED, DIRECT } from "../../../src/actions.ts";
 import { openTheReadGitHub } from "../../../src/read-github-phone.ts";
 import { TABS, HEADINGS } from "../../../src/tabs.ts";
 import { EFFORTS, MODELS } from "../../../src/projects/projects.ts";
-import { withTheirState, type StationsOfAccount } from "../../../src/stations-of-account.ts";
 import { API_GITHUB, type Send } from "../../../src/board/client.ts";
 import type { BoardRead } from "../../../src/board/read.ts";
 import { stateOfTheLine } from "../../../src/vue/home/projects/projects.js";
 import { lineOfTheWait } from "../../../src/vue/wait-of-rail/line-of-the-wait.js";
 import { signsOf } from "../../../src/vue/cooks/signs-of-life.ts";
 import { whatTheRailSays, inHowMany, lineOfProjectInPause, SAME_REASON, pauseOfProjects, PROJECT_IN_PAUSE, RESUMPTION_UNKNOWN, holdThePause } from "../../../src/vue/pause-quota/line-of-the-pause.js";
-import { withThePresenceLocale, withTheStationLocale, pauseOfAccount, pauseQuotaRead, quotaGithubRead, signOfTheRecording } from "../../../src/vue/pause-quota/pause-quota.ts";
+import { pauseOfAccount, pauseQuotaRead, quotaGithubRead, signOfTheRecording } from "../../../src/vue/pause-quota/pause-quota.ts";
 import { withTheRail, type RailOnGithub, type SignsOfLife, type TicketOnGithub } from "../../../src/vue/rail/github.ts";
 import { lineOfRailBlocked } from "../../../src/vue/rail-blocked/line-of-rail-blocked.js";
 import { Fake, playTheVue, repos } from "../../helpers/false-vue.ts";
@@ -154,17 +153,6 @@ describe("une station vraiment arrêtée", () => {
 });
 
 describe("la station que l'app voit tourner sur cet ordinateur", () => {
-  test("son signe de vie a quinze minutes, mais elle tourne ici : ni offline, ni « Start the station »", () => {
-    const signs = withTheStationLocale([box()], "gistbox", A);
-    assert.equal(signs[0]?.lastSeen, READ);
-    // Vivante, elle ne cache pas une autre panne (ici, son manager qui ne prend rien) : elle n'est juste pas dite tue.
-    const head = headOfRail(factsOf(reading({ lus: signs })));
-    assert.doesNotMatch(head, /offline|Start the station|Start it on its computer/);
-    // Sans elle — elle ne tourne pas ici —, rien ne change.
-    assert.deepEqual(withTheStationLocale([box()], null, A), [box()]);
-    assert.match(headOfRail(factsOf(reading({ lus: withTheStationLocale([box()], "autre", A) }))), /FAULT/);
-  });
-
   test("sa mise à jour la redémarre : ni FAULT ni file bloquée, même arrêtée ou hors ligne (#3637)", () => {
     const stopped = box({ stoppedAt: "2026-11-11T12:01:00.000Z" });
     const boardOf = (readOnes: ReturnType<typeof box>[]) => board(factsOf(reading({ lus: readOnes } as unknown as SignsOfLife)));
@@ -175,16 +163,6 @@ describe("la station que l'app voit tourner sur cet ordinateur", () => {
       assert.equal(withIt.railBloque, undefined);
       assert.equal(withIt.attenteDuRail, undefined);
     }
-  });
-
-  test("la liste des stations du compte la dit en ligne", () => {
-    const readEntries = { state: "listed", unreadable: [], stations: [{ ...box(), platform: "macos", machine: "", version: "1", account: "chef", available: false }] } as unknown as StationsOfAccount;
-    const state = (presences: ReturnType<typeof withThePresenceLocale>) => {
-      const readOne = withTheirState(readEntries, presences, A);
-      return readOne.state === "listed" ? readOne.stations[0] : assert.fail("pas listée");
-    };
-    assert.equal(state(withThePresenceLocale([], [{ id: "gistbox", name: "box" }], "gistbox"))?.available, true);
-    assert.equal(state(withThePresenceLocale([], [{ id: "gistbox", name: "box" }], null))?.available, false);
   });
 });
 

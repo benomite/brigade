@@ -274,8 +274,8 @@ paired.
 
 On first launch the file does not exist: the app creates it, empty (`{ "projets": [] }`). **As long
 as it has no project, the app opens on the stations you have already paired and the projects each
-carries** — in place of All projects, the round **T** still marked. They are read by the runtime
-(`runtime/src/appairage/stations-du-chef.ts`, #1428), through this computer's `gh`:
+carries** — in place of All projects, the round **T** still marked. Since #4511 no station is paired any more: the list
+is empty, and says that a station's kitchen serves the projects of its `kitchen/projects` file. Before, it read:
 
 ```
 Open one of your projects on this PC: one click, no folder to choose.
@@ -286,33 +286,27 @@ Open one of your projects on this PC: one click, no folder to choose.
 [pick one of your repositories instead]
 ```
 
-- **A project opens in one click, with no folder to choose.** The runtime's operation
-  (`runtime/src/projets/copie-locale.ts`, #1429) reuses a copy that already exists, or clones the
+- **A project opens in one click, with no folder to choose.** The app
+  (`app/src/local-copy.ts`, #1429, #4511) reuses a copy that already exists, or clones the
   repository into the folder the app manages (`~/Brigade/<name>`, or
   `BRIGADE_PROJECTS_DIR`). Each of its steps is said under the station, in its sentence —
   `Cloning benomite/parade into … — 42%.` —, and the other projects wait: one clone at a time.
   Opened, the project enters the projects file with its repository and the branch its origin points
   to, and its space opens.
-- **A clone that fails says why in one sentence**, the runtime's — `GitHub denies chef-pc access to
+- **A clone that fails says why in one sentence** — `GitHub denies this computer's GitHub account access to
   benomite/parade, so it cannot be cloned: …` —, under its station; what `gh` and `git` wrote is in
-  the `?` hover. A button opens the page that lifts it when the runtime names one (`get Git`,
+  the `?` hover. A button opens the page that lifts it when the sentence names one (`get Git`,
   `open the page on GitHub`), and `try again` replays it.
 - **When this computer is not signed in to GitHub**, the account, at the head of the screen under the welcome sentence
-  `Welcome to brigade. Add the first project its kitchen will cook.`, shows `connect to GitHub`, and the stations' sentence says why they wait: the button runs the runtime's
-  sign-in action (`gh auth login --web`), without a terminal. The screen shows the one-time code to type, `Type the code A1B2-C3D4 on the
+  `Welcome to brigade. Add the first project its kitchen will cook.`, shows `connect to GitHub`, and the stations' sentence says why they wait: the button runs the
+  sign-in (`gh auth login --web`, `app/src/connection-github.ts`), without a terminal. The screen shows the one-time code to type, `Type the code A1B2-C3D4 on the
   GitHub page that opened in your browser.`, and the page opens — by `gh`, or by the app. Signed in,
   the stations are read again; a clone that was held for want of an account starts again by itself.
   The same button appears under a clone refused for that reason.
-- **A tool the app does not ship is checked first** (#4059): the screen, the `connect to GitHub` button and
-  `open this project` first ask which of Git (`git`) and the GitHub CLI (`gh`) this computer lacks
-  (`runtime/src/outils-requis/`). A missing one takes the account's place, in the missing-tool screen: the product
-  named (`The GitHub CLI is not installed on this computer.`), why brigade needs it in one sentence,
-  one link to the tool's official install page, and `I installed it`. The app installs nothing itself (#4266): the
-  tool is the user's to install. The button never spins on a sign-in that cannot start. On `I installed it` the app
-  checks again, adds to its PATH a tool its installer put outside it, and the step comes back where it was — the
-  button, or the project that was opening, which starts again by itself. A tool still missing says so in one line,
-  and the link stays. The same screen opens in the notice when **log in** on a lost
-  Max connection finds no Claude Code (`claude`): it no longer says `could not be started on this computer`.
+- **A tool the app does not ship is no longer checked first** (#4511: the check was the old runtime's): the step that
+  needs it says it is missing when it fails — no `gh`, no Git, no `claude` —, with the page that gets it; the app
+  installs nothing (#4266). The missing-tool screen (#4059) still opens when **log in** on a lost Max connection finds
+  no Claude Code (`claude`).
 - **Claude Code is asked before the kitchen starts** (#4057): opening a project first asks `claude auth status`
   whether Claude Code is logged in on this computer — no call to the model. Logged in, the project opens as before,
   with no extra step, and later openings in the same session do not ask again. Not logged in, nothing is cloned or
@@ -572,9 +566,9 @@ repository picked on **Add a project** opens it, and it is held while the app ru
 project reopened after a restart opens on its rail, with the notice of #2628 if it is not set up.
 
 *Code: `app/src/vue/journey-first-project/` (the questions, their states), `app/src/vue/first-ticket/` (the first
-ticket), `runtime/src/premier-ticket/` (the draft and the creation, loaded by `app/src/main.ts`), their wiring in
+ticket), `app/src/first-ticket.ts` (the draft and the creation, played by `app/src/main.ts`), their wiring in
 `app/src/vue/vue.js` (`suivreLeParcours`, `poserLeProjetAPreparer`). Tests: `app/test/journey-first-project/`,
-`app/test/first-ticket/`, `runtime/test/premier-ticket/`. Captures: `docs/captures/3166/`, `docs/captures/3306/`.*
+`app/test/first-ticket/`, `app/test/acceptation-4511/`. Captures: `docs/captures/3166/`, `docs/captures/3306/`.*
 
 ### Your first ticket, told step by step as it really happens (#3302)
 
@@ -1505,8 +1499,9 @@ width).
 
 ### The second's choices, as buttons under its terminal (#1520)
 
-When the second asks you to choose ("A, B or C?"), it also publishes its choices through its own channel
-(`runtime/src/second-propositions/`, #1519): the app never reads the terminal. Under the second's terminal, one
+**No longer followed** (#4511): the channel was the old runtime's, and no button is laid under the second's terminal.
+When the second asked you to choose ("A, B or C?"), it also published its choices through its own channel
+(#1519): the app never reads the terminal. Under the second's terminal, one
 line says `The second asks you to choose` (how to answer is in its `?` hover), then **one button per choice**: what
 a click types — its value, `A` — and its one-line label, whole; a long label wraps, it is not cut.
 
@@ -2552,7 +2547,8 @@ whose Stations tab shows the station — and each one is a link to that tab (#34
 `This station serves no project yet.` Adding a project is the **+** at the foot of the bar (see "Add a project" above).
 
 - **The picked repository is checked first** (#2627, `app/src/vue/addition-project/`, `app/src/projects/preparation-of-repository.ts`):
-  as soon as you pick it, the app asks the runtime whether it is set up for brigade (`checkRepoSetup`, #2626), on the
+  since #4511 the kitchen needs nothing set up: `checkRepoSetup` says it is, and the path carries on. Before, as soon
+  as you picked it, the app asked the runtime whether it was set up for brigade (`checkRepoSetup`, #2626), on the
   repository's local copy on this computer — the one the app keeps for it, reused or cloned — and says it in one sentence. Set up, the path carries
   on exactly as before. Not set up, the sentence names what is missing — its bindings, its labels, or both, their names
   on hover — and **"set it up"** prepares it (`runRepoSetup`): "Setting up … for brigade…", then "… is now set up for
@@ -2603,8 +2599,8 @@ station chosen at once when it does not cook the project yet, otherwise the firs
 the first render, what belongs to that machine: **cooks at once** (from its own cores, with its
 `recommended — …` line), its **workspace folder** (where its station puts its cooks' workspaces: read, not
 changed here), and **what it can do**, one box per capability (a browser, Docker, the Android SDK…), the
-ones detected on this computer ticked. For this computer these values come from the runtime operation
-`defautsDeStation` (`runtime/src/projets/ajout-de-station.ts`, #1306), read before the card shows; for
+ones detected on this computer ticked. For this computer these values came from the old runtime (`defautsDeStation`,
+#1306): since #4511 this computer is not read, and one line says so; for
 another machine, its cooks come from its published cores, its folder is its own, and its boxes start
 unticked (`not detectable from this computer`). If this computer cannot be read, one line says so, the
 detail on hover. The form **never asks for the repository nor the integration branch**: the extra
@@ -3381,6 +3377,8 @@ a runtime command (`docs/runtime/exploitation.md`, "Piloter"):
 
 ### This station's GitHub Apps, in Settings (#2317, epic #2313)
 
+**No longer laid** (#4511): the kitchen keeps no App, `appsDeLaStation` answers nothing and the block is not shown.
+
 **Each role acts on GitHub under its own App** (`docs/runtime/identites-et-secrets.md`): you create the three Apps once on
 your GitHub account, then hand each station their IDs and private keys **through the app** — on the computer that runs
 the station. In Settings' **this computer** group, a line `GitHub Apps` says, in one sentence, that **the keys stay on this
@@ -3395,7 +3393,7 @@ station and are never sent to the repository** (what the Apps are for on hover).
   or `choose the .pem file`: the file's name is shown, never its content. There is no `save` (#2920): **the row applies
   when its control changes once the key is written** — the key field left, a `.pem` chosen, or the App ID field left
   with a key already there. Kept on this station, the row opens no pull request. `saving…` reads under it meanwhile.
-- **Applied, the row** stores the App through the runtime (`runtime/src/identites-stations.ts`, `rangerApp`), in the station's Apps
+- **Applied, the row** stored the App through the runtime (`rangerApp`), in the station's Apps
   directory, replacing the one before. Stored, the line says `configured` and `stored: its key is not shown again`, and
   **the key field is empty**: the key leaves the screen, and nothing ever shows it again — the station only says whether
   it has it. Projects the station opens from then on act under it.
@@ -3411,8 +3409,9 @@ Captures: `docs/captures/2317/`.
 ### The projects this computer serves, in Settings (#2359, epic #2356)
 
 **A computer's station cooks only the projects on its list**, straight from GitHub. Since #3402 the station has **one
-list**, its configuration file (`<station dir>/projets`, one line per project — `runtime/src/station-ordinateur/
-projets-servis.ts`): its kitchens read it, its GitHub-only service reads it (`servir.ts`, for a project whose clone is
+list**, its configuration file. Since #4511 the app reads the new kitchen's (`<station dir>/kitchen/projects`,
+`runtime/src/kitchen/projects.ts`) and writes nothing: a project is served by its line there, with its clone. Before
+(`<station dir>/projets`, one line per project): its kitchens read it, its GitHub-only service reads it (`servir.ts`, for a project whose clone is
 not there yet), and the app reads and writes it. The old `projets-servis.json` is no longer read: its repositories move
 into the configuration the first time the station starts or the app reads the list, then the file is set aside as
 `projets-servis.json.migrated`. A repository whose project name another line already has stays out, and the station's log
