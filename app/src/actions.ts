@@ -33,7 +33,6 @@ export const ACTIONS: readonly Action[] = [
   // Arrêter tue les cooks en vol ; reprendre relance les tickets, sur le quota du chef.
   { id: "reprendre", commande: "guardrails resume", forme: "confirmé" },
   { id: "stop", commande: "guardrails stop", forme: "confirmé" },
-  { id: "installation", commande: "installation", forme: "direct" },
 ];
 
 // Les gestes de chaque forme, par leur nom : la vue dit de chacun ce que son clic fait.

@@ -1,4 +1,4 @@
-// #4511 — main.ts, service.ts and the bridge read nothing from the old runtime: none of them names a `runtime/src/<x>`
+// #4511 — main.ts and the bridge read nothing from the old runtime: none of them names a `runtime/src/<x>`
 // but `runtime/src/kitchen/`; every channel the desktop bridge wires has its handler, and the bridge declares no channel
 // that none has; what main.ts read through the old runtime's modules — the GitHub sign-in, the first ticket, a project's
 // local copy, Claude Code's session — it now does itself.
@@ -14,7 +14,7 @@ import { WITHOUT_POSIX } from "../helpers/posix.ts";
 
 const SRC = join(import.meta.dirname, "..", "..", "src");
 const read = (path: string) => readFileSync(join(SRC, path), "utf8");
-const SCOPE = ["main.ts", "service.ts", "vue/bridge.d.ts"];
+const SCOPE = ["main.ts", "vue/bridge.d.ts"];
 
 const folder = (t: TestContext) => {
   const made = mkdtempSync(join(tmpdir(), "brigade-4511-"));
@@ -29,7 +29,7 @@ const program = (t: TestContext, body: string) => {
   return path;
 };
 
-describe("#4511 — main.ts, service.ts and the bridge read nothing from the old runtime", () => {
+describe("#4511 — main.ts and the bridge read nothing from the old runtime", () => {
   test("no file of the ticket names a path of runtime/src other than runtime/src/kitchen/", () => {
     const found = SCOPE.flatMap((file) => read(file).split("\n").flatMap((line, rank) => (/runtime\/src\/(?!kitchen\/)/.test(line) ? [`${file}:${rank + 1}: ${line.trim()}`] : [])));
     assert.deepEqual(found, []);

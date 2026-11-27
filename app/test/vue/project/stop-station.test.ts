@@ -20,14 +20,10 @@ function actions(options: { listeApres?: string[]; refusIci?: string; refusSelec
       calls.push(`selection ${id} ${repositories.join(",")}`);
       return options.refusSelection === undefined ? { selection: repositories } : { refus: options.refusSelection };
     },
-    retirerDeclaree: async (name) => {
-      calls.push(`declaree ${name}`);
-      return {};
-    },
   };
   return { appels: calls, faits: facts };
 }
-const plays = async (action: ReturnType<typeof actionOfStop>) => (action === undefined || "seule" in action ? assert.fail("aucun geste") : haltStation(action));
+const plays = async (action: ReturnType<typeof actionOfStop>) => (action === undefined ? assert.fail("aucun geste") : haltStation(action));
 
 describe("arrêter cet ordinateur", () => {
   test("sa liste le porte : il en est retiré, et la ligne dit que la station ne prend plus ses tickets", async () => {
@@ -63,11 +59,8 @@ describe("arrêter cet ordinateur", () => {
     assert.deepEqual(said, { texte: `nothing was changed: ${FAILURE}`, refus: true, detail: "ipc closed" });
   });
 
-  test("sa liste ne le porte pas : il le sert par une déclaration du projet, qui se retire — sauf la seule", async () => {
-    const { appels: calls, faits: facts } = actions();
-    await plays(actionOfStop({ projet: "parade", depot: REPOSITORY, station: { nom: "macbook", ici: true }, liste: [], declaree: { nom: "macbook", seule: false } }, facts));
-    assert.deepEqual(calls, ["declaree macbook"]);
-    assert.deepEqual(actionOfStop({ projet: "parade", depot: REPOSITORY, station: { nom: "macbook", ici: true }, liste: [], declaree: { nom: "macbook", seule: true } }, facts), { seule: true });
+  test("sa liste ne le porte pas, et rien d'autre : l'app n'a aucun geste pour l'arrêter", () => {
+    const { faits: facts } = actions();
     assert.equal(actionOfStop({ projet: "parade", depot: REPOSITORY, station: { nom: "macbook", ici: true }, liste: [] }, facts), undefined);
   });
 });

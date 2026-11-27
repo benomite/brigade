@@ -25,7 +25,7 @@ const someFacts = (cooks: number, questions: number, more: Partial<Facts> = {}):
   urgence: null,
   ...more,
 });
-const IN_SERVICE: StateOfTheStation = { pause: false, arret: false };
+const IN_SERVICE: StateOfTheStation = { pause: false };
 
 describe("les comptes de l'icône", () => {
   test("les cooks qui cuisent et les questions qui attendent, sur tous les projets, et ils suivent leur changement", () => {
@@ -39,20 +39,17 @@ describe("les comptes de l'icône", () => {
     assert.equal(lineOfBackground([{ nom: "brigade", faits: undefined }], "illisible"), "not read yet");
     assert.equal(lineOfBackground([], "illisible"), "no project on this station");
     assert.equal(lineOfBackground([{ nom: "brigade", faits: someFacts(1, 0) }, { nom: "parade", faits: undefined }], IN_SERVICE), "1 cooking · 0 for you · 1 not read");
-    assert.equal(lineOfBackground([{ nom: "brigade", faits: someFacts(0, 0) }], { pause: true, arret: false }), "0 cooking · 0 for you · paused");
-    assert.equal(lineOfBackground([{ nom: "brigade", faits: someFacts(0, 0) }], { pause: false, arret: true }), "0 cooking · 0 for you · stopped");
+    assert.equal(lineOfBackground([{ nom: "brigade", faits: someFacts(0, 0) }], { pause: true }), "0 cooking · 0 for you · paused");
   });
 });
 
 describe("l'état de la station, lu de ses projets", () => {
-  test("en pause quand chaque projet lu est éteint, arrêtée quand chaque station de cet ordinateur l'est", () => {
+  test("en pause quand chaque projet lu est éteint", () => {
     const off = someFacts(0, 0, { etat: "éteinte", stations: [station("mac/claude", "cooking"), station("box/claude", "cooking", true)] });
     const stops = someFacts(1, 0, { stations: [station("mac/claude", "stopped"), station("box/claude", "cooking", true)] });
-    assert.deepEqual(stateOfTheStation([{ nom: "a", faits: off }, { nom: "b", faits: undefined }]), { pause: true, arret: false });
-    assert.deepEqual(stateOfTheStation([{ nom: "a", faits: stops }]), { pause: false, arret: true });
-    assert.deepEqual(stateOfTheStation([{ nom: "a", faits: stops }, { nom: "b", faits: off }]), { pause: false, arret: false });
-    // Un runtime qui ne donne pas ses stations ne dit pas un arrêt.
-    assert.deepEqual(stateOfTheStation([{ nom: "a", faits: someFacts(0, 0) }]), { pause: false, arret: false });
+    assert.deepEqual(stateOfTheStation([{ nom: "a", faits: off }, { nom: "b", faits: undefined }]), { pause: true });
+    assert.deepEqual(stateOfTheStation([{ nom: "a", faits: stops }, { nom: "b", faits: off }]), { pause: false });
+    assert.deepEqual(stateOfTheStation([{ nom: "a", faits: someFacts(0, 0) }]), { pause: false });
     assert.equal(stateOfTheStation([{ nom: "a", faits: undefined }]), "illisible");
     assert.equal(stateOfTheStation([]), "illisible");
   });

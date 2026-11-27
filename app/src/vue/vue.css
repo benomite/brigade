@@ -3342,34 +3342,6 @@ main > header {
 #rail[data-onglet="stations"] > .bloc-du-projet > h3 {
   padding: var(--pas-3) var(--pas-4) 0;
 }
-/* Les réglages de chaque station, sur Stations (ticket 2488) : une carte par station — son nom et où elle tourne, puis
-   ses quatre réglages, chacun une rangée de réglage qui s'applique dès qu'il change (components/setting, ticket 2920).
-   Ici ne se pose que la place des cartes, alignées sur la liste des stations au-dessus (ticket 2487), et ce qui est à
-   elles : les capacités sont des cases. Un réglage qui ne vaut pas est en retrait, par la rangée (`data-retrait`). */
-/* La carte a l'allure du panneau « edit » de Cooks (plus haut) ; ici, sa marge l'aligne sur la liste. */
-#rail .station-reglee h4 {
-  display: flex;
-  align-items: center;
-  gap: var(--pas-2);
-  margin: 0 0 var(--pas-1);
-  font-size: var(--taille-corps);
-}
-#rail .station-reglee .capacites {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--pas-2);
-}
-#rail .station-reglee .capacite {
-  padding: var(--pas-1) var(--pas-3);
-}
-#rail .station-reglee .capacite-libre {
-  margin-top: var(--pas-2);
-}
-#rail .station-reglee > .fait {
-  margin: var(--pas-1) 0 0;
-  font-size: var(--taille-corps);
-  color: var(--discret);
-}
 /* La connexion à Claude d'une station, dans « Details » de sa carte (tickets 2489, 3195), dit son état en couleur. */
 .details-de-station [data-etat="connectee"] {
   color: var(--vert);
@@ -3484,83 +3456,6 @@ main > header {
 }
 /* La section « Connections » de la page d'une station (ticket 2643) : ses rangées sont celles de components/setting. */
 .connexions .ailleurs { margin: var(--pas-2) 0 0; opacity: 0.7; }
-
-/* Les réglages d'une station que le projet déclare, dans « Details » de sa carte (tickets 2488, 3195) : ses rangées, ses
-   capacités en cases, le champ d'une capacité hors d'elles. */
-#rail .station-reglee {
-  grid-column: 1 / -1;
-  display: flex;
-  flex-direction: column;
-  gap: var(--pas-3);
-  margin: var(--pas-2) 0 var(--pas-1);
-  padding: var(--pas-3) var(--pas-4);
-  background: var(--fond);
-  border: 1px solid var(--trait);
-  border-radius: var(--rayon-carte);
-}
-#rail .station-reglee .capacites {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: var(--pas-2);
-}
-#rail .station-reglee .capacite {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  align-items: center;
-  gap: var(--pas-1) var(--pas-3);
-  padding: var(--pas-2) var(--pas-3);
-  font-size: var(--taille-corps);
-  line-height: inherit;
-  color: var(--texte);
-  background: var(--case);
-  border: 1px solid var(--trait);
-  border-radius: var(--rayon-bouton);
-  cursor: pointer;
-}
-#rail .station-reglee .capacite:hover {
-  border-color: var(--trait-fort);
-}
-#rail .station-reglee .capacite input {
-  margin: 0;
-  accent-color: var(--accent);
-}
-#rail .station-reglee .capacite small {
-  grid-column: 2;
-  font-size: var(--taille-corps);
-  color: var(--discret);
-}
-#rail .station-reglee .capacite-libre {
-  display: flex;
-  flex-direction: column;
-  gap: var(--pas-2);
-  margin-top: var(--pas-2);
-}
-#rail .station-reglee .capacite-libre .saisie {
-  display: flex;
-  align-items: center;
-  gap: var(--pas-2);
-}
-#rail .station-reglee .capacite-libre input[type="text"] {
-  width: 34ch;
-  padding: var(--pas-1) var(--pas-2);
-  font-size: var(--taille-corps);
-  color: var(--texte);
-  background: var(--fond);
-  border: 1px solid var(--trait);
-  border-radius: var(--rayon-bouton);
-}
-#rail .station-reglee .capacite-libre .action button {
-  white-space: nowrap;
-}
-#rail .station-reglee .gestes {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--pas-2);
-}
-#rail .station-reglee .gestes button {
-  white-space: nowrap;
-}
 
 /* Le moteur d'une livraison, en tête de ce que la file en dit sur sa fiche (livraison-moteur/). */
 .moteur-livraison {

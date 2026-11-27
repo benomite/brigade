@@ -14,7 +14,6 @@ import { BANNER } from "../../../src/facts.ts";
 import { CONFIRMED, DIRECT } from "../../../src/actions.ts";
 import { TABS, HEADINGS } from "../../../src/tabs.ts";
 import { calibrationRecommended, EFFORTS, MODELS } from "../../../src/projects/projects.ts";
-import type { Guide, StationsRead } from "../../../src/service.ts";
 import type { StationVue } from "../../../src/stations/stations.ts";
 import type { Terminal } from "../../../src/terminals.ts";
 import { LEVELS } from "../../../src/vue/levels.js";
@@ -23,22 +22,9 @@ import { Fake, type Played, playTheVue, openTab, repos } from "../../helpers/fal
 const PARADE = "parade";
 const SECOND: Terminal = { id: 1, projet: PARADE, genre: "second", titre: "second · claude", note: "fil repris", arrete: false };
 const PROJECTS = [{ nom: PARADE, dossier: "/tmp/parade" }];
-// La station de cet ordinateur sert parade, et le projet la déclare : sa carte, sur Stations, porte ses réglages (#3195).
+// La station de cet ordinateur sert parade : sa carte, sur Stations, porte ses réglages (#3195).
 const A = "2026-11-11T10:00:00.000Z";
 const MACBOOK: StationVue = { id: "gmac", nom: "macbook", machine: "macOS 25.0.0", etat: "en-ligne", ligne: "online", pannes: [], dit: "online", version: "2.4.0", projets: [PARADE], max: "connectee" };
-const DECLARED: StationsRead = { proposees: [], absent: null, declarees: [{ nom: "macbook/claude", moteur: "claude", fournit: ["code"], cooks: 2, distante: false }] };
-const GUIDE: Guide = {
-  projet: PARADE,
-  deplie: false,
-  titre: "parade is installed",
-  lecture: { etat: "lue", a: A },
-  etapes: [],
-  courante: null,
-  annonces: { etat: "lues", liste: [] },
-  demarrage: { refus: "nothing to start: the station of this computer runs with the app" },
-  termine: true,
-  controle: { a: A, stations: DECLARED },
-};
 const startup = () => ({
   stations: { a: A, stations: [MACBOOK] },
   projetsDesStations: { a: A, projets: [], locale: "gmac", recommandee: null, avertissements: {}, machines: {}, calibrage: calibrationRecommended([]) },
@@ -55,7 +41,7 @@ const startup = () => ({
 
 
 async function open(): Promise<Played> {
-  const vue = await playTheVue({ demarrage: startup, espace: () => [SECOND], machines: () => [{ id: "poste", titre: "this computer" }], service: () => GUIDE });
+  const vue = await playTheVue({ demarrage: startup, espace: () => [SECOND], machines: () => [{ id: "poste", titre: "this computer" }] });
   (vue.element("projets").children.at(1) ?? assert.fail("pas de case pour parade")).click();
   await repos();
   return vue;
@@ -105,7 +91,6 @@ const shown = (inside: Fake): Fake[] => [inside, ...inside.descendants()].filter
 type Setting = { nom: string; bloc?: string; cle?: string };
 // Ceux d'une station sont dans « Details » de sa carte, sur Stations (#3195) : le clic qui ouvre le pli est le second.
 const SETTINGS: readonly Setting[] = [
-  { nom: "station settings", cle: "capacites" },
   { nom: "local station settings", cle: "dossier" },
   { nom: "duration caps", bloc: "plafonds-duree" },
   { nom: "closer settings", bloc: "closer" },

@@ -13,7 +13,6 @@ import { test, type TestContext } from "node:test";
 import { brancherGardeFous } from "../../src/garde-fous.ts";
 import { gardesDuTour } from "../../src/github-seul/garde-fous/garde-fous.ts";
 import { etatStation } from "../../src/projections/stations.ts";
-import { principal as montrerStation } from "../../src/montrer-station.ts";
 import { activeEngine, direLeStatut, moteursDeLaStation, VARIABLE_DU_MOTEUR } from "../../src/repli/moteur-actif.ts";
 import { demarrer } from "../../src/runtime.ts";
 import { appeler, ENV_ENFANT, FAUX_CLAUDE, repertoireTemporaire } from "../outils.ts";
@@ -46,13 +45,7 @@ function cuisine(t: TestContext, options: { repli?: string; maintenant?: () => D
     if ("retenue" in fait) return assert.fail(`the station is held: ${fait.retenue}`);
     return fait.lance;
   };
-  // La carte de la station, telle que le chef la lit (`station`).
-  const carte = async () => {
-    const commande = appeler(montrerStation, [], { BRIGADE_STATE_DIR: repertoire });
-    await commande.fin;
-    return commande.sortie();
-  };
-  return { repertoire, runtime, moteurs, avertis, cook, partir, carte };
+  return { repertoire, runtime, moteurs, avertis, cook, partir };
 }
 
 test("the main engine reports its quota exhausted: the next cook runs on fallbackEngine, and the cook already running is not stopped", async (t) => {
@@ -102,14 +95,13 @@ test("once the main engine's reset date has passed, the next cook is back on it,
 });
 
 test("with no fallbackEngine, an exhausted quota holds the station as before, and the status says so", async (t) => {
-  const { moteurs, avertis, cook, partir, carte } = cuisine(t);
+  const { moteurs, avertis, cook, partir } = cuisine(t);
   const quota = await partir("quota", 0);
   await quota.fin;
 
   assert.deepEqual(await cook("fini", 0), { retenue: "quota" });
   assert.deepEqual(moteurs, ["claude"]);
   assert.ok(avertis.some((texte) => /station box\/claude cooks nothing: the quota of claude is reached until \d{4}-.*, and the station has no fallback engine/.test(texte)), avertis.join("\n"));
-  assert.match(await carte(), /quota\s+86 — exhausted, back at \d{4}-\S+; no ticket is taken until then, the station has no fallback engine/);
 
   const statut = activeEngine({ station: STATION, engine: "claude", fallbackEngine: null, quotaUntil: "2026-11-20T08:00:00.000Z", fallbackQuotaUntil: null }, new Date("2026-11-16T10:00:00Z"));
   assert.deepEqual(statut, { engine: null, fallback: false, blocked: true, blockedUntil: "2026-11-20T08:00:00.000Z" });
@@ -140,20 +132,8 @@ test("a fallbackEngine that is not an engine name, or is the main engine itself,
   assert.match(illisible.refus ?? "", /is not an engine name/);
 });
 
-test("the station card says the station cooks on its fallback engine while the main engine's quota is out, and until when", async (t) => {
-  const { runtime, partir, carte } = cuisine(t, { repli: "api" });
-  runtime.journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "station.announced", payload: { station: STATION, engine: "claude", provides: ["code"], maxCooks: 2 } });
-  const quota = await partir("quota", 0);
-  await quota.fin;
-  const until = etatStation(runtime.journal.base, STATION)?.quotaUntil ?? "";
-
-  const vue = await carte();
-  assert.match(vue, /station\s+box\/claude — engine claude, fallback engine api, provides: code/);
-  assert.ok(vue.includes(`86 — claude exhausted, back at ${until}; cooking on the fallback engine api until then, the running cooks go on`), vue);
-});
-
 test("the fallback engine's own exhausted quota is kept in the log: after a restart, the station is held until the first return", async (t) => {
-  // Loin devant : la carte lit l'heure vraie.
+  // Loin devant : la garde lit l'heure vraie.
   const horloge = new Date("2999-11-16T10:00:00Z");
   const premiere = cuisine(t, { repli: "api", maintenant: () => horloge });
   premiere.runtime.journal.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "station.announced", payload: { station: STATION, engine: "claude", provides: ["code"], maxCooks: 2 } });
@@ -166,5 +146,4 @@ test("the fallback engine's own exhausted quota is kept in the log: after a rest
   const seconde = cuisine(t, { repli: "api", maintenant: () => horloge, repertoire: premiere.repertoire });
   assert.deepEqual(await seconde.cook("fini", 0), { retenue: "quota" });
   assert.deepEqual(seconde.moteurs, []);
-  assert.match(await seconde.carte(), /quota\s+86 — claude and its fallback api exhausted, back at 2999-11-16T11:00:00\.000Z; no ticket is taken until then/);
 });
