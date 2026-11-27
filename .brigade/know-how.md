@@ -21,3 +21,4 @@
 - A card of the new kitchen's board for the chef reuses `cardWait` and `data-attend`/`data-actif` of the old rail; `capture.ts` needs `npm ci --prefix scripts/capture-ecran` and `npm ci --ignore-scripts --prefix app` first (#4543)
 - A new-kitchen card reads its duration from `/issues/N/timeline` (`labeled` events) and its lines from `/pulls/N`, both through the ETag memory (a 304 is free); the kitchen writes no station on GitHub, so a card shows none (#4541)
 - `scripts/capture-ecran` needs its own `npm ci --prefix scripts/capture-ecran` in a fresh worktree (the setup does not install it); the app's Electron binary is absent too, so the view capture is the screenshot a cook can give (#4510)
+- `app/test/budget-github.test.ts`'s fake GitHub must answer every path the board reads (`/issues/N/timeline`, `/pulls/N`…): a 404 carries no ETag, so each one is counted at every reading and the hour blows past 1,000 (#4507)
