@@ -86,9 +86,9 @@ const FACTS: Facts = {
   dernierEvenement: null,
   rail: [{ ticket: 12, etat: "en pass", titre: "Validation SIRET", url: "https://github.com/benomite/brigade/issues/12", activite: null }],
   attend: [
-    { ticket: 30, titre: "", url: ISSUE, decision: { quoi: "question", motif: null, cause: null, pr: null } },
-    { ticket: 12, titre: "Validation SIRET", url: "https://github.com/benomite/brigade/issues/12", decision: { quoi: "merge", motif: "review-required", cause: null, pr: "https://github.com/benomite/brigade/pull/31" } },
-    { ticket: 50, titre: "Le moteur de rendu", url: "https://github.com/benomite/brigade/issues/50", decision: { quoi: "ecartee", motif: "blocked-on-human", cause: null, pr: null } },
+    { ticket: 30, titre: "", url: ISSUE },
+    { ticket: 12, titre: "Validation SIRET", url: "https://github.com/benomite/brigade/issues/12" },
+    { ticket: 50, titre: "Le moteur de rendu", url: "https://github.com/benomite/brigade/issues/50" },
   ],
   livres: [],
 };
@@ -147,8 +147,8 @@ describe("le rail d'une question répondue", () => {
     assert.equal([...draws.colonnes.flatMap(({ cartes: cards }) => cards), ...draws.hors].filter(({ ticket }) => ticket === 30).length, 1);
   });
 
-  test("d'un runtime d'avant `decision`, la question avant découpage se lit sur sa ligne du bloc, dans ses deux langues", () => {
-    const withoutDecision = { ...FACTS, attend: FACTS.attend?.map(({ decision: _decision, ...remains }) => remains) };
+  test("la question avant découpage se lit sur sa ligne du bloc, dans ses deux langues", () => {
+    const withoutDecision = FACTS;
     assert.deepEqual(column(rail(withoutDecision, BLOCK, undefined, ANSWERED), "Waiting").cartes.map(({ ticket }) => ticket), [30]);
     const inFrench = { ...BLOCK, bloc: "attend     1 décision\n  #30  depuis 2 h  question du manager avant de découper l'épique — à répondre : sur l'issue\nfin attend\n" };
     assert.deepEqual(column(rail(withoutDecision, inFrench, undefined, ANSWERED), "Waiting").cartes.map(({ ticket }) => ticket), [30]);
