@@ -2,7 +2,6 @@
 // dans son champ — un texte sur une ligne, une liste une entrée par ligne —, puis « Save ».
 import { configuration, cuisine, demarrage, type Ecran, MAINTENANT } from "./commun.ts";
 import { PROJETS, RENDUS } from "./cuisine-figee.ts";
-import { HAUTEUR, RECURRENTS } from "./recurrents.ts";
 import { LUS, OUVRIR } from "./reglages-du-projet.ts";
 import { HUMAINS } from "./settings-humains.ts";
 
@@ -19,13 +18,13 @@ export const FICHE = {
 };
 
 export const ecran: Ecran = {
-  dit: "La fiche de « parade » sous Settings, après ses tickets récurrents : « project sheet », puis ses huit articles — The cook's work, Stages, Tools, House rules, Risks, Served, Recurring, Humans in the kitchen —, chacun dans son champ, « one per line » sous les listes, et « Save »",
+  dit: "La fiche de « parade » sous Settings : « project sheet », puis ses huit articles — The cook's work, Stages, Tools, House rules, Risks, Served, Recurring, Humans in the kitchen —, chacun dans son champ, « one per line » sous les listes, et « Save »",
   largeur: 1440,
-  hauteur: HAUTEUR + 1000,
+  hauteur: 2500,
   etapes: OUVRIR,
   donnees: () => ({
     maintenant: MAINTENANT,
-    reponses: { demarrage: demarrage(configuration(PROJETS)), espace: [], reglagesDuProjet: LUS, listerLesHumains: HUMAINS, listerLesRecurrents: RECURRENTS, lireUnFichierDuProjet: JSON.stringify(FICHE) },
+    reponses: { demarrage: demarrage(configuration(PROJETS)), espace: [], reglagesDuProjet: LUS, listerLesHumains: HUMAINS, lireUnFichierDuProjet: JSON.stringify(FICHE) },
     envois: cuisine(RENDUS),
   }),
 };
