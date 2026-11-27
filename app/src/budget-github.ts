@@ -10,8 +10,9 @@
 //     rail lu.
 // Le compteur dit ce que l'app a demandé dans la dernière heure : toutes les demandes parties, et celles que GitHub
 // compte (tout sauf un 304).
+import { spendersOfToken, type SpendersOfToken } from "./spenders-of-token.ts";
 import type { CallGitHub, AnswerGitHub } from "./board/client.ts";
-import type { ReadOfBoardOfRepository, BoardRead, BoardNotRead } from "./board/read.ts";
+import type { ReadOfBoardOfRepository, BoardRead, BoardNotRead, PauseOfReads } from "./board/read.ts";
 
 // Sous cette part du budget, les lectures s'arrêtent : le reste est au chef.
 export const THRESHOLD_OF_BUDGET = 0.2;
@@ -51,6 +52,8 @@ export function holdTheBudgetGitHub(options: { maintenant?: () => number; seuil?
   let why = "";
   // Ce que GitHub dit dépensé sur le budget quand la pause en cours a été posée ; absent s'il ne le dit pas.
   let spending: number | null = null;
+  // Le reste et le total que GitHub disait quand la pause a été posée (#4620) ; absents s'il ne les dit pas.
+  let remaining: { restant: number; total: number } | null = null;
   // L'instant de chaque demande partie dans la dernière heure, et de chacune que GitHub a comptée.
   const parties: number[] = [];
   const counted: number[] = [];
@@ -62,6 +65,7 @@ export function holdTheBudgetGitHub(options: { maintenant?: () => number; seuil?
     resumption = until;
     why = reason;
     spending = limit === undefined ? null : limit.total - limit.restant;
+    remaining = limit === undefined ? null : { restant: limit.restant, total: limit.total };
   };
   // Ce que la réponse dit du budget : un refus, ou un reste sous le seuil, met tout en pause.
   const observe = (answer: AnswerGitHub, a: number) => {
@@ -107,6 +111,10 @@ export function holdTheBudgetGitHub(options: { maintenant?: () => number; seuil?
     depenseDuCompte(): number | null {
       return now() < resumption ? spending : null;
     },
+    // Ce que GitHub dit rester du budget, et son total, quand la pause a été posée ; nul hors pause, ou s'il ne le dit pas.
+    resteDuCompte(): { restant: number; total: number } | null {
+      return now() < resumption ? remaining : null;
+    },
     // La raison de la pause en cours, en une phrase ; vide hors pause.
     raison(): string {
       return now() < resumption ? why : "";
@@ -117,12 +125,16 @@ export function holdTheBudgetGitHub(options: { maintenant?: () => number; seuil?
 // La lecture d'un projet sous le budget : en pause, rien ne part — le projet garde son dernier rail lu (`dernier`),
 // et faute d'en avoir un, la lecture dit la pause et jusqu'à quand. Une lecture que la pause a coupée en route
 // (un refus, un seuil franchi, une demande retenue) est remplacée de même : la pause n'est pas une panne.
-export async function readingUnderBudget(options: { budget: BudgetGitHub; depot: string; lire: () => Promise<ReadOfBoardOfRepository>; dernier: () => BoardRead | undefined; maintenant?: () => number }): Promise<ReadOfBoardOfRepository> {
+export async function readingUnderBudget(options: { signaler?: (report: SpendersOfToken, until: number) => void; budget: BudgetGitHub; depot: string; lire: () => Promise<ReadOfBoardOfRepository>; dernier: () => BoardRead | undefined; maintenant?: () => number }): Promise<ReadOfBoardOfRepository> {
   const { budget, depot: repository } = options;
   const inPause = (): ReadOfBoardOfRepository | null => {
     const until = budget.enPauseJusqua();
     if (until === null) return null;
-    return options.dernier() ?? readInPause(budget, repository, until, options.maintenant?.() ?? Date.now());
+    const spent = budget.depenseDuCompte();
+    if (spent !== null && spent > 0) options.signaler?.(spendersOfToken({ spent, app: budget.demandesDeLaDerniereHeure().comptees }), until);
+    const kept = options.dernier();
+    if (kept === undefined) return readInPause(budget, repository, until, options.maintenant?.() ?? Date.now());
+    return { ...kept, pause: pauseOf(budget, until) };
   };
   const before = inPause();
   if (before !== null) return before;
@@ -130,9 +142,15 @@ export async function readingUnderBudget(options: { budget: BudgetGitHub; depot:
   return readEntry.lu ? readEntry : (inPause() ?? readEntry);
 }
 
+function pauseOf(budget: BudgetGitHub, until: number): PauseOfReads {
+  const left = budget.resteDuCompte();
+  return { jusqua: new Date(until).toISOString(), ...(left === null ? {} : left) };
+}
+
 function readInPause(budget: BudgetGitHub, repository: string, until: number, a: number): BoardNotRead {
   const { comptees: counted } = budget.demandesDeLaDerniereHeure();
   const spending = budget.depenseDuCompte();
-  const other = spending !== null && spending > 0 && counted < PART_OF_THE_APP_MINIMAL * spending ? ` Something else uses the quota on this account: GitHub counts ${spending} requests spent, the app only ${counted}.` : "";
-  return { lu: false, depot: repository, luLe: new Date(a).toISOString(), raison: `The rail of ${repository} is not read until ${hourOf(until)}: ${budget.raison()}, so the app paused its GitHub reads for every project (${counted} counted requests in the last hour).${other}` };
+  const report = spending === null || spending <= 0 ? null : spendersOfToken({ spent: spending, app: counted });
+  const other = report === null ? "" : `${counted < PART_OF_THE_APP_MINIMAL * report.spent ? ` Something else uses the quota on this account: GitHub counts ${report.spent} requests spent, the app only ${counted}.` : ""} ${report.sentence}`;
+  return { lu: false, depot: repository, luLe: new Date(a).toISOString(), pause: pauseOf(budget, until), raison: `The rail of ${repository} is not read until ${hourOf(until)}: ${budget.raison()}, so the app paused its GitHub reads for every project (${counted} counted requests in the last hour).${other}` };
 }

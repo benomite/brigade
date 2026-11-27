@@ -3,7 +3,7 @@
 // `otool` et `hdiutil` des doublures qui relèvent ce qu'on leur demande. Ce qui ne se prouve que
 // sur un Mac — l'app qui s'ouvre, la signature acceptée — est dans app/packaging/README.md.
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -200,7 +200,7 @@ test("Brigade.app porte l'app, le runtime et le `node` du paquet — et l'app in
   for (const name of ["dev.md", "ask.md"]) assert.equal(readFileSync(join(locations.commandes, name), "utf8"), readFileSync(join(APP, "..", "commands", name), "utf8"));
 });
 
-test("la station du paquet se charge tout entière depuis lui : l'enveloppe de l'app la lance, et elle refuse faute de répertoire", (t) => {
+test("la station du paquet se charge tout entière depuis lui : l'enveloppe de l'app la lance, et elle refuse faute de répertoire", async (t) => {
   const root = folder(t);
   const pkg = assembler({ version: "1.0.0", electron: fakeElectron(root), node: fakeNode(root) }, join(root, "volume"));
   const resources = join(pkg, "Contents", "Resources");
@@ -210,7 +210,12 @@ test("la station du paquet se charge tout entière depuis lui : l'enveloppe de l
   // Lancée comme l'app la lance (workstation/station.ts) — mais par ce `node`-ci : celui du paquet est une doublure.
   // Son refus vient après l'import de tout ce qu'elle importe : le runtime du paquet est complet.
   const { BRIGADE_STATION_DIR: _, ...env } = process.env;
-  const launches = spawnSync(process.execPath, [join(resources, "app", "src", "workstation", "envelope.ts"), role.role === "station" ? role.principal : ""], { cwd: locations.runtime, env, encoding: "utf8", input: "" });
+  // L'entrée reste ouverte : fermée, l'enveloppe arrête la cuisine avant qu'elle ait refusé.
+  const child = spawn(process.execPath, [join(resources, "app", "src", "workstation", "envelope.ts"), role.role === "station" ? role.principal : ""], { cwd: locations.runtime, env, stdio: ["pipe", "ignore", "pipe"] });
+  let stderr = "";
+  child.stderr.on("data", (chunk) => (stderr += chunk));
+  const status = await new Promise<number | null>((done) => child.once("exit", done));
+  const launches = { status, stderr };
   assert.equal(launches.status, 2, launches.stderr);
   assert.match(launches.stderr, /kitchen: BRIGADE_STATION_DIR is not set/);
 });

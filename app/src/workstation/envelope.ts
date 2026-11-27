@@ -7,7 +7,7 @@
 // GitHub l'heure de son arrêt. Le signal est émis dans son process, et non envoyé par le système :
 // c'est le même geste sur toutes les plateformes, Windows compris. Joué par Node seul : rien ne
 // s'importe ici hors de Node.
-import { pathToFileURL } from "node:url";
+import { spawn } from "node:child_process";
 import { mustSurvive } from "../update-background/survival.ts";
 
 const [, , principal] = process.argv;
@@ -19,13 +19,21 @@ if (principal === undefined || principal === "") {
 // L'app partie, plus personne ne lit ce que la station dit : elle s'arrête quand même, sans le dire.
 for (const output of [process.stdout, process.stderr]) output.on("error", () => {});
 
-await import(pathToFileURL(principal).href);
+// Le point d'entrée est un process à lui, comme sur un serveur : la cuisine (runtime/src/kitchen/main.ts) ne tourne que
+// lancée ainsi, et un SIGTERM la tue. Il hérite de l'environnement et de la sortie de l'enveloppe.
+const station = spawn(process.execPath, [principal], { stdio: ["ignore", "inherit", "inherit"], env: process.env });
+station.once("error", (error) => {
+  console.error(`brigade : refus de démarrer la station — ${error.message}`);
+  process.exit(2);
+});
+station.once("exit", (code, signal) => process.exit(code ?? (signal === null ? 1 : 0)));
+const stop = () => void station.kill("SIGTERM");
+for (const signal of ["SIGTERM", "SIGINT"] as const) process.on(signal, stop);
 
-// Après l'import : la station a posé ce qu'elle fait d'un SIGTERM. Une entrée fermée plus tôt
-// attend ici d'être lue, elle ne se perd pas.
+// Une entrée fermée — l'app quitte, ou meurt d'un coup — arrête la station comme un SIGTERM, le même geste sur toutes les
+// plateformes, Windows compris. Sauf quand l'app se ferme pour sa mise à jour : la station continue, ses cooks aussi (#3632).
 process.stdin.on("error", () => {});
-// Sauf quand l'app se ferme pour sa mise à jour : la station continue, ses cooks aussi (#3632).
 process.stdin.once("end", () => {
-  if (!mustSurvive(process.env.BRIGADE_STATION_DIR)) void process.emit("SIGTERM", "SIGTERM");
+  if (!mustSurvive(process.env.BRIGADE_STATION_DIR)) stop();
 });
 process.stdin.resume();
