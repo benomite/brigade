@@ -554,7 +554,7 @@ capOfStation.ariaLive = "polite";
 // La ligne de mise à jour, sous l'en-tête ; et, au bas de la page, « remove the station » et sa confirmation.
 const versionOfStation = document.createElement("p");
 versionOfStation.className = "version-de-station";
-// Les faits que la station écrit d'elle dans son gist (stations/status.ts, #4743) : une ligne chacun.
+// Les faits que la station écrit d'elle dans son gist (stations/status.ts) : une ligne chacun.
 const factsOfStation = document.createElement("div");
 factsOfStation.className = "faits-de-la-station";
 const removalOfStation = document.createElement("div");
