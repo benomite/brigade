@@ -12,7 +12,7 @@ export type ReadOfStations = StationContributor[] | { sans: string; detail?: str
 export type WritingOfAStation = { ok: true } | { refus: string; detail?: string };
 
 const isObject = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
-// Le nom d'une station : celui que sa prise signe (runtime/src/station-contributrice/reclamation.ts).
+// Le nom d'une station : celui que sa prise signe.
 const NAME_OF_STATION = /^[A-Za-z0-9._/-]+$/;
 
 // La dernière ligne de la sortie, lue en JSON ; `null` si elle ne se lit pas.

@@ -5,11 +5,10 @@
 // Il garde aussi le moteur de ses cooks et son secours (#3746, épique 3518) — `engine` et `fallbackEngine`, aux valeurs
 // `claude-subscription`, `claude-api-key` et `codex` ; absents, l'abonnement et aucun. La clé d'API de Claude n'y est pas :
 // elle a son propre fichier à côté, lisible du seul compte (0600 ; sous Windows, qui rend toujours 0o666, son ACL réduite
-// au compte : runtime/src/droits.ts, #3680), et la lecture dit seulement si elle est gardée — la clé ne repart jamais vers
-// la vue.
+// au compte, #3680), et la lecture dit seulement si elle est gardée — la clé ne repart jamais vers la vue.
+import { spawnSync } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join, posix, win32 } from "node:path";
-import { ecrireSecret } from "../../runtime/src/droits.ts";
 
 const ENGINES = ["claude-subscription", "claude-api-key", "codex"] as const;
 type Engine = (typeof ENGINES)[number];
@@ -23,6 +22,21 @@ const fileOfTheKey = (file: string) => join(dirname(file), "station-cle-api");
 const isOneEngine = (value: unknown): value is Engine => ENGINES.includes(value as Engine);
 // Une clé d'API : un seul mot, de caractères visibles.
 const KEY = /^[\x21-\x7e]{8,512}$/;
+
+// Sous Windows, l'ACL du fichier réduite au seul compte, sans rien hériter de son dossier, par le PowerShell du système ; lève
+// si Windows refuse : rien n'est écrit dans un fichier que d'autres liraient.
+const CLOSE = `$ErrorActionPreference = 'Stop'
+$me = [System.Security.Principal.WindowsIdentity]::GetCurrent().User
+$acl = New-Object System.Security.AccessControl.FileSecurity
+$acl.SetAccessRuleProtection($true, $false)
+$acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($me, [System.Security.AccessControl.FileSystemRights]::FullControl, [System.Security.AccessControl.AccessControlType]::Allow)))
+[System.IO.File]::SetAccessControl($env:BRIGADE_FICHIER_PROTEGE, $acl)`;
+function closeUnderWindows(file: string): void {
+  const powershell = join(process.env.SystemRoot ?? "C:\\Windows", "System32", "WindowsPowerShell", "v1.0", "powershell.exe");
+  const done = spawnSync(powershell, ["-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-EncodedCommand", Buffer.from(CLOSE, "utf16le").toString("base64")], { env: { ...process.env, BRIGADE_FICHIER_PROTEGE: file }, encoding: "utf8", windowsHide: true, timeout: 120_000 });
+  if (done.error) throw done.error;
+  if (done.status !== 0) throw new Error(`the key's file could not be closed to other accounts — ${String(done.stderr).trim()}`);
+}
 
 export const BASE = [
   { hote: "anthropic.com", origine: "Anthropic — the model, through the Max connection" },
@@ -106,7 +120,11 @@ export function writeSettingsOfTheStation(file: string, change: Change): { fait:
     if (change.apiKey !== undefined) {
       const key = fileOfTheKey(file);
       mkdirSync(dirname(key), { recursive: true });
-      ecrireSecret(`${key}.tmp`, change.apiKey);
+      writeFileSync(`${key}.tmp`, process.platform === "win32" ? "" : change.apiKey, { mode: 0o600 });
+      if (process.platform === "win32") {
+        closeUnderWindows(`${key}.tmp`);
+        writeFileSync(`${key}.tmp`, change.apiKey);
+      }
       chmodSync(`${key}.tmp`, 0o600);
       renameSync(`${key}.tmp`, key);
     }

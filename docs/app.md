@@ -3343,14 +3343,6 @@ icon, so there is only one. The installed app keeps one process: opened again, i
   it running. Confirmed, it unloads the station's launchd agent then the icon's own (`launchctl bootout`), or on Windows
   stops the station's launcher, then the station and its cooks. Both come back at the next login.
 - A command the station refuses is shown in a dialog; the `Menu bar` setting turns this icon off too.
-- **Keep-awake, on a Mac (#3642).** While the station keeps this Mac awake for a running cook, the menu shows
-  `Keeping this computer awake while cooking` under the line. **Keep this computer awake while cooking** is a checkbox
-  of the menu: unchecked, the station releases its hold within a second and holds none for later cooks; checked again,
-  it holds again if a cook is running. Since #3713 the station also holds the Mac awake while a ticket it serves waits
-  for a claim, under the same checkbox, and the menu shows the same line then. The setting survives a station restart. A setting file that cannot be read shows
-  the checkbox greyed out, `— setting unreadable`, and nothing overwrites it. On Windows, neither the line nor the
-  checkbox appears. The same line shows on this computer's card in a project's Stations tab
-  (`app/src/vue/standby-machine/`). What the station does is in [`runtime/station.md`](runtime/station.md#keeping-the-mac-awake-while-a-cook-runs).
 
 The modules are in `app/src/tray-background/`: `tray-background.ts` (the line, the menu, the commands, the confirmation),
 `lecture.ts` (reading `facts`, playing a gesture), `systeme.ts` (login registration, quit), `process.ts` (the Electron

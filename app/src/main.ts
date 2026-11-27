@@ -131,7 +131,6 @@ import { gistOfPreferences } from "./settings-personal/gist.ts";
 import { settingsPersonal } from "./settings-personal/settings-personal.ts";
 import { holdPreferences } from "./settings-personal/sync.ts";
 import { openTerminals } from "./terminals.ts";
-import { followTheStandby } from "./vue/standby-machine/follow.ts";
 
 // Où sont le runtime de la station, son `node` et le clone de l'app : dans le dépôt, ou dans le
 // paquet de l'app installée (locations.ts). Installée, l'app prend le PATH du shell de
@@ -1279,16 +1278,6 @@ ipcMain.handle("retirerLaStation", (_, id: unknown) => stations.retirer(id));
 // du paquet (locations.ts).
 const ghHere = process.env.BRIGADE_GH_BIN || "gh";
 const ofRuntime = <M>(...path: string[]) => import(pathToFileURL(join(locations.runtime, "src", ...path)).href) as Promise<M>;
-// La veille de la station de cet ordinateur (#3642) : garde-t-elle ce Mac éveillé, dit à la vue quand cela change.
-const standbyMachine =
-  role.role === "station"
-    ? followTheStandby({
-        lire: async () => (await ofRuntime<typeof import("../../runtime/src/veille-machine/contrat.ts")>("veille-machine", "contract.ts")).lireVeille(rootOfTheStation, process.platform),
-        dire: (standby) => tell("veilleMachine", standby),
-        avertir: (line) => console.error(line),
-      })
-    : undefined;
-ipcMain.handle("veilleMachine", () => standbyMachine?.relire());
 void ofRuntime<typeof import("../../runtime/src/second-propositions/canal.ts")>("second-propositions", "canal.ts").then(
   (channel) => {
     proposalsOfSecond = holdTheProposals({ canal: channel, surProposition: (project, proposal) => tell("proposition", project, proposal) });

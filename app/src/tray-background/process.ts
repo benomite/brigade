@@ -7,7 +7,6 @@
 import { spawn } from "node:child_process";
 import { homedir, userInfo } from "node:os";
 import { dirname, join } from "node:path";
-import { pathToFileURL } from "node:url";
 import { setTimeout as wait } from "node:timers/promises";
 import { app, dialog, nativeImage, type MenuItemConstructorOptions } from "electron";
 import { launchHere, type Locale } from "../box.ts";
@@ -23,7 +22,6 @@ import { lineOfBackground } from "../tray/line.ts";
 import { playTheAction, readTheProjects, type Launch } from "./read.ts";
 import { FOLDER_OF_BACKGROUND, writeTheVersionOfBackground, run, quitTheStation } from "./system.ts";
 import { clickOnTheApp, confirmationOfQuit, stateOfTheStation, menuOfBackground, questionsOfBackground, type EntryOfBackground, type Action } from "./tray-background.ts";
-import type { Standby } from "../vue/standby-machine/standby-machine.js";
 
 const INTERVAL_MS = 15_000;
 const DELAY_MS = 30_000;
@@ -63,11 +61,6 @@ const launch: Launch = (project, command) => launchHere(locale, project, command
 
 let icon: IconUnique | undefined;
 let projects: ProjectRead[] = [];
-// Garder ce Mac éveillé tant qu'un cook cuit (#3642) : le réglage et l'état que la station écrit sous son répertoire, lus
-// et écrits par le module du runtime qui les tient.
-const standbyOfRuntime = () => import(pathToFileURL(join(locations.runtime, "src", "veille-machine", "contract.ts")).href) as Promise<typeof import("../../../runtime/src/veille-machine/contrat.ts")>;
-let standby: Standby | undefined;
-let standbyUnreadable = "";
 let saidOne = "";
 let inProgress = false;
 
@@ -100,21 +93,6 @@ async function play(action: Action): Promise<void> {
       app.quit();
       return;
     }
-    if (action === "veille") {
-      // Éteint, la station relâche l'assertion au regard suivant, dans la seconde ; rallumé, elle la reprend si un cook cuit.
-      const written = await standbyOfRuntime().then(
-        ({ ecrireReglage: writeSetting, lireReglage: readSetting }) => {
-          const setting = readSetting(root);
-          return "garderEveille" in setting ? writeSetting(root, !setting.garderEveille) : { refus: `nothing was changed: ${setting.illisible}` };
-        },
-        (error: unknown) => ({ refus: `nothing was changed: the station's keep-awake setting cannot be reached — ${error instanceof Error ? error.message : String(error)}` }),
-      );
-      await tell("refus" in written ? [written.refus] : []);
-      // La station relit le réglage chaque seconde : le menu se relit après elle, pour dire ce qu'elle tient alors.
-      await wait(1500);
-      await reread();
-      return;
-    }
     await tell(await playTheAction(action, projects, launch, DELAY_MS));
     await reread();
   } finally {
@@ -125,7 +103,6 @@ async function play(action: Action): Promise<void> {
 function entryOfMenu(entry: EntryOfBackground): MenuItemConstructorOptions {
   if (entry.genre === "separateur") return { type: "separator" };
   if (entry.genre === "texte") return { label: entry.libelle, enabled: false };
-  if (entry.genre === "case") return { type: "checkbox", label: entry.libelle, checked: entry.coche, enabled: entry.actif, click: () => void play(entry.geste) };
   const { geste: action } = entry;
   return { label: entry.libelle, enabled: entry.actif, click: () => void play(action) };
 }
@@ -152,7 +129,7 @@ function set(active: boolean): void {
     }
   }
   const station = stateOfTheStation(projects);
-  const entries = menuOfBackground(projects, station, standby);
+  const entries = menuOfBackground(projects, station);
   const pose = JSON.stringify(entries);
   if (pose === saidOne) return;
   // Une place tenue par l'app : rien n'est dit, et la lecture suivante essaie encore.
@@ -164,19 +141,6 @@ function set(active: boolean): void {
 
 async function reread(): Promise<void> {
   projects = await readTheProjects(servedBy(root), launch);
-  // Illisible, le menu n'en dit rien ; la raison se dit une fois.
-  standby = await standbyOfRuntime().then(
-    ({ lireVeille: readStandby }) => {
-      standbyUnreadable = "";
-      return readStandby(root, platform);
-    },
-    (error: unknown) => {
-      const reason = error instanceof Error ? error.message : String(error);
-      if (reason !== standbyUnreadable) console.error(`brigade: the station's keep-awake state could not be read — ${reason}`);
-      standbyUnreadable = reason;
-      return undefined;
-    },
-  );
   set(readConfiguration(pathConfiguration()).barreDeMenus !== false);
 }
 
