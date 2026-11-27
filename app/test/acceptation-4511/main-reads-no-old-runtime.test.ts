@@ -35,11 +35,8 @@ describe("#4511 — main.ts and the bridge read nothing from the old runtime", (
     assert.deepEqual(found, []);
   });
 
-  test("main.ts loads nothing from the runtime but the kitchen", () => {
-    const loads = [...read("main.ts").matchAll(/ofRuntime<[^>]*>\(([^)]*)\)/g)].map(([, args]) => args);
-    assert.ok(loads.length > 0);
-    for (const args of loads) assert.match(args ?? "", /^"kitchen", /);
-    assert.doesNotMatch(read("main.ts"), /join\(locations\.runtime, "src", "(?!kitchen")/);
+  test("main.ts loads nothing from the runtime: the app carries none (#4745)", () => {
+    assert.doesNotMatch(read("main.ts"), /ofRuntime|locations\.runtime/);
   });
 
   test("every channel the desktop bridge wires has a handler in the main process, and the bridge declares none that no bridge wires", () => {

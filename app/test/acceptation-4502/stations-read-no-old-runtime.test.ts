@@ -12,11 +12,8 @@ import { menuOfBackground } from "../../src/tray-background/tray-background.ts";
 
 const SRC = join(import.meta.dirname, "..", "..", "src");
 const SCOPE = [
-  "workstation",
-  "station-process",
   "stations",
   "tray-background",
-  "update-background",
   "outages",
   "stations-of-account.ts",
   "settings-of-the-station.ts",

@@ -15,7 +15,6 @@ import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { isOneMac } from "../platform.ts";
-import { REGISTERED_BY_THE_APP } from "../station-background/registration.ts";
 
 const LABEL_OF_THE_STATION = "brigade.station";
 const LABEL_OF_BACKGROUND = "brigade.tray-fond";
@@ -78,8 +77,8 @@ const folderOfTheStationWindows = (s: Pick<System, "localAppData">) => (s.localA
 export function stationOfBackgroundInstalled(s: Pick<System, "plateforme" | "maison" | "localAppData">): boolean {
   if (isOneMac(s.plateforme)) return existsSync(join(s.maison, "Library", "LaunchAgents", `${LABEL_OF_THE_STATION}.plist`));
   const folder = folderOfTheStationWindows(s);
-  // Le lanceur de l'installeur, ou la station de fond que l'app a inscrite elle-même (station-background/registration.ts, #3630).
-  if (s.plateforme === "win32") return folder !== undefined && (existsSync(join(folder, "lancer-station.ps1")) || existsSync(join(folder, REGISTERED_BY_THE_APP)));
+  // Le lanceur de l'installeur de la station.
+  if (s.plateforme === "win32") return folder !== undefined && existsSync(join(folder, "lancer-station.ps1"));
   return false;
 }
 

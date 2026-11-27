@@ -1,7 +1,7 @@
 # L'app installable du Mac
 
 Un `.dmg` pour Apple Silicon : glissée dans Applications, l'app s'ouvre sans clone du dépôt, sans
-`node` ni `npm` sur la machine. Elle porte le runtime de sa station et le `node` qui le joue. Le
+`node` ni `npm` sur la machine. Elle porte le `node` qui la sert, et aucun runtime : l'app ne cuit rien, elle lit les stations par leurs gists. Le
 parcours du chef est dans [`docs/app.md`](../../docs/app.md), « Lancer l'app » ; ici, ce que le
 `.dmg` porte et comment il se construit.
 
@@ -141,8 +141,7 @@ Le `.dmg` porte `Brigade.app` et un lien vers Applications, où la glisser.
 | `Info.plist` | celui d'Electron, au nom de l'app : `Brigade`, `com.github.benomite.brigade`, l'icône `Brigade.icns`, la version construite |
 | `Resources/Brigade.icns` | l'icône de l'app (`icones/Brigade.icns`) ; celle d'Electron n'y est plus |
 | `Resources/app/` | `src/`, le `package.json` de l'app (sans scripts ni dépendances de dev) et ses dépendances de production ; node-pty n'y garde que ce qui est compilé pour darwin-arm64 |
-| `Resources/runtime/` | `src/` et `package.json` du runtime, à la version construite — celle que la station dit d'elle |
-| `Resources/node/bin/brigade-node` | le `node` qui joue la station, renommé et signé sous `com.github.benomite.brigade.node` : il ne garde ni le nom ni la signature de la Node.js Foundation |
+| `Resources/node/bin/brigade-node` | le `node` de l'app, renommé et signé sous `com.github.benomite.brigade.node` : il ne garde ni le nom ni la signature de la Node.js Foundation |
 
 Construite sans identité, l'app est **signée ad hoc** (`codesign --sign -`), pas par un développeur identifié : Apple
 Silicon ne lance aucun binaire sans signature, et celle d'Electron ne tient plus une fois l'app
@@ -153,8 +152,9 @@ renommée.
 Le code est le même ; seuls changent les chemins (`app/src/locations.ts`). L'app se sait
 installée quand ses sources sont `Resources/app/src` du paquet qui la joue.
 
-- **Sa station** est le runtime de `Resources/runtime/`, jouée par `Resources/node/bin/node` —
-  jamais un `node` de la machine. Elle cuit comme celle de l'app lancée depuis le dépôt.
+- **Pas de cuisine.** Le paquet ne porte aucun `runtime/` : l'app lit les stations par leurs gists, et
+  « Make this computer cook » installe la station de l'ordinateur. Son `node` est `Resources/node/bin/node`,
+  jamais celui de la machine.
 - **Son PATH.** Ouverte depuis le Finder, une app n'a que le PATH du système. L'app installée lit
   au lancement celui du shell de connexion du chef (`$SHELL -ilc`, dix secondes au plus), y ajoute
   ceux d'Homebrew et de `claude` (`/opt/homebrew/bin`, `/usr/local/bin`, `~/.local/bin`…), puis le

@@ -1,4 +1,4 @@
-// Où l'app trouve le runtime de sa station, le `node` qui le joue et son clone : dans le dépôt,
+// Où l'app trouve son `node` et son clone : dans le dépôt,
 // lancée par `npm start` ; dans son paquet, installée depuis le .dmg — et le PATH que l'app
 // installée donne à ce qu'elle lance, ouverte depuis le Finder.
 import assert from "node:assert/strict";
@@ -8,31 +8,26 @@ import { delimiter, join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { pathConfiguration } from "../src/config.ts";
 import { PATHS_KNOWN, pathOf, locationsOf, isInstalled, readPathOfShell } from "../src/locations.ts";
-import { PRINCIPAL, roleOf } from "../src/workstation/role.ts";
 import { WITHOUT_POSIX } from "./helpers/posix.ts";
 
 const SRC = join(import.meta.dirname, "..", "src");
 const APP = join(SRC, "..");
-const RUNTIME = join(APP, "..", "runtime");
 // Le `Contents/Resources` d'une app installée, et celui de l'Electron du dépôt, qui joue `npm start`.
 const RESOURCES = "/Applications/Brigade.app/Contents/Resources";
 const ELECTRON_OF_REPOSITORY = join(APP, "node_modules", "electron", "dist", "Electron.app", "Contents", "Resources");
 
-test("depuis le dépôt : le runtime à côté de l'app dans son clone, le `node` de `npm start`, et le clone de l'app", () => {
+test("depuis le dépôt : le `node` de `npm start`, et le clone de l'app — aucun runtime", () => {
   const locations = locationsOf({ ressources: ELECTRON_OF_REPOSITORY, src: SRC, env: { npm_node_execpath: "/usr/local/bin/node" } });
-  assert.deepEqual(locations, { facon: "depot", runtime: RUNTIME, node: "/usr/local/bin/node", clone: APP });
-  // La station s'y trouve, et c'est celle du dépôt.
-  assert.deepEqual(roleOf({ plateforme: "darwin", runtime: locations.runtime, env: {} }), { role: "station", principal: join(RUNTIME, PRINCIPAL) });
+  assert.deepEqual(locations, { facon: "depot", node: "/usr/local/bin/node", clone: APP });
   // Lancée autrement que par npm, le `node` du PATH ; BRIGADE_NODE_BIN passe devant tout.
   assert.equal(locationsOf({ ressources: ELECTRON_OF_REPOSITORY, src: SRC, env: {} }).node, "node");
   assert.equal(locationsOf({ ressources: ELECTRON_OF_REPOSITORY, src: SRC, env: { npm_node_execpath: "/usr/local/bin/node", BRIGADE_NODE_BIN: "/essai/node" } }).node, "/essai/node");
 });
 
-test("installée : le runtime et le `node` de son paquet, jamais ceux de la machine — et pas de clone", () => {
+test("installée : le `node` de son paquet, jamais celui de la machine — ni runtime, ni clone", () => {
   // Un `npm` qui l'aurait lancée n'y change rien : le `node` de la machine n'est pas celui du paquet.
   const locations = locationsOf({ ressources: RESOURCES, src: join(RESOURCES, "app", "src"), env: { npm_node_execpath: "/usr/local/bin/node", PATH: "/usr/bin:/bin" } });
-  assert.deepEqual(locations, { facon: "installee", runtime: join(RESOURCES, "runtime"), node: join(RESOURCES, "node", "bin", "brigade-node"), clone: undefined });
-  assert.deepEqual(roleOf({ plateforme: "darwin", runtime: locations.runtime, env: {}, existe: (path) => path === join(RESOURCES, "runtime", PRINCIPAL) }), { role: "station", principal: join(RESOURCES, "runtime", PRINCIPAL) });
+  assert.deepEqual(locations, { facon: "installee", node: join(RESOURCES, "node", "bin", "brigade-node"), clone: undefined });
   assert.equal(locationsOf({ ressources: RESOURCES, src: join(RESOURCES, "app", "src"), env: { BRIGADE_NODE_BIN: "/essai/node" } }).node, "/essai/node");
 });
 
@@ -47,11 +42,6 @@ test("installée, c'est que ses sources sont celles du paquet qui la joue — li
   mkdirSync(join(resources, "app", "src"), { recursive: true });
   symlinkSync(join(root, "Brigade.app"), join(root, "lien.app"));
   assert.equal(isInstalled({ ressources: join(root, "lien.app", "Contents", "Resources"), src: join(resources, "app", "src") }), true);
-});
-
-test("installée, le paquet sans son runtime : l'app est un poste, et dit lequel elle cherchait", () => {
-  const locations = locationsOf({ ressources: "/nulle/part/Resources", src: "/nulle/part/Resources/app/src", env: {} });
-  assert.deepEqual(roleOf({ plateforme: "darwin", runtime: locations.runtime, env: {} }), { role: "poste", pourquoi: `no station runtime beside the app (${join("/nulle/part/Resources/runtime", PRINCIPAL)})` });
 });
 
 test("depuis le dépôt, le PATH reste celui du terminal qui a lancé l'app : le shell du chef n'est pas lu", () => {

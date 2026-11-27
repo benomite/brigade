@@ -1,9 +1,8 @@
 // L'app : une fenêtre, et le process qui tient les terminaux, la veille des
 // box et le suivi du fichier des projets.
-import { appendFile, readFile } from "node:fs/promises";
+import { appendFile } from "node:fs/promises";
 import { homedir, hostname, userInfo } from "node:os";
 import { dirname, join } from "node:path";
-import { pathToFileURL } from "node:url";
 import { menuOfTheApp } from "./help-community.ts";
 import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, Notification, protocol, shell, type MenuItemConstructorOptions } from "electron";
 import { setTheIconOfDock } from "./icon-of-dock.ts";
@@ -75,26 +74,16 @@ import { installerOfWorkstation } from "./update/installation.ts";
 import { machineChosen, machinesOf } from "./machines.ts";
 import { TABS, HEADINGS } from "./tabs.ts";
 import { playOutage } from "./outages/actions.ts";
-import { gistLocal, holdLogin } from "./outages/login.ts";
-import { moverOfRuntime } from "./projects/move.ts";
+import { holdLogin } from "./outages/login.ts";
 import { repositoriesOfChef, readOneRepository } from "./projects/github.ts";
-import { writeSettingsOfTheStation, readSettingsOfTheStation as readTheSettingsOfStation, type Change } from "./settings-of-the-station.ts";
 import { EFFORTS, MODELS, servedElsewhere, holdProjects, type FoldersOfTheStation, type SeenOfProjects } from "./projects/projects.ts";
 import { memoryInFile, holdNotifications } from "./notification.ts";
-import { holdKitchensHere } from "./workstation/kitchen-here.ts";
 import { spawnSync } from "node:child_process";
 import { offerOnThisComputer } from "./make-cook.ts";
 import { isOneMac, nameOfWorkstation, persistentOn, shellOfWorkstation } from "./platform.ts";
-import { roleOf } from "./workstation/role.ts";
-import { whatProvidesThisComputer } from "./stations/provides.ts";
-import { holdTheStationOfBackground } from "./station-background/attached.ts";
-import { HOST, launchTheBackground } from "./station-background/background.ts";
-import { registerTheStationOfBackground } from "./station-background/registration.ts";
 import { openPty } from "./pty.ts";
 import { claudeOf, connectionOfTheSession, openOfAStation } from "./first-launch.ts";
 import { openTheLocalCopy, sessionOfClaude } from "./local-copy.ts";
-import { probesOfTheRuntime, serveHere } from "./serve-here.ts";
-import { opinionOfMacOS, passTheFirstLaunch, holdTheOpinionOfBackground } from "./first-launch/index.ts";
 import { readQuestion, reply as answerQuestion, titleOf, type Read as QuestionRead } from "./question.ts";
 import { readCapture } from "./captures.ts";
 import { relaunchOf, holdPassage } from "./catch-up.ts";
@@ -102,11 +91,9 @@ import { holdAnswered } from "./answered.ts";
 import { APP, holdDelays } from "./delay.ts";
 import { openTurns } from "./input.ts";
 import { holdRemovals } from "./removal.ts";
-import { FOLDER as FOLDER_OF_SETUP, setTheSetup } from "./setup/setup.ts";
-import { installerTheStation } from "./workstation/installer.ts";
 import { memoriesInFile } from "./memories.ts";
 import { githubOfStations } from "./stations/github.ts";
-import { holdStations, type SeenOfStations } from "./stations/stations.ts";
+import { holdStations } from "./stations/stations.ts";
 import { versionsInFile } from "./stations/versions.ts";
 import { followConfiguration } from "./tracking.ts";
 import { gistOfPreferences } from "./settings-personal/gist.ts";
@@ -114,7 +101,7 @@ import { settingsPersonal } from "./settings-personal/settings-personal.ts";
 import { holdPreferences } from "./settings-personal/sync.ts";
 import { openTerminals } from "./terminals.ts";
 
-// Où sont le runtime de la station, son `node` et le clone de l'app : dans le dépôt, ou dans le
+// Où sont le `node` et le clone de l'app : dans le dépôt, ou dans le
 // paquet de l'app installée (locations.ts). Installée, l'app prend le PATH du shell de
 // connexion du chef avant de rien lancer : ouverte depuis le Finder, elle n'a que celui du système.
 const locations = locationsOf({ ressources: process.resourcesPath, src: import.meta.dirname, env: process.env });
@@ -125,29 +112,15 @@ const shellHere = shellOfWorkstation(platform, process.env);
 const path = pathOf({ emplacements: locations, env: process.env, maison: homedir(), plateforme: platform, duShell: () => (platform === "win32" ? undefined : readPathOfShell(shellHere.commande, 10_000)) });
 if (path !== undefined) process.env.PATH = path;
 
-// Ce qu'est l'app sur cette machine (workstation/role.ts) : une station sur un ordinateur, le runtime
-// à côté d'elle dans son clone, ou dans son paquet une fois installée ; un poste sur un
-// téléphone — il pilote, rien n'y cuit, ni sa station ni celles que ses projets lui confient.
-const role = roleOf({ plateforme: platform, runtime: locations.runtime, env: process.env });
-// Le répertoire de la station de cet ordinateur : `station/`, à côté du fichier des projets.
+// L'ancien répertoire de la station embarquée : `station/`, à côté du fichier des projets. L'app n'y cuit plus rien ;
+// « Make this computer cook » y lit seulement les projets que la station embarquée servait, pour les reprendre.
 const rootOfTheStation = process.env.BRIGADE_STATION_DIR || join(dirname(pathConfiguration()), "station");
 // L'icône de la barre des menus ne se pose qu'une fois l'app prête : avant, Electron n'en crée pas
 // (`poserLaBarreDeMenus`, plus bas). Déclaré ici : ce qui suit la redit dès qu'il change.
 let barReady = false;
-// Où cuit chaque projet (workstation/kitchen-here.ts) : un projet que la station de cet ordinateur sert
-// se lit ici, par son geste ; les autres sont lus du tableau de leur cuisine sur GitHub.
-// C'est relu à chaque lecture : une cuisine qui change de place est lue à la nouvelle dès la
-// suivante, et la vue le sait aussitôt.
-const kitchens = holdKitchensHere({
-  locale: role.role === "station" ? { node: locations.node, runtime: locations.runtime, racine: rootOfTheStation, env: process.env } : undefined,
-  surChangement: () => {
-    tell("configuration", shownEntry(), []);
-    tellTheHome(home.relire());
-    setTheMenuBar();
-  },
-});
+// L'app n'a pas de cuisine : elle lit les stations par leurs gists, et le tableau de chaque projet sur GitHub.
 // Un projet dont quelque chose se lit : une station le sert, sur cet ordinateur ou ailleurs.
-const readable = ({ nom: name }: Project) => kitchens.ici(name) || servedElsewhere(lastSeenOfProjects, name);
+const readable = ({ nom: name }: Project) => servedElsewhere(lastSeenOfProjects, name);
 
 let window: BrowserWindow | undefined;
 const tell = (channel: string, ...facts: unknown[]) => {
@@ -159,8 +132,6 @@ const tell = (channel: string, ...facts: unknown[]) => {
 // chef ou à son lancement suivant. Lancée depuis le dépôt, elle ne regarde rien : son clone la met à jour.
 // Ce qu'elle télécharge vit à côté du fichier des projets, sous `mise-a-jour/`. Le même chemin sur
 // un Mac et sous Windows : seuls l'installeur publié qu'elle lit et ce qui le joue sont du poste.
-// Vrai quand l'app se ferme pour s'installer : la station et ses cooks ne s'arrêtent pas avec elle (update-background/survival.ts, #3632).
-let quitForUpdate = false;
 const folderOfUpdate = join(dirname(pathConfiguration()), "mise-a-jour");
 const installer = installerOfWorkstation({ plateforme: platform, ressources: process.resourcesPath, executable: process.execPath, pid: process.pid, dossier: folderOfUpdate });
 // Un quart d'heure, et non plus six heures (#2431) : une version publiée le matin se voit dans la matinée. Les deux
@@ -175,7 +146,6 @@ const update = holdUpdate({
   installable: installer.installable,
   installer: installer.installer,
   quitter: () => {
-    quitForUpdate = true;
     app.quit();
   },
   surEtat: (state) => tell("miseAJour", state),
@@ -211,8 +181,6 @@ const terminals = openTerminals({
   planDuSecond: (folder, args) => ({ state: "ready", launch: { command: process.env.BRIGADE_CLAUDE_BIN || "claude", args: [...args], verbatim: false, folder: folder, env: {} }, missing: [], tools: [] }),
   souvenirs: memoriesInFile(join(dirname(pathConfiguration()), "shells.json")),
   node: locations.node,
-  // La session qui prépare un dépôt : ses instructions, posées à côté du fichier des projets (setup/setup.ts, #4632).
-  preparation: () => setTheSetup(join(dirname(pathConfiguration()), FOLDER_OF_SETUP), { node: locations.node, runtime: locations.runtime }),
   // La file que le second lit à son ouverture vient de GitHub seul, par le `gh` du poste (second/file.ts, #2460).
   gh: process.env.BRIGADE_GH_BIN || "gh",
   // La même doublure que le runtime : jamais posée hors des essais.
@@ -327,7 +295,7 @@ function tellTheFacts(receivedOne: Drawable): void {
 }
 // L'accueil (home.ts) : une ligne par projet, une par station, et la ligne de santé — redessiné à
 // chaque lecture qui le change, de `faits`, de `status` ou des stations sur GitHub.
-const home = holdHome({ locale: () => (stationLocale === undefined ? null : gistLocal(rootOfTheStation)), projets: () => projects().map((project) => ({ nom: project.nom, servi: readable(project) })) });
+const home = holdHome({ projets: () => projects().map((project) => ({ nom: project.nom, servi: readable(project) })) });
 function tellTheHome(seenOne: Home | undefined): void {
   if (seenOne !== undefined) tell("accueil", seenOne);
 }
@@ -518,7 +486,7 @@ function tint(): void {
 // sur cet ordinateur est lu du tableau de sa cuisine sur GitHub.
 let lastSeenOfProjects: SeenOfProjects | undefined;
 const projects = () => tracking.configuration().projets;
-const shownEntry = () => forTheBar(tracking.configuration(), readable, kitchens.ici, () => stationLocale?.tourne() === true, () => stationLocale?.redemarrage() ?? null);
+const shownEntry = () => forTheBar(tracking.configuration(), readable);
 // Un projet du fichier, qu'il s'ouvre ou non : sa cuisine se lit, et se vérifie, sans son dossier.
 const knownOne = (name: unknown) => projects().find((candidate) => candidate.nom === name);
 // Le même, tel que le fichier le déclare.
@@ -544,11 +512,6 @@ const projectsOfStations = holdProjects({
   github: githubOfStations({ gh: process.env.BRIGADE_GH_BIN || "gh", delaiMs: 30_000 }),
   stations: () => stations.vu()?.stations,
   depots: repositoriesOfChef({ gh: process.env.BRIGADE_GH_BIN || "gh", delaiMs: 30_000 }),
-  // La station de cet ordinateur : c'est elle que la page d'un projet appelle « this computer ».
-  locale: () => (role.role === "station" ? gistLocal(rootOfTheStation) : null),
-  // Déménager une cuisine, c'est l'opération du runtime, lancée ici avec le répertoire de la station
-  // de cet ordinateur (projects/move.ts) : un téléphone, qui n'a pas de runtime, n'en lance aucune.
-  ...(role.role === "station" ? { demenager: moverOfRuntime({ node: locations.node, runtime: locations.runtime, racine: rootOfTheStation, env: process.env, delaiMs: 60_000 }) } : {}),
   // Le dépôt et la branche d'un projet, lus par `git` dans son clone sur cet ordinateur (#1306, addition.ts) : une
   // station de plus les en prend quand la première ne les dit pas.
   leClone: async (name) => {
@@ -581,31 +544,8 @@ const stations = holdStations({
     for (const band of bands.limite(seenOne.limite)) tellTheBand(band);
     tellTheHome(home.stations(seenOne));
     void projectsOfStations.relire();
-    void holdWhatProvidesThisComputer(seenOne);
   },
 });
-// Ce que la station de cet ordinateur fournit (stations/provides.ts, #1757) : `macos` sur un Mac. Son appairage le
-// porte : écrit quand l'app l'appaire, et réécrit si une station appairée avant ne le dit pas.
-const whatProvidesHere = async () => whatProvidesThisComputer(process.platform, []);
-let providesHeld = false;
-async function holdWhatProvidesThisComputer(seenOne: SeenOfStations): Promise<void> {
-  const here = stationLocale === undefined ? null : gistLocal(rootOfTheStation);
-  if (providesHeld || here === null || !seenOne.stations.some(({ id }) => id === here)) return;
-  providesHeld = true;
-  try {
-    if (await stations.tenirCeQuElleFournit(here, await whatProvidesHere())) console.error("brigade: this computer's station now says on GitHub what it provides");
-  } catch (error) {
-    // Le gist n'a pas pu s'écrire : la lecture suivante réessaie.
-    providesHeld = false;
-    console.error(`brigade: what this computer's station provides could not be written on GitHub — ${error instanceof Error ? error.message : String(error)}`);
-  }
-}
-// L'écran du premier lancement avant l'avis de macOS (premier-lancement/, #4081) : sur un Mac neuf, inscrire la station à
-// l'ouverture de session fait dire à macOS qu'un élément d'arrière-plan s'est ajouté. L'inscription attend que le nouvel
-// arrivant ait vu l'écran qui le lui annonce et pressé son bouton ; la marque, à côté du fichier des projets, dit qu'il
-// l'a vu, et l'écran ne revient plus.
-const opinionOfBackground = holdTheOpinionOfBackground(() => tell("avisDeFond"));
-const brandOfTheOpinionOfBackground = join(dirname(pathConfiguration()), "avis-de-fond-vu");
 // "Make this computer cook" (#4744): offered on a computer that is not a station; on a Mac the command opens in Terminal.
 const offerToCook = () => offerOnThisComputer(rootOfTheStation, (command, args) => spawnSync(command, args, { timeout: 10_000, stdio: "ignore" }).status === 0);
 ipcMain.handle("offreDeCuisiner", () => offerToCook());
@@ -617,30 +557,6 @@ ipcMain.handle("cuisinerIci", () => {
   spawnSync("osascript", ["-e", script], { timeout: 10_000, stdio: "ignore" });
   return { commande: offer.command };
 });
-ipcMain.handle("avisDeFond", () => opinionOfBackground.attendu());
-ipcMain.handle("continuerLePremierLancement", () => opinionOfBackground.continuer());
-const afterTheOpinionOfBackground = <T>(declencher: () => Promise<T>): Promise<T> =>
-  passTheFirstLaunch({ avis: opinionOfMacOS({ mac: isOneMac(platform), inscrite: stationOfBackgroundInstalled({ plateforme: platform, maison: homedir(), localAppData: process.env.LOCALAPPDATA }) }), marque: brandOfTheOpinionOfBackground, afficher: opinionOfBackground.afficher, declencher, dire: (line) => console.error(line) });
-// Sur un ordinateur, l'app est une station (`role`) : la station de la machine — la même que celle d'un serveur —, sous
-// `station/` à côté du fichier des projets, tourne en fond, sans dépendre de l'app (station-fond/, #3630). L'app
-// installée l'inscrit à l'ouverture de session ; ouverte, elle la rejoint si elle tourne, la lance sinon, et l'appaire
-// seule, par le geste du champ de la home. Ce que la station dit va à son journal (`station/fond.log`).
-const stationLocale =
-  role.role === "station" && !installedAtLaunch
-    ? holdTheStationOfBackground({
-        racine: rootOfTheStation,
-        inscrire: async () =>
-          locations.facon === "installee"
-            ? afterTheOpinionOfBackground(() => registerTheStationOfBackground({ plateforme: platform, maison: homedir(), localAppData: process.env.LOCALAPPDATA, uid: userInfo().uid, executer: run, node: locations.node, hote: HOST, racine: rootOfTheStation, embarque: role.principal, chemin: process.env.PATH, binaire: process.execPath }))
-            : { par: "aucune" },
-        // Le `node` de `npm start`, ou celui du paquet de l'app installée : Electron n'en est pas un.
-        lancer: () => launchTheBackground({ node: locations.node, embarque: role.principal, racine: rootOfTheStation, env: process.env }),
-        dire: (line) => console.error(line),
-        appairer: async (code) => stations.appairer(code, await whatProvidesHere()),
-        // Lancée ou arrêtée : la page d'un projet qui cuit ici le dit, ou cesse de le dire.
-        surChangement: () => tell("configuration", shownEntry(), []),
-      })
-    : undefined;
 // Les pannes d'une station, sur sa ligne de la home : chacune a son bouton (outages/actions.ts). Le
 // login ne part que pour la station de cet ordinateur, par le `claude` officiel (outages/login.ts).
 // Sa fin part aussi à la vue : une ouverture de projet qu'il retenait, au premier lancement, repart (#4057).
@@ -654,8 +570,7 @@ const loginHere = holdLogin({
     tell("loginClaude");
   },
 });
-const actionsOfOutages = { stations, stationLocale: () => (stationLocale === undefined ? null : gistLocal(rootOfTheStation)), login: loginHere };
-if (role.role === "poste") console.error(`brigade: this app is a workstation, not a station — ${role.pourquoi}: it pilots, nothing cooks here`);
+const actionsOfOutages = { stations, stationLocale: () => null, login: loginHere };
 // Son propre code, l'app le met à jour au clic sur la ligne qui dit son retard : son clone
 // avance, puis elle se relance — par `npm start` quand c'est par là qu'elle est partie, pour
 // que son lancement pose ce que la nouvelle version demande (catch-up.ts). Se fermer arrête
@@ -701,7 +616,7 @@ ipcMain.handle("changerSigle", (_, name: unknown, acronym: unknown) => {
 // Écrit, il arrive par `surConfiguration`. Le réglage rend la raison, s'il ne l'a pas été.
 ipcMain.handle("ordinaires", (_, name: unknown) => {
   const aims = declare(name);
-  return aims === undefined ? undefined : blockOfOrdinary(aims, platform, facts.stations(aims.nom), kitchens.ici(aims.nom));
+  return aims === undefined ? undefined : blockOfOrdinary(aims, platform, facts.stations(aims.nom), false);
 });
 ipcMain.handle("reglerOrdinaires", (_, name: unknown, active: unknown, limit: unknown) => {
   const aims = declare(name);
@@ -1013,31 +928,12 @@ ipcMain.handle("ajouterAUneStation", (_, input: unknown) => projectsOfStations.a
 // La page d'un projet de l'app confie sa cuisine à une première station, ou à une de plus : c'est le
 // seul geste qui l'installe sur une station (projects/projects.ts, `confier`).
 ipcMain.handle("confierAUneStation", (_, input: unknown) => projectsOfStations.confier(input));
-// Les dossiers de la cuisine de cet ordinateur pour un projet (#2489) : où elle garde son clone — celui que sa ligne du
-// fichier des projets de la cuisine nomme, ou celui qu'elle prend sans lui (runtime/src/kitchen/projects.ts) —, et où elle
-// pose les worktrees de ses cooks (runtime/src/kitchen/main.ts). Ils se lisent, ils ne se changent pas. Un téléphone n'a
-// pas de station.
-ipcMain.handle("dossiersDeLaStation", async (_, name: unknown): Promise<FoldersOfTheStation> => {
-  if (role.role !== "station") return { refus: "this device runs no station" };
-  if (typeof name !== "string" || name === "") return { refus: "its folders could not be read", detail: `${String(name)} is not a project name` };
-  try {
-    const { projectsOfTheKitchen } = await ofRuntime<typeof import("../../runtime/src/kitchen/projects.ts")>("kitchen", "projects.ts");
-    const served = projectsOfTheKitchen(rootOfTheStation).find((project) => project.name === name);
-    return { clone: served?.clone ?? join(rootOfTheStation, name, "depot"), worktrees: join(rootOfTheStation, "kitchen", name, "worktrees") };
-  } catch (error) {
-    return { refus: "its folders could not be read", detail: error instanceof Error ? error.message : String(error) };
-  }
-});
-// Les dossiers et la porte réseau de la station de cet ordinateur, changés depuis sa page (#2644) : lus et écrits dans un
-// fichier de cette machine (settings-of-the-station.ts). Un téléphone n'a pas de station.
-const fileOfSettingsOfTheStation = join(dirname(pathConfiguration()), "station-reglages.json");
-// Le bac à sable est « off » dès qu'un projet cuisiné ici a reçu « continuer sans » (suivi publié par la principale).
-const withoutSandbox = () => (projectsOfStations.vu()?.projets ?? []).some((project) => project.onboarding?.sansBacASable === true && project.suiviPar?.id === projectsOfStations.vu()?.locale);
-// Les clones de la cuisine sont sous le répertoire de la station, ses worktrees sous `kitchen/` (runtime/src/kitchen/).
-ipcMain.handle("reglagesDeLaStation:lire", () => (role.role !== "station" ? { refus: "this device runs no station" } : readTheSettingsOfStation(fileOfSettingsOfTheStation, { clone: rootOfTheStation, worktrees: join(rootOfTheStation, "kitchen") }, withoutSandbox())));
-ipcMain.handle("reglagesDeLaStation:ecrire", (_, change: unknown) =>
-  role.role !== "station" ? { refus: "this device runs no station" } : writeSettingsOfTheStation(fileOfSettingsOfTheStation, typeof change === "object" && change !== null ? (change as Change) : {}),
-);
+// Cet ordinateur n'a plus de cuisine dans l'app : ni dossiers ni réglages de station à lire d'ici — une station installée
+// par « Make this computer cook » les tient elle-même. Les écrans qui les demandent encore reçoivent ce refus.
+const NO_KITCHEN_HERE = { refus: "this app runs no kitchen: a station installed on this computer keeps its own folders and settings" };
+ipcMain.handle("dossiersDeLaStation", (): FoldersOfTheStation => NO_KITCHEN_HERE);
+ipcMain.handle("reglagesDeLaStation:lire", () => NO_KITCHEN_HERE);
+ipcMain.handle("reglagesDeLaStation:ecrire", () => NO_KITCHEN_HERE);
 // Retiré, le projet quitte la demande de chacune de ses stations : elles le retirent de leur configuration.
 ipcMain.handle("retirerDUneStation", (_, name: unknown) => projectsOfStations.retirer(name));
 // La page d'un projet déménage sa cuisine, d'un geste, vers une autre station appairée — cet
@@ -1059,10 +955,8 @@ ipcMain.handle("autoriserSurGitHub", (_, url: unknown) => {
 });
 // « Retirer la station » : son appairage quitte son gist, elle disparaît de l'accueil.
 ipcMain.handle("retirerLaStation", (_, id: unknown) => stations.retirer(id));
-// La connexion à GitHub, par le geste du `gh` de ce poste (connection-github.ts). Le runtime est à côté de l'app, du
-// dépôt comme du paquet (locations.ts) : seule la cuisine s'y lit (runtime/src/kitchen/).
+// La connexion à GitHub, par le geste du `gh` de ce poste (connection-github.ts).
 const ghHere = process.env.BRIGADE_GH_BIN || "gh";
-const ofRuntime = <M>(...path: string[]) => import(pathToFileURL(join(locations.runtime, "src", ...path)).href) as Promise<M>;
 // Les pages qu'un échec a nommées — installer `gh`, la version Android : seules celles-là s'ouvrent depuis l'écran.
 const pagesOfFirst = new Set<string>();
 const connectionGitHub = holdConnectionGitHub({
@@ -1100,13 +994,8 @@ ipcMain.handle("ouvrirDUneStation", async (_, name: unknown, repository: unknown
   const opening = await openOneProjectOfAStation(name, repository, base);
   return opening.state === "failed" && "link" in opening ? holdThePage(opening) : opening;
 });
-// Les projets que la cuisine de cet ordinateur sert (#2359) : les dépôts de son fichier des projets
-// (runtime/src/kitchen/projects.ts). Ils s'y écrivent sur la station, avec leur clone : l'app ne l'écrit pas.
-ipcMain.handle("projetsServis", async () => {
-  if (role.role !== "station") return undefined;
-  const { projectsOfTheKitchen } = await ofRuntime<typeof import("../../runtime/src/kitchen/projects.ts")>("kitchen", "projects.ts");
-  return { depots: projectsOfTheKitchen(rootOfTheStation).map(({ repo }) => repo) };
-});
+// Cet ordinateur ne sert aucun projet depuis l'app : sa station, si elle existe, est lue par son gist.
+ipcMain.handle("projetsServis", () => undefined);
 // Ce que seule l'ancienne station tenait — les stations que le chef appairait ou enregistrait sous son compte, ses GitHub
 // Apps, ses projets servis écrits par l'app, ce que la machine fournit, le rail publié dans un gist, les propositions du
 // second, la préparation d'un dépôt pour elle, les commandes `sensitive` et `undo` — ne se lit ni ne s'écrit plus : la
@@ -1117,24 +1006,8 @@ const NOT_DONE = { refus: "nothing was done: stations are no longer paired", det
 ipcMain.handle("stationsDuChef", () => ({ state: "listed", stations: [], unreadable: [], reason: NOT_PAIRED }));
 ipcMain.handle("stationsDuCompte", () => ({ state: "listed", stations: [], unreadable: [], reason: NOT_PAIRED }));
 ipcMain.handle("choisirLesProjets", () => NOT_DONE);
-// « This computer » sur un projet (#4568) : sa ligne entre dans le fichier des projets de la cuisine de cet ordinateur
-// (serve-here.ts), que la station relit seule. Le retirer ne se fait pas d'ici.
-ipcMain.handle("servirUnProjet", async (_, repository: unknown, served: unknown) => {
-  if (role.role !== "station") return { refus: "this device has no kitchen to serve a project" };
-  if (served !== true) return { refus: "a project is given back to the box from its own Stations tab, not from this computer's list" };
-  const repo = typeof repository === "string" ? repository.trim() : "";
-  const known = projects().find((project) => project.depot?.toLowerCase() === repo.toLowerCase());
-  const probes = await probesOfTheRuntime(locations.runtime, claudeHere);
-  const git = process.env.BRIGADE_GIT_BIN || "git";
-  return serveHere({
-    stationDir: rootOfTheStation,
-    repository: repo,
-    project: known === undefined ? undefined : { nom: known.nom, dossier: known.dossier, ...(known.base === undefined ? {} : { base: known.base }) },
-    probes,
-    openCopy: ({ root, ...options }) => openTheLocalCopy({ ...options, gh: ghHere, git, env: { ...process.env, BRIGADE_PROJECTS_DIR: root } }),
-    readBase: async (folder) => (await readClone(git, folder)).base ?? undefined,
-  });
-});
+// « This computer » sur un projet (#4568) : la ligne d'un projet entre dans le fichier de la station, que la station elle-même écrit.
+ipcMain.handle("servirUnProjet", () => ({ refus: "this app has no kitchen to serve a project: ask the station installed on this computer" }));
 ipcMain.handle("appsDeLaStation", () => undefined);
 ipcMain.handle("rangerUneApp", () => ({ refus: "this computer's kitchen keeps no GitHub App" }));
 ipcMain.handle("defautsDeStation", () => ({ refus: "this computer could not be read", detail: NOT_PAIRED }));
@@ -1146,8 +1019,8 @@ ipcMain.handle("annulerServi", () => NOT_PLAYED);
 const READY = { ready: true, missingBindings: false, missingLabels: [] };
 ipcMain.handle("checkRepoSetup", () => READY);
 ipcMain.handle("runRepoSetup", () => READY);
-// Le bloc de la station de l'accueil (ticket 2640) : installer celle de cet ordinateur (workstation/installer.ts).
-ipcMain.handle("installerLaStation", () => installerTheStation(stationLocale, () => stations.relire()));
+// Le bloc de la station de l'accueil (ticket 2640) : l'app n'installe plus de station, « Make this computer cook » le fait.
+ipcMain.handle("installerLaStation", () => ({ refus: "this app does not run a station on this computer", detail: "use \"Make this computer cook\" to install one" }));
 // Le « log in » d'une ouverture que Claude Code retient (#4057) : le login de cette machine, celui de la panne de sa station.
 ipcMain.handle("seConnecterAClaude", () => loginHere());
 // La page où taper le code se rouvre depuis l'écran.
@@ -1251,29 +1124,19 @@ ipcMain.handle("panne", (_, id: unknown, key: unknown) => playOutage(actionsOfOu
 ipcMain.handle("signaler", (_, request: unknown) =>
   openTheReport(request, {
     appVersion: app.getVersion(),
-    // La version du runtime à côté de l'app : celle de son `package.json`.
-    runtimeVersion: async (readEntry) => {
-      const version = await readFile(join(locations.runtime, "package.json"), "utf8")
-        .then((text) => (JSON.parse(text) as { version?: unknown }).version)
-        .catch(() => undefined);
-      return versionAimed(readEntry, stations.vu()?.stations ?? [], typeof version === "string" && version !== "" ? version : "unknown");
-    },
+    // L'app ne porte plus de runtime : la version de la station du rapport est celle que ses gists disent.
+    runtimeVersion: async (readEntry) => versionAimed(readEntry, stations.vu()?.stations ?? [], "unknown"),
     ouvrir: (url) => shell.openExternal(url),
   }),
 );
 // Les adresses des pull requests que l'app a ouvertes — plafonds, closer, savoir : seule l'une d'elles s'ouvre depuis l'écran.
 const proposalsOfSetting = new Set<string>();
-const kitchenOfProject = (name: unknown) => {
-  const aims = knownOne(name);
-  const kitchen = aims === undefined ? undefined : kitchens.cuisineDe(aims);
-  return { vise: aims, lu: aims === undefined || kitchen === undefined ? undefined : { nom: aims.nom, cuisine: kitchen } };
-};
 // Les agents au travail que lit l'onglet Agents (ticket 4569) : le kanban de GitHub (`taken`, `in-pass`), rien d'autre
 // (team-of-the-box.ts).
 ipcMain.handle("agentsAtWork", (_, name: unknown) => {
-  const { vise: aims, lu: readOne } = kitchenOfProject(name);
+  const aims = knownOne(name);
   if (aims === undefined) throw new Error(`${String(name)} is no longer in the projects file`);
-  return readTheAgents({ station: hostname(), cooksHere: readOne !== undefined, board: () => boards.lire(aims), now: Date.now });
+  return readTheAgents({ station: hostname(), cooksHere: false, board: () => boards.lire(aims), now: Date.now });
 });
 // "Since you last looked" (#4649, since-last-looked.ts): the vue asks it each time the chef opens a project, and this opening
 // becomes the last look, kept per project beside the configuration. Read from GitHub alone, through the board's conditional
@@ -1459,18 +1322,6 @@ app.on("will-quit", () => {
   update.fermer();
   clearInterval(verificationsOfVersion);
   stations.fermer();
-  // La station de l'ordinateur ne s'arrête pas avec l'app (#3630) : l'app cesse seulement de la regarder, même pour
-  // sa mise à jour. Sauf sous Windows, où l'installeur remplace le `node` que la station de fond joue (#3632) : son hôte
-  // est arrêté, la station avec lui (son entrée fermée), et l'app rouverte la relance.
-  const hostOfBackground = quitForUpdate && platform === "win32" ? stationLocale?.pid() : undefined;
-  stationLocale?.fermer();
-  if (hostOfBackground !== undefined) {
-    try {
-      process.kill(hostOfBackground);
-    } catch (error) {
-      console.error(`brigade: the background station (pid ${hostOfBackground}) could not be stopped for the app update — ${error instanceof Error ? error.message : String(error)}`);
-    }
-  }
 });
 // Revenir à l'app relit le fichier : le chef revient de son éditeur, et la
 // veille du fichier n'a pas à être seule à le savoir. Et le retard des clones : il

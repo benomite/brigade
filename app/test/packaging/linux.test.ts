@@ -62,16 +62,13 @@ function sources(t: TestContext) {
   write(join(pty, "build", "Release", "pty.node"), inHeadElf(0xb7));
   write(join(pty, "src", "unix", "pty.cc"));
   for (const machine of ["darwin-arm64", "win32-x64"]) write(join(pty, "prebuilds", machine, "pty.node"));
-  const runtime = join(root, "runtime");
-  write(join(runtime, "src", "kitchen", "main.ts"), "// la station");
-  write(join(runtime, "package.json"), JSON.stringify({ name: "brigade-runtime", version: "0.0.0", type: "module", engines: { node: ">=26" } }));
   const node = join(root, "node");
   write(node, inHeadElf(0x3e));
   const ptyCompile = join(root, "pty.node");
   write(ptyCompile, Buffer.concat([inHeadElf(0x3e), Buffer.from("compilé")]));
   const runtimeAppImage = join(root, "runtime-x86_64");
   write(runtimeAppImage, Buffer.concat([inHeadElf(0x3e), Buffer.from("runtime d'AppImage")]));
-  return { racine: root, electron, app, runtime, node, ptyCompile, runtimeAppImage };
+  return { racine: root, electron, app, node, ptyCompile, runtimeAppImage };
 }
 
 // Le mode qu'un `chmod 0o755` laisse à un exécutable de l'AppDir. Windows ne garde pas de bit
@@ -94,9 +91,9 @@ test("le nom de l'AppImage : brigade-<version>-linux-x64.AppImage", () => {
   assert.equal(nomDeLAppImage("1.2.3"), "brigade-1.2.3-linux-x64.AppImage");
 });
 
-test("assembler : l'AppDir porte AppRun, Electron renommé, l'app, le runtime, le node et le pty.node de linux-x64", (t) => {
-  const { racine: root, electron, app, runtime, node, ptyCompile } = sources(t);
-  const appdir = assembler({ version: "1.2.3+gabc", electron, node, pty: ptyCompile, app, runtime, executer: nothingALaunch }, join(root, "arbre", "Brigade.AppDir"));
+test("assembler : l'AppDir porte AppRun, Electron renommé, l'app, le node et le pty.node de linux-x64", (t) => {
+  const { racine: root, electron, app, node, ptyCompile } = sources(t);
+  const appdir = assembler({ version: "1.2.3+gabc", electron, node, pty: ptyCompile, app, executer: nothingALaunch }, join(root, "arbre", "Brigade.AppDir"));
   assert.equal(existsSync(join(appdir, EXECUTABLE)), true);
   assert.equal(existsSync(join(appdir, "electron")), false, "l'exécutable porte le nom de l'app");
   assert.equal(statSync(join(appdir, EXECUTABLE)).mode & 0o777, MODE_EXECUTABLE, "un zip ne garde pas le bit d'exécution");
@@ -136,8 +133,8 @@ test("assembler : l'AppDir porte AppRun, Electron renommé, l'app, le runtime, l
   for (const remains of ["build", "src", "scripts", "binding.gyp"]) assert.equal(existsSync(join(pty, remains)), false, `${remains} n'est pas porté`);
   assert.equal(existsSync(join(pty, "lib", "index.js")), true);
 
-  assert.equal(readFileSync(join(resources, "runtime", "src", "kitchen", "main.ts"), "utf8"), "// la station");
-  assert.equal(JSON.parse(readFileSync(join(resources, "runtime", "package.json"), "utf8")).version, "1.2.3+gabc");
+  // Aucune cuisine dans le paquet : l'app lit les stations par leurs gists.
+  assert.equal(existsSync(join(resources, "runtime")), false);
   // Le paquet ne porte plus de plugin à installer dans les projets.
   assert.equal(existsSync(join(resources, "plugin")), false);
   assert.deepEqual(readFileSync(join(resources, NODE_OF_PACKAGE)), readFileSync(node));
@@ -145,18 +142,18 @@ test("assembler : l'AppDir porte AppRun, Electron renommé, l'app, le runtime, l
 });
 
 test("l'app de l'AppImage se sait installée, et lance le runtime et le node du paquet", (t) => {
-  const { racine: root, electron, app, runtime, node, ptyCompile } = sources(t);
-  const resources = join(assembler({ version: "1.2.3", electron, node, pty: ptyCompile, app, runtime, executer: nothingALaunch }, join(root, "Brigade.AppDir")), "resources");
+  const { racine: root, electron, app, node, ptyCompile } = sources(t);
+  const resources = join(assembler({ version: "1.2.3", electron, node, pty: ptyCompile, app, executer: nothingALaunch }, join(root, "Brigade.AppDir")), "resources");
   const locations = locationsOf({ ressources: resources, src: join(resources, "app", "src"), env: {} });
   assert.equal(locations.facon, "installee");
   assert.equal(locations.clone, undefined);
-  assert.equal(locations.runtime, join(resources, "runtime"));
+  assert.equal("runtime" in locations, false);
   assert.equal(locations.node, join(resources, NODE_OF_PACKAGE));
   assert.equal(existsSync(locations.node), true);
 });
 
 test("assembler : sans --pty, node-pty est compilé par `npm rebuild` dans l'arbre de l'app", (t) => {
-  const { racine: root, electron, app, runtime, node } = sources(t);
+  const { racine: root, electron, app, node } = sources(t);
   const calls: { commande: string; args: readonly string[]; cwd: string | undefined }[] = [];
   // Le faux `npm rebuild` écrit ce que node-gyp écrit : build/Release/pty.node, et ses restes.
   const run: Executer = (command, args, options) => {
@@ -168,7 +165,7 @@ test("assembler : sans --pty, node-pty est compilé par `npm rebuild` dans l'arb
     write(join(pty, "build", "Makefile"));
     return { status: 0, stdout: "", stderr: "" };
   };
-  const appdir = assembler({ version: "1.2.3", electron, node, app, runtime, executer: run }, join(root, "Brigade.AppDir"));
+  const appdir = assembler({ version: "1.2.3", electron, node, app, executer: run }, join(root, "Brigade.AppDir"));
   const inApp = join(appdir, "resources", "app");
   assert.deepEqual(calls, [{ commande: "npm", args: ["rebuild", "node-pty", "--foreground-scripts", "--no-audit", "--no-fund"], cwd: inApp }]);
   const pty = join(inApp, "node_modules", "node-pty");
@@ -178,28 +175,28 @@ test("assembler : sans --pty, node-pty est compilé par `npm rebuild` dans l'arb
 });
 
 test("assembler : une compilation de node-pty qui échoue, ou qui n'écrit rien de x86-64, fait échouer la construction en disant pourquoi", (t) => {
-  const { racine: root, electron, app, runtime, node } = sources(t);
+  const { racine: root, electron, app, node } = sources(t);
   const fails: Executer = () => ({ status: 1, stdout: "", stderr: "gyp ERR! stack Error: not found: make" });
   assert.throws(
-    () => assembler({ version: "1.2.3", electron, node, app, runtime, executer: fails }, join(root, "a")),
+    () => assembler({ version: "1.2.3", electron, node, app, executer: fails }, join(root, "a")),
     (error: Error & { code?: number }) => error.code === 1 && /node-pty could not be compiled for linux-x64 .*not found: make/.test(error.message),
   );
   const nothing: Executer = () => ({ status: 0, stdout: "", stderr: "" });
-  assert.throws(() => assembler({ version: "1.2.3", electron, node, app, runtime, executer: nothing }, join(root, "b")), /succeeded but wrote no .*pty\.node/);
+  assert.throws(() => assembler({ version: "1.2.3", electron, node, app, executer: nothing }, join(root, "b")), /succeeded but wrote no .*pty\.node/);
   const arm: Executer = (_command, _args, options) => {
     write(join(options?.cwd ?? "", "node_modules", "node-pty", "build", "Release", "pty.node"), inHeadElf(0xb7));
     return { status: 0, stdout: "", stderr: "" };
   };
-  assert.throws(() => assembler({ version: "1.2.3", electron, node, app, runtime, executer: arm }, join(root, "c")), /is not built for linux-x64/);
+  assert.throws(() => assembler({ version: "1.2.3", electron, node, app, executer: arm }, join(root, "c")), /is not built for linux-x64/);
 });
 
 test("assembler : refuse un Electron qui n'est pas celui de Linux", (t) => {
-  const { racine: root, app, runtime, node, ptyCompile } = sources(t);
-  assert.throws(() => assembler({ version: "1.2.3", electron: app, node, pty: ptyCompile, app, runtime, executer: nothingALaunch }, join(root, "a")), /not an Electron for Linux/);
+  const { racine: root, app, node, ptyCompile } = sources(t);
+  assert.throws(() => assembler({ version: "1.2.3", electron: app, node, pty: ptyCompile, app, executer: nothingALaunch }, join(root, "a")), /not an Electron for Linux/);
 });
 
 test("construire : un seul fichier, brigade-<version>-linux-x64.AppImage, le runtime d'AppImage suivi du squashfs de l'AppDir", (t) => {
-  const { racine: root, electron, app, runtime, node, ptyCompile, runtimeAppImage } = sources(t);
+  const { racine: root, electron, app, node, ptyCompile, runtimeAppImage } = sources(t);
   const calls: { commande: string; args: readonly string[] }[] = [];
   // Le faux mksquashfs écrit, à la place du squashfs, la liste de ce qu'il a reçu.
   const run: Executer = (command, args) => {
@@ -209,7 +206,7 @@ test("construire : un seul fichier, brigade-<version>-linux-x64.AppImage, le run
     return { status: 0, stdout: "", stderr: "" };
   };
   const output = join(root, "construit");
-  const appimage = construire({ version: "1.2.3", electron, node, pty: ptyCompile, app, runtime, runtimeAppImage, sortie: output, atelier: join(root, "atelier"), executer: run });
+  const appimage = construire({ version: "1.2.3", electron, node, pty: ptyCompile, app, runtimeAppImage, sortie: output, atelier: join(root, "atelier"), executer: run });
   assert.equal(appimage, join(output, "brigade-1.2.3-linux-x64.AppImage"));
   assert.deepEqual(readdirSync(output), ["brigade-1.2.3-linux-x64.AppImage"]);
   assert.equal(calls.length, 1);
@@ -223,8 +220,8 @@ test("construire : un seul fichier, brigade-<version>-linux-x64.AppImage, le run
 });
 
 test("construire : un mksquashfs absent ou qui échoue fait échouer la construction, en disant pourquoi", (t) => {
-  const { racine: root, electron, app, runtime, node, ptyCompile, runtimeAppImage } = sources(t);
-  const options = { version: "1.2.3", electron, node, pty: ptyCompile, app, runtime, runtimeAppImage, sortie: join(root, "construit") };
+  const { racine: root, electron, app, node, ptyCompile, runtimeAppImage } = sources(t);
+  const options = { version: "1.2.3", electron, node, pty: ptyCompile, app, runtimeAppImage, sortie: join(root, "construit") };
   const absent: Executer = () => ({ status: null, stdout: "", stderr: "spawnSync mksquashfs ENOENT" });
   assert.throws(
     () => construire({ ...options, atelier: join(root, "a"), executer: absent }),
@@ -236,10 +233,10 @@ test("construire : un mksquashfs absent ou qui échoue fait échouer la construc
 });
 
 test("construire : refuse un node, un pty.node ou un runtime d'AppImage qui n'est pas un binaire Linux x64", (t) => {
-  const { racine: root, electron, app, runtime, node, ptyCompile, runtimeAppImage } = sources(t);
+  const { racine: root, electron, app, node, ptyCompile, runtimeAppImage } = sources(t);
   const notLinux = join(root, "pas-linux");
   write(notLinux, "MZ");
-  const options = { version: "1.2.3", electron, app, runtime, sortie: join(root, "construit"), atelier: join(root, "atelier"), executer: nothingALaunch };
+  const options = { version: "1.2.3", electron, app, sortie: join(root, "construit"), atelier: join(root, "atelier"), executer: nothingALaunch };
   for (const [what, gives] of [
     ["--node", { node: notLinux, pty: ptyCompile, runtimeAppImage }],
     ["--pty", { node, pty: notLinux, runtimeAppImage }],

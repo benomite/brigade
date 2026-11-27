@@ -2,7 +2,7 @@
 
 A single file for Linux x64, `brigade-<version>-linux-x64.AppImage`. Made executable, it opens the
 app with nothing to install, no clone of the repository, and no Node on the machine. Like the Mac
-app and the Windows installer, it carries the runtime of its station and the `node` that runs it.
+app and the Windows installer, it carries the `node` that serves it, and no runtime: the app reads stations through their gists.
 The Mac `.dmg` is described in [`README.md`](README.md), the Windows installer in
 [`WINDOWS.md`](WINDOWS.md).
 
@@ -68,8 +68,7 @@ squashfs of a folder (the AppDir). Its AppDir:
 | `brigade`, its `.so` and `.pak` files, `locales/` | the official Electron for linux-x64, with `electron` renamed `brigade`, without `chrome-sandbox` |
 | `brigade.desktop`, `brigade.png`, `.DirIcon` | its desktop entry and its icon (`icones/Brigade-1024.png`) |
 | `resources/app/` | `src/`, the app's `package.json` (named `Brigade`, at the built version, without scripts or dev dependencies) and its production dependencies. node-pty keeps its JavaScript and its `pty.node` for linux-x64, under `prebuilds/linux-x64/`, where node-pty loads it and where the app looks for it (`app/src/pty.ts`) |
-| `resources/runtime/` | `src/` and `package.json` of the runtime, at the built version |
-| `resources/node/bin/brigade-node` | the `node` that runs the station |
+| `resources/node/bin/brigade-node` | the app's `node` |
 
 **No Chromium sandbox.** Mounted by FUSE, the AppDir belongs to root: Chromium's SUID sandbox helper
 (`chrome-sandbox`) cannot be setuid there, and where unprivileged user namespaces are refused
@@ -95,9 +94,9 @@ desktop Linux has.
 
 The tests (`app/test/packaging/linux.test.ts`) need no network, no compiler and no screen. They
 check the AppDir (Electron renamed, `AppRun`, the desktop entry, the app and its production
-dependencies, node-pty for linux-x64 only, the runtime, `node`), that the installed app finds its
-runtime and its `node` there, the compilation of node-pty and its failures, the single file written
-(the runtime followed by the squashfs), and the command's refusals.
+dependencies, node-pty for linux-x64 only, `node`, and no `runtime/`), that the installed app finds its
+`node` there, the compilation of node-pty and its failures, the single file written
+(the AppImage runtime followed by the squashfs), and the command's refusals.
 
 What only a Linux machine with a screen proves is checked by `app/packaging/essai-linux.ts`:
 

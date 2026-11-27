@@ -67,7 +67,7 @@ const STATIONS: SeenOfStations = { a: MAINTENANT, stations: [{ id: "box", nom: "
 const PROJETS_DES_STATIONS: SeenOfProjects = { a: MAINTENANT, projets: [], recommandee: null, avertissements: {}, machines: {}, calibrage: { manager: { modele: "opus", effort: "high" }, reviewer: { modele: "opus", effort: "high" }, dit: "" } };
 
 // La réponse de `demarrage`, comme main.ts la rend : les listes de l'app sont celles de son code.
-// `ici` : les projets dont la cuisine tourne sur cet ordinateur (workstation/kitchen-here.ts).
+// `ici` : les projets dont la cuisine tourne sur cet ordinateur.
 // `tourne` : la station de cet ordinateur tourne-t-elle ? Sinon, ceux de `ici` n'ont rien à lire.
 // `servi` : les projets qu'une station sert, dont le rail se lit — tous, par défaut.
 export function demarrage(projets: Configuration, ici: (nom: string) => boolean = () => false, tourne = true, servi: (projet: Project) => boolean = () => true) {

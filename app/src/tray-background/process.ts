@@ -6,14 +6,13 @@
 // (`barreDeMenus`, config.ts).
 import { spawn } from "node:child_process";
 import { homedir, userInfo } from "node:os";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import { setTimeout as wait } from "node:timers/promises";
 import { app, dialog, nativeImage, type MenuItemConstructorOptions } from "electron";
 import { pathConfiguration, readConfiguration } from "../config.ts";
 import { RELEASES_URL } from "../update/android.ts";
 import { pathOf, locationsOf, readPathOfShell } from "../locations.ts";
 import { shellOfWorkstation } from "../platform.ts";
-import { servedBy } from "../workstation/kitchen-here.ts";
 import { takeThePlace } from "./instance.ts";
 import { createIfFree, ICON_OF_THE_BAR, type IconUnique } from "../tray/icon.ts";
 import { FOLDER_OF_BACKGROUND, writeTheVersionOfBackground, run, quitTheStation } from "./system.ts";
@@ -50,10 +49,10 @@ const locations = locationsOf({ ressources: process.resourcesPath, src, env: pro
 // Lancée par launchd, elle n'a que le PATH du système : celui du shell de connexion du chef, comme l'app (locations.ts).
 const path = pathOf({ emplacements: locations, env: process.env, maison: homedir(), plateforme: platform, duShell: () => (platform === "win32" ? undefined : readPathOfShell(shellOfWorkstation(platform, process.env).commande, 10_000)) });
 if (path !== undefined) process.env.PATH = path;
-const root = process.env.BRIGADE_STATION_DIR || join(dirname(pathConfiguration()), "station");
 
 let icon: IconUnique | undefined;
-let projects: string[] = [];
+// L'app n'a plus de cuisine : la station d'un ordinateur est lue par son gist, pas par un fichier de projets.
+const projects: string[] = [];
 let saidOne = "";
 let inProgress = false;
 
@@ -129,7 +128,6 @@ function set(active: boolean): void {
 }
 
 async function reread(): Promise<void> {
-  projects = servedBy(root);
   set(readConfiguration(pathConfiguration()).barreDeMenus !== false);
 }
 

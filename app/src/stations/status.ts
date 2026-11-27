@@ -1,4 +1,4 @@
-// The facts a station writes of itself into its gist (`status`, runtime/src/station-gist.ts): what the Stations view
+// The facts a station writes of itself into its gist (`status`, runtime/src/kitchen/): what the Stations view
 // shows of it, read with no trust in their shape — a station of an older version says none of them.
 import { duration } from "./duration.ts";
 

@@ -71,7 +71,6 @@ import { Terminal as Xterm } from "@xterm/xterm";
 // d'un geste dans son survol, une lecture qui manque en une ligne, une confirmation qui dit son prix.
 import { holdBanner } from "./update/banner.js";
 import { setConnected, setTheListGitHub, holdConnectionGitHub } from "./connection-github.js";
-import { holdOpinionOfBackground } from "./first-launch/opinion-of-background.js";
 import { setTheIdentities, holdTheIdentities } from "./identities-github.js";
 import { setTheProjectsServed, holdTheProjectsServed } from "./projects-served/projects-served.js";
 import { setTheProjectsOfTheStation, projectsServedBy } from "./station/page/StationProjects.js";
@@ -233,7 +232,7 @@ const brigade = window.brigade;
 /** @param {Project} _project @param {string} command */
 const gesture = (_project, command) => `the station's “${command.split(" ").filter((m, i, all) => !all.slice(0, i + 1).some((t) => /^[-<]/.test(t))).join(" ")}” step`;
 // Ce qui se lit d'un projet : une station le sert (`servi`) — ou cet ordinateur, quand c'est sa station
-// qui fait tourner sa cuisine (`ici`, workstation/kitchen-here.ts).
+// qui fait tourner sa cuisine (`ici`).
 // Tant que la station de cet ordinateur ne tourne pas (`sansStation`), rien n'en est lu : la page
 // ne dit que cela, en une ligne (attendre).
 /** @param {Project} project */
@@ -8252,9 +8251,6 @@ if (phone !== undefined && phone.github === undefined) {
   connectionOfPhone.className = "fait";
   connectionOfPhone.replaceChildren(setConnected(document, phone.github.compte));
 }
-// Sur un Mac neuf, avant l'avis de macOS (ticket 4081) : l'écran qui annonce que Brigade tourne en arrière-plan, l'app
-// cachée derrière jusqu'à son bouton.
-await holdOpinionOfBackground(element("avis-de-fond"), frameOfTheApp, document, brigade);
 // Le terminal mesure ses cases à l'ouverture : sa police, embarquée, est chargée avant qu'aucun
 // ne s'ouvre. Si elle ne se charge pas, l'app s'ouvre quand même, sur la police de repli.
 await Promise.all(["13px", "bold 13px"].map((body) => document.fonts.load(`${body} ${token("--police-mono")}`))).catch(() => undefined);

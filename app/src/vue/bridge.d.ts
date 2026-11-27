@@ -182,14 +182,9 @@ export type Bridge = {
   // Le chef a touché la notification d'une carte de TODO sur le téléphone (le ticket 2747), ou cliqué une question dans le
   // menu de la barre des menus sur un ordinateur (ticket 3269) — sa fiche s'ouvre.
   surOuvrirCarte?(receive: (project: string, ticket: number) => void): void;
-  // L'écran du premier lancement avant l'avis de macOS (ticket 4081, first-launch/opinion-of-background.js) : le process
-  // principal l'attend-il déjà, le demande plus tard, et son bouton pressé. Pas sur le téléphone.
   // "Make this computer cook": offered only where no station is installed; the command is the one to paste.
   offreDeCuisiner?(): Promise<{ offered: false } | { offered: true; command: string }>;
   cuisinerIci?(): Promise<{ commande: string } | { refus: string }>;
-  avisDeFond?(): Promise<boolean>;
-  surAvisDeFond?(receive: () => void): void;
-  continuerLePremierLancement?(): Promise<void>;
   // GitHub refuse la connexion de ce téléphone : le pont efface son jeton, et la vue revient à la connexion à GitHub.
   oublierLeTelephone?(): Promise<void>;
   // Le code qu'une station affiche, tapé par le chef : rend le nom de la station appairée, ou le

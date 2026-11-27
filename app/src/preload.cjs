@@ -162,13 +162,8 @@ const bridge = {
   surUrgence: (receive) => void ipcRenderer.on("urgence", (_, project) => receive(project)),
   // Une question cliquée dans le menu de la barre des menus (menu-bar.ts) : sa carte s'ouvre.
   surOuvrirCarte: (receive) => void ipcRenderer.on("ouvrirCarte", (_, project, ticket) => receive(project, ticket)),
-  // L'écran du premier lancement avant l'avis de macOS (ticket 4081, vue/first-launch/) : attendu dès l'ouverture de
-  // la vue, ou plus tard par `surAvisDeFond` ; son bouton rend la main à l'inscription de la station.
   offreDeCuisiner: () => ipcRenderer.invoke("offreDeCuisiner"),
   cuisinerIci: () => ipcRenderer.invoke("cuisinerIci"),
-  avisDeFond: () => ipcRenderer.invoke("avisDeFond"),
-  surAvisDeFond: (receive) => void ipcRenderer.on("avisDeFond", () => receive()),
-  continuerLePremierLancement: () => ipcRenderer.invoke("continuerLePremierLancement"),
   surAmont: (receive) => void ipcRenderer.on("amont", (_, seenOne) => receive(seenOne)),
   surCode: (receive) => void ipcRenderer.on("code", (_, seenOne) => receive(seenOne)),
   surMiseAJour: (receive) => void ipcRenderer.on("miseAJour", (_, state) => receive(state)),

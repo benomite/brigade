@@ -1,5 +1,5 @@
-// Construit l'app installable du Mac : un seul .dmg, pour Apple Silicon, qui porte l'app, le
-// runtime de sa station et le `node` qui le joue. Glissée dans Applications, l'app tourne sans
+// Construit l'app installable du Mac : un seul .dmg, pour Apple Silicon, qui porte l'app et le
+// `node` qui la sert. Glissée dans Applications, l'app tourne sans
 // clone du dépôt, sans `node` ni `npm` sur la machine (src/locations.ts).
 //
 //   npm --prefix app run dist                         le .dmg du commit construit
@@ -15,14 +15,14 @@
 //   app/            `src/`, son package.json et ses dépendances de production — ni tests, ni
 //                   dépendances de dev ; node-pty n'y garde que ce qui est compilé pour darwin-arm64.
 //                   `src/setup/` y est : les instructions et le script de la préparation d'un dépôt
-//   runtime/        `src/` et package.json du runtime — il n'a pas d'autres dépendances
-//   node/bin/node   le `node` qui joue la station : celui de la machine n'y est pour rien
+//   node/bin/node   le `node` de l'app : celui de la machine n'y est pour rien
+// Pas de `runtime/` : l'app ne porte aucune cuisine, elle lit les stations par leurs gists.
 // Le reste est l'Electron officiel pour darwin-arm64, de la version que l'app déclare, renommé.
 //
 // Electron vient, sans `--electron`, du dépôt de ses versions sur GitHub, vérifié contre les
 // empreintes que porte son paquet npm. Le `node` vient, sans `--node`, de nodejs.org, dans la
 // version du `node` qui lance cette commande — vérifié contre les empreintes publiées avec lui —,
-// et doit être celle que le runtime réclame (`engines`). Donné par `--node`, ce doit être un
+// et doit être celle que l'app réclame (`engines`). Donné par `--node`, ce doit être un
 // binaire darwin-arm64 qui ne lie rien hors du système : le `node` d'Homebrew lie ses bibliothèques,
 // absentes d'un Mac sans Homebrew.
 //
@@ -45,7 +45,7 @@ import { tmpdir } from "node:os";
 import { basename, join, relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
-import { APP_OF_PACKAGE, NODE_OF_PACKAGE, RUNTIME_OF_PACKAGE } from "../src/locations.ts";
+import { APP_OF_PACKAGE, NODE_OF_PACKAGE } from "../src/locations.ts";
 import { defautsDeNom, IDENTIFIANT } from "./verifier-plist.ts";
 
 const REFUS = 2;
@@ -62,7 +62,6 @@ export const ICONE = "Brigade.icns";
 const ICI = import.meta.dirname;
 export const APP = resolve(ICI, "..");
 export const RACINE = resolve(APP, "..");
-export const RUNTIME = join(RACINE, "runtime");
 
 // Un refus ou un échec de la construction, avec le code qui le dit.
 export class Arret extends Error {
@@ -202,9 +201,9 @@ export function empreinteAnnoncee(sommes: string, fichier: string): string | und
   return undefined;
 }
 
-// La majeure de `node` que le runtime réclame (`engines`).
-export function majeureReclamee(runtime = RUNTIME): number {
-  return Number(/\d+/.exec(JSON.parse(readFileSync(join(runtime, "package.json"), "utf8")).engines?.node ?? "")?.[0]);
+// La majeure de `node` que l'app réclame (`engines`).
+export function majeureReclamee(app = APP): number {
+  return Number(/\d+/.exec(JSON.parse(readFileSync(join(app, "package.json"), "utf8")).engines?.node ?? "")?.[0]);
 }
 
 export type OptionsConstruction = {
@@ -219,7 +218,6 @@ export type OptionsConstruction = {
   atelier: string;
   executer: Executer;
   app?: string;
-  runtime?: string;
   // Le nom d'un certificat « Developer ID Application » : l'app est alors signée par ce
   // développeur (runtime durci, horodatage) au lieu d'être signée ad hoc.
   identite?: string;
@@ -236,10 +234,9 @@ function renommer(de: string, vers: string): void {
   renameSync(de, vers);
 }
 
-// Pose `Brigade.app` dans `dossier`, depuis Electron, l'app, le runtime et le `node` : rend son chemin.
+// Pose `Brigade.app` dans `dossier`, depuis Electron, l'app et le `node` : rend son chemin.
 export function assembler(options: Omit<OptionsConstruction, "sortie" | "atelier" | "executer">, dossier: string): string {
   const app = options.app ?? APP;
-  const runtime = options.runtime ?? RUNTIME;
   const paquet = join(dossier, `${NOM}.app`);
   const courte = versionCourte(options.version);
   mkdirSync(dossier, { recursive: true });
@@ -287,12 +284,6 @@ export function assembler(options: Omit<OptionsConstruction, "sortie" | "atelier
     for (const nom of readdirSync(compiles)) if (nom !== `darwin-${ARCH}`) rmSync(join(compiles, nom), { recursive: true, force: true });
     chmodSync(join(compiles, `darwin-${ARCH}`, "spawn-helper"), 0o755);
   }
-
-  // Le runtime : ce que `node` exécute et le package.json qui en fait des modules ES — à la
-  // version construite, celle que la station dit d'elle-même en démarrant.
-  const dansRuntime = join(ressources, RUNTIME_OF_PACKAGE);
-  cpSync(join(runtime, "src"), join(dansRuntime, "src"), { recursive: true });
-  writeFileSync(join(dansRuntime, "package.json"), `${JSON.stringify({ ...JSON.parse(readFileSync(join(runtime, "package.json"), "utf8")), version: options.version }, null, 2)}\n`);
 
   const node = join(ressources, NODE_OF_PACKAGE);
   mkdirSync(join(node, ".."), { recursive: true });
@@ -473,7 +464,7 @@ async function principal(): Promise<void> {
   const version = options.version ?? versionDuCommit(executer);
   versionCourte(version);
   const reclamee = majeureReclamee();
-  if (options.node === undefined && Number(process.versions.node.split(".")[0]) < reclamee) refuser(`this node is ${process.version}, the runtime needs ${reclamee} at least — run with a newer node, or give one with --node`);
+  if (options.node === undefined && Number(process.versions.node.split(".")[0]) < reclamee) refuser(`this node is ${process.version}, the app needs ${reclamee} at least — run with a newer node, or give one with --node`);
   const identite = options.identite ?? process.env.BRIGADE_SIGN_IDENTITY;
   if (options.notariser !== undefined && identite === undefined) refuser("--notariser needs --identite (or BRIGADE_SIGN_IDENTITY)");
   const sortie = resolve(options.sortie ?? join(ICI, "construit"));
@@ -491,7 +482,7 @@ async function principal(): Promise<void> {
     const node = options.node === undefined ? await nodeOfficiel(atelier, executer) : resolve(options.node);
     const lu = executer(node, ["--version"]);
     const majeure = Number(/^v(\d+)\./.exec(lu.stdout)?.[1]);
-    if (lu.status === 0 && Number.isFinite(majeure) && majeure < reclamee) refuser(`the node to bundle (${node}) is ${lu.stdout.trim()}, the runtime needs ${reclamee} at least`);
+    if (lu.status === 0 && Number.isFinite(majeure) && majeure < reclamee) refuser(`the node to bundle (${node}) is ${lu.stdout.trim()}, the app needs ${reclamee} at least`);
     const dmg = construire({ version, electron, node, sortie, atelier: join(atelier, "arbre"), executer, identite, profilNotarisation: options.notariser });
     const yml = join(sortie, "latest-mac.yml");
     writeFileSync(yml, metadonneesDeMiseAJour(version, dmg, new Date().toISOString()));

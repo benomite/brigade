@@ -1,6 +1,5 @@
 // Le point d'entrée du binaire de l'app (`main` de app/package.json) : avec `--tray-fond`, il est l'icône de la station
-// de fond (process.ts, #3631) ; avec `--station-fond`, il lance la station de fond (station-background/startup.ts, #3630) ;
-// sans, il est l'app (main.ts).
+// de fond (process.ts, #3631) ; sans, il est l'app (main.ts).
 //
 // L'app installée ne garde qu'un process : relancée — depuis l'icône de fond, le Dock, le menu Démarrer —, elle ramène
 // sa fenêtre au lieu d'en ouvrir une deuxième. Et quand la station de fond est installée sur cet ordinateur, elle
@@ -13,14 +12,10 @@ import { homedir, userInfo } from "node:os";
 import { join } from "node:path";
 import { app, BrowserWindow, dialog } from "electron";
 import { isInstalled } from "../locations.ts";
-import { ARGUMENT_BACKGROUND } from "../station-background/registration.ts";
 import { readTheCommand, sameProcess, takeThePlace } from "./instance.ts";
 import { ARGUMENT, run, backgroundStale, registerTheBackground, stationOfBackgroundInstalled } from "./system.ts";
 
-if (process.argv.includes(ARGUMENT_BACKGROUND)) {
-  // La station de fond, lancée à l'ouverture de session de Windows (station-background/registration.ts).
-  await import("../station-background/startup.ts");
-} else if (process.argv.includes(ARGUMENT)) {
+if (process.argv.includes(ARGUMENT)) {
   await import("./process.ts");
 } else {
   const installedOne = isInstalled({ ressources: process.resourcesPath, src: join(import.meta.dirname, "..") });

@@ -20,7 +20,7 @@ const cle = (xml: string, nom: string) => new RegExp(`<key>${nom}</key>\\s*<stri
 const ELECTRON_OU_NODE = /electron|node\.js foundation/i;
 const DECLARATIONS_DE_FOND = /<key>(?:SMAuthorizedClients|SMPrivilegedExecutables|SMLoginItemBundleIdentifier)<\/key>[\s\S]*?<\/(?:array|dict|string)>/g;
 
-// Les fichiers sous `dossier`, hors `Resources/app` et `Resources/runtime` (du code de Brigade, pas d'Electron).
+// Les fichiers sous `dossier`, hors `Resources/app` (du code de Brigade, pas d'Electron).
 function fichiers(dossier: string, ignorer: (chemin: string) => boolean): string[] {
   return readdirSync(dossier, { withFileTypes: true }).flatMap((entree) => {
     const chemin = join(dossier, entree.name);
@@ -51,7 +51,7 @@ export function defautsDeNom(paquet: string): string[] {
   const ressources = join(contenu, "Resources");
   let tout: string[] = [];
   try {
-    tout = fichiers(contenu, (chemin) => chemin === join(ressources, "app") || chemin === join(ressources, "runtime"));
+    tout = fichiers(contenu, (chemin) => chemin === join(ressources, "app"));
   } catch (erreur) {
     defauts.push(`${contenu} cannot be read: ${erreur instanceof Error ? erreur.message : String(erreur)}`);
   }
