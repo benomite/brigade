@@ -11,7 +11,7 @@ import { lineError } from "../components/line-error/line-error.js";
 
 /** @typedef {{ createElement(balise: string): any }} Fabrique */
 
-// Le mot est celui du runtime (runtime/src/carte-todo/forme.ts, `DEMANDER_AU_SECOND`) et de la fiche (card-actions.ts).
+// Le mot est celui de la fiche (card-actions.ts).
 export const ASK = "ask the second";
 export const REQUEST_IN_ROUTE = "asking the second…";
 

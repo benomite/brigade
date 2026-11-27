@@ -144,29 +144,13 @@ where there is a computer. Rail shows the same columns and cards as on a wide sc
 switch's confirmation (`project`) opens under the project's header, full width, not 440 px wide under the
 switch. The last tab opened is remembered; remembered on a wide screen, the conversation reopens the project on Rail.
 On a wide screen, nothing changes. The threshold is `ECRAN_ETROIT` in `app/src/vue/vue.js`, and the same one in `vue.css`.
-**A TODO card the runtime let in asks its question on the card itself** (#1281): a product choice or a design
-validation (`attend[].carte` in `facts`, see `docs/runtime/manager.md`, "What enters TODO, and how you answer"). The
-card says what is expected (`Validate its screen: answer its question.`), then the question, one button per choice — in
-the runtime's order —, and a free-text field with its `send` button, inactive while empty. A design validation shows its
-before and after captures under the question, read without a click like those of a delivery; a card without a screen
-has no capture area. **Since #2061 no answer leaves the app**: a click on a choice, or `send`, says `nothing was posted:
-a card of TODO is answered on its issue on GitHub — the station reads the issue, not the app` (`SANS_FAIT` in
-`app/src/actions-github.ts`), and the card stays as it is. No reading carries `attend[].carte` any more: TODO is the
-`chef-todo` issues ("The chef's TODO, read from GitHub", below). The modules are `app/src/card-todo.ts` and
-`app/src/vue/card-todo.js`.
-**Every TODO card takes that one shape** (#1767, epic #1764, `runtime/src/carte-todo/forme.ts`): when `attend[].carte`
-carries `resume` — what happens, in two plain sentences at most —, it heads the card in place of the expected line, then
-the question, the captures, one button per choice and the free-text field. A card with a single gesture (merge a green
-delivery by hand) has a null question: it shows that one button, filled, and no question. Every card closes on `ask the
-second`, a small underlined word set back under the field, never one of its choices: it writes into the second a
-request about the ticket with what is typed in the card's field, as the sheet's does, and the card is answered from its
-choices without it.
-**A ticket the kitchen took off the rail without serving it waits in Todo** (#2118): its card (`type` `abandon`) says
-which ticket and why, and offers `Put it back on the rail`, `I take it in a dev session` and `Close it`; it stays until
-you answer (`docs/runtime/manager.md`, "A ticket the kitchen takes off the rail without serving it"). Each choice's
-price follows its gesture (`app/src/card-todo.ts`): `drop` says the ticket stays off the rail, `close` that its issue is
-closed — neither says a cook is launched. Since #2061 no reading carries that card: such a ticket is a `chef-todo` card
-of kind `abandoned`, answered on its issue.
+**A TODO card asks its question on the card itself** (#1281): a chef card read from GitHub (a ticket parked for the chef
+with `parked:chef`, a manager's question, a design validation, a sensitive review — "The chef's TODO, read from GitHub",
+below). The card says what is expected, then the question, one button per choice, and a free-text field with its `send`
+button, inactive while empty; what its comment says after the question heads the card in one sentence, the rest behind
+`details`. Every card closes on `ask the second`, a small underlined word set back under the field, never one of its
+choices. The modules are `app/src/card-todo.ts` and `app/src/vue/card-todo.js`. The card the old runtime handed in
+`attend[].carte` (its runtime prices, its captures, its single-gesture card with no question) is no longer read (#4508).
 **A kitchen held by its breaker is shown as one information line, from the head of Todo** (#2140, epic #2134, #3911): while the
 `kitchen` line of `status` says `breaker OPEN`, Todo opens on the breaker line — red, `breaker open: the latest launches
 failed in a row, no cook goes any more`, what the station writes on hover — with no button: the chef no longer resets the
@@ -290,8 +274,8 @@ paired.
 
 On first launch the file does not exist: the app creates it, empty (`{ "projets": [] }`). **As long
 as it has no project, the app opens on the stations you have already paired and the projects each
-carries** — in place of All projects, the round **T** still marked. They are read by the runtime
-(`runtime/src/appairage/stations-du-chef.ts`, #1428), through this computer's `gh`:
+carries** — in place of All projects, the round **T** still marked. Since #4511 no station is paired any more: the list
+is empty, and says that a station's kitchen serves the projects of its `kitchen/projects` file. Before, it read:
 
 ```
 Open one of your projects on this PC: one click, no folder to choose.
@@ -302,33 +286,27 @@ Open one of your projects on this PC: one click, no folder to choose.
 [pick one of your repositories instead]
 ```
 
-- **A project opens in one click, with no folder to choose.** The runtime's operation
-  (`runtime/src/projets/copie-locale.ts`, #1429) reuses a copy that already exists, or clones the
+- **A project opens in one click, with no folder to choose.** The app
+  (`app/src/local-copy.ts`, #1429, #4511) reuses a copy that already exists, or clones the
   repository into the folder the app manages (`~/Brigade/<name>`, or
   `BRIGADE_PROJECTS_DIR`). Each of its steps is said under the station, in its sentence —
   `Cloning benomite/parade into … — 42%.` —, and the other projects wait: one clone at a time.
   Opened, the project enters the projects file with its repository and the branch its origin points
   to, and its space opens.
-- **A clone that fails says why in one sentence**, the runtime's — `GitHub denies chef-pc access to
+- **A clone that fails says why in one sentence** — `GitHub denies this computer's GitHub account access to
   benomite/parade, so it cannot be cloned: …` —, under its station; what `gh` and `git` wrote is in
-  the `?` hover. A button opens the page that lifts it when the runtime names one (`get Git`,
+  the `?` hover. A button opens the page that lifts it when the sentence names one (`get Git`,
   `open the page on GitHub`), and `try again` replays it.
 - **When this computer is not signed in to GitHub**, the account, at the head of the screen under the welcome sentence
-  `Welcome to brigade. Add the first project its kitchen will cook.`, shows `connect to GitHub`, and the stations' sentence says why they wait: the button runs the runtime's
-  sign-in action (`gh auth login --web`), without a terminal. The screen shows the one-time code to type, `Type the code A1B2-C3D4 on the
+  `Welcome to brigade. Add the first project its kitchen will cook.`, shows `connect to GitHub`, and the stations' sentence says why they wait: the button runs the
+  sign-in (`gh auth login --web`, `app/src/connection-github.ts`), without a terminal. The screen shows the one-time code to type, `Type the code A1B2-C3D4 on the
   GitHub page that opened in your browser.`, and the page opens — by `gh`, or by the app. Signed in,
   the stations are read again; a clone that was held for want of an account starts again by itself.
   The same button appears under a clone refused for that reason.
-- **A tool the app does not ship is checked first** (#4059): the screen, the `connect to GitHub` button and
-  `open this project` first ask which of Git (`git`) and the GitHub CLI (`gh`) this computer lacks
-  (`runtime/src/outils-requis/`). A missing one takes the account's place, in the missing-tool screen: the product
-  named (`The GitHub CLI is not installed on this computer.`), why brigade needs it in one sentence,
-  one link to the tool's official install page, and `I installed it`. The app installs nothing itself (#4266): the
-  tool is the user's to install. The button never spins on a sign-in that cannot start. On `I installed it` the app
-  checks again, adds to its PATH a tool its installer put outside it, and the step comes back where it was — the
-  button, or the project that was opening, which starts again by itself. A tool still missing says so in one line,
-  and the link stays. The same screen opens in the notice when **log in** on a lost
-  Max connection finds no Claude Code (`claude`): it no longer says `could not be started on this computer`.
+- **A tool the app does not ship is no longer checked first** (#4511: the check was the old runtime's): the step that
+  needs it says it is missing when it fails — no `gh`, no Git, no `claude` —, with the page that gets it; the app
+  installs nothing (#4266). The missing-tool screen (#4059) still opens when **log in** on a lost Max connection finds
+  no Claude Code (`claude`).
 - **Claude Code is asked before the kitchen starts** (#4057): opening a project first asks `claude auth status`
   whether Claude Code is logged in on this computer — no call to the model. Logged in, the project opens as before,
   with no extra step, and later openings in the same session do not ask again. Not logged in, nothing is cloned or
@@ -588,9 +566,9 @@ repository picked on **Add a project** opens it, and it is held while the app ru
 project reopened after a restart opens on its rail, with the notice of #2628 if it is not set up.
 
 *Code: `app/src/vue/journey-first-project/` (the questions, their states), `app/src/vue/first-ticket/` (the first
-ticket), `runtime/src/premier-ticket/` (the draft and the creation, loaded by `app/src/main.ts`), their wiring in
+ticket), `app/src/first-ticket.ts` (the draft and the creation, played by `app/src/main.ts`), their wiring in
 `app/src/vue/vue.js` (`suivreLeParcours`, `poserLeProjetAPreparer`). Tests: `app/test/journey-first-project/`,
-`app/test/first-ticket/`, `runtime/test/premier-ticket/`. Captures: `docs/captures/3166/`, `docs/captures/3306/`.*
+`app/test/first-ticket/`, `app/test/acceptation-4511/`. Captures: `docs/captures/3166/`, `docs/captures/3306/`.*
 
 ### Your first ticket, told step by step as it really happens (#3302)
 
@@ -986,7 +964,8 @@ every project, whichever station serves it: the repository of a project served b
 rail is this same view, in the same order — the rail a station publishes in its gist only says why GitHub is not read
 yet (#1435, above). Captures: `docs/captures/1695/` — `espace-projet-avant.png` (the screen removed) and
 `espace-projet-apres.png` (the rail view of the same project), and `espace-projet-gestes-apres.png` (the
-sheet of a TODO ticket whose decision is known, offering its gestures).
+sheet of a TODO ticket, offering its gestures). A TODO sheet offers the gestures every card has, nothing more: the
+gestures the old runtime's decision added to it (#832) are gone with it (#4508).
 
 ### The agents at the top of the project view (#4029, epic #4024)
 
@@ -1435,16 +1414,6 @@ carrying `kitchen-board` is never a card (the rule, with its reading, is in the 
 `docs/captures/2221/` — `todo-github-seul-avant.png` (the same four cards without the kind and the text) and
 `todo-github-seul-apres.png`.
 
-**Held gestures (#4273, epic #4209).** A gesture an agent holds for the chef's OK is not a ticket: it sits under the
-columns, next to Todo, in a section **Held for your OK (N)** — one card per gesture, with its summary, its reason (the
-`<summary> — <reason>` line that `manager` lists under `held gestures`) and one **Approve** button. Approve runs
-`manager approve <id>` on this computer's station: no ssh, no typed command. Done, the card leaves the list; refused, it
-stays and says why on one line. When the rail is empty and gestures are held, the rail says `N splits wait for your OK`
-instead of what is before it. The gestures are read by `manager` at each reading of the displayed project's rail, only for
-a project that cooks on this computer; a reading that fails is said on one error line, never as "none". *Code:
-`app/src/held/` (`lecture.ts` reads and approves, `cards.js` draws), wired in `app/src/vue/vue.js`. Tests:
-`app/test/held/`. Captures: `docs/captures/4273/`.*
-
 ### Changing a ticket's priority (#1739)
 
 A ticket's priority is the `prio:<n>` label of its issue on GitHub. On the sheet of a rail card, `change the priority`
@@ -1470,8 +1439,7 @@ The box has no command for it: the label is read like any other (`docs/runtime/j
 
 ### Sending a ticket back to the kitchen after WAITING (#1740)
 
-`it arrived, back to the kitchen`, on a WAITING card, and `back to the kitchen`, on the sheet of a ticket back from
-WAITING into TODO (recommended there, confirmed with its cost), are one gesture: the app removes the `parked` label (`waiting` before #4129)
+`it arrived, back to the kitchen`, on a WAITING card: the app removes the `parked` label (`waiting` before #4129)
 from the ticket's issue itself (`app/src/actions-github.ts`, #2061), with the token of this computer's `gh`. No second, no
 command: the gesture works with the kitchen unreachable — the ticket leaves WAITING (or TODO) and goes back on the rail,
 queued, without going through TODO.
@@ -1531,8 +1499,9 @@ width).
 
 ### The second's choices, as buttons under its terminal (#1520)
 
-When the second asks you to choose ("A, B or C?"), it also publishes its choices through its own channel
-(`runtime/src/second-propositions/`, #1519): the app never reads the terminal. Under the second's terminal, one
+**No longer followed** (#4511): the channel was the old runtime's, and no button is laid under the second's terminal.
+When the second asked you to choose ("A, B or C?"), it also published its choices through its own channel
+(#1519): the app never reads the terminal. Under the second's terminal, one
 line says `The second asks you to choose` (how to answer is in its `?` hover), then **one button per choice**: what
 a click types — its value, `A` — and its one-line label, whole; a long label wraps, it is not cut.
 
@@ -2578,7 +2547,8 @@ whose Stations tab shows the station — and each one is a link to that tab (#34
 `This station serves no project yet.` Adding a project is the **+** at the foot of the bar (see "Add a project" above).
 
 - **The picked repository is checked first** (#2627, `app/src/vue/addition-project/`, `app/src/projects/preparation-of-repository.ts`):
-  as soon as you pick it, the app asks the runtime whether it is set up for brigade (`checkRepoSetup`, #2626), on the
+  since #4511 the kitchen needs nothing set up: `checkRepoSetup` says it is, and the path carries on. Before, as soon
+  as you picked it, the app asked the runtime whether it was set up for brigade (`checkRepoSetup`, #2626), on the
   repository's local copy on this computer — the one the app keeps for it, reused or cloned — and says it in one sentence. Set up, the path carries
   on exactly as before. Not set up, the sentence names what is missing — its bindings, its labels, or both, their names
   on hover — and **"set it up"** prepares it (`runRepoSetup`): "Setting up … for brigade…", then "… is now set up for
@@ -2629,8 +2599,8 @@ station chosen at once when it does not cook the project yet, otherwise the firs
 the first render, what belongs to that machine: **cooks at once** (from its own cores, with its
 `recommended — …` line), its **workspace folder** (where its station puts its cooks' workspaces: read, not
 changed here), and **what it can do**, one box per capability (a browser, Docker, the Android SDK…), the
-ones detected on this computer ticked. For this computer these values come from the runtime operation
-`defautsDeStation` (`runtime/src/projets/ajout-de-station.ts`, #1306), read before the card shows; for
+ones detected on this computer ticked. For this computer these values came from the old runtime (`defautsDeStation`,
+#1306): since #4511 this computer is not read, and one line says so; for
 another machine, its cooks come from its published cores, its folder is its own, and its boxes start
 unticked (`not detectable from this computer`). If this computer cannot be read, one line says so, the
 detail on hover. The form **never asks for the repository nor the integration branch**: the extra
@@ -3146,7 +3116,11 @@ stations replace them.
 - **Its marketplace is the app's own**, `brigade-app`, written next to the projects file
   (`~/.config/brigade/plugin-app/`) from the commands the app ships — `commands/dev.md` and `commands/ask.md`,
   copied into the installed app under `plugin/commands/`. It is declared once in your Claude Code user settings.
-  The V1 marketplace and plugin (`brigade@brigade`) are not touched.
+  The `brigade` marketplace and its plugin (`brigade@brigade`, [plugin.md](plugin.md)) are not touched.
+- **Beside the published plugin, nothing collides** (#4525). A project can also have `brigade@brigade`, the plugin
+  published from `main` (`/brigade:start`, `/brigade:ask`, `/brigade:ticket`, `/brigade:todo`). Both type their commands as `/brigade:…`: the only
+  command both carry, `/brigade:ask`, is the same `commands/ask.md`, so either copy says the same thing;
+  `/brigade:dev` and `/brigade:init` come only from the app's, `/brigade:start`, `/brigade:ticket` and `/brigade:todo` only from the published one.
 - **The version is the app's.** The installed app installs its own version; launched from the repository
   (where it says `0.0.0`), the version is `0.0.0-` and a fingerprint of the commands and the init script. At launch, each
   project at another version is updated: after an app update, the installed version is the new app's. A
@@ -3407,6 +3381,8 @@ a runtime command (`docs/runtime/exploitation.md`, "Piloter"):
 
 ### This station's GitHub Apps, in Settings (#2317, epic #2313)
 
+**No longer laid** (#4511): the kitchen keeps no App, `appsDeLaStation` answers nothing and the block is not shown.
+
 **Each role acts on GitHub under its own App** (`docs/runtime/identites-et-secrets.md`): you create the three Apps once on
 your GitHub account, then hand each station their IDs and private keys **through the app** — on the computer that runs
 the station. In Settings' **this computer** group, a line `GitHub Apps` says, in one sentence, that **the keys stay on this
@@ -3421,7 +3397,7 @@ station and are never sent to the repository** (what the Apps are for on hover).
   or `choose the .pem file`: the file's name is shown, never its content. There is no `save` (#2920): **the row applies
   when its control changes once the key is written** — the key field left, a `.pem` chosen, or the App ID field left
   with a key already there. Kept on this station, the row opens no pull request. `saving…` reads under it meanwhile.
-- **Applied, the row** stores the App through the runtime (`runtime/src/identites-stations.ts`, `rangerApp`), in the station's Apps
+- **Applied, the row** stored the App through the runtime (`rangerApp`), in the station's Apps
   directory, replacing the one before. Stored, the line says `configured` and `stored: its key is not shown again`, and
   **the key field is empty**: the key leaves the screen, and nothing ever shows it again — the station only says whether
   it has it. Projects the station opens from then on act under it.
@@ -3437,8 +3413,9 @@ Captures: `docs/captures/2317/`.
 ### The projects this computer serves, in Settings (#2359, epic #2356)
 
 **A computer's station cooks only the projects on its list**, straight from GitHub. Since #3402 the station has **one
-list**, its configuration file (`<station dir>/projets`, one line per project — `runtime/src/station-ordinateur/
-projets-servis.ts`): its kitchens read it, its GitHub-only service reads it (`servir.ts`, for a project whose clone is
+list**, its configuration file. Since #4511 the app reads the new kitchen's (`<station dir>/kitchen/projects`,
+`runtime/src/kitchen/projects.ts`) and writes nothing: a project is served by its line there, with its clone. Before
+(`<station dir>/projets`, one line per project): its kitchens read it, its GitHub-only service reads it (`servir.ts`, for a project whose clone is
 not there yet), and the app reads and writes it. The old `projets-servis.json` is no longer read: its repositories move
 into the configuration the first time the station starts or the app reads the list, then the file is set aside as
 `projets-servis.json.migrated`. A repository whose project name another line already has stays out, and the station's log
@@ -3773,7 +3750,7 @@ attention. Each sentence is written from the facts the queue already gives about
 | set aside (`86`) | `Will not start: <reason in plain words>.` (`app/src/refusal.ts`, from `attente.raison` or the station's comment); the word `86` is displayed as `set aside` | `set aside` |
 | with a third party (WAITING) | `waiting for <what> · from <who> · follow-up <YYYY-MM-DD>` — the follow-up day on this computer's calendar (#3075); without a follow-up, the first two | `follow-up date passed` when the follow-up date has passed |
 | question answered (WAITING) | `answered by <who> · the manager's turn` — `you` for an answer the app has just posted | — |
-| awaiting you | what is expected of you, in one sentence (`decision.ts`); for a question from the manager — before splitting an epic, or which holds the ticket through `blocked-on-human` —, the question being asked of you | — |
+| awaiting you | what is expected of you, in one sentence — the chef card's, or `no question found on #N`; for a question from the manager — before splitting an epic, or which holds the ticket through `blocked-on-human` —, the question being asked of you | — |
 | served | `served at 14:02 · <first sentence of the review summary>`; with no summary, the time and the marker | — |
 
 **Neither "lease", nor "86", nor "not given" on a card.** When a piece of information is missing, a
@@ -3860,15 +3837,6 @@ section. With the section laid, `right now` is not repeated under it.
   manager judges the issue at its next turn — or **close the issue** (a second click confirms), through the
   workstation's `gh`, in your name (`question.ts`, `lever`). Nothing goes out for a ticket that the `awaiting` block does not
   say is held.
-- **A delivery that awaits you to merge explains itself in two lines, at the top of its sheet**
-  (`decision.ts`, `teteDe`): what it does — the first sentence of the summary of its review, line
-  absent when the review gives none — and why it awaits you: `Green, but it touches the
-  judges: review it.`, `Red after 2 returns: ` followed by the first blocking finding (or `Red, the manager
-  gave up: …`), `Green, the CI did not conclude.` When it touches the judges (`.claude/brigade/`,
-  `.github/workflows/`), their files follow, one per line, with the lines added and removed —
-  nothing drafted. Everything comes from `attend[].livraison` in `facts`, what the pass recorded
-  (`runtime/src/attend.ts`, `Livraison`; `judges` of `pass.judged`); with nothing recorded, the
-  previous sentence stays alone. The "merge" and "remove from the rail" buttons are below.
 - **Each value is a piece of what the box wrote, or a number it gave.** The app
   counts no duration (apart from the age of `right now`, above) and adds nothing up: two cooks in flight on the same ticket are each read
   under their own run.
@@ -4333,8 +4301,8 @@ repairs it. Its hover says what it does. It is on:
 
 - **a station in fault**, on its page: after each fault line (offline, update failed, Max connection lost);
 - **a red station** on the project's station line (Cooks): refused, or unreachable;
-- **a card set aside** (`86`), and **a delivery the pass could not judge** (`remontee`, `unjudged`) — a reason that is
-  brigade's. A delivery still red after its returns is the project's business, and carries none;
+- **a card set aside** (`86`) — a reason that is brigade's. A delivery that awaits the chef is the project's business,
+  and carries none;
 - **an error line**: a reading of the station that failed (`the station did not answer`…);
 - **the fault at the top of the rail** (an idle kitchen, #1863).
 

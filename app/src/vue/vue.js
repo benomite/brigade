@@ -196,7 +196,6 @@ import { casesOfVersions, caseOfHere, setVersionsOfStations, statusRead } from "
 import { lineEmpty } from "./components/line-empty/line-empty.js";
 import { lineReadOnly } from "./read-only/read-only.js";
 import { THIS_COMPUTER, CANCEL, YES, RETRY, ADD_ONE_PROJECT, NOT_STILL, READ_OF, NOT_REACHED } from "./lexicon.js";
-import { sentenceOfRailEmpty, setTheHeld, heldOf, withoutTheApproved } from "./actions-held.js";
 
 // Le format des heures, comme src/format.ts : la vue est un module du navigateur, sans bundler,
 // et ne peut pas importer du TypeScript — la locale est la même, anglaise.
@@ -1229,27 +1228,6 @@ async function readTheTrials(project) {
   if (seenOne === undefined) return;
   trialsOfProjects.set(project.nom, seenOne);
   if (current?.nom === project.nom && !rail.hidden && heldOnes.has(project.nom)) setRail(project);
-}
-// Les gestes qu'un agent retient pour l'OK du chef, par projet (held/, ticket 4273) : relus à chaque lecture du rail du
-// projet affiché. Absents : pas encore lus, ou pas lisibles d'ici — le projet ne cuit pas sur cet ordinateur.
-/** @type {Map<string, import("../held/contract.ts").ReadOfHeld | undefined>} */
-const heldOfProjects = new Map();
-/** @param {Project} project @param {import("../held/contract.ts").ReadOfHeld | undefined} readOnes */
-function setTheHeldRead(project, readOnes) {
-  heldOfProjects.set(project.nom, readOnes);
-  if (current?.nom === project.nom && !rail.hidden && heldOnes.has(project.nom)) setRail(project);
-}
-/** @param {Project} project */
-async function readTheHeld(project) {
-  const readOnes = await brigade.gestesRetenus?.(project.nom);
-  if (readOnes !== undefined) setTheHeldRead(project, readOnes);
-}
-// L'OK du chef à un geste retenu : fait, sa carte part et ne revient pas avant la lecture suivante ; refusé, sa carte le dit.
-/** @param {Project} project @param {string} id */
-async function approveTheActionHeld(project, id) {
-  const rendered = await brigade.approuverGeste?.(project.nom, id);
-  if (rendered === undefined || "refus" in rendered) throw new Error(rendered?.refus ?? "nothing was approved: the app did not reach this project's station");
-  setTheHeldRead(project, withoutTheApproved(heldOfProjects.get(project.nom), id));
 }
 // Ce que la fiche dit de la vie du ticket vivant (story.ts, `situation`), par `<projet>#<ticket>`.
 /** @type {Map<string, import("../story.ts").Situation>} */
@@ -3162,14 +3140,13 @@ async function playTheRefusal(project, ticket, id) {
   setRail(project);
 }
 
-// Une carte en panne porte « report to brigade » (ticket 1977) : mise de côté (86), ou remontée parce que la pass n'a
-// pas pu la juger — une raison de brigade, pas du code livré. Une livraison rouge, elle, est l'affaire du projet.
+// Une carte en panne porte « report to brigade » (ticket 1977) : mise de côté (86) — une raison de brigade, pas du code
+// livré. Une livraison rouge, elle, est l'affaire du projet.
 /** @param {Project} project @param {import("../facts.ts").Card} cardItem */
 function reportTheCard(project, cardItem) {
-  const { ticket, etat: state, decision } = cardItem;
-  const notJudged = decision?.quoi === "remontee" && decision.motif === "unjudged";
-  if (state !== "86" && !notJudged) return [];
-  const said = [notJudged ? "the pass could not judge it" : "set aside", cardItem.ligne ?? "", cardItem.signal ?? ""].filter((piece) => piece !== "").join(" — ");
+  const { ticket, etat: state } = cardItem;
+  if (state !== "86") return [];
+  const said = ["set aside", cardItem.ligne ?? "", cardItem.signal ?? ""].filter((piece) => piece !== "").join(" — ");
   return report.poser({ projet: project.nom, reference: { ticket }, panne: `${project.nom}, ticket ${ticket}: ${said}` });
 }
 
@@ -3456,7 +3433,7 @@ function followCard(cards, setEntries) {
   const said = (setOne) => JSON.stringify([setOne.fiche, setOne.attend.length > 0, /** @type {{ tests?: unknown }} */ (setOne).tests]);
   // Ce qui décide de ses gestes a changé — un geste vient d'agir, ou la cuisine l'a pris : ils sont relus.
   /** @param {import("../facts.ts").Card} setOne */
-  const decide = (setOne) => JSON.stringify([setOne.etat, setOne.ouvrable, setOne.attendu, setOne.decision, setOne.pr]);
+  const decide = (setOne) => JSON.stringify([setOne.etat, setOne.ouvrable, setOne.attendu, setOne.pr]);
   if (decide(fresh) !== decide(before)) void readActions(openOne.projet, fresh);
   if (said(fresh) !== said(before)) renderCard();
 }
@@ -3503,7 +3480,7 @@ function renderCard() {
   if (openOne === undefined) return card.replaceChildren();
   const { projet: project, carte: cardItem } = openOne;
   const { ticket, attend: awaiting } = cardItem;
-  const { titre: title, priorite: priority, issue, pr, attendu: expected, tete: deliveryHead } = cardItem.fiche;
+  const { titre: title, priorite: priority, issue, pr, attendu: expected } = cardItem.fiche;
   const close = button("close", closeCard, "discret");
   close.className = "fermer";
   close.title = "close the sheet (Esc): the rail is back as you left it";
@@ -3542,25 +3519,7 @@ function renderCard() {
   const panel = document.createElement("div");
   panel.className = "panneau";
   // Ce qu'on attend de toi, en tête, en une phrase : jamais la ligne de la file.
-  // Une livraison qui attend son merge : deux lignes — ce qu'elle fait, pourquoi elle attend —, puis
-  // ses juges, un fichier par ligne avec ses lignes ajoutées et retirées.
-  const judges = document.createElement("ul");
-  judges.className = "juges";
-  for (const { fichier: file, ajoutees: added, retirees: removed } of deliveryHead?.juges ?? []) {
-    const line = document.createElement("li");
-    line.append(exact("code", file), ` +${added} −${removed}`);
-    judges.append(line);
-  }
-  const wait =
-    deliveryHead !== undefined
-      ? [
-          ...(deliveryHead.fait === undefined ? [] : [Object.assign(block("p", deliveryHead.fait), { className: "fait" })]),
-          Object.assign(block("p", deliveryHead.pourquoi), { className: "attendu" }),
-          ...((deliveryHead.juges.length > 0) ? [judges] : []),
-        ]
-      : expected === undefined
-        ? []
-        : [Object.assign(block("p", expected), { className: "attendu" })];
+  const wait = expected === undefined ? [] : [Object.assign(block("p", expected), { className: "attendu" })];
   // Son cook, tel que sa station le publie (ticket 1846) : ce qu'il fait, ses derniers gestes, sa fin et sa PR. Posé, il
   // dit ce qu'il fait en ce moment : l'histoire ne le redit pas.
   const cook = setTheActivityOfCook(document, { publiees: activitiesPublished.get(project.nom), ticket, pastille: pill, ouvrirPr: () => void openPrOfCook(project, ticket) });
@@ -3673,11 +3632,11 @@ const ACTIONS_OF_CARD_WITHOUT_WRITING = new Set(["issue", "pr", "second", "navig
 // pour la priorité, de quoi la choisir avant. `occupe` : un geste de la fiche attend sa réponse — aucun ne part.
 /** @param {Project} project @param {number} ticket @param {import("../card-actions.ts").Proposes} suggests @param {boolean} busy @param {string} [currentOne] la priorité du ticket, `1` à `9` @returns {HTMLElement[]} */
 function renderCardAction(project, ticket, suggests, busy, currentOne) {
-  const { id, libelle: wording, prix: price, recommande: recommended, valeurs: values } = suggests;
+  const { id, libelle: wording, prix: price, valeurs: values } = suggests;
   const key = `${project.nom}#${ticket}`;
   /** @param {() => void} gesture @param {string} [help] */
   const action = (gesture, help) => {
-    const pose = buttonAction(document, wording, gesture, { recommande: recommended === true, prix: price });
+    const pose = buttonAction(document, wording, gesture, { prix: price });
     if (help !== undefined) pose.children[0].title = help;
     if (busy) pose.children[0].disabled = true;
     return pose;
@@ -3690,7 +3649,7 @@ function renderCardAction(project, ticket, suggests, busy, currentOne) {
     case "second": {
       const request = action(() => void ask(ticket), `write into the second a request about #${ticket} — nothing is sent: you press Enter`);
       const target = request.children[0];
-      target.className = recommended === true ? "recommande demander" : "demander";
+      target.className = "demander";
       target.dataset.geste = "demande";
       return [request];
     }
@@ -3722,11 +3681,11 @@ function renderCardAction(project, ticket, suggests, busy, currentOne) {
 // celle de la carte ouverte — la lecture l'a changée entre-temps — ne se pose pas.
 /** @param {Project} project @param {import("../facts.ts").Card} cardItem */
 async function readActions(project, cardItem) {
-  const { ticket, etat: state, ouvrable: openable, attendu: expected, decision, pr } = cardItem;
+  const { ticket, etat: state, ouvrable: openable, attendu: expected, pr } = cardItem;
   /** @type {import("../card-actions.ts").Proposes[] | { sans: string }} */
   let readOnes;
   try {
-    readOnes = (await brigade.gestesDeFiche({ ticket, ...(state === undefined ? {} : { etat: state }), ouvrable: openable, attendu: expected, ...(decision === undefined ? {} : { decision }), ...(pr === undefined ? {} : { pr }) })) ?? [];
+    readOnes = (await brigade.gestesDeFiche({ ticket, ...(state === undefined ? {} : { etat: state }), ouvrable: openable, attendu: expected, ...(pr === undefined ? {} : { pr }) })) ?? [];
   } catch (error) {
     readOnes = { sans: `what can be done was not read: ${error instanceof Error ? error.message : String(error)}` };
   }
@@ -4469,8 +4428,7 @@ function restTheLabelOfStation(project) {
 // Rien sur le rail : sa colonne dit ce qui est avant lui — elle ne laisse pas croire le projet fini.
 /** @param {Project} project */
 function railEmpty(project) {
-  // Des gestes retenus pour l'OK du chef (ticket 4273) : c'est eux que le rail vide attend.
-  return sentenceOfRailEmpty({ rail: 0, retenus: heldOf(heldOfProjects.get(project.nom)) }) ?? upstreams.get(project.nom)?.vide ?? `${NOT_STILL("ticket on the rail")} What is before it is being read…`;
+  return upstreams.get(project.nom)?.vide ?? `${NOT_STILL("ticket on the rail")} What is before it is being read…`;
 }
 
 // La tête du rail, la cuisine oisive avec des cartes dessus (ticket 1863) : une panne, en rouge, au-dessus de tout le
@@ -5195,8 +5153,7 @@ function setTheRail(project) {
   // À côté du TODO, hors des colonnes : le projet pas préparé pour Brigade (ticket 2628), qui n'est pas un ticket ; les
   // réponses que le chef tapait sur une carte partie entre-temps, résolues (ticket 2151) ; puis ce qui attend un autre humain
   // du projet, replié (ticket 2985).
-  // Les gestes qu'un agent retient pour ton OK (ticket 4273) viennent en premier : chacun sa carte et son bouton Approve.
-  const aSide = [setTheHeld(document, heldOfProjects.get(project.nom), (id) => approveTheActionHeld(project, id)), opinionOfRepository(project, "todo")].flatMap((opinion) => opinion ?? []);
+  const aSide = [opinionOfRepository(project, "todo")].flatMap((opinion) => opinion ?? []);
   const resolved = silent === undefined ? setTheCardsResolved(project, held.tableau.rail) : [];
   if (resolved.length > 0) {
     const list = document.createElement("ol");
@@ -9046,7 +9003,6 @@ brigade.surFaits((receivedOne) => {
   if (current?.nom === receivedOne.projet) {
     teamOfProject.lire(current.nom);
     void readTheTrials(current);
-    void readTheHeld(current);
     draw();
     setTheStoryOfFirstTicket();
     void setOrdinary(current);

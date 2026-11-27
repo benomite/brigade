@@ -38,7 +38,7 @@ const FACTS: Facts = {
   dernierEvenement: null,
   rail: [{ ticket: 3228, etat: "en attente", titre: "Un geste du chef", url: ISSUE, activite: null }],
   cooks: [],
-  attend: [{ ticket: 3228, titre: "Un geste du chef", url: ISSUE, decision: { quoi: "carte", motif: "product", cause: "Gesture for the chef: run gh issue create …", pr: null } }],
+  attend: [{ ticket: 3228, titre: "Un geste du chef", url: ISSUE }],
 } as Facts;
 const button = (or: Fake) => or.dessous("button").find(({ dataset }) => dataset.geste === "demande-second");
 
