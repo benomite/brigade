@@ -10,7 +10,7 @@ import { withWhatAwaitingTheChef } from "../src/board/wait-of-chef.ts";
 import { byFetch, type CallGitHub, type LimitGitHub, type AnswerGitHub } from "../src/board/client.ts";
 import { readTheBoardOfRepository, type ReadOfBoardOfRepository } from "../src/board/read.ts";
 import { readConditional, type MemoryOfReads } from "../src/board/rail-github.ts";
-import { FRESHNESS_MAX_OF_A_READ_MS } from "../src/vue/served/freshness.ts";
+import { FRESHNESS_MAX_OF_A_READ_MS, INTERVAL_OF_THE_STANDBY_MS } from "../src/vue/served/freshness.ts";
 import { holdReadsOfBoard } from "../src/board/rail.ts";
 import { shareOfCardsAssigned } from "../src/vue/cards-assigned/cards-assigned.ts";
 
@@ -34,23 +34,25 @@ type Request = { chemin: string; entetes: Record<string, string>; a: number; sta
 // reçoit un 304 sans corps. `changeToutesLes` : chaque projet change aussi souvent — un label, un commentaire —, ce qui
 // change les listes d'issues et les commentaires du ticket pris. `limite` : le budget qu'il dit, à chaque réponse.
 // `repondre` : une réponse imposée, avant tout le reste.
-function fakeGitHub(clock: { t: number }, options: { changeToutesLes?: number; limite?: () => LimitGitHub; repondre?: (path: string) => AnswerGitHub | undefined } = {}) {
+function fakeGitHub(clock: { t: number }, options: { changeToutesLes?: number; toutChange?: boolean; limite?: () => LimitGitHub; repondre?: (path: string) => AnswerGitHub | undefined } = {}) {
   const requests: Request[] = [];
   const limit = options.limite ?? (() => ({ restant: 4_500, total: 5_000, repriseLe: clock.t + 30 * MINUTE }));
   const data = (path: string): { data: unknown; version: number } | { status: number } => {
     const repository = /^\/repos\/([^/]+\/[^/?]+)/.exec(path)?.[1] ?? "";
     const version = options.changeToutesLes === undefined ? 0 : Math.floor((clock.t - START) / options.changeToutesLes);
+    // `toutChange` : la PR, ses lignes, les commentaires et la chronologie d'un ticket changent aussi, comme sous une cuisine affairée.
+    const alsoVersion = options.toutChange === true ? version : 0;
     const atFire = [issue(repository, 1, ["fire", "prio:2"]), issue(repository, 2, ["fire", "taken", "prio:1"]), issue(repository, 3, ["fire", "in-pass"]), issue(repository, 4, ["fire", version % 2 === 0 ? "prio:3" : "prio:4"])];
     if (path.includes("/issues?") && path.includes("labels=fire")) return { data: atFire, version };
     if (path.includes("/issues?")) return { data: [...atFire, issue(repository, 5, ["blocked-on-human"]), issue(repository, 6, ["model:opus", "effort:high"]), issue(repository, 7, [])], version };
-    if (path.includes("/pulls?state=open")) return { data: [{ number: 40, html_url: `https://github.com/${repository}/pull/40`, created_at: "2026-11-09T07:00:00Z", head: { ref: "cook/3-x" }, body: "" }], version: 0 };
+    if (path.includes("/pulls?state=open")) return { data: [{ number: 40, html_url: `https://github.com/${repository}/pull/40`, created_at: "2026-11-09T07:00:00Z", head: { ref: "cook/3-x", sha: "abc123" }, body: "" }], version: alsoVersion };
     if (path.includes("/pulls?")) return { data: [], version: 0 };
-    if (/\/pulls\/\d+$/.test(path)) return { data: { additions: 135, deletions: 21, created_at: "2026-11-09T07:00:00Z" }, version: 0 };
+    if (/\/pulls\/\d+$/.test(path)) return { data: { additions: 135, deletions: 21, created_at: "2026-11-09T07:00:00Z" }, version: alsoVersion };
     if (path === `/repos/${repository}`) return { data: { default_branch: "main", owner: { login: "chef", type: "User" } }, version: 0 };
     if (path.includes("/contents/")) return { data: { content: btoa(JSON.stringify({ chef: "chef" })) }, version: 0 };
     if (path.includes("/check-runs")) return { data: { check_runs: [{ conclusion: "success" }] }, version: 0 };
     if (path.includes("/issues/2/comments")) return { data: [{ id: 9, body: "<!-- brigade:prise station=box/claude -->", author_association: "OWNER", created_at: "2026-11-09T07:30:00Z" }], version };
-    if (/\/issues\/\d+\/(comments|events|timeline)/.test(path)) return { data: [], version: 0 };
+    if (/\/issues\/\d+\/(comments|events|timeline)/.test(path)) return { data: [], version: alsoVersion };
     return { status: 404 };
   };
   const call: CallGitHub = async (path, headers = {}) => {
@@ -70,7 +72,7 @@ function fakeGitHub(clock: { t: number }, options: { changeToutesLes?: number; l
 }
 
 // La lecture des projets telle que main.ts la compose (`lireLeTableau`, `tableaux`).
-function readOfTheApp(clock: { t: number }, callGitHub: CallGitHub, budget: BudgetGitHub = holdTheBudgetGitHub({ maintenant: () => clock.t })) {
+function readOfTheApp(clock: { t: number }, callGitHub: CallGitHub, budget: BudgetGitHub = holdTheBudgetGitHub({ maintenant: () => clock.t }), freshnessMs = INTERVAL_BY_PROJECT_MS) {
   const callUnderBudget = budget.appeler(callGitHub);
   const memories = new Map<string, MemoryOfReads>();
   const memoryOfRail = (repository: string): MemoryOfReads => memories.get(repository) ?? memories.set(repository, new Map()).get(repository)!;
@@ -87,7 +89,7 @@ function readOfTheApp(clock: { t: number }, callGitHub: CallGitHub, budget: Budg
         return withWhatAwaitingTheChef(readOne, call, shareOfCardsAssigned({ appeler: call, depot: repository, login: async () => "chef" }));
       },
     });
-  const boards = holdReadsOfBoard({ lire: readTheBoard, fraicheurMs: INTERVAL_BY_PROJECT_MS, maintenant: () => clock.t });
+  const boards = holdReadsOfBoard({ lire: readTheBoard, fraicheurMs: freshnessMs, maintenant: () => clock.t });
   return { budget, tableaux: boards };
 }
 
@@ -133,7 +135,7 @@ for (let hour = 0; hour < 8; hour++) {
   });
 }
 
-test("a project is not read again within a reading's freshness (4 s), unless a gesture forgets the reading", async () => {
+test("a project is not read again within a reading's freshness (55 s), unless a gesture forgets the reading", async () => {
   const clock = { t: START };
   const github = fakeGitHub(clock);
   const { tableaux: boards } = readOfTheApp(clock, github.appeler);
@@ -325,4 +327,30 @@ test("the pause says something else uses the quota when the app counted only a s
   const without = await readUnderBudget(only, almost, clock);
   assert.match(without.lu ? "" : without.raison, /is not read until/);
   assert.doesNotMatch(without.lu ? "" : without.raison, /Something else/);
+});
+
+// Une cuisine affairée (#4627) : chaque projet change toutes les vingt secondes — un label, un commentaire, un push —, si
+// bien que chaque lecture trouve ses listes changées, un 200 que GitHub compte. Six projets sous les veilles de l'app, à
+// leur cadence de production : le compte de GitHub reste sous la moitié de ses 5 000 demandes par heure. Mesuré avant
+// (une lecture toutes les 5 s, chronologie et PR de chaque carte relues à chaque changement) : 8 658 demandes comptées.
+async function countedInABusyHour(stepMs: number, freshnessMs: number) {
+  const clock = { t: START };
+  const github = fakeGitHub(clock, { changeToutesLes: 20_000, toutChange: true });
+  const { tableaux: boards } = readOfTheApp(clock, github.appeler, holdTheBudgetGitHub({ maintenant: () => clock.t, seuil: 0 }), freshnessMs);
+  for (; clock.t < START + HOUR; clock.t += stepMs) await oneTour(boards);
+  const counted = github.demandes.filter(({ status }) => status !== 304);
+  return { counted: counted.length, cards: counted.filter(({ chemin }) => /\/issues\/\d+\/timeline|\/pulls\/\d+$/.test(chemin)).length };
+}
+
+test("a busy kitchen with the app open: six projects cost under half of the 5,000 REST requests an hour", async () => {
+  const { counted, cards } = await countedInABusyHour(INTERVAL_OF_THE_STANDBY_MS, FRESHNESS_MAX_OF_A_READ_MS);
+  console.log(`busy hour, six projects: ${counted} counted requests, ${cards} of them for the cards' timelines and pull requests`);
+  assert.ok(counted < 2_500, `${counted} counted requests in the busy hour`);
+  // Un commentaire ne change pas les labels d'une carte : sa chronologie et sa PR ne se relisent pas à chaque lecture.
+  assert.ok(cards < PROJECTS.length * 20, `${cards} counted requests for the cards`);
+});
+
+test("at the old cadence (a read every 5 s), the cards' reads kept by their labels and head commit still hold a busy hour under half of the quota", async () => {
+  const { counted } = await countedInABusyHour(5_000, 4_000);
+  assert.ok(counted < 2_500, `${counted} counted requests in the busy hour`);
 });

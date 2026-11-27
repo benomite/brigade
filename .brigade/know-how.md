@@ -58,3 +58,4 @@
 - A comment in a vue file must not carry a `#1234` ticket number: `app/test/skin.test.ts` reads it as a hard-coded colour (#4593)
 - The CI plans its matrix in tests.yml's `plan` job from tests-touches.mjs: a zone with no test touched has no shard (skipped jobs count as success for `gates`); Windows runs on main only (#4607)
 - The docs point at a section of `docs/app.md` by its heading's words in quotes (`"Changing a ticket's priority"`), never by an anchor: after cutting a section, grep the repo for its title. Cut only what has no code left on main (files deleted, identifiers and UI strings with zero hits in app/src and runtime/src): a section whose module is still in app/src stays, even if its data source now comes back empty (#4587)
+- The app's REST cost is read rate × changed paths, not 304s: under a busy kitchen every read finds changed lists, so cadence and per-card reads decide the account's 5,000/h (#4627)

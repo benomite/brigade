@@ -1,4 +1,4 @@
-// #3925, critère 1 : une livraison mergée à l'instant apparaît dans Served sans rechargement, quelques secondes après le merge.
+// #3925, critère 1 : une livraison mergée à l'instant apparaît dans Served sans rechargement, dans la minute qui suit le merge (#4627 : une lecture par minute, plus toutes les 5 s).
 // Test d'acceptation gelé. La lecture est celle de l'app (tenirLecturesDuTableau, à sa fraîcheur de production), sur un faux GitHub.
 import assert from "node:assert/strict";
 import { test } from "node:test";
@@ -36,16 +36,16 @@ const readA = (call: CallGitHub, now: number) => readTheBoardOfRepository({ depo
 
 const FRESHNESS_OF_THE_APP_MS = 60_000;
 
-test("a delivery merged a moment ago is in Served at the next reading, a few seconds after its merge", async () => {
+test("a delivery merged a moment ago is in Served at the next reading, within a minute of its merge", async () => {
   let now = T0;
   let mergee = false;
   const call = github(() => (mergee ? [closedOne(7, new Date(T0 + 2_000).toISOString())] : []));
   const readings = holdReadsOfBoard<{ nom: string }>({ lire: () => readA(call, now), fraicheurMs: FRESHNESS_OF_THE_APP_MS, maintenant: () => now });
   assert.deepEqual(servedOnes(draws(await readings.lire({ nom: "parade" }))), [], "nothing served yet");
   mergee = true;
-  now = T0 + 5_000;
+  now = T0 + 60_000;
   const after = servedOnes(draws(await readings.lire({ nom: "parade" })));
-  assert.deepEqual(after.map(({ ticket }) => ticket), [7], "the merged delivery is in Served 3 s after its merge");
+  assert.deepEqual(after.map(({ ticket }) => ticket), [7], "the merged delivery is in Served 58 s after its merge");
 });
 
 // #3925, critère 3 : les chiffres de la colonne Served restent, avec leurs valeurs — comme avant.

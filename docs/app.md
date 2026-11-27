@@ -892,6 +892,16 @@ never read says the reads are paused and until when. In `app/test/budget-github.
 every three minutes, polled for eight simulated hours against a fake GitHub, cost at most 894 counted requests (every
 answer but a 304) in any hour, under the 1,000 the test allows.
 
+On 2026-11-27 the account's 5,000 requests ran out at 16:56 UTC and the kitchen could not take a ticket for half an hour
+(#4627). The app was the consumer that scales with the kitchen's activity: it read each displayed project every 5 s
+(#3925), and a busy kitchen changes its lists at every read — a 200 that GitHub counts — while each card's timeline
+and pull request were read again whenever a comment changed them. In `app/test/budget-github.test.ts`, six projects
+whose every path changes every 20 s cost, in one hour: 8,658 counted requests before (a read every 5 s), 780 now
+(a read every 60 s, `vue/served/freshness.ts`; a card's timeline is read again only when its labels change, its
+pull request's lines only when its head commit changes, `board/kitchen-board.ts`). A merge shows in Served within a
+minute; a gesture of the chef still reads at once. The kitchen itself costs the account about nothing: one GraphQL
+query per turn and per project (60 an hour, its own quota), REST only for the ticket text it hands a cook.
+
 - **The head lines** the view reads from `status` are only `rail` (the counts by state) and `cooks`, and the `awaiting`
   block is one head line counting the TODO cards (below). What only a station's log carries — the project switch and
   the manager's state, the idle-kitchen fault, a kitchen `held` or stopped, Served — is not read from GitHub, and the
