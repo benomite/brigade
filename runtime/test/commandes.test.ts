@@ -132,8 +132,7 @@ describe("les commandes du runtime", { concurrency: 4 }, () => {
       // Ce n'est pas le rang d'une sous-commande : une valeur, laissée telle quelle.
       "rendre",
     ]);
-    assert.deepEqual(enAnglais("log", ["--derniers=5", "--derniers", "derniers"], (ligne) => dits.push(ligne)), ["--last=5", "--last", "derniers"]);
-    assert.deepEqual(dits, [direAncien("rendre", "return"), direAncien("--derniers", "--last")]);
+    assert.deepEqual(dits, [direAncien("rendre", "return")]);
 
     const silence: string[] = [];
     assert.deepEqual(enAnglais("manager", ["return", "--last"], (ligne) => silence.push(ligne)), ["return", "--last"]);

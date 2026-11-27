@@ -8,7 +8,6 @@ export interface Report {
   runtimeVersion: string;
   system: string;
   failure: string;
-  logLines: string[];
 }
 
 export interface ReportReady {
@@ -20,11 +19,9 @@ export interface ReportReady {
 export const URL_NEW_ISSUE = "https://github.com/benomite/brigade/issues/new";
 export const LABEL = "field-report";
 export const MARKER = "Field report from the brigade app";
-// Les dernières lignes du journal gardées au plus, avant même le plafond de l'URL.
-export const MAX_LINES = 50;
 // La panne tient en quelques mots : au-delà, on coupe.
 export const MAX_OUTAGE = 200;
-// Longueur maximale de l'URL complète (encodée) ; les lignes de journal les plus anciennes cèdent d'abord.
+// Longueur maximale de l'URL complète (encodée) : au-delà, la panne est coupée.
 export const MAX_URL = 7000;
 
 const cut = (text: string, max: number): string =>
@@ -37,16 +34,13 @@ function build(title: string, body: string): ReportReady {
   return { title: title, body: body, url };
 }
 
-function bodyOf(r: Report, outage: string, lines: string[]): string {
+function bodyOf(r: Report, outage: string): string {
   const sections = [
     MARKER,
     `## Versions\n- App: ${r.appVersion}\n- Runtime: ${r.runtimeVersion}`,
     `## System\n${r.system}`,
     `## Failure\n${outage}`,
   ];
-  if (lines.length > 0) {
-    sections.push(`## Log (last ${lines.length} lines)\n\`\`\`\n${lines.join("\n")}\n\`\`\``);
-  }
   return sections.join("\n\n");
 }
 
@@ -56,21 +50,14 @@ export function buildReport(report: Report, redact: (text: string) => string): R
     runtimeVersion: redact(report.runtimeVersion),
     system: redact(report.system),
     failure: redact(report.failure),
-    logLines: report.logLines.slice(-MAX_LINES).map((l) => redact(l)),
   };
   let outage = cut(own.failure.replace(/\s+/g, " ").trim(), MAX_OUTAGE);
   const title = `Field report: ${cut(outage, 80)}`;
-  let lines = own.logLines;
-  let prêt = build(title, bodyOf(own, outage, lines));
-  // D'abord les lignes de journal, les plus anciennes en premier.
-  while (prêt.url.length > MAX_URL && lines.length > 0) {
-    lines = lines.slice(Math.max(1, Math.ceil(lines.length / 10)));
-    prêt = build(title, bodyOf(own, outage, lines));
-  }
-  // Puis, en dernier recours, la panne elle-même.
+  let prêt = build(title, bodyOf(own, outage));
+  // Au-delà de la limite, la panne elle-même est coupée.
   while (prêt.url.length > MAX_URL && outage.length > 20) {
     outage = cut(outage, Math.floor(outage.length / 2));
-    prêt = build(title, bodyOf(own, outage, lines));
+    prêt = build(title, bodyOf(own, outage));
   }
   return prêt;
 }
