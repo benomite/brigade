@@ -56,3 +56,6 @@
 - Un redessin du rail venu du dehors (minuterie, lectures) ne doit jamais reposer un champ où le chef tape : seuls les gestes propres du bloc le font (#4570)
 - A kitchen test whose fake cook ends with a short message (under 40 characters) now gets a "delivered without a report" log line and ticket comment: give the fake a real report (#4574)
 - `unpark` (actions-github.ts `removeOfTheIssue`) deletes `parked`, `parked:chef`, then the pre-parked labels, and names the ones GitHub answered 200 for; test fakes that 200 every DELETE list `parked:chef` too (#4596)
+- A TODO entry of a card answered in words only (`parked:chef`, `todo.repondre`) has no choice buttons: its `Answer` opens the card (fiche or phone list), where the field and the posting Answer live; the kanban draws no `bon`, so `renderCard` carries the TODO card itself (#4593)
+- A comment in a vue file must not carry a `#1234` ticket number: `app/test/skin.test.ts` reads it as a hard-coded colour (#4593)
+- The CI plans its matrix in tests.yml's `plan` job from tests-touches.mjs: a zone with no test touched has no shard (skipped jobs count as success for `gates`); Windows runs on main only (#4607)
