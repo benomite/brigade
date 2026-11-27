@@ -1,7 +1,7 @@
 // Les chiffres d'autonomie (#3222), sur des données de GitHub figées : les PR mergées de « parade » et de « cantine » et,
 // pour chaque ticket, les événements et les commentaires de son issue, comme l'API REST les rend. Les chiffres sont ceux
-// du calcul de l.app (app/src/vue/autonomy/compute.ts) sur ces données, sur les 7 derniers jours.
-import { chiffresDAutonomie, type Defauts, type DonneesDuDepot } from "../../../app/src/vue/autonomy/compute.ts";
+// du calcul de l.app (runtime/src/autonomie/compute.ts) sur ces données, sur les 7 derniers jours.
+import { chiffresDAutonomie, type Defauts, type DonneesDuDepot } from "../../../runtime/src/autonomie/compute.ts";
 import { nameTheProjects, type ReadOfAutonomy } from "../../../app/src/vue/autonomy/autonomy-github.ts";
 import { MAINTENANT } from "./commun.ts";
 

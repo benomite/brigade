@@ -4,7 +4,7 @@
 // la vue entière : le bloc de tous les projets sur la page de leur coût, celui du projet dans sa section de Settings.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { PERIODES as PERIODS_OF_RUNTIME, chiffresDAutonomie, type DonneesDuDepot } from "../../src/vue/autonomy/compute.ts";
+import { PERIODES as PERIODS_OF_RUNTIME, chiffresDAutonomie, type DonneesDuDepot } from "../../../runtime/src/autonomie/compute.ts";
 import { POWER_UP } from "../../src/power-up.ts";
 import { forTheBar } from "../../src/bar.ts";
 import { EXAMPLE, type Project } from "../../src/config.ts";

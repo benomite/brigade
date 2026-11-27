@@ -5,12 +5,12 @@
 //   - pour les défauts échappés à la pass (ticket 3515), les issues `bug` mises à jour sur la période, les commits de la
 //     branche par défaut qui portent le trailer de git `This reverts commit <sha>` — la recherche de commits de GitHub
 //     ne cherche que la branche par défaut —, et pour chaque commit reverté, les PR mergées qui le tiennent.
-// Le calcul est celui de compute.ts : ce module lit, puis le lui remet.
+// Le calcul est celui de runtime/src/autonomie/compute.ts : ce module lit, puis le lui remet.
 //
 // Une lecture coûte deux appels par ticket servi sur 30 jours : chaque dépôt lu se garde le temps de `fraicheurMs`, et
 // sert aux deux périodes, au projet comme à tous les projets. Un dépôt qui ne se lit pas est nommé, avec sa raison ;
 // aucun ne se lit : la lecture le dit, sans chiffre.
-import { chiffresDAutonomie, commitsRevertes, LABEL_BUG, PERIODES, type ChiffresDAutonomie, type Defauts, type DonneesDuDepot } from "./compute.ts";
+import { chiffresDAutonomie, commitsRevertes, LABEL_BUG, PERIODES, type ChiffresDAutonomie, type Defauts, type DonneesDuDepot } from "../../../../runtime/src/autonomie/compute.ts";
 import type { CallGitHub } from "../../board/client.ts";
 import { ticketOfThePR } from "../../board/rail-github.ts";
 import { readTheServedOnTheWindow, allThePages } from "../rail/github.ts";

@@ -1,6 +1,6 @@
 // The autonomy policy (#4380, epic #4378): an agent's level moves from its gesture record, no longer only when the
 // chef clicks. It reads the agent's gesture log (gestes.ts), the levels (niveaux.ts) and the quality figures — the
-// escaped bugs and the reverts, as app/src/vue/autonomy/compute.ts shapes them (qualite.ts reads them for the runtime).
+// escaped bugs and the reverts, as compute.ts shapes them (qualite.ts reads them for the runtime).
 //
 //   - Promotion: an agent at `propose` moves to `act` when its last NOMBRE_DE_GESTES_PROPRES gestures done at
 //     `propose` — each through the chef's OK, the gate holding every gesture at that level (porte.ts) — are clean:
@@ -20,7 +20,7 @@
 // follows. A levels file or a gesture log that cannot be read is refused: the policy throws before writing anything.
 import { consignerGeste, OUTCOME, tousLesGestes, type Geste } from "./gestes.ts";
 import { magasinDeNiveaux, NOMBRE_DE_GESTES_PROPRES, type FaitTraite, type MagasinDeNiveaux, type Niveau, type Reglable } from "./niveaux.ts";
-import type { BugEchappe, Revert } from "../../../../app/src/vue/autonomy/compute.ts";
+import type { BugEchappe, Revert } from "../compute.ts";
 
 // N, the clean gestures that move a level up, is declared with the levels (niveaux.ts); the acceptance tests read it here.
 export { NOMBRE_DE_GESTES_PROPRES } from "./niveaux.ts";

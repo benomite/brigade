@@ -1,7 +1,7 @@
 // L'échantillon commité de #3515 (../compute/sample-defects.json) : des tickets fermés de
 // chef/parade, leurs issues `bug` et les commits qui revertent, tels que l'API REST de GitHub les rend. Aucun appel à gh.
 import { readFileSync } from "node:fs";
-import type { Defauts, DonneesDuDepot } from "../../../src/vue/autonomy/compute.ts";
+import type { Defauts, DonneesDuDepot } from "../../../../runtime/src/autonomie/compute.ts";
 
 export const ECHANTILLON = JSON.parse(readFileSync(new URL("../compute/sample-defects.json", import.meta.url), "utf8")) as DonneesDuDepot;
 export const DEFAUTS = ECHANTILLON.defauts as Defauts;

@@ -3,7 +3,7 @@
 // Test d'acceptation : le calcul de l'app sur l'échantillon commité, sans GitHub.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { chiffresDAutonomie, PERIODES } from "../../../src/vue/autonomy/compute.ts";
+import { chiffresDAutonomie, PERIODES } from "../../../../runtime/src/autonomie/compute.ts";
 import { ECHANTILLON, MAINTENANT, sha } from "./sample.ts";
 
 test("each period gives both counts, over the same tickets as the other figures", () => {

@@ -3,7 +3,7 @@
 // exactement ceux comptés à la main. Test d'acceptation : le calcul de l'app, sans GitHub.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { chiffresDAutonomie } from "../../../src/vue/autonomy/compute.ts";
+import { chiffresDAutonomie } from "../../../../runtime/src/autonomie/compute.ts";
 import { ECHANTILLON, MAINTENANT, sha } from "./sample.ts";
 
 test("over 7 days the sample gives 3 escaped bugs on #101, #102, #103, #104 and 2 reverts aaaa… and eeee…, as counted by hand", () => {

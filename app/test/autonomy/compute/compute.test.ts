@@ -3,7 +3,7 @@
 // pull requests as the app reads them: no file, no log, no state directory.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { CHEF_TODO, chiffresDAutonomie, FIRE, MARQUE_DE_CARTE, MARQUE_DE_RENVOI, premiereLigne, type DonneesDuDepot, type Servi } from "../../../src/vue/autonomy/compute.ts";
+import { CHEF_TODO, chiffresDAutonomie, FIRE, MARQUE_DE_CARTE, MARQUE_DE_RENVOI, premiereLigne, type DonneesDuDepot, type Servi } from "../../../../runtime/src/autonomie/compute.ts";
 import { LABELS } from "../../../../runtime/src/kitchen/decide.ts";
 
 // Un label d'attente du chef d'avant parked (#4260), que l'histoire d'une issue garde.

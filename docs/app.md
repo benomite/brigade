@@ -1872,7 +1872,7 @@ period (up to 10,000), not only the latest 1,000. The issues already read are ke
 block again only reads the pull requests and tickets served since (#3379). **When GitHub stops a reading** (quota, error, more
 than 10,000 pull requests), the figures are computed on the part read, and a line above them says from when each project is
 counted: never figures presented as the whole period over a shorter span. The
-computation is `app/src/vue/autonomy/compute.ts` (#4505: pure, with no import, so the `pages` workflow can run it too); the reading is `app/src/vue/autonomy/autonomy-github.ts`,
+computation is `runtime/src/autonomie/compute.ts` (#4505, #4551: pure, with no import, so the `pages` workflow can run it too); the reading is `app/src/vue/autonomy/autonomy-github.ts`,
 the block `app/src/vue/autonomy/figures.js`.
 
 **What the pass let through** (#3515): after the three figures, two counts on the same tickets — those merged in the

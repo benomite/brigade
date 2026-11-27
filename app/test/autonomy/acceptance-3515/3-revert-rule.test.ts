@@ -3,7 +3,7 @@
 // tickets servis n'est pas compté. Test d'acceptation : le calcul de l'app sur l'échantillon commité, sans GitHub.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { chiffresDAutonomie } from "../../../src/vue/autonomy/compute.ts";
+import { chiffresDAutonomie } from "../../../../runtime/src/autonomie/compute.ts";
 import { avec, MAINTENANT, sha } from "./sample.ts";
 
 // In the sample, 1111… is a commit of #101 (served), 2222… of no ticket, 4444… of #105 (merged without `fire`).

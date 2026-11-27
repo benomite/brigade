@@ -5,7 +5,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, test } from "node:test";
-import { chiffresDAutonomie, commitsRevertes, type Defauts, type DonneesDuDepot } from "../../../src/vue/autonomy/compute.ts";
+import { chiffresDAutonomie, commitsRevertes, type Defauts, type DonneesDuDepot } from "../../../../runtime/src/autonomie/compute.ts";
 
 const ECHANTILLON = JSON.parse(readFileSync(new URL("./sample-defects.json", import.meta.url), "utf8")) as DonneesDuDepot;
 const MAINTENANT = new Date("2026-11-11T12:00:00.000Z");

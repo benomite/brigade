@@ -3,7 +3,7 @@
 // Test d'acceptation : le calcul de l'app sur l'échantillon commité, sans GitHub.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { chiffresDAutonomie } from "../../../src/vue/autonomy/compute.ts";
+import { chiffresDAutonomie } from "../../../../runtime/src/autonomie/compute.ts";
 import { avec, MAINTENANT } from "./sample.ts";
 
 // #101 is served on 2026-11-05 at 10:00.

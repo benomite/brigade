@@ -24,7 +24,7 @@ One workflow, `.github/workflows/pages.yml`, runs the generator step and deploys
 
 `scripts/autonomy-page/generate.ts` writes `site/autonomie.json` over the last 30 days of benomite/brigade, with the workflow's `GITHUB_TOKEN` (read only, no other secret):
 
-- the read is the app's (`app/src/vue/autonomy/autonomy-github.ts`), the computation the app's too (`app/src/vue/autonomy/compute.ts`, `chiffresDAutonomie`: pure, with no import, #4505), the same as the app's Autonomy screen;
+- the read is the app's (`app/src/vue/autonomy/autonomy-github.ts`), the computation the app's too (`runtime/src/autonomie/compute.ts`, `chiffresDAutonomie`: pure, with no import, #4505, #4551), the same as the app's Autonomy screen;
 - the events and comments of the served tickets are read fifty at a time with GraphQL first, so the run stays within the token's 1,000 REST requests an hour; a ticket GraphQL does not give whole goes to the app's REST read;
 - served without a human and the send-back rate show as `90% (690 of 763)` (the tickets the kitchen served), the lead time as the app writes a duration (`1 h 27 min`), the pull requests merged as a count;
 - every figure links to the pull requests merged in the period, to the second; the fourth figure is their count.

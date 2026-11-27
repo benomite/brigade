@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { nameTheProjects } from "../../../src/vue/autonomy/autonomy-github.ts";
 import { Fake, repos } from "../../helpers/false-vue.ts";
-import { chiffresDAutonomie } from "../../../src/vue/autonomy/compute.ts";
+import { chiffresDAutonomie } from "../../../../runtime/src/autonomie/compute.ts";
 import { ECHANTILLON, MAINTENANT } from "./sample.ts";
 
 // The view is plain JavaScript with no declaration: its one call is typed here.
