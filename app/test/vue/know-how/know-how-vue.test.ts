@@ -21,16 +21,16 @@ import { Fake, playTheVue, openTab, openRead, repos, type Played } from "../../h
 const doc = { createElement: (balise: string) => new Fake(balise) };
 const PR = "https://github.com/chef/parade/pull/77";
 
-const READING: ReadOfKnowledge = {
+const READING: Extract<ReadOfKnowledge, { entries: unknown }> = {
   depot: "chef/parade",
   branche: "main",
   vide: false,
   entries: [
-    { section: "Conventions", text: "Tests live next to the code", ticket: 101, line: 3 },
-    { section: "Conventions", text: "Identifiers are in French", ticket: 102, line: 4 },
-    { section: "Pitfalls", text: "Never run the pass with a dirty tree", ticket: 205, line: 7 },
-    { section: "Tools", text: "Use `gh api` for rate limits", ticket: 310, line: 10 },
-    { section: "Tools", text: "A tool nobody ticketed", ticket: null, line: 11 },
+    { section: "Conventions", text: "Tests live next to the code", ticket: 101, line: 3, file: ".brigade/know-how.md" },
+    { section: "Conventions", text: "Identifiers are in French", ticket: 102, line: 4, file: ".brigade/know-how.md" },
+    { section: "Pitfalls", text: "Never run the pass with a dirty tree", ticket: 205, line: 7, file: ".brigade/know-how.md" },
+    { section: "Tools", text: "Use `gh api` for rate limits", ticket: 310, line: 10, file: ".brigade/know-how.md" },
+    { section: "Tools", text: "A tool nobody ticketed", ticket: null, line: 11, file: ".brigade/know-how.md" },
   ],
 };
 const EMPTY_READ: ReadOfKnowledge = { depot: "chef/parade", branche: "main", vide: true, entries: [] };
@@ -95,11 +95,11 @@ describe("the know-how block", () => {
       await hold({
         ...READING,
         entries: [
-          { section: "", text: "Loose", ticket: 1, line: 0 },
-          { section: "Tools", text: "A tool", ticket: 2, line: 2 },
-          { section: "Extra", text: "Other", ticket: 3, line: 4 },
-          { section: "Pitfalls", text: "A pitfall", ticket: 4, line: 6 },
-          { section: "Conventions", text: "A convention", ticket: 5, line: 8 },
+          { section: "", text: "Loose", ticket: 1, line: 0, file: ".brigade/know-how.md" },
+          { section: "Tools", text: "A tool", ticket: 2, line: 2, file: ".brigade/know-how.md" },
+          { section: "Extra", text: "Other", ticket: 3, line: 4, file: ".brigade/know-how.md" },
+          { section: "Pitfalls", text: "A pitfall", ticket: 4, line: 6, file: ".brigade/know-how.md" },
+          { section: "Conventions", text: "A convention", ticket: 5, line: 8, file: ".brigade/know-how.md" },
         ],
       })
     ).poser();

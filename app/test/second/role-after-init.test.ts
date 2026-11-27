@@ -136,10 +136,10 @@ describe("le rôle du second, redit après l'init", () => {
   });
 });
 
-// Les deux textes qui parlent au chef autour de l'init : le rôle du second, et la fin de `/brigade:init` — celle du
-// plugin de l'app comme celle du plugin V1.
+// Les deux textes qui parlent au chef autour de l'init : le rôle du second, et la fin de la préparation du dépôt — celle de
+// l'app comme celle de `/brigade:init` du plugin V1.
 const END_OF_THE_INIT = [
-  ["app/src/plugin/init.md", "## 4. Résume"],
+  ["app/src/setup/instructions.md", "## 4. Résume"],
   ["commands/init.md", "## 8. Résume"],
 ] as const;
 const TEXTS: [string, string][] = [

@@ -57,7 +57,7 @@ export type Bridge = {
   service(project: string): Promise<Guide | undefined>;
   // Le chef déplie l'installation : elle se lit en entier, vérification d'ouverture comprise.
   deplierService(project: string): Promise<Guide | undefined>;
-  // Ouvre dans le second du projet la session qui amorce son dépôt (`/brigade:init`) : rend le
+  // Ouvre dans le second du projet la session qui amorce son dépôt, ses instructions données : rend le
   // second, dont la note dit ce qui a été lancé — ou pourquoi rien ne l'a été.
   amorcer(project: string): Promise<Terminal | { refus: string }>;
   // Le chef dit le résultat de l'init mergé sur la branche d'intégration, ou s'en dédit : la box le note.
@@ -361,6 +361,9 @@ export type Bridge = {
   telephoneConnecte?(): Promise<{ connecte: boolean } | { illisible: string }>;
   // Les agents au travail d'un projet (ticket 4569, agents/source.js) : lus sur GitHub et sur sa station.
   agentsAtWork?(project: string): Promise<unknown>;
+  // What changed since the chef last opened the project (ticket 4649, since-last-looked/), read from GitHub: this opening
+  // becomes the last look.
+  sinceYouLastLooked?(project: string): Promise<import("../since-last-looked.ts").SinceLastLooked>;
   // Le niveau d'autonomie d'un agent, réglé ; un geste en attente, approuvé. Le côté runtime vient d'un autre ticket.
   reglerLAutonomie?(project: string, agent: string, level: import("./autonomy/source.js").Level): Promise<void>;
   approuverLeGeste?(project: string, agent: string, id: string): Promise<void>;

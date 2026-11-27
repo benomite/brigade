@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# The app's `/brigade:init` (#2595), the part that writes: sets a repository up for Brigade on the
-# GitHub-only path — no box, no ssh, no V1 plugin. Run from the project's folder by the command
-# `init.md` next to it, once the session has settled what it cannot compute (the test command).
+# The app's repository setup (#2595, #4632), the part that writes: sets a repository up for Brigade on
+# the GitHub-only path — no box, no ssh, no plugin. Run from the project's folder by the setup session,
+# following `instructions.md` next to it, once it has settled what it cannot compute (the test command).
 #
 #   bash init.sh --test <command> [--install <command>] [--base <branch>]
 #                [--zones <text>] [--dev-local <text>] [--doc <text>] [--badge yes|no]
@@ -164,11 +164,11 @@ if git diff --cached --quiet; then
 fi
 
 # 3. The pull request.
-git commit --quiet -m "chore: set the repository up for Brigade" -m "The bindings in CLAUDE.md, the gates and the worktree setup, written by /brigade:init." >&2
+git commit --quiet -m "chore: set the repository up for Brigade" -m "The bindings in CLAUDE.md, the gates and the worktree setup, written by the Brigade app's repository setup." >&2
 git push --quiet --force origin "$BRANCH" >&2
 URL="$(gh pr list --head "$BRANCH" --state open --json url --jq '.[0].url // ""')"
 if [ -z "$URL" ]; then
   URL="$(gh pr create --base "$BASE" --head "$BRANCH" --title "Set the repository up for Brigade" \
-    --body "Written by \`/brigade:init\`: the bindings block \`## Équipe multi-agents\` in \`CLAUDE.md\`, \`.claude/brigade/gates.sh\` and \`.claude/brigade/worktree-setup.sh\`. The labels are already on the repository. Merge it: the project is set up once it is on \`$BASE\`." | tail -1)"
+    --body "Written by the Brigade app's repository setup: the bindings block \`## Équipe multi-agents\` in \`CLAUDE.md\`, \`.claude/brigade/gates.sh\` and \`.claude/brigade/worktree-setup.sh\`. The labels are already on the repository. Merge it: the project is set up once it is on \`$BASE\`." | tail -1)"
 fi
 echo "pr $URL"

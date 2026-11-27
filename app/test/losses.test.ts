@@ -115,7 +115,7 @@ function app(box: ReturnType<typeof boxInstalled>) {
     delaiMs: 60_000,
     cuisine: () => KITCHEN,
     lancer: box.lancer,
-    session: terminals.session,
+    setup: terminals.setup,
     shell: terminals.shell,
     surGuide: (guide) => {
       guides.push(guide);

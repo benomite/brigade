@@ -1,7 +1,7 @@
 // @ts-check
 // L'avis d'un projet qui n'est pas préparé pour Brigade (ticket 2628, épique 2584) : sur sa page et dans son TODO, une
 // phrase — ce qui manque — et un seul bouton, le geste de l'ajout d'un projet (`runRepoSetup`). Un projet préparé n'a
-// rien de nouveau : aucun avis. `/brigade:init` n'est jamais montré.
+// rien de nouveau : aucun avis. Aucune commande de préparation n'est jamais montrée.
 //
 // Pendant la préparation, le bouton attend et l'avis dit qu'elle est en route ; ratée, il dit en une phrase pourquoi
 // et « Retry » est rendu. Réussie, l'avis s'en va sans recharger : la vue le retire à la lecture qui suit.

@@ -1,13 +1,9 @@
-// Le plugin de l'app (#2160) : dans chaque projet que l'app ouvre, `/brigade:dev <numéro>`,
-// `/brigade:ask <numéro>` et `/brigade:init` répondent dans toute session Claude Code de son dossier
-// — les onglets de l'app comme un terminal à part —, sans rien installer à la main. Ces trois
-// commandes, et elles seules : aucun rôle V1 (`po`, `manager`, `designer`, `sync`), aucun agent —
-// l'app et les stations les remplacent.
-//
-// `/brigade:init` n'est pas celui du plugin V1 (`commands/init.md`, box et marketplace V1) : c'est
-// celui de l'app (#2595), `plugin/init.md` à côté de ce module, sur le seul chemin GitHub, et le
-// script qui écrit pour lui (`plugin/init.sh`), posé dans le marketplace sous `scripts/`. Il quitte
-// le plugin quand l'ajout d'un projet prépare le dépôt d'un geste (#2584) — pas avant.
+// Le plugin de l'app (#2160) : dans chaque projet que l'app ouvre, `/brigade:dev <numéro>` et
+// `/brigade:ask <numéro>` répondent dans toute session Claude Code de son dossier — les onglets de
+// l'app comme un terminal à part —, sans rien installer à la main. Ces deux commandes, et elles
+// seules : aucun rôle V1 (`po`, `manager`, `designer`, `sync`), aucun agent — l'app et les stations
+// les remplacent. La préparation d'un dépôt n'est pas une commande du plugin : l'onglet Second
+// l'ouvre avec ses instructions (setup/setup.ts, #4632).
 //
 // Le mécanisme est celui de Claude Code lui-même :
 // - **un marketplace à l'app**, `brigade-app`, que l'app pose à côté du fichier des projets
@@ -32,7 +28,7 @@
 // Un seul `claude plugin` à la fois : ils écrivent tous le même registre du compte.
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
-import { chmodSync, existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import type { Project } from "./config.ts";
 
@@ -43,24 +39,6 @@ export const ID = `${PLUGIN}@${MARKETPLACE}`;
 export const SPACE = "brigade";
 // Les commandes du plugin copiées de `commands/` du dépôt.
 export const COMMANDS = ["dev.md", "ask.md"] as const;
-// Les commandes que l'app porte elle-même, dans `PROPRES` (#2595).
-export const COMMANDS_OF_THE_APP = ["init.md"] as const;
-// Le dossier de ce que l'app porte elle-même : il est dans `src/`, que le paquet porte entier.
-export const OWN = join(import.meta.dirname, "plugin");
-// Le script de `/brigade:init`, posé dans le marketplace sous `scripts/` ; la commande le nomme par
-// `@SCRIPT@`, remplacé à la pose par son chemin.
-export const SCRIPT_INIT = "init.sh";
-// Le catalogue des labels que le script lit, posé à côté de lui.
-export const CATALOG_OF_LABELS = "labels.tsv";
-const BRAND_OF_SCRIPT = "@SCRIPT@";
-// La commande du runtime qui lance ce script, pose la carte de sa PR dans le TODO et rend le mot de fin du second
-// (#3169), et le `node` qui la joue : `@SETUP_PR@` et `@NODE@`, remplacés de même.
-const BRAND_OF_THE_PR = "@SETUP_PR@";
-const BRAND_OF_NODE = "@NODE@";
-export const PR_OF_SETUP = ["src", "second-init", "pr-de-setup.ts"] as const;
-// Où sont le runtime et son `node` (locations.ts) ; par défaut, le runtime à côté de l'app et le `node` du PATH.
-export type Places = { node: string; runtime: string };
-export const PLACES_BY_DEFAULT: Places = { node: "node", runtime: join(import.meta.dirname, "..", "..", "runtime") };
 // Le dossier du marketplace, à côté du fichier des projets.
 export const FOLDER = "plugin-app";
 // Le fichier que Claude Code écrit dans le dossier du projet pour le scope local.
@@ -70,47 +48,35 @@ const VERSION_OF_REPOSITORY = "0.0.0";
 
 // La version du plugin que l'app porte : la sienne, installée ; depuis le dépôt, l'empreinte des
 // commandes — une commande changée change la version, et les projets se mettent à jour.
-export function versionOfPlugin(versionOfTheApp: string, commands: string, own = OWN): string {
+export function versionOfPlugin(versionOfTheApp: string, commands: string): string {
   if (versionOfTheApp !== VERSION_OF_REPOSITORY) return versionOfTheApp;
   const fingerprint = createHash("sha256");
   for (const name of COMMANDS) fingerprint.update(name).update("\0").update(readFileSync(join(commands, name))).update("\0");
-  for (const name of [...COMMANDS_OF_THE_APP, SCRIPT_INIT, CATALOG_OF_LABELS]) fingerprint.update(name).update("\0").update(readFileSync(join(own, name))).update("\0");
   return `${VERSION_OF_REPOSITORY}-${fingerprint.digest("hex").slice(0, 12)}`;
 }
 
-// Pose le marketplace de l'app dans `dossier` : ses deux manifestes, les deux commandes copiées de
-// `commandes`, `/brigade:init` et son script copiés de `propres`. Un fichier déjà tel quel n'est pas réécrit.
-export function setTheMarketplace(folder: string, commands: string, version: string, own = OWN, places: Places = PLACES_BY_DEFAULT): void {
+// Pose le marketplace de l'app dans `dossier` : ses deux manifestes et les deux commandes copiées de
+// `commandes`. Un fichier déjà tel quel n'est pas réécrit.
+export function setTheMarketplace(folder: string, commands: string, version: string): void {
   const manifests = join(folder, ".claude-plugin");
   const marketplace = {
     name: MARKETPLACE,
     description: "The brigade app's commands, installed by the app in the projects it opens",
     owner: { name: "benomite" },
-    plugins: [{ name: PLUGIN, source: "./", version, description: "/brigade:dev, /brigade:ask and /brigade:init, nothing else" }],
+    plugins: [{ name: PLUGIN, source: "./", version, description: "/brigade:dev and /brigade:ask, nothing else" }],
   };
   const plugin = {
     name: SPACE,
     version,
-    description: "/brigade:dev <number>, /brigade:ask <number> and /brigade:init, installed by the brigade app",
+    description: "/brigade:dev <number> and /brigade:ask <number>, installed by the brigade app",
     author: { name: "benomite" },
     license: "MIT",
     homepage: "https://github.com/benomite/brigade",
-    commands: [...COMMANDS, ...COMMANDS_OF_THE_APP].map((name) => `./commands/${name}`),
+    commands: COMMANDS.map((name) => `./commands/${name}`),
   };
   write(join(manifests, "marketplace.json"), `${JSON.stringify(marketplace, null, 2)}\n`);
   write(join(manifests, "plugin.json"), `${JSON.stringify(plugin, null, 2)}\n`);
   for (const name of COMMANDS) write(join(folder, "commands", name), readFileSync(join(commands, name), "utf8"));
-  // Le chemin du script, en barres obliques : la commande le passe à `bash`, Git Bash compris.
-  const script = join(folder, "scripts", SCRIPT_INIT);
-  write(script, readFileSync(join(own, SCRIPT_INIT), "utf8"));
-  chmodSync(script, 0o755);
-  write(join(folder, "scripts", CATALOG_OF_LABELS), readFileSync(join(own, CATALOG_OF_LABELS), "utf8"));
-  const prOfSetup = join(places.runtime, ...PR_OF_SETUP);
-  for (const name of COMMANDS_OF_THE_APP)
-    write(
-      join(folder, "commands", name),
-      readFileSync(join(own, name), "utf8").replaceAll(BRAND_OF_SCRIPT, script.replaceAll("\\", "/")).replaceAll(BRAND_OF_THE_PR, prOfSetup.replaceAll("\\", "/")).replaceAll(BRAND_OF_NODE, places.node.replaceAll("\\", "/")),
-    );
 }
 
 function write(path: string, content: string): void {
@@ -149,8 +115,6 @@ export type OptionsPluginApp = {
   // Le dossier des commandes que l'app porte.
   commandes: string;
   versionDeLApp: string;
-  // Le runtime et son `node`, que `/brigade:init` lance pour finir (#3169).
-  lieux?: Places;
   // Ce que l'app dit de ce qu'elle a fait, ou pas, pour le terminal qui l'a lancée.
   dire: (line: string) => void;
 };
@@ -174,7 +138,7 @@ export function holdThePluginApp(options: OptionsPluginApp) {
     let version: string;
     try {
       version = versionOfPlugin(options.versionDeLApp, options.commandes);
-      setTheMarketplace(options.marketplace, options.commandes, version, OWN, options.lieux);
+      setTheMarketplace(options.marketplace, options.commandes, version);
     } catch (error) {
       options.dire(`brigade: the app's plugin was not prepared — ${(error as Error).message}`);
       return undefined;
@@ -274,7 +238,7 @@ export type PluginApp = ReturnType<typeof holdThePluginApp>;
 // L'app lancée avec un `claude` de remplacement (`BRIGADE_CLAUDE_BIN`, un essai) : le plugin n'est posé ni retiré
 // nulle part, et l'app le dit une fois.
 export function withoutPluginApp(tell: (line: string) => void): PluginApp {
-  tell("brigade: BRIGADE_CLAUDE_BIN is set — the app's plugin (/brigade:dev, /brigade:ask, /brigade:init) is installed in no project");
+  tell("brigade: BRIGADE_CLAUDE_BIN is set — the app's plugin (/brigade:dev, /brigade:ask) is installed in no project");
   return { suivre: async () => {}, retirer: async () => {} };
 }
 

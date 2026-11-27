@@ -112,6 +112,8 @@ const bridge = {
   enregistrerUnHumain: (project, human) => ipcRenderer.invoke("enregistrerUnHumain", project, human),
   retirerUnHumain: (project, login) => ipcRenderer.invoke("retirerUnHumain", project, login),
   agentsAtWork: (project) => ipcRenderer.invoke("agentsAtWork", project),
+  // What changed since the chef last opened the project (ticket 4649, since-last-looked/): this opening becomes the last look.
+  sinceYouLastLooked: (project) => ipcRenderer.invoke("sinceYouLastLooked", project),
   // La fiche du projet, sous Settings (ticket 4240) : lue et écrite dans le dossier du projet (card-project/card-project-folder.ts).
   lireUnFichierDuProjet: (project, path) => ipcRenderer.invoke("lireUnFichierDuProjet", project, path),
   ecrireUnFichierDuProjet: (project, path, text) => ipcRenderer.invoke("ecrireUnFichierDuProjet", project, path, text),
