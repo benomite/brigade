@@ -113,6 +113,14 @@ import json, pathlib, sys
 
 # init et sync sont des commandes, pas des rôles : elles n'ont pas de miroir.
 ROLES = ["po", "manager", "dev", "designer"]
+# Files kept on disk that the published plugin leaves out (#4525, docs/plugin.md): the V1 roles, until a
+# ticket deletes them, and the agents the runtime reads as files. Any other file of commands/ or agents/
+# must be declared in plugin.json.
+NOT_PUBLISHED = {
+    "commands/po.md", "commands/manager.md", "commands/dev.md", "commands/designer.md", "commands/sync.md", "commands/init.md",
+    "agents/dev-teammate.md", "agents/dev-teammate-low.md", "agents/dev-teammate-medium.md",
+    "agents/cook.md", "agents/triage.md", "agents/manager.md", "agents/product.md", "agents/second-juge.md", "agents/closer.md",
+}
 bad = []
 root = pathlib.Path(".")
 
@@ -123,7 +131,7 @@ for champ, motif in (("commands", "commands/*.md"), ("agents", "agents/*.md")):
     presents = {f.as_posix() for f in root.glob(motif)}
     for f in sorted(declares - presents):
         bad.append(f"declare dans plugin.json[{champ}] mais absent du disque : {f}")
-    for f in sorted(presents - declares):
+    for f in sorted(presents - declares - NOT_PUBLISHED):
         bad.append(f"present sur le disque mais absent de plugin.json[{champ}] : {f} — un rôle ajouté doit être déclaré dans plugin.json, sinon il ne se charge jamais")
 
 for r in ROLES:
