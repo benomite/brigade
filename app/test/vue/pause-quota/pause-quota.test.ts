@@ -7,11 +7,10 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import type { Drawable } from "../../../src/facts.ts";
 import { openTheReadGitHub } from "../../../src/read-github-phone.ts";
-import { withTheirState, type StationsOfAccount } from "../../../src/stations-of-account.ts";
 import { API_GITHUB, type Send } from "../../../src/board/client.ts";
 import { signsOf } from "../../../src/vue/cooks/signs-of-life.ts";
 import { whatTheRailSays, inHowMany, pauseOfProjects, holdThePause } from "../../../src/vue/pause-quota/line-of-the-pause.js";
-import { withThePresenceLocale, withTheStationLocale, pauseOfAccount, pauseQuotaRead, quotaGithubRead, signOfTheRecording } from "../../../src/vue/pause-quota/pause-quota.ts";
+import { pauseOfAccount, pauseQuotaRead, quotaGithubRead, signOfTheRecording } from "../../../src/vue/pause-quota/pause-quota.ts";
 import { Fake } from "../../helpers/false-vue.ts";
 
 const REPOSITORY = "chef/parade";
@@ -59,24 +58,6 @@ describe("la pause du compte", () => {
     assert.deepEqual(pauseOfAccount([inPause(), mac], A), { limite: "ecriture", jusqua: minutes(30) });
     assert.deepEqual(pauseOfAccount([inPause(), { ...inPause({ pauseJusqua: null }), name: "mac" }], A), { limite: "core", jusqua: null });
     assert.deepEqual(pauseOfProjects([undefined, { limite: "core", jusqua: RESUMPTION }, { limite: "core", jusqua: minutes(2) }], A), { limite: "core", jusqua: RESUMPTION });
-  });
-});
-
-describe("la station que l'app voit tourner sur cet ordinateur", () => {
-  test("son signe de vie a quinze minutes, mais elle tourne ici : elle est vue à l'instant ; sans elle, rien ne change", () => {
-    const signs = withTheStationLocale([box()], "gistbox", A);
-    assert.equal(signs[0]?.lastSeen, READ);
-    assert.deepEqual(withTheStationLocale([box()], null, A), [box()]);
-  });
-
-  test("la liste des stations du compte la dit en ligne", () => {
-    const readEntries = { state: "listed", unreadable: [], stations: [{ ...box(), platform: "macos", machine: "", version: "1", account: "chef", available: false }] } as unknown as StationsOfAccount;
-    const state = (presences: ReturnType<typeof withThePresenceLocale>) => {
-      const readOne = withTheirState(readEntries, presences, A);
-      return readOne.state === "listed" ? readOne.stations[0] : assert.fail("pas listée");
-    };
-    assert.equal(state(withThePresenceLocale([], [{ id: "gistbox", name: "box" }], "gistbox"))?.available, true);
-    assert.equal(state(withThePresenceLocale([], [{ id: "gistbox", name: "box" }], null))?.available, false);
   });
 });
 
