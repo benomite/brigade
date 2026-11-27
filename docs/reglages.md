@@ -223,22 +223,3 @@ repository runs the app with their own `app.json` and reads their own gist: your
 and your gist never reach them, and nothing of yours reaches the project's repository.
 **`projet.json` is not affected**: nothing in this section reads or writes it. The project's shared
 settings stay in §1, and change by a pull request.
-
-## 4. Moving the box's settings into the repository — the migration
-
-The settings that the box held for a project before `projet.json` existed (the integration branch,
-the manager and reviewer calibrations, the ceiling) move into the project's repository once, with
-the migration script. Its README is [`scripts/migration-reglages-projet/README.md`](../scripts/migration-reglages-projet/README.md).
-
-The chef runs it **on the box**, from the brigade checkout:
-
-```sh
-# Dry run (the default): per project, the target repository and the proposed file. Changes nothing.
-node scripts/migration-reglages-projet/migrer.ts --config projets.json
-
-# For real: one pull request per project that has a difference.
-node scripts/migration-reglages-projet/migrer.ts --config projets.json --apply
-```
-
-A project whose integration branch already has the file is skipped. The pull request is merged by the
-chef; until then, the box keeps its own settings.

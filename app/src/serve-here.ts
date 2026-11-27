@@ -6,6 +6,7 @@ import { appendFileSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import type { LocalCopy } from "./first-launch.ts";
+import { isOneMac } from "./platform.ts";
 
 export type ProjectToServe = { nom: string; dossier: string; base?: string };
 export type ReadOfServed = { depots: string[] } | { refus: string; detail?: string };
@@ -43,7 +44,7 @@ function linesOf(stationDir: string): string[][] {
 
 // Why this computer cannot cook a project in its new kitchen, in a sentence; undefined when it can.
 export function whyNoSandbox(probes: Probes): string | undefined {
-  if (probes.platform !== "darwin") return "this computer is not a Mac, and only a Mac's sandbox keeps a cook away from the chef's keys: serve it from the box instead";
+  if (!isOneMac(probes.platform)) return "this computer is not a Mac, and only a Mac's sandbox keeps a cook away from the chef's keys: serve it from the box instead";
   if (!probes.seatbelt) return "this Mac has no sandbox for its cooks (macOS's sandbox-exec is missing), and a cook never runs without one";
   if (probes.claude === null) return "Claude Code did not answer on this Mac, so it cannot be told whether it knows the sandbox: install or open Claude Code, then try again";
   const version = VERSION.exec(probes.claude)?.[1];
