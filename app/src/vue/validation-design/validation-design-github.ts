@@ -1,33 +1,33 @@
 // La carte « Validate its screen » (ticket 3185, épique 3180) : la livraison design verte que la pass retient pour le chef
-// (ticket 3184, runtime/src/validation-design/). Le runtime la pose en issue au label `chef-todo` :
+// (ticket 3184). Le runtime la pose en issue au label `chef-todo` :
 //   - son commentaire de carte (`<!-- brigade:todo kind=design-validation -->`) dit la question et le lien de la PR — l'app
 //     le lit comme toute carte du chef (board/todo-github.ts) ;
 //   - son corps commence par `<!-- brigade:validation-design pr=<PR> ticket=<ticket> sha=<sha> -->`, puis porte la question,
 //     le lien de la PR et, écran par écran, les captures avant et après en images, au commit que la pass a jugé vert.
 // Ce module lit le corps (`validationDuCorps`) : la PR, son adresse, et les captures, chacune par son adresse sur GitHub —
 // seulement celles du dépôt du projet, au commit de la carte, dans `docs/captures/<ticket>/`. Puis il joue les deux gestes
-// du chef par la commande du runtime (`npm --prefix runtime run design`, runtime/src/validation-design/commande.ts), que le
+// du chef par la commande du runtime (`npm --prefix runtime run design`), que le
 // process principal importe et joue dans le sien (`jouerLaValidation`) : `validate <owner>/<repo>#<PR>` merge la PR et
 // ferme la carte ; `send-back <owner>/<repo>#<PR> --comment <…>` renvoie la livraison à un cook avec le commentaire, et
 // ferme la carte. La carte quitte TODO à la lecture suivante : l'issue est fermée.
 // Le téléphone ne porte pas le runtime : la WebView ne charge pas ce que sa commande importe. Il joue les deux mêmes gestes
 // sur l'API de GitHub, avec le jeton de son coffre (`validerSurGithub`, actions-github-phone.ts) : les mêmes lectures,
-// les mêmes contrôles et les mêmes écritures que `valider` et `renvoyerLeDesign` (runtime/src/validation-design/
-// validation-design.ts), à la lettre — le test (app/test/validation-design/) les joue tous deux sur le même GitHub.
+// les mêmes contrôles et les mêmes écritures que `valider` et `renvoyerLeDesign` du runtime,
+// à la lettre — le test (app/test/validation-design/) les joue tous deux sur le même GitHub.
 import { capturesOfCard, readAddress, type CapturesOfCard, type CapturesRead } from "../../captures.ts";
 import type { MethodOfWriting } from "../../priority.ts";
 import { refusalOf, type CallGitHub, type AnswerGitHub } from "../../board/client.ts";
 import { LABEL_OF_CHEF } from "../../board/todo-github.ts";
 import { tellThePrByItsTicket } from "../pr-of-ticket.js";
 
-// La sorte de la carte, telle que le runtime l'écrit (runtime/src/validation-design/validation-design.ts, `SORTE_DE_CARTE`).
+// La sorte de la carte, telle que le runtime l'écrit (`SORTE_DE_CARTE`).
 export const KIND_OF_VALIDATION = "design-validation";
 
 // Ce que la carte valide : sa PR et son adresse, le ticket livré, la tête jugée verte, les captures de chaque écran, et son brief.
 export type ValidationDesign = { pr: number; ticket: number; sha: string; url: string; captures: CapturesRead; brief?: BriefOfValidation };
 // Le brief (ticket 3330) : ce que le ticket demandait, en deux lignes au plus, et ce que le cook a changé à l'écran, un point
 // par ligne — nul quand la carte n'en porte aucun. Le runtime l'écrit dans le corps de la carte, avant ses captures
-// (runtime/src/validation-design/brief.ts, `lignesDuBrief`) ; une carte posée avant ce ticket ne dit que son titre de ticket.
+// (`lignesDuBrief`) ; une carte posée avant ce ticket ne dit que son titre de ticket.
 export type BriefOfValidation = { demande: string; fait: string[] | null };
 export const POINTS_MAX = 5;
 
@@ -54,10 +54,10 @@ export function briefOfBody(body: string): BriefOfValidation {
 }
 
 // Le marqueur du corps de la carte, ou celui de la validation demandée sur le ticket même, en tête de son commentaire
-// (ticket 3615, runtime/src/validation-sur-ticket/) : `<!-- brigade:todo kind=design-validation pr=… ticket=… sha=… -->`.
+// (ticket 3615) : `<!-- brigade:todo kind=design-validation pr=… ticket=… sha=… -->`.
 const BRAND = /^\s*<!-- brigade:(?:validation-design|todo kind=design-validation) pr=([1-9][0-9]*) ticket=([1-9][0-9]*) sha=([0-9a-f]{7,40}) -->/;
 const IMAGE = /!\[[^\]]*\]\((https:\/\/github\.com\/[^)\s]+)\)/g;
-// Le nom d'une capture, comme le runtime l'apparie (runtime/src/captures.ts, `capturesLivrees`) : `<écran>-avant.png`,
+// Le nom d'une capture, comme le runtime l'apparie (`capturesLivrees`) : `<écran>-avant.png`,
 // `<écran>-apres.png`, sans égard à la casse ni aux accents.
 const MOMENT = /^(.*?)[-_. ]*(avant|apres)$/;
 const withoutAccents = (text: string) => text.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
@@ -132,8 +132,8 @@ export type ActionOfValidation = { geste: "valider" } | { geste: "renvoyer"; com
 // Ce qu'il en est advenu : fait — ce que le runtime en dit —, ou rien n'est fait, et pourquoi en une ligne, le détail au survol.
 export type RenderedOfValidation = { fait: string } | { refus: string; detail: string };
 
-// La commande du runtime, telle que le process principal l'importe (runtime/src/validation-design/commande.ts, `principal`) :
-// elle dit ce qu'elle a fait par `dire`, un refus par `redire`, et lève sa sortie — une `Sortie` (runtime/src/appel.ts), que
+// La commande du runtime, telle que le process principal l'importe (`principal`) :
+// elle dit ce qu'elle a fait par `dire`, un refus par `redire`, et lève sa sortie — une `Sortie`, que
 // `estUneSortie` reconnaît : celle du runtime même que le process principal a chargé.
 export type CommandOfRuntime = (call: { args: string[]; env: Record<string, string | undefined>; dire: (line: string) => void; redire: (line: string) => void }) => Promise<void>;
 export type CommandLoaded = { principal: CommandOfRuntime; estUneSortie: (error: unknown) => error is { code: number } };
@@ -188,9 +188,9 @@ export async function playTheCommand({ args, commande: command, env, parDefaut: 
 // ── Les deux gestes sur le téléphone, sur l'API de GitHub ──
 
 // Ce que le runtime écrit et lit, tel qu'il l'écrit (le test les compare aux siens) : les auteurs de confiance
-// (runtime/src/alimenter.ts, `DE_CONFIANCE`), la marque d'un renvoi (runtime/src/qualite-github.ts, `MARQUE_DE_RENVOI`), le
-// label d'une livraison à la pass (runtime/src/github-etat/etats.ts, `LABEL_IN_PASS`), la branche d'un ticket
-// (runtime/src/brigade-github.ts, `brancheDuTicket`) et la trace qu'une carte laisse sur son ticket.
+// (`DE_CONFIANCE`), la marque d'un renvoi (`MARQUE_DE_RENVOI`), le
+// label d'une livraison à la pass (`LABEL_IN_PASS`), la branche d'un ticket
+// (`brancheDuTicket`) et la trace qu'une carte laisse sur son ticket.
 export const OF_TRUST: readonly string[] = ["OWNER", "MEMBER", "COLLABORATOR"];
 export const BRAND_OF_SEND_BACK = "<!-- brigade:renvoi";
 export const LABEL_IN_PASS = "in-pass";
@@ -200,7 +200,7 @@ const deliveryOf = (ticket: number, pr: number) => `the delivery of #${ticket} (
 // La même, en tête de phrase (runtime : `capitale`).
 const capital = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
 const BRAND_OF_HELD = /^<!-- brigade:validation-design-carte carte=([1-9][0-9]*) pr=([1-9][0-9]*) sha=([0-9a-f]{7,40}) -->/;
-// La validation demandée sur le ticket même (ticket 3615, runtime/src/validation-sur-ticket/) : la carte est le ticket.
+// La validation demandée sur le ticket même (ticket 3615) : la carte est le ticket.
 const REQUEST = /^<!-- brigade:todo kind=design-validation pr=([1-9][0-9]*) ticket=([1-9][0-9]*) sha=([0-9a-f]{7,40}) -->/;
 
 // Le client du téléphone : ses lectures, et ses écritures avec le même jeton (priority.ts, `clientDeLaPriorite`).

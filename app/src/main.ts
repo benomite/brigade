@@ -1159,9 +1159,6 @@ ipcMain.handle("retirerDUneStation", (_, name: unknown) => projectsOfStations.re
 // « Continue without sandbox » (#1113) : la décision du chef se note par la fonction du runtime, dans l'état
 // du projet sur la station de cet ordinateur.
 ipcMain.handle("continuerSansBacASable", (_, name: unknown) => projectsOfStations.continuerSansBac(name));
-// Le bouton du refus d'un projet (#1205) : sa principale joue le remède que le refus offre, puis dit s'il
-// tient (projects/projects.ts, `remedier`).
-ipcMain.handle("leverLeRefus", (_, name: unknown, refusal: unknown, remedy: unknown) => projectsOfStations.remedier(name, refusal, remedy));
 // Une issue d'un choix, sur la carte d'un besoin qui manque (#1400) : elle s'écrit dans la demande de la principale,
 // qui la pose à son journal (projects/projects.ts, `choisir`).
 ipcMain.handle("choisirUneIssue", (_, name: unknown, choice: unknown, issue: unknown) => projectsOfStations.choisir(name, choice, issue));
@@ -1240,8 +1237,6 @@ ipcMain.handle("rangerUneApp", () => ({ refus: "this computer's kitchen keeps no
 ipcMain.handle("defautsDeStation", () => ({ refus: "this computer could not be read", detail: NOT_PAIRED }));
 ipcMain.handle("outilsManquants", () => []);
 ipcMain.handle("railDuProjet", (_, name: unknown) => ({ state: "unavailable", project: String(name), cause: "unreadable", reason: `The rail of ${String(name)} is read on GitHub, not from a station's gist.` }));
-ipcMain.handle("propositionsDuSecond", () => ({}));
-ipcMain.handle("repondreAuSecond", () => ({ state: "refused", reason: "nothing to answer: the second's proposals are no longer followed", current: null }));
 const NOT_PLAYED = { refus: "nothing was done: this gesture was a command of the old runtime, which no kitchen runs — do it on GitHub", detail: "" };
 ipcMain.handle("gesteSensible", () => NOT_PLAYED);
 ipcMain.handle("annulerServi", () => NOT_PLAYED);

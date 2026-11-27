@@ -1,7 +1,7 @@
 // Confier la cuisine d'un projet à ses stations, depuis l'app, sans terminal : le chef choisit le
 // dépôt GitHub et les stations qui le servent, et valide. L'app écrit la demande dans le gist de chaque
 // station choisie (request.ts) ; chaque station la lit là, prépare le projet et l'ajoute à sa
-// configuration (runtime/src/projets/). La station recommandée est une station serveur, toujours allumée ;
+// configuration. La station recommandée est une station serveur, toujours allumée ;
 // choisir seulement l'app d'un ordinateur se dit au moment du choix : la cuisine s'arrête quand on la ferme.
 //
 // Deux portes y mènent : « + add a project », sur la page d'une station (`ajouter`), et la page d'un
@@ -26,9 +26,8 @@ import type { StationVue } from "../stations/stations.ts";
 import { withTheTracking, capacitiesRead, documentOfRequest, FILE_PROJECTS, FILE_TRACKING, readRequest, readOnboarding, readTracking, doorTheTracking, type AccessBlocked, type Toggle, type Blockage, type Calibrated, type Choice, type Delay, type FailureOfClone, type FailureOfWorktree, type StateOfProject, type Onboarding, type ProjectRequest, type Refusal, type Selections, type TrackingOfProject, type TimePublished } from "./request.ts";
 import type { Move, Mover } from "./move.ts";
 import type { RepositoryOfChef } from "./github.ts";
-import { channelOfGists, forThePage, type AskTheRemedy, type IssueOfRemedy } from "./remedy.ts";
 
-// Le calibrage que la station accepte : ses deux listes fermées (runtime/src/calibrage.ts).
+// Le calibrage que la station accepte : ses deux listes fermées.
 export const MODELS = ["opus", "sonnet", "haiku"] as const;
 export const EFFORTS = ["low", "medium", "high", "xhigh", "max"] as const;
 
@@ -119,7 +118,7 @@ export type SeenOfProjects = {
 // ne dit pas et que le chef n'a pas donnés — chacun est aussi dans `signales`, sous son nom.
 export type Missing = "depot" | "base" | "cooks";
 // Ce que le formulaire d'ajout d'une station montre d'emblée pour cet ordinateur (#1307), tel que l'opération du
-// runtime le calcule (runtime/src/projets/ajout-de-station.ts, `defautsDeStation`) : les cooks que ses cœurs
+// runtime le calcule (`defautsDeStation`) : les cooks que ses cœurs
 // permettent et d'où vient ce nombre, le dossier où sa station pose les espaces de travail de ses cooks, et
 // chaque capacité qu'elle peut déclarer, dite détectée ou non. `refus` : cet ordinateur n'a pas pu être lu.
 export type CapacityOfTheMachine = { capacite: string; nom: string; detectee: boolean };
@@ -205,7 +204,7 @@ export function carrierOfTracking(chosen: readonly string[], recommended: string
 }
 
 // Le nombre de cooks que les cœurs d'une machine permettent : celui même que la station en dérive
-// (runtime/src/projections/stations.ts, `plafondDesCoeurs`, #1079) — deux cœurs gardés pour le
+// (`plafondDesCoeurs`, #1079) — deux cœurs gardés pour le
 // runtime, la pass et ses gates, puis environ un par cook (#3560). 8 cœurs : 6.
 export const cooksOfCores = (cores: number): number => Math.max(1, cores - 2);
 // Une station qui ne publie pas encore ses cœurs : un départ prudent.
@@ -406,13 +405,10 @@ export type OptionsProjects = {
   // runtime à côté d'elle : rien ne se déménage d'ici.
   demenager?: Mover;
   // Note la décision du chef de cuire sans bac à sable pour `station`, dans l'état de `projet` sur cet
-  // ordinateur (runtime/src/onboarding/attente.ts, `accepterSansBacASable`). Absente, l'app n'a pas de runtime à côté d'elle.
+  // ordinateur (`accepterSansBacASable`). Absente, l'app n'a pas de runtime à côté d'elle.
   accepterSansBac?: (project: string, station: string) => Promise<void>;
-  // L'opération du runtime qui demande un remède à une station par son gist (remedy.ts). Absente, l'app
-  // n'a pas de runtime à côté d'elle : aucun refus ne se lève d'ici.
-  demanderLeRemede?: AskTheRemedy;
-  // Ce que le clone du projet sur cet ordinateur dit de lui (runtime/src/projets/ajout-de-station.ts,
-  // `projetDuClone`) — nul sans clone ici. Une station de plus en prend le dépôt et la branche que la
+  // Ce que le clone du projet sur cet ordinateur dit de lui (`projetDuClone`)
+  // — nul sans clone ici. Une station de plus en prend le dépôt et la branche que la
   // première ne dit pas : le chef ne les retape pas (#1307).
   leClone?: (name: string) => Promise<SaysOfClone | null>;
 };
@@ -431,11 +427,8 @@ export type Projects = {
   demenager(name: unknown, to: unknown): Promise<Move>;
   // Le chef continue sans bac à sable sur la station du projet : sa décision est notée, la retenue du rail se lève.
   continuerSansBac(name: unknown): Promise<DecisionWithoutSandbox>;
-  // Lève le refus que le suivi du projet publie, par le remède qu'il offre (#1205) : la station le
-  // joue, puis dit si le refus tient. Les projets sont relus avant que la réponse ne parte.
-  remedier(name: unknown, refusal: unknown, fix: unknown): Promise<IssueOfRemedy>;
   // Retient une issue d'un choix que le suivi du projet attend (#1400) : elle s'écrit dans la demande de la
-  // station qui le porte, qui la pose à son journal à sa lecture suivante (runtime/src/installation/besoins/).
+  // station qui le porte, qui la pose à son journal à sa lecture suivante.
   choisir(name: unknown, choice: unknown, issue: unknown): Promise<Chosen>;
   // Les pages GitHub où autoriser brigade, telles que les stations les ont publiées.
   pages(): string[];
@@ -704,39 +697,6 @@ export function holdProjects(options: OptionsProjects): Projects {
       return rendered;
     });
 
-  // Lever un refus : la demande part vers la station qui porte le suivi du projet, par son gist — l'ordinateur du chef ou une
-  // station distante, de la même façon. Deux demandes vers le même gist se suivent : chacune y réécrit le
-  // fichier des remèdes. Le refus doit être celui que la page montre, et offrir ce remède : sinon rien ne part.
-  const remediesInProgress = new Map<string, Promise<IssueOfRemedy>>();
-  const remedy = async (receivedName: unknown, receivedRefusal: unknown, receivedRemedy: unknown): Promise<IssueOfRemedy> => {
-    const name = text(receivedName);
-    const code = text(receivedRefusal);
-    const fix = text(receivedRemedy);
-    if (name === "") return { outcome: "error", error: "which project? none was named: nothing was done" };
-    const project = seenOne?.projets.find((oneOf) => oneOf.nom === name);
-    const carrier = project?.suiviPar;
-    if (project === undefined || carrier === undefined) return { outcome: "error", error: `${name} cooks on none of your stations: nothing was done` };
-    const refusal = project.refus ?? null;
-    if (refusal === null) return { outcome: "error", error: `${carrier.nom} no longer refuses ${name}: nothing was done` };
-    if (refusal.code !== code || refusal.remedy?.id !== fix) return { outcome: "error", error: `${carrier.nom} no longer offers this action for ${name}: nothing was done` };
-    const ask = options.demanderLeRemede;
-    if (ask === undefined) return { outcome: "error", error: "this app has no runtime beside it to ask for this action: nothing was done" };
-    const play = async (): Promise<IssueOfRemedy> => {
-      try {
-        return forThePage(await ask({ canal: channelOfGists(github), gist: carrier.id, demande: { project: name, refusal: code, remedy: fix } }));
-      } catch (error) {
-        return { outcome: "error", error: `GitHub could not be read or written, so nothing is known to have been done — ${message(error)}` };
-      }
-    };
-    const string = (remediesInProgress.get(carrier.id) ?? Promise.resolve()).then(play);
-    remediesInProgress.set(carrier.id, string);
-    const issue = await string;
-    if (remediesInProgress.get(carrier.id) === string) remediesInProgress.delete(carrier.id);
-    // La station a réécrit son suivi avant de répondre : relu, le refus levé n'y est plus.
-    await reread();
-    return issue;
-  };
-
   // Continuer sans bac à sable : la décision s'écrit dans l'état du projet, sur la station de cet
   // ordinateur — la seule que l'app atteigne ; une autre station dit qui peut la prendre.
   const continueWithoutSandbox = async (receivedName: unknown): Promise<DecisionWithoutSandbox> => {
@@ -784,7 +744,6 @@ export function holdProjects(options: OptionsProjects): Projects {
     relire: reread,
     demenager: relocate,
     continuerSansBac: continueWithoutSandbox,
-    remedier: remedy,
     choisir: choose,
     async depots() {
       try {

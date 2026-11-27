@@ -3,7 +3,7 @@
 // que l'app a pour elle, puis ce qui en résulte, en une ligne — le projet retiré, ou pourquoi rien n'a changé. Jamais un
 // bouton qui s'en va sans rien changer : ce que le geste rend est relu, et un projet encore servi le dit.
 //
-// Cet ordinateur : sa station n'a qu'une liste, sa configuration (runtime/src/station-ordinateur/projets-servis.ts), que
+// Cet ordinateur : sa station n'a qu'une liste, sa configuration, que
 // le process principal écrit (`retirerIci`). Si la sélection que l'app tient pour elle sur GitHub le porte aussi, il en
 // est d'abord retiré (`choisir`) : sans quoi la station réécrirait sa ligne à sa lecture suivante. Une station du compte :
 // sa sélection. Une station que le projet déclare : son retrait, sauf la seule (stations-declared.js). Aucun : rien ne

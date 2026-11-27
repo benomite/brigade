@@ -1,8 +1,8 @@
 // @ts-check
 // Le parcours d'un projet neuf, sur sa page (ticket 1111, épique 1108) : de « projet confié à une
 // station » à « premier ticket posé », en quatre étapes — le dépôt, la machine qui le cuit, la
-// préparation du dépôt, le premier ticket —, telles que sa station principale les publie (ticket 1110,
-// runtime/src/onboarding/etat.ts). En tête, ce qu'on attend du chef, en une phrase ; puis chaque
+// préparation du dépôt, le premier ticket —, telles que sa station principale les publie (ticket 1110).
+// En tête, ce qu'on attend du chef, en une phrase ; puis chaque
 // étape, faite, courante ou à venir, et ce qui s'y passe, en une phrase. Le geste attendu est un
 // bouton, qui ouvre sa page de GitHub ; où le faire se dit à côté.
 // L'étape de préparation montre son ticket — un bouton qui l'ouvre —, son état — en cours, en échec,

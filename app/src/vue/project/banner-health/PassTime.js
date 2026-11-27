@@ -6,7 +6,7 @@
 // la branche a bougé, et ce que les renvois ont coûté. Le Cooks tab que le ticket nomme a été retiré (ticket 2921), et la
 // ligne de chiffres du rail où se lisait le temps d'un ticket aussi (ticket 3523) : les chiffres de la cuisine sont ici.
 //
-// La vue n'y calcule rien : le résumé est celui que la station publie sous `temps.passe` (runtime/src/temps-ticket/passe.ts),
+// La vue n'y calcule rien : le résumé est celui que la station publie sous `temps.passe`,
 // lu tel quel. Une mesure qui manque se dit « No measure yet. », jamais zéro. Ce module ne touche pas `document` : il reçoit
 // de quoi créer un élément (bricks.js).
 

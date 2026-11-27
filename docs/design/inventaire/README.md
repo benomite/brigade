@@ -138,7 +138,6 @@ What the app says and draws differently from one screen to another, read from th
 | Station step (`.etape-station button`, `vue.css:5082`) — gone with #3195: the station choice uses the button family (`stations-tab/choix.js`) | 4px 12px | inherited | `--trait` | `--bouton` | `onglet-stations-ajout.png` (deleted) |
 | Close pass confirmation (`#rail .closer-lancement .confirmation .reponses button`, `vue.css:5873`) | 3px 10px | 12px | `--trait-fort` | `--bouton` | `closer-attente.png` |
 | Voucher confirmation (`#rail .bon .confirmation > button`, `vue.css:4145`) | 3px 8px | 12px | `--bon-trait` | none | `rail-file.png` |
-| Second's choices and gesture (`.choix-du-second button.choix`, `.geste-du-second button.geste`, `vue.css:6368`, `6406`) | 6px 10px | 12px | `--trait` | `--bouton` | `second-choix.png`, `second-geste.png` |
 | Trust form (`.confiance .lancer button`, `vue.css:1060`) | 10px 16px, `min-height` 44px | 14px | `--trait` | `--bouton` | no capture since #3181 |
 | GitHub connection (`#connexion-github .gestes button`, `vue.css:6166`) | 8px 16px | 14px | `--trait` | `--bouton` | `premier-lancement-connexion.png` |
 | Form (`#formulaire button`, `vue.css:2085`) | 6px 12px | 13px | not set in this rule | not set in this rule | `premier-lancement.png` |
@@ -243,8 +242,6 @@ The rules below each draw a « nothing here » line, under ten different class n
 | `.etape-station button:not(.aide)` | 4px 12px | 5083 |
 | `#rail .closer-lancement .confirmation .reponses button` | 3px 10px | 5874 |
 | `#rail .bon .confirmation > button` | 3px 8px | 4146 |
-| `.choix-du-second button.choix` | 6px 10px | 6373 |
-| `.geste-du-second button.geste` | 6px 10px | 6409 |
 | `.confiance .lancer button` | 10px 16px, `min-height` 44px | 1062 (`min-height` 1061) |
 | `#connexion-github .gestes button` | 8px 16px | 6167 |
 | `#formulaire button` | 6px 12px | 2087 |
