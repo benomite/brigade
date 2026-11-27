@@ -14,3 +14,4 @@
 - A ticket the pass approved and parked for the chef's merge carries `approved` beside `parked:chef` (runtime/src/kitchen/decide.ts): only those go back to a cook when their PR starts conflicting; any other `parked:chef` holds a question and stays (#4492)
 - A capture step that clicks a `buttonAction` must target `button.recommande` (or its class): the action carries a second `button` for its price hover (`?`), and `cliquer` wants exactly one element (#4494)
 - `app/test/board/read.test.ts` lists every module the rail reading loads, by graph: a pure rule the rail needs (vue/cooks/taken.ts) goes in its own module with no I/O (`app/src/station-freshness.ts`), never in one that pulls `projects/` like `stations-of-account.ts`; and a screen of `scripts/capture-ecran/ecrans/` that shows a removed feature goes with it (#4502)
+- a missing repo label makes the whole `gh issue edit` fail: `gestures.labels` creates the labels being added and retries once (#4535)

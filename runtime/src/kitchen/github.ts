@@ -108,7 +108,16 @@ export function gestures(gh: Gh, repo: string) {
   return {
     labels: async (issue: number, add: string[], remove: string[] = []) => {
       if (add.length === 0 && remove.length === 0) return;
-      await gh(["issue", "edit", String(issue), ...r, ...(add.length ? ["--add-label", add.join(",")] : []), ...(remove.length ? ["--remove-label", remove.join(",")] : [])]);
+      const edit = () => gh(["issue", "edit", String(issue), ...r, ...(add.length ? ["--add-label", add.join(",")] : []), ...(remove.length ? ["--remove-label", remove.join(",")] : [])]);
+      try {
+        await edit();
+      } catch (error) {
+        if (add.length === 0) throw error;
+        // A label that does not exist on the repo makes the whole edit fail: create the ones being added, then try once more.
+        // A second failure is thrown, never swallowed.
+        for (const name of add) await gh(["label", "create", name, ...r, "--force"]).catch(() => "");
+        await edit();
+      }
     },
     close: (issue: number, body: string) => gh(["issue", "close", String(issue), ...r, "--reason", "not planned", "--comment", body]),
     // Adds lines at the end of the issue's body.
