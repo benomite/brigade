@@ -39,8 +39,8 @@
 // carries attributes after its kind: `MARQUE_DE_CARTE` reads it too.
 export const FIRE = "fire";
 export const CHEF_TODO = "chef-todo";
-export const MARQUE_DE_RENVOI = "<!-- brigade:renvoi";
-export const MARQUE_DE_CARTE = /^\s*<!--\s*brigade:todo\s+kind=[A-Za-z0-9_-]+(?:\s+[a-z]+=[^\s>]+)*\s*-->/;
+const MARQUE_DE_RENVOI = "<!-- brigade:renvoi";
+const MARQUE_DE_CARTE = /^\s*<!--\s*brigade:todo\s+kind=[A-Za-z0-9_-]+(?:\s+[a-z]+=[^\s>]+)*\s*-->/;
 export const MARQUE_DE_RETENUE = /^\s*<!--\s*brigade:validation-design-carte\b[^>]*-->/;
 // Only whoever has a hand on the repository writes a station's comments: anyone
 // can comment a public issue.
@@ -54,7 +54,7 @@ const JOUR_MS = 24 * 3600 * 1000;
 
 // A ticket served by a merged pull request (app/src/vue/rail/github.ts,
 // `lireLesServis`): its number, title, address and merge instant.
-export type Servi = { ticket: number; titre: string; url: string; livre: string };
+type Servi = { ticket: number; titre: string; url: string; livre: string };
 // What one repository's GitHub holds for the figures: its served tickets, and
 // for each, its issue's events and comments as GitHub's REST API returns them.
 // `defauts`: what GitHub holds for the escaped defects, or why it could not be
@@ -125,7 +125,7 @@ function mediane(valeurs: readonly number[]): number {
 
 // The first line a human reads of a comment, its marks and markdown emphasis
 // removed; null when nothing is left.
-export function premiereLigne(corps: string): string | null {
+function premiereLigne(corps: string): string | null {
   const ligne = corps
     .replace(/<!--[\s\S]*?-->/g, "")
     .split("\n")

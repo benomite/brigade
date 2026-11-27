@@ -3,7 +3,7 @@
 // pull requests as the app reads them: no file, no log, no state directory.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { CHEF_TODO, chiffresDAutonomie, FIRE, MARQUE_DE_CARTE, MARQUE_DE_RENVOI, premiereLigne, type DonneesDuDepot, type Servi } from "../../../../runtime/src/autonomie/compute.ts";
+import { CHEF_TODO, chiffresDAutonomie, FIRE, type DonneesDuDepot } from "../../../../runtime/src/autonomie/compute.ts";
 import { LABELS } from "../../../../runtime/src/kitchen/decide.ts";
 
 // Un label d'attente du chef d'avant parked (#4260), que l'histoire d'une issue garde.
@@ -22,6 +22,7 @@ const pose = (label: string, le: string) => ({ event: "labeled", label: { name: 
 const commentaire = (body: string, le: string, author_association = "OWNER") => ({ body, created_at: le, author_association });
 
 // A ticket fired `depuis` before now and merged `merge` before now, with its other events and comments.
+type Servi = DonneesDuDepot["servis"][number];
 type Ticket = { numero: number; fire?: number; merge: number; evenements?: object[]; commentaires?: object[] };
 function depot(tickets: Ticket[], nom = "chef/parade"): DonneesDuDepot {
   const servis: Servi[] = tickets.map(({ numero, merge }) => ({ ticket: numero, titre: `ticket ${numero}`, url: `https://github.com/${nom}/issues/${numero}`, livre: il(merge) }));
@@ -30,15 +31,22 @@ function depot(tickets: Ticket[], nom = "chef/parade"): DonneesDuDepot {
   );
   return { depot: nom, servis, issues };
 }
+// The questions one ticket asked the chef by the comment `corps`, as the figures read them;
+// and whether that comment sends the ticket back.
+const questionsDe = (corps: string) =>
+  chiffresDAutonomie([depot([{ numero: 1, fire: 3 * HEURE, merge: HEURE, commentaires: [commentaire(corps, il(2 * HEURE))] }])], 7, MAINTENANT).avecHumain.flatMap(({ questions }) => questions);
+const renvoie = (corps: string) => chiffresDAutonomie([depot([{ numero: 1, fire: 3 * HEURE, merge: HEURE, commentaires: [commentaire(corps, il(2 * HEURE))] }])], 7, MAINTENANT).partRenvoyee === 1;
 
 describe("autonomy figures from GitHub", () => {
   test("the marks are the ones the kitchen and the stations wrote", () => {
     assert.equal(FIRE, LABELS.ready);
     assert.equal(CHEF_TODO, "chef-todo");
-    assert.equal(MARQUE_DE_RENVOI, "<!-- brigade:renvoi");
-    for (const sorte of SORTES) assert.match(corpsDeCarte({ sorte, texte: "x" }), MARQUE_DE_CARTE);
+    assert.ok(renvoie("<!-- brigade:renvoi n=1 sha=abc -->\nsent back"));
+    assert.ok(!renvoie("<!-- brigade:other -->\nnot sent back"));
+    for (const sorte of SORTES) assert.deepEqual(questionsDe(corpsDeCarte({ sorte, texte: "x" })), ["x"], sorte);
     // La validation demandée sur le ticket même (#3615) est une carte : son marqueur porte des attributs.
-    assert.match("<!-- brigade:todo kind=design-validation pr=12 ticket=3 sha=abcdef1 -->\n**Q?**", MARQUE_DE_CARTE);
+    assert.deepEqual(questionsDe("<!-- brigade:todo kind=design-validation pr=12 ticket=3 sha=abcdef1 -->\n**Q?**"), ["Q?"]);
+    assert.deepEqual(questionsDe("<!-- brigade:x -->\nnot a card"), []);
   });
 
   test("a TODO card or a waiting label for the chef of before parked makes a ticket served with a human, with the question it asked; neither, served without", () => {
@@ -125,7 +133,7 @@ describe("autonomy figures from GitHub", () => {
   });
 
   test("a delivery sent back twice counts once in the send-back rate", () => {
-    const renvoi = (n: number, le: string) => commentaire(`${MARQUE_DE_RENVOI} n=${n} sha=abc -->\nStation \`box\`: sent back to a cook (${n}/2) — the CI is red on tests`, le);
+    const renvoi = (n: number, le: string) => commentaire(`<!-- brigade:renvoi n=${n} sha=abc -->\nStation \`box\`: sent back to a cook (${n}/2) — the CI is red on tests`, le);
     const chiffres = chiffresDAutonomie(
       [
         depot([
@@ -177,7 +185,7 @@ describe("autonomy figures from GitHub", () => {
   });
 
   test("the first line of a comment, its marks and emphasis removed", () => {
-    assert.equal(premiereLigne("<!-- brigade:todo kind=blocked -->\n\n## **Pick one**\nmore"), "Pick one");
-    assert.equal(premiereLigne("<!-- brigade:x -->\n  \n"), null);
+    assert.deepEqual(questionsDe("<!-- brigade:todo kind=blocked -->\n\n## **Pick one**\nmore"), ["Pick one"]);
+    assert.deepEqual(questionsDe("<!-- brigade:todo kind=blocked -->\n  \n"), [null]);
   });
 });
