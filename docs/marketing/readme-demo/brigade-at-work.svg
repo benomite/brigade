@@ -31,6 +31,6 @@ text{font-family:-apple-system,'Segoe UI',Helvetica,Arial,sans-serif;fill:#e6edf
 <circle cx="90" cy="305" r="9" fill="#8957e5"/><text x="112" y="311" font-size="16" font-weight="700">Pull request #43 — feat(#42): dark mode toggle</text>
 <text x="112" y="340" font-size="14" class="dim">opened by the cook · CI green · waiting for the pass</text></g>
 <g id="s4" class="sc"><text x="64" y="252" font-size="20" font-weight="700">4. The pass judges it</text>
-<text x="64" y="285" font-size="16">Gates ✓   CI ✓   Independent review ✓</text>
+<text x="64" y="285" font-size="16">CI ✓   Independent review ✓</text>
 <rect x="64" y="310" width="360" height="56" rx="8" fill="#238636"/><text x="84" y="346" font-size="20" font-weight="700">Verdict: merged — ticket served</text></g>
 </svg>

@@ -20,7 +20,6 @@
     "test/mot-au-cook/1-send-word-on-a-cooking-ticket-answers-ok-and-posts-the-word-on-the-issue.test.ts",
     "test/acceptation-4062/1-no-broken-link.test.ts",
     "test/acceptation-4211/5-delivery-log-line.test.ts",
-    "test/acceptation-4236/1-closer-instructions-checks-still-pass.test.ts",
     "test/acceptation-4276/2-marking-adds-label-assignee-friendly-comment.test.ts",
     "test/acceptation-4215/2-on-hold-judgment-puts-the-ticket-on-hold-with-the-reason.test.ts"
   ]

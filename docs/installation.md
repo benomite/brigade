@@ -17,7 +17,7 @@ as a pull request. You need nothing but this page. The words (*cook*, *rail*, *s
 | **Your own computer**: a Mac (Apple silicon, M1 or newer) or a Windows PC (64-bit x64) | it runs the app, and the station that makes the cooks work |
 | **`git`, `gh` (the GitHub CLI) and `claude` (Claude Code)** on that machine | the app finds them through your shell's `PATH` |
 
-Not covered: Intel Macs, 32-bit or ARM Windows, Linux.
+Not covered: Intel Macs, 32-bit or ARM Windows. Linux: [`installation-linux.md`](installation-linux.md).
 
 ## Get the packages
 
@@ -62,12 +62,10 @@ it over the old one.
 4. **Open Brigade** from the Start menu.
 5. Go to [Your first ticket](#your-first-ticket).
 
-The cooks work as long as the app is open.
-
 ## Your first ticket
 
-Same on Mac and Windows. **This computer is the station**: the app starts it under your account,
-with your `gh` and your `claude`.
+Same on Mac and Windows, up to the station: only a Mac cooks (step 3). **This computer is the
+station**: the app starts it under your account, with your `gh` and your `claude`.
 
 ### 1. Open the app: the first-run screen
 
@@ -91,40 +89,26 @@ and one click on yours opens it.
 **You see**: `Cloning owner/repo into <folder> — 40%.` Then the project appears in the icon bar and
 its **space** opens, with the tabs **Rail** and **Cooks**.
 
-### 3. Choose the station, and start the kitchen
+### 3. Choose the station
 
-The project's page asks `Who cooks <owner/repo>?`. This computer comes first, named **this
-computer** and marked `recommended` when it can cook now; your other stations follow. Keep **this
-computer**, then click **Start the kitchen on this computer**. If the page offers no station,
-**choose its machine** first. If it warns that the machine has no sandbox, **continue without
-sandbox** is yours to decide for a first run on your own repository.
+The project's page asks `Who cooks <owner/repo>?`. Click **this computer**: the project's line is
+written into this computer's kitchen, which cooks it. Only a Mac cooks, with its sandbox and a
+recent Claude Code; when this computer cannot, the page says why in one sentence.
 
-**To cook on an always-on server instead**, click **Add a server** under the choices: the panel shows
-one line to paste in a terminal on the server, with **copy**. When the server has checked in, the
-panel names it: click its name, and it cooks the project. The same **Add a server** is on every
-project's **Stations** tab, under its top line and under its `Who cooks <project>?` choice.
+**Add a server**, under the choices, shows one line to paste in a terminal on an always-on server,
+with **copy** ([`installation-station.md`](installation-station.md)). The same **Add a server** is on
+every project's **Stations** tab, under its top line and under its `Who cooks <project>?` choice.
 
-### 4. Wait for the project to be prepared
-
-Before your own ticket moves, brigade prepares your repository: when it needs it, a cook works a
-setup pull request in it, and it is merged. The project's page shows four steps, each `done`,
-`now` or `to come`: **Repository**, **Cooking machine**, **Repository preparation**, **First
-ticket**. If a GitHub App must be authorized, click **authorize on GitHub**. When it ends, the
-page says:
-
-> `<project> is ready: post your first ticket with the fire label`
-
-### 5. Create the ticket
+### 4. Create the ticket
 
 On GitHub, open a new issue in your repository, something small (title `Add a CONTRIBUTING.md`,
 body `Create a CONTRIBUTING.md with a three-line "how to propose a change" section.`), and put the
 label **`fire`** on it. If the label list does not offer `fire`, create a label named `fire`
-yourself on GitHub, then put it on the issue. The button **post the first ticket** opens the
-new-issue page for you.
+yourself on GitHub, then put it on the issue.
 
 **You see**: within a minute or so, the ticket as a card in the **Rail** tab.
 
-### 6. Watch the cook
+### 5. Watch the cook
 
 The card moves to **Taken**, with the cook's name. Open **Cooks** to see the ticket in flight; a
 click on the card opens its sheet. The cook works in its own worktree, pushes a branch and opens a
@@ -132,19 +116,17 @@ pull request.
 
 **You see**: the card leaves **Taken** for **Pass** once the pull request is open.
 
-### 7. The pass, and the PR
+### 6. The pass, and the PR
 
 The pass runs the gates and a review on the pull request and writes its verdict on the issue. A
-green delivery is merged by the pass itself when the project switch is on (`project on`). If the
-pass escalates, or the switch is off, the delivery waits in **TODO** and you merge its PR on GitHub (the app has no merge button); the buttons are
-`send back to the kitchen` and `remove from the rail`.
+green delivery is merged by the pass itself. A delivery the kitchen parks for you waits in **TODO**.
 
 **You see**: the card in **Served**, the pull request merged, the issue closed, and `served 24 h` on
 the project's tile. That is your first ticket, cooked.
 
 ## Troubleshooting
 
-- **The form refuses what you typed**: type the repository as `owner/repo`, and fill both fields.
+- **The form refuses what you typed**: type the repository as `owner/repo`.
 - **The station refuses to start because `ANTHROPIC_API_KEY` or `ANTHROPIC_AUTH_TOKEN` is set**:
   remove the variable (and from your shell profile), reopen the app.
 - **Claude**: `claude auth status` should answer `"loggedIn": true`; if not, run `claude auth login`
@@ -154,9 +136,7 @@ the project's tile. That is your first ticket, cooked.
   `The GitHub CLI (gh) is not installed…` → <https://cli.github.com> (**get the GitHub CLI**);
   `Git is not installed…` → <https://git-scm.com/downloads> (**get Git**); reopen the app afterwards.
   `GitHub denies <you> access to <owner/repo>…` → you are not a collaborator, or the name is wrong.
-  A station that cannot fetch from the repository says so in a red block, with what to do.
-- **Nothing happens after the label**: check the project switch (`project on`), that no
-  `KITCHEN STOPPED` banner shows, and that the app is still open.
+- **Nothing happens after the label**: check that the app is still open.
 
 ## Going further
 
