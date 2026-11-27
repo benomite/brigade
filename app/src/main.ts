@@ -50,6 +50,8 @@ import { shareOfCardsAssigned, holdTheLogin } from "./vue/cards-assigned/cards-a
 import { tokenOfGh } from "./board/token-gh.ts";
 import { keptReadsInFile } from "./board/kept-reads.ts";
 import { readingUnderBudget, holdTheBudgetGitHub } from "./budget-github.ts";
+import { ticketOfTheBiggest } from "./spenders-of-token.ts";
+import { REPOSITORY_OF_THE_VISIT } from "./visit.ts";
 import { FRESHNESS_MAX_OF_A_READ_MS } from "./vue/served/freshness.ts";
 import { activitiesPublished, readTheBoardOfRepository, type ReadOfBoardOfRepository } from "./board/read.ts";
 import { readTheKitchenVisited } from "./visit.ts";
@@ -250,9 +252,18 @@ const accountConnected = holdTheLogin(() => readTheAccountGitHub({ gh: process.e
 // presque épuisé ou refuse pour dépassement — jusqu'à l'heure où il se remplit.
 const budgetGitHub = holdTheBudgetGitHub();
 const callUnderBudget = budgetGitHub.appeler(callGitHub);
+// Un ticket pour le plus gros dépensier du jeton, s'il a pris plus que sa part (#4620) : un par pause, sans réessai si GitHub refuse.
+let pauseSignalled = 0;
+const signalTheBiggest = (report: Parameters<typeof ticketOfTheBiggest>[0], until: number): void => {
+  if (until === pauseSignalled) return;
+  pauseSignalled = until;
+  const ticket = ticketOfTheBiggest(report);
+  if (ticket !== null) void clientOfLabels.ecrire("POST", `/repos/${REPOSITORY_OF_THE_VISIT}/issues`, { title: ticket.title, body: ticket.body, labels: ["product"] }).catch(() => undefined);
+};
 const readTheBoard = async (project: Project): Promise<ReadOfBoardOfRepository> => {
   const repository = await repositoryOfProject(project);
   return readingUnderBudget({
+    signaler: signalTheBiggest,
     budget: budgetGitHub,
     depot: repository,
     dernier: () => boards.dernier(project.nom),

@@ -46,6 +46,8 @@ export type ActivityOfCook = {
 };
 export type BoardRead = {
   lu: true;
+  // Posée par la pause du budget (budget-github.ts, #4620) sur le rail gardé qu'elle rend : la lecture n'est pas neuve, GitHub la retient jusque-là.
+  pause?: PauseOfReads;
   // `<owner>/<repo>`.
   depot: string;
   // L'heure de la lecture : les durées que ses lignes disent se comptent jusqu'à elle.

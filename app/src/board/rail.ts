@@ -32,7 +32,7 @@ export type OutputOfBoard = { commande: string; texte: string };
 // `horsLigne` : GitHub n'a pas été joint (read.ts) — l'app est hors ligne, rien n'est en panne (#1818).
 export type FailureOfBoard = { erreur: string; atteinte: true; cas: null; duTableau: true; pasPublie?: true; horsLigne?: true; pause?: PauseOfReads };
 // `publieLe` : l'heure où l'état montré a été lu sur GitHub — l'âge du rail (#2054).
-export type ReadOfRail = { projet: string; demande: number; a: string } & ({ sorties: OutputOfBoard[]; publieLe?: string } | FailureOfBoard);
+export type ReadOfRail = { projet: string; demande: number; a: string } & ({ sorties: OutputOfBoard[]; publieLe?: string; pause?: PauseOfReads } | FailureOfBoard);
 // Une commande demandée : son texte — ou ce qui le compose d'après les sorties d'avant (box.ts, `Commande`), que la
 // lecture ne rend pas.
 export type CommandRequested = string | ((...readEntries: never[]) => string);
@@ -122,7 +122,7 @@ export function readOfBoard(readOne: ReadOfBoardOfRepository, project: string, r
     if ("raison" in output) return failure(output.raison, output.pasPublie);
     outputs.push({ commande: command as string, texte: output.texte });
   }
-  return { projet: project, demande: request, a: readOne.luLe, sorties: outputs, publieLe: readOne.luLe };
+  return { projet: project, demande: request, a: readOne.luLe, sorties: outputs, publieLe: readOne.luLe, ...(readOne.pause === undefined ? {} : { pause: readOne.pause }) };
 }
 
 // Le dernier rail lu de chaque projet, gardé sur disque pour survivre à un redémarrage de l'app (#4620) : sous la pause du
@@ -142,7 +142,8 @@ export function holdReadsOfBoard<P extends { nom: string }>(options: { lire: (pr
       const heldOne = readEntries.get(project.nom);
       if (heldOne !== undefined && now() - heldOne.a < freshnessMs) return heldOne.lecture;
       const reading = options.lire(project).then((readOne) => {
-        if (readOne.lu) {
+        // Le rail gardé que rend la pause n'est pas une lecture neuve : ni gardé de nouveau, ni pris pour la dernière lue.
+        if (readOne.lu && readOne.pause === undefined) {
           succeeded.set(project.nom, readOne);
           options.garde?.ecrire(project.nom, readOne);
         }

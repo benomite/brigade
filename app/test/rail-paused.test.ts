@@ -18,6 +18,7 @@ import { holdReadsOfBoard } from "../src/board/rail.ts";
 import { keptReadsInFile } from "../src/board/kept-reads.ts";
 import { holdTheBudgetGitHub, readingUnderBudget } from "../src/budget-github.ts";
 import type { BoardRead } from "../src/board/read.ts";
+import type { Facts } from "../src/facts.ts";
 import { type Played, playTheVue, type Answers, repos } from "./helpers/false-vue.ts";
 
 const PARADE = "parade";
@@ -43,6 +44,7 @@ async function open(answers: Answers = {}, served = true): Promise<Played> {
 const PAUSE = { jusqua: "2026-11-27T16:27:00.000Z", restant: 734, total: 5_000 };
 const paused = (minute: number): Drawable => holdFacts().recevoir({ projet: PARADE, demande: 0, a: a(minute), erreur: "The rail of chef/parade is not read until 2026-11-27 16:27 UTC", atteinte: true, cas: null, duTableau: true, pause: PAUSE });
 const receive = (vue: Played, receivedOne: Drawable) => vue.dire("surFaits", { ...receivedOne, demande: vue.dernier("faits")[0] as number });
+const hourOf = (iso: string) => new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }).replace(/\s[AP]M$/, "");
 const SAYS = "GitHub's hourly quota is almost used up (734 of 5,000 left): the rail is read again at 16:27 UTC";
 
 describe("le quota GitHub retient le rail (#4620)", () => {
@@ -77,6 +79,9 @@ describe("le dernier rail lu survit au redémarrage (#4620)", () => {
     const readEntry = await after.lire({ nom: PARADE });
     assert.equal(readEntry.lu, true);
     assert.equal(readEntry.luLe, a(0));
+    assert.deepEqual(readEntry.lu && readEntry.pause, { jusqua: new Date(clock.t + 30 * 60_000).toISOString(), restant: 734, total: 5_000 });
+    // Rendu en pause, il n'est pas regardé comme une lecture neuve : le fichier garde celui d'avant.
+    assert.equal(keptReadsInFile(path).lire(PARADE)?.pause, undefined);
     rmSync(dir, { recursive: true });
   });
 
@@ -87,5 +92,24 @@ describe("le dernier rail lu survit au redémarrage (#4620)", () => {
     const readEntry = await readingUnderBudget({ budget, depot: "chef/parade", lire: async () => assert.fail("en pause"), dernier: () => undefined, maintenant: () => clock.t });
     assert.ok(!readEntry.lu);
     assert.deepEqual(!readEntry.lu && readEntry.pause, { jusqua: new Date(clock.t + 27 * 60_000).toISOString(), restant: 734, total: 5_000 });
+  });
+
+  test("l'onglet Rail le dessine après le redémarrage, sous la pause : ses colonnes, l'heure de sa lecture, son âge et l'heure où GitHub reprend", async () => {
+    const facts: Facts = {
+      etat: "ouverte", lu: a(0), dernierTick: a(0),
+      compteurs: { rail: 1, auTravail: 1, aLaPass: 0, attend: 0, livres24h: 0 },
+      dernierEvenement: null,
+      rail: [{ ticket: 14, etat: "pris", titre: "Le journal en ajout seul", url: "https://github.com/chef/parade/issues/14", activite: null }],
+      cooks: [{ ticket: 14, titre: "Le journal en ajout seul", station: "box/claude" }],
+      attend: [],
+    };
+    const vue = await open();
+    // Ce que le main rend au premier tour après le redémarrage : le rail gardé, lu à 15:00, avec la pause.
+    receive(vue, holdFacts().recevoir({ projet: PARADE, demande: 0, a: a(0), publieLe: a(0), pause: PAUSE, sorties: [{ commande: "facts", texte: JSON.stringify(facts) }] } as never));
+    const rail = vue.element("rail");
+    assert.ok(rail.textContent.includes("Le journal en ajout seul"), rail.textContent);
+    assert.ok(!rail.textContent.includes(NO_STATION), rail.textContent);
+    const line = rail.dessous("p").filter(({ className }) => className.split(" ").includes("perime")).map(({ textContent }) => textContent.replace(/ read .+ ago$/, " read N ago"));
+    assert.deepEqual(line, [`GitHub limits this account's requests until ${hourOf(PAUSE.jusqua)} — the rail shows the ${hourOf(a(0))} reading · read N ago`]);
   });
 });

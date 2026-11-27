@@ -4127,6 +4127,12 @@ function signStale({ raison: reason }, readOne) {
   const saidOne = tellTheRead({ reading: true, readAt: readOne, stale: true, refusal: { kind: "other" } }, { maintenant: Date.now(), pourquoi: reason, panneauVisible: panelAFicher() });
   return setTheRead(document, saidOne);
 }
+// Le rail gardé que rend la pause du budget de GitHub (ticket 4620), un redémarrage compris : l'heure de la lecture montrée, son âge, et
+// l'heure où la lecture reprend.
+/** @param {{ jusqua: string }} pause @param {number | string} readOne */
+function signPause({ jusqua: until }, readOne) {
+  return setTheRead(document, tellTheRead({ reading: true, readAt: readOne, stale: true, refusal: { kind: "rate-limit", resetAt: until } }, { maintenant: Date.now(), panneauVisible: false }));
+}
 // Le signe de l'app hors ligne (ticket 1818), à la place de toute erreur.
 /** @param {string} since */
 function signOutsideLine(since) {
@@ -5019,7 +5025,7 @@ function setTheRail(project) {
     [
       issueOfTheKitchen === undefined ? [] : withItsAction(lineOfAlerts(document, alerts), `open #${issueOfTheKitchen.ticket}`, () => void openIssue(project, issueOfTheKitchen.ticket)),
       headOfRail(project),
-      rereadable(outsideLine !== undefined ? [signOutsideLine(outsideLine)] : outdated !== undefined ? signStale(outdated, held.a) : freshness(held.a)),
+      rereadable(outsideLine !== undefined ? [signOutsideLine(outsideLine)] : outdated !== undefined ? signStale(outdated, held.a) : held.pause !== undefined ? signPause(held.pause, held.a) : freshness(held.a)),
     ].find((lines) => lines.length > 0 && aOneAction(lines)) ?? [];
   // La bande du haut (ticket 4354) : les cartes du supervisor et du closer sur une ligne.
   const bandOfTop = setTheBandOfTop(document, { roles: held.tableau.rolesCuisine, montre: (name) => teamOfProject.agent(project.nom, name) !== undefined, alerte: issueOfTheKitchen?.ticket, maintenant: Date.now(), deplies: unfoldsOf(project.nom) });
