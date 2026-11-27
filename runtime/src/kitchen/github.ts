@@ -120,10 +120,20 @@ export function gestures(gh: Gh, repo: string) {
       return Number(url.trim().split("/").pop());
     },
     // The body holds the cook's report under `Closes #N`; a PR already open gets the new delivery's report (#4563).
-    openPr: async (issue: number, base: string, title: string, report = "") => {
-      const body = `Closes #${issue}${report.trim() === "" ? "" : `\n\n${report.trim()}`}\n`;
-      await gh(["pr", "create", ...r, "--head", branchOf(issue), "--base", base, "--title", `#${issue} — ${title}`, "--body-file", "-"], body).catch((error: Error) =>
-        /already exists/.test(error.message) ? (report.trim() === "" ? "" : gh(["pr", "edit", branchOf(issue), ...r, "--body-file", "-"], body)) : Promise.reject(error));
+    // Returns what it could not do (the description it left or did not reach), "" when the description holds the report.
+    openPr: async (issue: number, base: string, title: string, report = ""): Promise<string> => {
+      const text = report.trim();
+      const body = `Closes #${issue}${text === "" ? "" : `\n\n${text}`}\n`;
+      let edited = false;
+      await gh(["pr", "create", ...r, "--head", branchOf(issue), "--base", base, "--title", `#${issue} — ${title}`, "--body-file", "-"], body).catch(async (error: Error) => {
+        if (!/already exists/.test(error.message)) throw error;
+        if (text === "") return;
+        await gh(["pr", "edit", branchOf(issue), ...r, "--body-file", "-"], body);
+        edited = true;
+      });
+      if (!edited) return "";
+      const now = await gh(["pr", "view", branchOf(issue), ...r, "--json", "body"]).then((out) => (JSON.parse(out) as { body: string }).body, () => null);
+      return now?.includes(text) === true ? "" : "the description of the pull request does not contain the report after `gh pr edit`";
     },
     prFiles: async (pr: number): Promise<string[]> => (JSON.parse(await gh(["pr", "view", String(pr), ...r, "--json", "files"])).files as Array<{ path: string }>).map((file) => file.path),
     prBody: async (pr: number): Promise<string> => (JSON.parse(await gh(["pr", "view", String(pr), ...r, "--json", "body"])) as { body: string }).body,
