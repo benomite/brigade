@@ -33,6 +33,7 @@ import { COMMAND_OF_LOG, openTheReport, versionAimed } from "./vue/report/openin
 import { readTheSettings, proposeTheSetting } from "./settings-of-project.ts";
 import { writeTheHumans, readTheHumans } from "./humans-of-project.ts";
 import { readTheAgents } from "./team-of-the-box.ts";
+import { holdLastLooks, sinceYouLastLooked } from "./since-last-looked.ts";
 import { writeInTheProject, readInTheProject } from "./vue/card-project/card-project-folder.ts";
 import { plugTheWordAtCook } from "./vue/word-at-cook/word-at-cook-box.ts";
 import { writeTheStations, readTheStations } from "./stations-contributors.ts";
@@ -1417,6 +1418,19 @@ ipcMain.handle("agentsAtWork", (_, name: unknown) => {
   if (aims === undefined) throw new Error(`${String(name)} is no longer in the projects file`);
   return readTheAgents({ station: hostname(), readOne, launch: launchOnTheKitchen, board: () => boards.lire(aims), now: Date.now });
 });
+// "Since you last looked" (#4649, since-last-looked.ts): the vue asks it each time the chef opens a project, and this opening
+// becomes the last look, kept per project beside the configuration. Read from GitHub alone, through the board's conditional
+// memory; the addresses it gives are the ones its entries open (`ouvrirIssue`).
+const lastLooks = holdLastLooks(join(dirname(pathConfiguration()), "last-looked.json"));
+const addressesLooked = new Map<string, Map<number, string>>();
+ipcMain.handle("sinceYouLastLooked", async (_, name: unknown) => {
+  const aims = knownOne(name);
+  if (aims === undefined) throw new Error(`${String(name)} is no longer in the projects file`);
+  const repository = await repositoryOfProject(aims);
+  const read = await sinceYouLastLooked({ projet: aims.nom, depot: repository, appeler: readConditional(callUnderBudget, memoryOfRail(repository)), looks: lastLooks });
+  if ("groups" in read) addressesLooked.set(aims.nom, new Map(read.groups.flatMap(({ entries }) => entries.map(({ ticket, url }) => [ticket, url] as const))));
+  return read;
+});
 // Les humains du projet, sous Settings (#2930) : lus par `humans` là où sa cuisine tourne, et chaque changement — ajouté,
 // changé ou retiré — écrit par une PR, que le runtime attend comme celle d'un réglage (humans-of-project.ts).
 ipcMain.handle("listerLesHumains", (_, name: unknown) => {
@@ -1588,7 +1602,7 @@ ipcMain.handle("lireFeu", async (_, name: unknown) => {
 // projet et le ticket, l'adresse est celle que la box a rendue (facts.ts) — ou, pour une issue
 // qui n'est pas encore sur le rail, celle que `manager upstream` a donnée (upstream.ts). Rend si elle a été ouverte.
 ipcMain.handle("ouvrirIssue", (_, name: unknown, ticket: unknown) => {
-  const address = facts.adresse(name, ticket) ?? upstreams.adresse(name, ticket) ?? (typeof ticket === "number" ? adressesOfFire.get(String(name))?.get(ticket) : undefined);
+  const address = facts.adresse(name, ticket) ?? upstreams.adresse(name, ticket) ?? (typeof ticket === "number" ? (adressesOfFire.get(String(name))?.get(ticket) ?? addressesLooked.get(String(name))?.get(ticket)) : undefined);
   return address === undefined ? false : shell.openExternal(address).then(
     () => true,
     () => false,

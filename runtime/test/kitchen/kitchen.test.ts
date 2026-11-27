@@ -34,7 +34,7 @@ function fakeGh() {
     if (args[0] === "api" && args[1]?.startsWith("repos/o/r/commits?sha=main")) return JSON.stringify([{ commit: { committer: { date: "2026-11-27T11:00:00Z" } } }]);
     if (args[0] === "api" && args[1]?.startsWith("repos/")) {
       const i = issues.get(Number(args[1].split("/").pop())) as FakeIssue;
-      return JSON.stringify({ title: i.title, body: i.body, author_association: "OWNER", labels: i.labels.map((name) => ({ name })) });
+      return JSON.stringify({ state: i.closed ? "closed" : "open", title: i.title, body: i.body, author_association: "OWNER", labels: i.labels.map((name) => ({ name })) });
     }
     if (args[0] === "api") {
       return JSON.stringify({
@@ -492,4 +492,25 @@ test("the kitchen stays under 1,000 lines", () => {
   const dir = join(import.meta.dirname, "../../src/kitchen");
   const lines = readdirSync(dir).reduce((sum, file) => sum + readFileSync(join(dir, file), "utf8").split("\n").length - 1, 0);
   assert.ok(lines < 1000, `${lines} lines`);
+});
+
+test("the worktree of a ticket closed without a merge is removed, the one of an open ticket stays (#4658)", async () => {
+  const { root, clone, agent } = origin();
+  const fake = fakeGh();
+  const closed = fake.add("Closed by hand", []);
+  const open = fake.add("Still open", ["parked"]);
+  (fake.issues.get(closed) as FakeIssue).closed = true;
+  const worktrees = join(root, "wt");
+  for (const n of [closed, open]) sh(clone, "worktree", "add", "-q", "-b", `cook/${n}-github`, join(worktrees, `${n}-github`), "origin/main");
+  const env = { ...process.env };
+  const lines: string[] = [];
+  const kitchen = openKitchen({
+    repo: "o/r", base: "main", clone, worktrees, state: join(root, "state"), gh: fake.gh, git: gitCli(env),
+    launch: (_kind: Kind, cwd, _write, _calibration, input) => ({ command: agent, args: [], input, cwd, env, secrets: {} }),
+    places: () => 0, riskPaths: () => [], supervisorEveryMs: Number.MAX_SAFE_INTEGER, log: (line) => lines.push(line),
+  });
+  await kitchen.turn();
+  assert.equal(existsSync(join(worktrees, `${closed}-github`)), false, lines.join("\n"));
+  assert.equal(existsSync(join(worktrees, `${open}-github`)), true);
+  assert.equal(sh(clone, "worktree", "list", "--porcelain").includes(`${closed}-github`), false);
 });

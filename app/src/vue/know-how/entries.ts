@@ -5,6 +5,8 @@
 // caller delivers the new text (the app proposes it by a pull request, know-how-github.ts).
 
 export const KNOW_HOW_FILE = ".brigade/know-how.md";
+// Since #4621 a cook writes its lesson in its own file there, `<ticket>.md`, so that two deliveries never conflict.
+export const KNOW_HOW_DIR = ".brigade/know-how";
 
 // An entry: its section (the `## ` heading above it, "" before any heading), its text without the ticket, its source
 // ticket (null when the line names none), and `line`, its 0-based index in the file split on "\n".
