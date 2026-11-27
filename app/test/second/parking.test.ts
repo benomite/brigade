@@ -106,6 +106,17 @@ describe("le second et l'app parquent et déparquent un ticket dans le même ét
   }
 });
 
+describe("déparquer un ticket que le chef attend", () => {
+  test("`parked:chef` seul : `unpark` le retire et le dit", async () => {
+    const { client, etat } = github();
+    for (const label of ["parked:chef"]) await client.ecrire("POST", `/repos/${REPOSITORY}/issues/${TICKET}/labels`, { labels: [label] });
+    const launches = await byTheSecond(client, "unpark", `${REPOSITORY}#${TICKET}`);
+    assert.deepEqual([launches.code, launches.redit], [0, ""]);
+    assert.equal(launches.dit, `back to the kitchen on GitHub: #${TICKET} no longer carries \`parked:chef\` — it resumes exactly where it was — https://github.com/${REPOSITORY}/issues/${TICKET}`);
+    assert.deepEqual(etat()?.labels, ["fire", "chef-todo"]);
+  });
+});
+
 describe("la commande de parking : ce qu'elle refuse, et ce que GitHub refuse", () => {
   test("une commande mal formée : l'usage, le code 2, et rien n'est écrit", async () => {
     const { client, ecrites: writtenEntries } = github();
