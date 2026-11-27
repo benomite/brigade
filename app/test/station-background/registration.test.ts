@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { repertoireTemporaire } from "../../../runtime/test/outils.ts";
 import { writeThePidForTheIcon, registerTheStationOfBackground, REGISTERED_BY_THE_APP } from "../../src/station-background/registration.ts";
+import { roleOf } from "../../src/workstation/role.ts";
 import { stationOfBackgroundInstalled } from "../../src/tray-background/system.ts";
 
 type System = Parameters<typeof registerTheStationOfBackground>[0];
@@ -22,7 +23,7 @@ function oneSystem(home: string, platform: NodeJS.Platform, answers: Record<stri
       return { code: answers[`${command} ${args[0]}`] ?? 0, sortie: "" };
     },
     node: "/Applications/brigade.app/Contents/Resources/node/bin/node",
-    hote: "/Applications/brigade.app/Contents/Resources/app/src/station-fond/hote.ts",
+    hote: "/Applications/brigade.app/Contents/Resources/app/src/station-background/host.ts",
     racine: join(home, ".config", "brigade", "station"),
     embarque: "/Applications/brigade.app/Contents/Resources/runtime/src/kitchen/main.ts",
     chemin: "/opt/homebrew/bin:/usr/bin:/bin",
@@ -37,7 +38,7 @@ test("sur un Mac, l'agent launchd de la station joue l'hôte par le node de l'ap
   assert.deepEqual(await registerTheStationOfBackground(system), { par: "launchd" });
   const plist = readFileSync(join(home, "Library", "LaunchAgents", "brigade.station.plist"), "utf8");
   assert.match(plist, /<string>brigade\.station<\/string>/);
-  assert.match(plist, /<string>\/Applications\/brigade\.app\/Contents\/Resources\/node\/bin\/node<\/string>\n {4}<string>[^<]*station-fond\/hote\.ts<\/string>\n {4}<string>[^<]*station<\/string>\n {4}<string>[^<]*runtime\/src\/kitchen\/main\.ts<\/string>/);
+  assert.match(plist, /<string>\/Applications\/brigade\.app\/Contents\/Resources\/node\/bin\/node<\/string>\n {4}<string>[^<]*station-background\/host\.ts<\/string>\n {4}<string>[^<]*station<\/string>\n {4}<string>[^<]*runtime\/src\/kitchen\/main\.ts<\/string>/);
   assert.match(plist, /<key>RunAtLoad<\/key>\n {2}<true\/>/);
   assert.match(plist, /<key>PATH<\/key>\n {4}<string>\/opt\/homebrew\/bin:\/usr\/bin:\/bin<\/string>/);
   assert.match(plist, /fond\.log<\/string>/);
@@ -73,6 +74,32 @@ test("sur un Mac, un plist que l'app réécrit est rechargé — bootout puis bo
   const rendered = await registerTheStationOfBackground(refuses.systeme);
   assert.match("refus" in rendered ? rendered.refus : "", /did not unload the station's agent gui\/501\/brigade\.station \(exit code 5\)/);
   assert.ok(!refuses.appels.some((call) => call.includes("bootstrap")));
+});
+
+test("sur un Mac, un plist que l'app a écrit avant le renommage (#4413) est le sien : il est réécrit et rechargé, bootout puis bootstrap (#4603)", async (t) => {
+  const home = repertoireTemporaire(t);
+  const plist = join(home, "Library", "LaunchAgents", "brigade.station.plist");
+  mkdirSync(join(home, "Library", "LaunchAgents"), { recursive: true });
+  writeFileSync(plist, "<!-- Written by the brigade app (app/src/station-fond/inscription.ts), and rewritten when it changes: do not edit. -->\n<string>/Applications/Brigade.app/Contents/Resources/runtime/src/station/main.ts</string>");
+  const { systeme: system, appels: calls } = oneSystem(home, "darwin");
+  assert.deepEqual(await registerTheStationOfBackground(system), { par: "launchd" });
+  const written = readFileSync(plist, "utf8");
+  assert.match(written, /Written by the brigade app \(app\/src\/station-background\/registration\.ts\)/);
+  assert.doesNotMatch(written, /station-fond|runtime\/src\/station\/main/);
+  assert.deepEqual(calls, ["launchctl print gui/501/brigade.station", "launchctl bootout gui/501/brigade.station", `launchctl bootstrap gui/501 ${plist}`]);
+});
+
+test("sur un Mac, le plist que l'app écrit lance la cuisine, runtime/src/kitchen/main.ts (#4603)", async (t) => {
+  const home = repertoireTemporaire(t);
+  const runtime = "/Applications/brigade.app/Contents/Resources/runtime";
+  const role = roleOf({ plateforme: "darwin", runtime, env: {}, existe: () => true });
+  assert.deepEqual(role, { role: "station", principal: join(runtime, "src", "kitchen", "main.ts") });
+  const { systeme: system } = oneSystem(home, "darwin", { "launchctl print": 113 });
+  system.embarque = role.role === "station" ? role.principal : assert.fail("pas une station");
+  await registerTheStationOfBackground(system);
+  const plist = readFileSync(join(home, "Library", "LaunchAgents", "brigade.station.plist"), "utf8");
+  assert.match(plist, /<string>[^<]*runtime\/src\/kitchen\/main\.ts<\/string>/);
+  assert.doesNotMatch(plist, /runtime\/src\/station\//);
 });
 
 test("sur un Mac, l'agent posé par l'installeur de la station est laissé tel quel ; un launchd qui refuse est dit", async (t) => {

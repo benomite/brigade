@@ -2102,10 +2102,11 @@ Screens (in git history): `docs/captures/1706/` (before the single list), `docs/
 *Spec: [the station rebuilt from scratch](superpowers/specs/2026-10-15-station-refonte-design.md) (#797).*
 
 **On a computer — Mac, Windows, desktop Linux —, the installed app is a station.** Once open,
-it finds the machine's station running, or starts it: **the same as a server's**, the same entry point
-(`runtime/src/station/main.ts`, the one the Debian package's service starts), the same held directory,
-the same project configuration (one line each, in `projets`), the same presence on
-GitHub. Only the installation differs: a package on a server, the app here (`app/src/workstation/`).
+it finds the machine's station running, or starts it: **the new kitchen**, the same entry point as the box's
+`brigade-kitchen` unit (`runtime/src/kitchen/main.ts`, #4603), the same held directory, the same project list
+(one line each, in `kitchen/projects`). Only the installation differs: a unit on a server, the app here
+(`app/src/workstation/`). The login item the app writes (`brigade.station.plist`) is rewritten at each opening when it
+carries one of the app's brands, including the one from before the English rename.
 
 - **Its directory** is `station/`, next to the projects file (`~/.config/brigade/station`) —
   or `BRIGADE_STATION_DIR`, if it is set. It runs under your account, with your `gh` and your
