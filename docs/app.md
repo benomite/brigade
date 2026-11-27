@@ -3216,9 +3216,9 @@ stations replace them.
   copied into the installed app under `plugin/commands/`. It is declared once in your Claude Code user settings.
   The `brigade` marketplace and its plugin (`brigade@brigade`, [plugin.md](plugin.md)) are not touched.
 - **Beside the published plugin, nothing collides** (#4525). A project can also have `brigade@brigade`, the plugin
-  published from `main` (`/brigade:start`, `/brigade:ask`). Both type their commands as `/brigade:…`: the only
+  published from `main` (`/brigade:start`, `/brigade:ask`, `/brigade:ticket`). Both type their commands as `/brigade:…`: the only
   command both carry, `/brigade:ask`, is the same `commands/ask.md`, so either copy says the same thing;
-  `/brigade:dev` and `/brigade:init` come only from the app's, `/brigade:start` only from the published one.
+  `/brigade:dev` and `/brigade:init` come only from the app's, `/brigade:start` and `/brigade:ticket` only from the published one.
 - **The version is the app's.** The installed app installs its own version; launched from the repository
   (where it says `0.0.0`), the version is `0.0.0-` and a fingerprint of the commands and the init script. At launch, each
   project at another version is updated: after an app update, the installed version is the new app's. A

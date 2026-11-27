@@ -21,7 +21,7 @@ Fait descendre la version publiée du plugin dans tous les projets du poste. Ges
 
 ## Publishing a change of the plugin
 
-The marketplace publishes the `brigade` plugin **from `main`**, which is also the integration branch: there is one path. Since #4525 the plugin carries `/brigade:start` and `/brigade:ask` only ([`docs/plugin.md`](../docs/plugin.md)); the V1 roles stay installable from the tag `v1-final`, and `/brigade:sync` and `/brigade:init` above concern only those V1 installs. A changed command (`commands/start.md`, `commands/ask.md`) reaches `main` through an ordinary PR, but reaches the installed projects only once `version` changes in `.claude-plugin/plugin.json`: without a bump, `scripts/update-partout.sh` answers "already up to date".
+The marketplace publishes the `brigade` plugin **from `main`**, which is also the integration branch: there is one path. Since #4525 the plugin carries `/brigade:start` and `/brigade:ask` only (and `/brigade:ticket` since #4526) ([`docs/plugin.md`](../docs/plugin.md)); the V1 roles stay installable from the tag `v1-final`, and `/brigade:sync` and `/brigade:init` above concern only those V1 installs. A changed command (`commands/start.md`, `commands/ask.md`, `commands/ticket.md`) reaches `main` through an ordinary PR, but reaches the installed projects only once `version` changes in `.claude-plugin/plugin.json`: without a bump, `scripts/update-partout.sh` answers "already up to date".
 
 The gesture:
 

@@ -18,7 +18,7 @@ The V1 plugin (the `/brigade:po`, `/brigade:manager`, `/brigade:dev` and `/briga
 published from `main`. It stays installable from the tag `v1-final`:
 `/plugin marketplace add benomite/brigade@v1-final`, then `/plugin install brigade@brigade`.
 
-## Its two commands
+## Its three commands
 
 - **`/brigade:start`** (`commands/start.md`): what brigade is in five lines (the **rail**, the **cook**, the
   **pass**, the **second**); whether `gh` is installed and logged in; the repository you are in (`owner/repo`, its
@@ -28,11 +28,13 @@ published from `main`. It stays installable from the tag `v1-final`:
   `gh auth status`, `gh repo view`, `gh release list|view`, `git rev-parse`, `git remote` and `uname`.
 - **`/brigade:ask <number> [question]`** (`commands/ask.md`): where a ticket stands and what it waits for, or the
   answer to your question about it, from what GitHub says. It only reads.
+- **`/brigade:ticket [idea]`** (`commands/ticket.md`, #4526): writes one kitchen-format issue on the repository you
+  are in, after a short dialogue and your go. It creates nothing before a clear yes.
 
-Both are written in English and answer in your language. `/brigade:ask` has a Codex mirror,
+All three are written in English and answer in your language. `/brigade:ask` has a Codex mirror,
 `codex/skills/ask/`, that carries the same text (the gates check it).
 
-The manifest declares these two files and an empty `agents` list. Both keys are needed: when a manifest does not
+The manifest declares these three files and an empty `agents` list. Both keys are needed: when a manifest does not
 name `commands` or `agents`, Claude Code loads every `.md` of the plugin's `commands/` or `agents/` folder, and
 those folders still hold the V1 files (below).
 
@@ -46,7 +48,7 @@ the same project, and nothing collides:
   `brigade-app@brigade-app` (the app's, local scope, marketplace under `~/.config/brigade/plugin-app/`). Installing,
   updating or removing one never touches the other.
 - **One command name space, `brigade`**, on purpose: the commands are typed `/brigade:…` whichever plugin brings
-  them. `/brigade:start` comes only from this plugin; `/brigade:dev` and `/brigade:init` only from the app's.
+  them. `/brigade:start` and `/brigade:ticket` come only from this plugin; `/brigade:dev` and `/brigade:init` only from the app's.
 - **The one command both carry, `/brigade:ask`, is the same file**: the app copies `commands/ask.md` of this
   repository into its marketplace (`COMMANDS` in `plugin-app.ts`). Whichever copy Claude Code loads, the command
   says the same thing — at most one release apart, when the app and the installed plugin are not at the same
@@ -77,6 +79,6 @@ kitchen reads `agents/kitchen/` itself.
 
 ## Publishing a change
 
-A change of `commands/start.md`, `commands/ask.md` or `.claude-plugin/` reaches the installed plugins once it is
+A change of `commands/start.md`, `commands/ask.md`, `commands/ticket.md` or `.claude-plugin/` reaches the installed plugins once it is
 merged on `main` **and** `version` is bumped in `.claude-plugin/plugin.json`: without a bump, `claude plugin
 update` says the plugin is already up to date. Check the manifests with `claude plugin validate .` before.
