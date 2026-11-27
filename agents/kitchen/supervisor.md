@@ -22,7 +22,7 @@ Termine par un bloc ```json avec tes gestes, ou une liste vide :
   {"unpark": 124},
   {"labels": 125, "add": ["fire"], "remove": ["epic"]},
   {"comment": 126, "body": "…"},
-  {"open": {"title": "…", "body": "…"}}
+  {"open": {"title": "…", "body": "…", "labels": ["fire", "prio:0", "repair-main"]}}
 ]}
 ```
 

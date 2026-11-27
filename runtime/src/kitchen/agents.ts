@@ -57,7 +57,7 @@ export type AgentAction =
   | { labels: number; add?: string[]; remove?: string[] }
   | { comment: number; body: string }
   | { close: number; reason: string }
-  | { open: { title: string; body: string } };
+  | { open: { title: string; body: string; labels?: string[] } };
 
 export function parseAgentActions(result: string): AgentAction[] {
   const last = [...result.matchAll(/```json\s*([\s\S]*?)```/g)].at(-1)?.[1];
@@ -119,7 +119,7 @@ export async function applyAgentActions(actions: AgentAction[], context: { act: 
         await act.comment(action.comment, action.body);
       } else if ("open" in action && typeof action.open?.title === "string" && opened < 2) {
         opened += 1;
-        const n = await act.open(action.open.title, `${action.open.body}\n\nOpened by the kitchen's ${who}.`);
+        const n = await act.open(action.open.title, `${action.open.body}\n\nOpened by the kitchen's ${who}.`, (action.open.labels ?? []).filter((label) => !LOCKED(label)));
         log(`${who}: opened #${n}`);
       } else {
         log(`${who}: gesture ignored — ${JSON.stringify(action).slice(0, 200)}`);
