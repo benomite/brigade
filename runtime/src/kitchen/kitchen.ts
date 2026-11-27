@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { decide, LABELS, triesOf, TRIES_MAX, type Action, type Issue, type PullRequest } from "./decide.ts";
 import { branchOf, gestures, mainFacts, readState, ticketText, trustedComments, type Gh } from "./github.ts";
 import { applyAgentActions, parseAgentActions, parseVerdict, prompts, type Prompts } from "./agents.ts";
-import { closeFinishedEpics } from "../epics.ts";
+import { baseOf, closeFinishedEpics, closeMergedChild } from "../epics.ts";
 import { allowlistPublisher, KITCHEN_ALLOWLIST } from "../porte-journal.ts";
 import { masquerIdentifiants } from "../identifiants.ts";
 import { masqueDesSecrets } from "../masque.ts";
@@ -62,8 +62,7 @@ const calibrationOf = (labels: readonly string[], fallback: { model: string; eff
 const WORKTREE_SWEEP_EVERY_MS = 10 * 60_000;
 const COOK = { model: "sonnet", effort: "medium" };
 const JUDGE = { model: "opus", effort: "medium" };
-// Under this many characters, a cook's last message is not a report.
-const MIN_REPORT = 40;
+const MIN_REPORT = 40; // under this many characters, a cook's last message is not a report
 
 export function openKitchen(options: KitchenOptions) {
   const { repo, base, gh, git, log } = options;
@@ -77,7 +76,6 @@ export function openKitchen(options: KitchenOptions) {
   const maskSecrets = masqueDesSecrets(options.secrets ?? {});
   const mask = (raw: string) => masquerIdentifiants(maskSecrets(raw)).texte;
   const lastSupervisor = () => (existsSync(lastSupervisorFile) ? Number(readFileSync(lastSupervisorFile, "utf8")) || 0 : 0);
-
   // The failing checks' last log lines, for a cook that has no token to read them.
   async function ciLogs(pr: number): Promise<string> {
     const logs = await act.failedLogs(pr).catch((error: Error) => [{ name: "CI logs", log: `unreadable: ${error.message}` }]);
@@ -98,8 +96,11 @@ export function openKitchen(options: KitchenOptions) {
     log(`#${issue.number} sent back — ${reason}`);
   }
 
-  // The worktree of a ticket, on its branch, with the base merged in (a conflict is left to the cook); for a review, exactly the pushed delivery.
-  async function prepare(issue: number, forReview = false): Promise<string> {
+  // A child goes to its epic's branch once it exists; an older epic without one still goes to the base.
+  let epicBranches: number[] = [];
+  const baseFor = (issue: Issue | undefined) => (issue?.epic !== undefined && epicBranches.includes(issue.epic) ? baseOf(issue, base) : base);
+  // The worktree of a ticket, on its branch, with the target merged in (a conflict is left to the cook); for a review, exactly the pushed delivery.
+  async function prepare(issue: number, target: string, forReview = false): Promise<string> {
     const wt = worktreeOf(issue);
     const branch = branchOf(issue);
     await git(options.clone, ["fetch", "--quiet", "--prune", "origin"]);
@@ -112,10 +113,10 @@ export function openKitchen(options: KitchenOptions) {
         if (path !== undefined && block.split("\n").includes(`branch refs/heads/${branch}`)) await git(options.clone, ["worktree", "remove", "--force", path]).catch(() => "");
       }
       const remote = (await git(options.clone, ["ls-remote", "--heads", "origin", branch])).trim() !== "";
-      await git(options.clone, ["worktree", "add", "--force", "-B", branch, wt, remote ? `origin/${branch}` : `origin/${base}`]);
+      await git(options.clone, ["worktree", "add", "--force", "-B", branch, wt, remote ? `origin/${branch}` : `origin/${target}`]);
     }
     if (forReview) await git(wt, ["reset", "--hard", "--quiet", `origin/${branch}`]);
-    else await git(wt, ["merge", "--no-edit", `origin/${base}`]).catch(() => "");
+    else await git(wt, ["merge", "--no-edit", `origin/${target}`]).catch(() => "");
     return wt;
   }
 
@@ -141,12 +142,12 @@ export function openKitchen(options: KitchenOptions) {
       await git(wt, ["add", "-A"]);
       await git(wt, ["commit", "--quiet", "--no-verify", "-m", `#${issue.number} — work left uncommitted by the cook`]).catch(() => "");
     }
-    const ahead = (await git(wt, ["rev-list", "--count", `origin/${base}..HEAD`]).catch(() => "0")).trim();
+    const ahead = (await git(wt, ["rev-list", "--count", `origin/${baseFor(issue)}..HEAD`]).catch(() => "0")).trim();
     if (ahead === "0") return sendBack(issue, `the cook delivered nothing${run.end.erreur ? ` (${run.end.erreur})` : ""}: ${run.result.slice(-600) || "no last words"}`, true);
     try {
       await git(wt, ["push", "--quiet", "--force-with-lease", "origin", `HEAD:refs/heads/${branchOf(issue.number)}`]);
       const report = mask(run.result).trim();
-      const unreached = await act.openPr(issue.number, base, issue.title, report.length < MIN_REPORT ? "" : report);
+      const unreached = await act.openPr(issue.number, baseFor(issue), issue.title, report.length < MIN_REPORT ? "" : report);
       // A report that does not reach the description is said on the ticket, never left as a silent `Closes #N`.
       const lost = report.length < MIN_REPORT ? `delivered without a report (${report.length} characters): the PR description stays as it is` : unreached;
       if (lost !== "") {
@@ -170,22 +171,22 @@ export function openKitchen(options: KitchenOptions) {
     if (pr.checks === "failure") return sendBack(issue, `the CI is red: ${pr.failing.slice(0, 5).join(", ")}`, true);
     if (pr.checks === "pending") return;
     const files = await act.prFiles(pr.number);
-    const risky = files.filter((file) => options.riskPaths().some((zone) => file.startsWith(zone)));
+    const risky = baseFor(issue) !== base /* risk zones are judged at the epic's PR */ ? [] : files.filter((file) => options.riskPaths().some((zone) => file.startsWith(zone)));
     if (risky.length > 0 && !(await chefSays(issue.number, pr.number))) {
       await act.labels(issue.number, [LABELS.parkedChef, LABELS.approved], [LABELS.inPass]);
       await act.comment(issue.number, `${riskZoneComment(pr.number)} (${risky.slice(0, 5).join(", ")}): it waits for the chef to merge it.`);
       return;
     }
-    await merge(issue.number, pr.number).catch((error: Error) => sendBack(issue, `the merge failed: ${error.message}`, false));
+    await merge(issue, pr.number).catch((error: Error) => sendBack(issue, `the merge failed: ${error.message}`, false));
   }
 
   const chefSays = async (issue: number, pr: number) => chefSaidMerge((await trustedComments(gh, repo, issue)).map((one) => one.body), pr);
-
-  async function merge(issue: number, pr: number) {
+  async function merge(issue: Issue, pr: number) {
     await act.merge(pr);
-    await act.labels(issue, [], [LABELS.inPass, LABELS.approved]).catch(() => "");
-    await git(options.clone, ["worktree", "remove", "--force", worktreeOf(issue)]).catch(() => "");
-    log(`#${issue} merged (PR #${pr})`);
+    await act.labels(issue.number, [], [LABELS.inPass, LABELS.approved]).catch(() => "");
+    await git(options.clone, ["worktree", "remove", "--force", worktreeOf(issue.number)]).catch(() => "");
+    await closeMergedChild(act, issue).catch((error: Error) => log(`#${issue.number} not closed — ${error.message}`));
+    log(`#${issue.number} merged (PR #${pr})`);
   }
 
   async function execute(action: Action, issues: Map<number, Issue>, prs: Map<number, PullRequest>) {
@@ -204,22 +205,19 @@ export function openKitchen(options: KitchenOptions) {
         if (pr !== undefined && (await chefSays(action.issue, pr.number))) {
           if (pr.checks === "pending") return;
           if (!pr.conflicting && pr.checks !== "failure") {
-            try {
-              return await merge(action.issue, pr.number);
-            } catch (error) {
-              log(`#${action.issue} could not be merged as the chef answered, a cook brings it up to date — ${(error as Error).message}`);
-            }
+            const merged = await merge(issue as Issue, pr.number).then(() => true, (error: Error) => (log(`#${action.issue} could not be merged as the chef answered, a cook brings it up to date — ${error.message}`), false));
+            if (merged) return;
           }
         }
         await act.labels(action.issue, [LABELS.taken]);
-        const wt = await prepare(action.issue);
-        const input = text.cook({ issue: action.issue, base, worktree: wt, ticket: await ticketText(gh, repo, action.issue) });
+        const wt = await prepare(action.issue, baseFor(issue));
+        const input = text.cook({ issue: action.issue, base: baseFor(issue), worktree: wt, ticket: await ticketText(gh, repo, action.issue) });
         startRun(runs, { kind: "cook", issue: action.issue, pr: null, worktree: wt }, options.launch("cook", wt, true, calibrationOf(issue?.labels ?? [], COOK), input));
         return log(`#${action.issue} taken`);
       }
       case "review": {
-        const wt = await prepare(action.issue, true);
-        const input = text.pass({ issue: action.issue, base, pr: action.pr, ticket: await ticketText(gh, repo, action.issue), description: await act.prBody(action.pr) });
+        const wt = await prepare(action.issue, baseFor(issue), true);
+        const input = text.pass({ issue: action.issue, base: baseFor(issue), pr: action.pr, ticket: await ticketText(gh, repo, action.issue), description: await act.prBody(action.pr) });
         startRun(runs, { kind: "pass", issue: action.issue, pr: action.pr, worktree: wt }, options.launch("pass", wt, false, JUDGE, input));
         return log(`#${action.issue} in review (PR #${action.pr})`);
       }
@@ -247,6 +245,7 @@ export function openKitchen(options: KitchenOptions) {
     }
     const listed = listRuns(runs);
     let state = await readState(gh, repo);
+    epicBranches = state.epicBranches;
     if (listed.finished.length > 0) {
       const issues = new Map(state.issues.map((issue) => [issue.number, issue]));
       const prs = new Map(state.prs.map((pr) => [pr.issue, pr]));
