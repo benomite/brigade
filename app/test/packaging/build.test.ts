@@ -28,7 +28,7 @@ import {
   type Executer,
 } from "../../packaging/construire.ts";
 import { locationsOf, isInstalled } from "../../src/locations.ts";
-import { CATALOG_OF_LABELS, INSTRUCTIONS, OWN, PR_OF_SETUP, SCRIPT, setTheSetup } from "../../src/setup/setup.ts";
+import { CATALOG_OF_LABELS, INSTRUCTIONS, OWN, SCRIPT, setTheSetup } from "../../src/setup/setup.ts";
 import { defautsDeNom } from "../../packaging/verifier-plist.ts";
 import { roleOf } from "../../src/workstation/role.ts";
 import { PACKAGES } from "../helpers/posix.ts";
@@ -199,13 +199,12 @@ test("Brigade.app porte l'app, le runtime et le `node` du paquet — et l'app in
   // Le paquet ne porte plus de plugin à installer dans les projets.
   assert.equal(existsSync(join(resources, "plugin")), false);
   // La préparation d'un dépôt (src/setup/, #4632) : ses instructions, son script et son catalogue, tels quels ; rendues
-  // depuis le paquet, ses instructions nomment le `node` et la commande du runtime du paquet.
+  // depuis le paquet, ses instructions nomment son script.
   const packaged = join(resources, "app", "src", "setup");
   for (const name of [INSTRUCTIONS, SCRIPT, CATALOG_OF_LABELS]) assert.equal(readFileSync(join(packaged, name), "utf8"), readFileSync(join(OWN, name), "utf8"), name);
-  const instructions = readFileSync(setTheSetup(join(root, "setup"), { node: locations.node, runtime: locations.runtime }, packaged), "utf8");
-  assert.ok(existsSync(join(locations.runtime, ...PR_OF_SETUP)));
+  const instructions = readFileSync(setTheSetup(join(root, "setup"), packaged), "utf8");
   const slashes = (path: string) => path.replaceAll("\\", "/");
-  assert.ok(instructions.includes(`"${slashes(locations.node)}" "${slashes(join(locations.runtime, ...PR_OF_SETUP))}" "${slashes(join(root, "setup", SCRIPT))}" --test`));
+  assert.ok(instructions.includes(`bash "${slashes(join(root, "setup", SCRIPT))}" --test`));
 });
 
 test("la station du paquet se charge tout entière depuis lui : l'enveloppe de l'app la lance, et elle refuse faute de répertoire", async (t) => {

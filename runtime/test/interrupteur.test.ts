@@ -10,7 +10,7 @@ import type { Fait } from "../src/evenements.ts";
 import { ouvrirJournal, type Journal } from "../src/journal.ts";
 import { sansMotFrancais } from "./aides/glossaire.ts";
 import { chef, cuisine, issue } from "./aides/cuisine.ts";
-import { aArreter, appeler, JOUR_HORLOGE, jusqua, repertoireTemporaire } from "./outils.ts";
+import { aArreter, JOUR_HORLOGE, jusqua, repertoireTemporaire } from "./outils.ts";
 
 const A = new Date(`${JOUR_HORLOGE}T10:00:00.000Z`);
 

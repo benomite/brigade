@@ -9,11 +9,6 @@ import { describe, test } from "node:test";
 
 const SRC = join(import.meta.dirname, "..", "src");
 const KITCHEN = "kitchen/main.ts";
-// What `app/src` still launches besides the kitchen, each to be removed by its own ticket: this list only shrinks.
-//   - the setup session runs `second-init/pr-de-setup.ts` for the chef (setup/setup.ts, `PR_OF_SETUP`);
-//   - the mover runs `demenagement/demenager.ts`, a file the runtime no longer has: every move is refused (projects/move.ts, `MOVE`).
-const STILL_LAUNCHED = ["second-init/pr-de-setup.ts", "demenagement/demenager.ts"];
-
 const SEGMENTS = /"src"\s*,\s*((?:"[\w.-]+"\s*,?\s*)+)/g;
 const TEXT = /runtime\/src\/([\w./-]+\.ts)/g;
 
@@ -37,14 +32,9 @@ describe("#4711 — app/src launches nothing from runtime/src but the kitchen", 
     const launches = sources(SRC).flatMap((file) => launchedBy(readFileSync(file, "utf8")).map((launched) => ({ file: relative(SRC, file).replaceAll("\\", "/"), launched })));
     assert.ok(launches.some(({ launched }) => launched === KITCHEN), "the kitchen is no longer launched: the scan reads nothing");
     assert.deepEqual(
-      launches.filter(({ launched }) => launched !== KITCHEN && !STILL_LAUNCHED.includes(launched)),
+      launches.filter(({ launched }) => launched !== KITCHEN),
       [],
     );
-  });
-
-  test("the files still launched besides the kitchen are still launched: a removed one leaves the list", () => {
-    const launched = new Set(sources(SRC).flatMap((file) => launchedBy(readFileSync(file, "utf8"))));
-    assert.deepEqual(STILL_LAUNCHED.filter((path) => !launched.has(path)), []);
   });
 
   test("it goes red when an app/src file launches a runtime/src file outside kitchen/", () => {
