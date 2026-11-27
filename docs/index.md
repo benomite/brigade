@@ -32,6 +32,9 @@ For people who run a station on a server.
   systemd), installed once per machine. There is no separate Linux tutorial.
 - [Install a station](installer.md) — the walkthrough of the station installation, with its
   checks.
+- [One station, being built](superpowers/specs/2026-11-27-one-station-design.md) — the design of epic #4245: one
+  archive and one `install.sh` for Mac and Linux, a dedicated `brigade` account and the network gate on every
+  station, the `brigade` operator command, the app without a kitchen.
 
 ## Add a project and cook its first ticket
 
