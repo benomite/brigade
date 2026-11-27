@@ -11,15 +11,12 @@
 // `station stop <station>` sur chaque station de cet ordinateur — elle ne prend plus rien, ses cooks finissent.
 import { queued, kitchenState, type ProjectRead } from "../menu-bar.ts";
 import { lineOfBackground, type StateOfTheStation } from "../tray/line.ts";
-import { menuOfStandby, type Standby } from "../vue/standby-machine/standby-machine.js";
 
-export type Action = "ouvrir" | "pause" | "reprise" | "arret" | "demarrage" | "quitter" | "veille";
-// `case` : un réglage qui se coche — garder ce Mac éveillé tant qu'un cook cuit (#3642).
+export type Action = "ouvrir" | "pause" | "reprise" | "arret" | "demarrage" | "quitter";
 export type EntryOfBackground =
   | { genre: "texte"; libelle: string }
   | { genre: "separateur" }
-  | { genre: "geste"; geste: Action; libelle: string; actif: boolean }
-  | { genre: "case"; geste: "veille"; libelle: string; coche: boolean; actif: boolean };
+  | { genre: "geste"; geste: Action; libelle: string; actif: boolean };
 
 // Un projet tel que le fond le lit : `ProjetLu`, et les stations de cet ordinateur que ses faits déclarent.
 const stationsHere = ({ faits: facts }: ProjectRead): { station: string; cuisson?: string }[] => (facts?.stations ?? []).filter(({ distante: remote }) => !remote);
@@ -40,22 +37,17 @@ export function stateOfTheStation(projects: readonly ProjectRead[]): StateOfTheS
 
 // Le menu : la ligne, puis les gestes. Pause devient « Resume » sur une station en pause, arrêt devient « Start » sur une
 // station arrêtée ; aucun des deux ne se propose sur une station qui ne se lit pas. Ouvrir l'app et quitter, toujours.
-// Sur un Mac (#3642), la ligne qui dit qu'il est gardé éveillé, tant qu'il l'est, et la case qui en décide
-// (standby-machine.js) ; hors d'un Mac, ni l'une ni l'autre.
-export function menuOfBackground(projects: readonly ProjectRead[], station: StateOfTheStation, standby?: Standby): EntryOfBackground[] {
+export function menuOfBackground(projects: readonly ProjectRead[], station: StateOfTheStation): EntryOfBackground[] {
   const readEntry = station !== "illisible";
   const inPause = readEntry && station.pause;
   const stopped = readEntry && station.arret;
-  const { ligne: line, interrupteur: toggle } = menuOfStandby(standby);
   return [
     { genre: "texte", libelle: lineOfBackground(projects, station) },
-    ...(line === null ? [] : [{ genre: "texte", libelle: line } as const]),
     { genre: "separateur" },
     { genre: "geste", geste: "ouvrir", libelle: "Open brigade", actif: true },
     { genre: "separateur" },
     inPause ? { genre: "geste", geste: "reprise", libelle: "Resume the station", actif: true } : { genre: "geste", geste: "pause", libelle: "Pause the station", actif: readEntry },
     stopped ? { genre: "geste", geste: "demarrage", libelle: "Start the station", actif: true } : { genre: "geste", geste: "arret", libelle: "Stop the station", actif: readEntry },
-    ...(toggle === null ? [] : [{ genre: "case", geste: "veille", ...toggle } as const]),
     { genre: "geste", geste: "quitter", libelle: "Quit the station…", actif: true },
   ];
 }

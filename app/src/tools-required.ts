@@ -1,16 +1,21 @@
-// Les outils que l'app ne livre pas — `gh`, `git`, `claude` —, côté process principal (#4059, épique #4054). Le runtime
-// lit la machine et dit, pour chacun qui manque, la page d'installation officielle (runtime/src/outils-requis/) ; l'app
-// relaie ce choix à la vue. L'app n'installe rien (#4266) : installer est l'affaire du chef, qui revient dire « I
+// Les outils que l'app ne livre pas — `gh`, `git`, `claude` —, côté process principal (#4059, épique #4054). Le lecteur
+// que le process principal charge (`charger`) lit la machine et dit, pour chacun qui manque, la page d'installation
+// officielle ; l'app relaie ce choix à la vue. L'app n'installe rien (#4266) : installer est l'affaire du chef, qui revient dire « I
 // installed it ». Chaque lecture rattache au PATH de l'app un outil que son installeur vient de poser hors de lui (le
 // `gh` de winget, dans `Program Files`) : l'app le trouve sans redémarrer, et tout ce qu'elle lance ensuite aussi.
 
-type Required = typeof import("../../runtime/src/outils-requis/outils-requis.ts");
-type OfTheMachine = typeof import("../../runtime/src/outils-requis/machine.ts");
-type Tools = typeof import("../../runtime/src/second/outils.ts");
-export type ToolRequired = import("../../runtime/src/outils-requis/outils-requis.ts").OutilRequis;
-export type ToolMissing = import("../../runtime/src/outils-requis/machine.ts").OutilManquant;
+export type ToolRequired = "git" | "gh" | "claude";
+export type ToolMissing = { outil: ToolRequired; installation: { texte: string; lien: string } };
+// La machine lue : ce qui s'y trouve, et les dossiers hors du PATH où un installeur a posé un outil.
+type MachineRead = { plateforme: NodeJS.Platform; presents: readonly string[]; horsDuPath: Partial<Record<ToolRequired, string>> };
+type Env = Record<string, string | undefined>;
 
-export type Runtime = Pick<Required, "OUTILS_REQUIS"> & Pick<OfTheMachine, "lireLaMachine" | "outilsManquants"> & Pick<Tools, "programmesDe">;
+export type Runtime = {
+  OUTILS_REQUIS: readonly ToolRequired[];
+  lireLaMachine(options: { env: Env; programmes: Partial<Record<ToolRequired, string>> }): MachineRead;
+  outilsManquants(machine: MachineRead, tools: readonly ToolRequired[]): ToolMissing[];
+  programmesDe(env: Env): Partial<Record<ToolRequired, string>>;
+};
 
 export type OptionsOfToolsRequired = {
   charger: () => Promise<Runtime>;
