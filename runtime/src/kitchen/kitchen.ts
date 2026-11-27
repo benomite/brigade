@@ -68,7 +68,8 @@ export function openKitchen(options: KitchenOptions) {
       log(`#${issue.number} parked for the chef after ${tries} tries — ${reason}`);
       return;
     }
-    await act.labels(issue.number, counts ? [`try:${tries}`] : [], [LABELS.inPass, LABELS.taken, ...(counts ? old : [])]);
+    const waiting = issue.labels.includes(LABELS.approved) ? [LABELS.parkedChef, LABELS.approved] : [];
+    await act.labels(issue.number, counts ? [`try:${tries}`] : [], [LABELS.inPass, LABELS.taken, ...waiting, ...(counts ? old : [])]);
     await act.comment(issue.number, `Sent back to a cook${counts ? ` (try ${tries}/${TRIES_MAX})` : ""}: ${reason}`);
     log(`#${issue.number} sent back — ${reason}`);
   }
@@ -137,7 +138,7 @@ export function openKitchen(options: KitchenOptions) {
     const files = await act.prFiles(pr.number);
     const risky = files.filter((file) => options.riskPaths().some((zone) => file.startsWith(zone)));
     if (risky.length > 0) {
-      await act.labels(issue.number, [LABELS.parkedChef], [LABELS.inPass]);
+      await act.labels(issue.number, [LABELS.parkedChef, LABELS.approved], [LABELS.inPass]);
       await act.comment(issue.number, `The pass approves PR #${pr.number}, but it touches a risk zone (${risky.slice(0, 5).join(", ")}): it waits for the chef to merge it.`);
       return;
     }
@@ -189,7 +190,7 @@ export function openKitchen(options: KitchenOptions) {
   let labelled = false;
   async function turn() {
     if (!labelled) {
-      await act.ensureLabels([LABELS.ready, LABELS.taken, LABELS.inPass, LABELS.parkedChef, LABELS.epic, "try:1", "try:2"]);
+      await act.ensureLabels([LABELS.ready, LABELS.taken, LABELS.inPass, LABELS.parkedChef, LABELS.approved, LABELS.epic, "try:1", "try:2"]);
       labelled = true;
     }
     const listed = listRuns(runs);
