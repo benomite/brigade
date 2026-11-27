@@ -78,7 +78,6 @@ import { changeTheDay, readTheDay, readTheResumes, publishTheResume, type Resume
 import { repositoryOfTheOrigin, readClone } from "./addition.ts";
 import { readTheAccountGitHub, holdConnectionGitHub } from "./connection-github.ts";
 import { pathOf, locationsOf, readPathOfShell } from "./locations.ts";
-import { setTheCommand } from "./command-brigade.ts";
 import { searchOneUpdate, workstationOf, type Opinion as OpinionOfVersion } from "./update/opinion.ts";
 import { holdUpdate } from "./update/state.ts";
 import { apkLink, RELEASES_URL } from "./update/android.ts";
@@ -1971,8 +1970,6 @@ void app.whenReady().then(() => {
   // L'installeur attend que l'app soit fermée pour la remplacer.
   if (installedAtLaunch) return app.quit();
   serveTheAgents();
-  // La commande `brigade` du chef (#4072) : posée dans ~/.local/bin à chaque lancement de l'app installée, à sa version.
-  setTheCommand({ plateforme: platform, facon: locations.facon, maison: homedir(), version: app.getVersion(), runtime: locations.runtime, node: locations.node, racine: rootOfTheStation, chemin: process.env.PATH ?? "" });
   // Mac installé : le .app porte son icône. Sous `npm start`, on pose celle de brigade à la main.
   // Windows : l'exécutable garde l'icône d'Electron, la fenêtre reçoit donc toujours la sienne — le
   // `Brigade.ico` posé à côté de l'exécutable une fois installée.

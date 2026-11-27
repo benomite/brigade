@@ -3,7 +3,7 @@
 // nombres — les issues ouvertes du projet, et celles qui sont parquées
 // (`parked`, #4129). Les nombres viennent de la box, par le geste qui existe
 // (`brigade <nom> manager backlog`, box.ts) : une commande du runtime
-// qui lit GitHub et n'écrit rien (runtime/src/manager-cli.ts). L'app ne joint
+// qui lit GitHub et n'écrit rien. L'app ne joint
 // pas GitHub elle-même, et ne demande rien de plus à la box.
 // Rien n'y est deviné : une sortie sans la ligne `backlog`, une box pas jointe,
 // un runtime qui ne connaît pas la commande — ce n'est jamais « aucune issue ».
