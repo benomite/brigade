@@ -13,6 +13,8 @@ export type Issue = {
   trusted: boolean;
   // Open issues it waits for (`Depends on #N` in its body).
   dependsOn: number[];
+  // The epic it was split from (`Epic: #N` in its body).
+  epic?: number;
 };
 
 export type PullRequest = {

@@ -7,6 +7,7 @@ import { join } from "node:path";
 import { decide, LABELS, triesOf, TRIES_MAX, type Action, type Issue, type PullRequest } from "./decide.ts";
 import { branchOf, gestures, mainFacts, readState, ticketText, trustedComments, type Gh } from "./github.ts";
 import { applyAgentActions, parseAgentActions, parseVerdict, prompts, type Prompts } from "./agents.ts";
+import { closeFinishedEpics } from "../epics.ts";
 import { allowlistPublisher, KITCHEN_ALLOWLIST } from "../porte-journal.ts";
 import { masquerIdentifiants } from "../identifiants.ts";
 import { masqueDesSecrets } from "../masque.ts";
@@ -272,6 +273,7 @@ export function openKitchen(options: KitchenOptions) {
       }
       state = await readState(gh, repo);
     }
+    await closeFinishedEpics(state.issues, (n) => trustedComments(gh, repo, n), act, log);
     const { running } = listRuns(runs);
     const actions = decide(state.issues, state.prs, {
       places: options.places(),
