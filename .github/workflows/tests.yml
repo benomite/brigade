@@ -32,8 +32,10 @@ permissions:
   contents: read
 
 concurrency:
-  group: tests-${{ github.ref }}
-  cancel-in-progress: true
+  group: tests-${{ github.ref == 'refs/heads/main' && github.sha || github.ref }}
+  # PR branches: one group per ref, a new push replaces the old run. main: one group per
+  # commit (a group keeps only one pending run), so every merge gets its verdict.
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   # Ce que le diff demande (#4607) : les matrices de `tests` et de `types`. Sur `main`, tout.
