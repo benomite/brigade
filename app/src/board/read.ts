@@ -87,6 +87,10 @@ export type OptionsOfRead = {
   memoire?: MemoryOfReads;
 };
 
+// What a card's details read gave (kitchen-board.ts), kept as long as the repository's conditional reads are.
+const cardsKept = new WeakMap<MemoryOfReads, Map<string, { key: string; value: unknown }>>();
+const keptOfTheCards = (memory: MemoryOfReads): Map<string, { key: string; value: unknown }> => cardsKept.get(memory) ?? cardsKept.set(memory, new Map()).get(memory)!;
+
 const REPOSITORY = /^[A-Za-z0-9-]+\/[A-Za-z0-9._-]+$/;
 
 // La première phrase de ce que GitHub dit d'un refus, sans son point.
@@ -167,7 +171,7 @@ export async function readTheBoardOfRepository({ depot: repository, appeler: cal
   let readOne: BoardRead;
   let parkedForTheChef: IssueParkedForTheChef[];
   try {
-    const { board, open } = await readKitchenBoard({ depot: repository, appeler: tracking, now: readThe.getTime() });
+    const { board, open } = await readKitchenBoard({ depot: repository, appeler: tracking, now: readThe.getTime(), ...(memory === undefined ? {} : { kept: keptOfTheCards(memory) }) });
     readOne = withTheKanban(empty(repository, readThe.toISOString()), board);
     // TODO lit ses issues `parked:chef` de la liste déjà lue.
     parkedForTheChef = open.filter(({ labels }) => labels.includes(LABEL_PARKED_CHEF));
