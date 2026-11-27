@@ -22,6 +22,7 @@ import { basename, join } from "node:path";
 import { current } from "./agent-settings/index.ts";
 import { direZoneTenue, lecteurDeLaBase, type PRDeLaPorte, type RaisonDuSaut, vivante, ZONE_HELD } from "./claim-gate.ts";
 import { retirerLesRestesDuCook } from "./station/restes-du-cook.ts";
+import { retirerLesWorktreesDesTicketsFermes } from "./station/worktrees-fermes.ts";
 import { horsDesBesoins } from "./besoin/besoin.ts";
 import { horsDesTickets } from "./issue-de-la-cuisine.ts";
 import { fiche, type Fiche } from "./fiche.ts";
@@ -394,6 +395,8 @@ export type OptionsDeStation = {
   // Le répertoire d'état du projet, où se compte un ticket parqué pour le chef sans
   // question (#2556). Absent, le cas est refusé mais pas compté.
   repertoireEtat?: string;
+  // Retire un worktree du dépôt de la station. Absent, la station ne balaie pas les worktrees des tickets fermés (#4658).
+  retirerWorktree?: (chemin: string) => void;
   // L'horloge des phases de ces temps. Par défaut, la vraie.
   maintenant?: () => Date;
   // Un workflow du projet se lance-t-il sur une PR qui change ces fichiers
@@ -540,6 +543,8 @@ export const RATTRAPAGE_PAR_MERGE = 10;
 export const BALAYAGE_DES_PR_MS = 10 * 60_000;
 // Le délai entre deux balayages des cartes de validation sans objet (#3390).
 export const BALAYAGE_DES_CARTES_MS = 60_000;
+// Le délai entre deux balayages des worktrees dont le ticket est fermé (#4658).
+export const BALAYAGE_DES_WORKTREES_MS = 10 * 60_000;
 export const RELANCE_DES_GATES_MS = 30 * 60_000;
 
 // Combien de fois une livraison repart au cook avant de sortir de la cuisine.
@@ -821,6 +826,18 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     }
     // Lue une fois par tour : la porte de zone ne la relit pas.
     return ouvertes;
+  };
+
+  // Le worktree d'un ticket fermé ou mergé n'a plus de raison d'être, quelle que soit la
+  // voie de la fermeture (#4658). Au plus une fois par BALAYAGE_DES_WORKTREES_MS ; un
+  // ticket en cuisine, ouvert ou illisible garde le sien.
+  let dernierBalayageDesWorktrees = Number.NEGATIVE_INFINITY;
+  const retirerLesWorktreesFermes = async () => {
+    const { repertoireEtat, retirerWorktree } = options;
+    if (repertoireEtat === undefined || retirerWorktree === undefined || github.issue === undefined || instant() - dernierBalayageDesWorktrees < BALAYAGE_DES_WORKTREES_MS) return;
+    dernierBalayageDesWorktrees = instant();
+    const lire = github.issue.bind(github);
+    await retirerLesWorktreesDesTicketsFermes({ dossier: join(repertoireEtat, "worktrees"), ferme: async (numero) => (await lire(numero).catch(() => null))?.state === "closed", enCuisine: (numero) => enVol.has(numero), retirer: retirerWorktree, avertir });
   };
 
   // Une carte de validation dont le ticket est fermé ou la PR mergée ou fermée
@@ -1978,6 +1995,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     };
 
     await fermerLesCartesCaduquesDuTour().catch((echec) => avertir(`brigade : the validation cards without an object could not be swept on ${nom} — ${message(echec)}`));
+    await retirerLesWorktreesFermes().catch((echec) => avertir(`brigade : the worktrees of closed tickets could not be swept on ${nom} — ${message(echec)}`));
 
     for (const ticket of tickets) {
       const enPass = ticket.labels.includes(LABEL_IN_PASS);
@@ -3958,7 +3976,7 @@ export function stationDuDepot(options: OptionsDuDepot): StationGitHub | { refus
     }
   };
 
-  const station = stationGitHub({ ...(options.perimee === undefined ? {} : { perimee: options.perimee }), ...(revoirLAttente === undefined ? {} : { revoirLAttente }), ...(depot.fichiers === undefined ? {} : { fichiersSuivis: () => depot.fichiers?.() ?? [] }), survivant: (issue) => existsSync(repriseDuRun(runDuTicket(issue))), nom, places: options.places, base, github, prise: options.prise(github, nom), cuisiner, juger, jugerEnSecond, ciDesPR, gates: lieuDesGates, ...(consulter === undefined ? {} : { consulter }), ...(reprendre === undefined ? {} : { reprendre }), capacites: options.capacites ?? [], ...(externes === undefined ? {} : { externes }), ...(options.gardes === undefined ? {} : { gardes: options.gardes }), ...(options.avertir === undefined ? {} : { avertir: options.avertir }), ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }), ...(options.clone === undefined ? {} : { clone: options.clone }), depotServi: depotGitHub, ...(options.githubDeLaBrigade === undefined ? {} : { githubDeLaBrigade: options.githubDeLaBrigade }), ...(options.repertoireEtat === undefined ? {} : { repertoireEtat: options.repertoireEtat }), ...(options.sauter === undefined ? {} : { sauter: options.sauter }), ...(options.enPremier === undefined ? {} : { enPremier: options.enPremier }), ...(options.stationsDuProjet === undefined ? {} : { stationsDuProjet: options.stationsDuProjet }), jugerLeChoixDeDesign, designsValidesParUnHumain: () => designsValidesParUnHumain(options.projet?.()), ...(options.chef === undefined ? {} : { chef: options.chef }) });
+  const station = stationGitHub({ ...(options.perimee === undefined ? {} : { perimee: options.perimee }), ...(revoirLAttente === undefined ? {} : { revoirLAttente }), ...(depot.fichiers === undefined ? {} : { fichiersSuivis: () => depot.fichiers?.() ?? [] }), survivant: (issue) => existsSync(repriseDuRun(runDuTicket(issue))), nom, places: options.places, base, github, prise: options.prise(github, nom), cuisiner, juger, jugerEnSecond, ciDesPR, gates: lieuDesGates, ...(consulter === undefined ? {} : { consulter }), ...(reprendre === undefined ? {} : { reprendre }), capacites: options.capacites ?? [], ...(externes === undefined ? {} : { externes }), ...(options.gardes === undefined ? {} : { gardes: options.gardes }), ...(options.avertir === undefined ? {} : { avertir: options.avertir }), ...(options.maintenant === undefined ? {} : { maintenant: options.maintenant }), ...(options.clone === undefined ? {} : { clone: options.clone }), depotServi: depotGitHub, ...(options.githubDeLaBrigade === undefined ? {} : { githubDeLaBrigade: options.githubDeLaBrigade }), ...(options.repertoireEtat === undefined ? {} : { repertoireEtat: options.repertoireEtat }), retirerWorktree: (chemin) => depot.retirer(chemin), ...(options.sauter === undefined ? {} : { sauter: options.sauter }), ...(options.enPremier === undefined ? {} : { enPremier: options.enPremier }), ...(options.stationsDuProjet === undefined ? {} : { stationsDuProjet: options.stationsDuProjet }), jugerLeChoixDeDesign, designsValidesParUnHumain: () => designsValidesParUnHumain(options.projet?.()), ...(options.chef === undefined ? {} : { chef: options.chef }) });
   station.ficheDuProjet = options.projet ?? null;
   const arreterLeTour = station.arreter;
   station.arreter = () => {

@@ -60,6 +60,7 @@ One line per project in `<BRIGADE_STATION_DIR>/kitchen/projects`, read again at 
 - `PLACES` is the number of cooks at once (4 by default).
 - `CLONE` points at an existing clone; without it, the clone is `<BRIGADE_STATION_DIR>/<name>/depot`.
 - The project's state, its agents' runs and their worktrees go to `<BRIGADE_STATION_DIR>/kitchen/<name>/`.
+- A closed or merged ticket keeps no worktree: the kitchen sweeps `worktrees/` every ten minutes and removes those of closed tickets (not one in the kitchen, not one it cannot read). The station unit has a private `/tmp` (`PrivateTmp=yes`), emptied when the unit stops, and each package update restarts it.
 
 What the project's base branch declares, read before each turn:
 
