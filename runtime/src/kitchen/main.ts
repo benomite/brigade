@@ -9,6 +9,7 @@ import { join } from "node:path";
 import { sondesDeLaMachine } from "../bac-a-sable/detection.ts";
 import { projectHosts } from "../bac-a-sable/kitchen-sandbox.ts";
 import { masquerLaConsole } from "../jeton-claude.ts";
+import { annoncerEnService } from "../mise-a-jour/en-service.ts";
 import { REGLES_DE_BASE, passerParLaPorte, type Regle } from "../reseau.ts";
 import { lirePortes } from "../station/portes.ts";
 import { ghCli } from "./github.ts";
@@ -72,6 +73,8 @@ if (import.meta.main) {
   const kitchens = new Map<string, Served>();
   // A refused project is tried again each turn; its reason is logged when it changes.
   const refusals = new Map<string, string>();
+  // What the station's update and the app wait for: this kitchen started, and the projects it serves.
+  annoncerEnService(root, () => ({ servis: [...kitchens.keys()], refuses: Object.fromEntries(refusals) }), { dire: console.error });
   const file = projectsFile(root);
   for (;;) {
     let projects: KitchenProject[] = [];

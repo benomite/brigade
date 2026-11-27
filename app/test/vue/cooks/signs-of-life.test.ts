@@ -2,7 +2,7 @@
 // lecture des stations du compte en dit.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import type { StationsDuCompte } from "../../../../runtime/src/enregistrement-station/stations-du-compte.ts";
+import type { StationsOfAccountRead as StationsDuCompte } from "../../../src/stations-of-account.ts";
 import { signsOf } from "../../../src/vue/cooks/signs-of-life.ts";
 
 const station = (name: string, lastSeen: string) => ({ id: `g${name}`, name, platform: "linux", machine: "Linux 6.1.0", version: "1.4.0", account: "chef", available: true, registeredAt: "2026-11-01T00:00:00.000Z", lastSeen, stoppedAt: null, refreshMs: 120_000, selection: ["chef/parade"] });

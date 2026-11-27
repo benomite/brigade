@@ -5,9 +5,10 @@ demande au système vient avec lui et suit ses mises à jour : après l'installa
 root. Le parcours du chef est dans [`docs/installation-station.md`](../../docs/installation-station.md) ;
 ici, ce que le paquet porte et comment il se construit.
 
-L'ancien chemin — une installation par projet, `runtime/deploy/`, ses drop-ins et ses règles
-sudoers — n'est pas touché par ce paquet, et n'en a pas besoin ; la bascule le retire d'une machine
-qui le servait, portes comprises (« La porte réseau »).
+La station, c'est la cuisine (`runtime/src/kitchen/main.ts`, [`docs/runtime/README.md`](../../docs/runtime/README.md)) :
+elle sert les projets de `/var/lib/brigade/kitchen/projects`, une ligne chacun. Une machine qui
+faisait tourner la cuisine par une unité posée à la main (`/etc/systemd/system/brigade-kitchen.service`)
+la voit arrêtée et retirée par `postinst` : deux cuisines ne servent jamais les mêmes projets.
 
 ## Construire
 
@@ -36,7 +37,7 @@ Le paquet pèse une trentaine de mégaoctets : le binaire `node` en fait l'essen
 | `/usr/lib/brigade-station/runtime/` | `src/`, `agents/second-juge.md` (la consigne du second juge, celle de ce commit — les archives macOS et Windows la portent aussi) et `package.json` du runtime — ni tests ni dépendances de dev |
 | `/usr/lib/brigade-station/node/bin/node` | le `node` de la station : celui de la machine n'y est pour rien |
 | `/usr/lib/brigade-station/renouvellement` | le renouvellement de la session Max (`runtime/deploy/brigade-renouvellement`, repris tel quel) |
-| `/usr/lib/systemd/system/brigade-station.service` | la station : un seul process, tous les projets de `/var/lib/brigade/projets` |
+| `/usr/lib/systemd/system/brigade-station.service` | la station : la cuisine, un seul process, tous les projets de `/var/lib/brigade/kitchen/projects` |
 | `/usr/lib/systemd/system/brigade-station-porte.service` | ses portes : la sortie réseau de la station et de chaque projet, un process pour toutes |
 | `/usr/lib/systemd/system/brigade-station-renouvellement.{service,timer}` | le renouvellement, toutes les trente secondes |
 | `/usr/lib/systemd/system/brigade-station-mise-a-jour.{service,timer}` | la mise à jour de la station, toutes les dix minutes — la seule part de la station qui tourne sous root |
@@ -53,16 +54,14 @@ La commande du guide finit par la connexion Max du compte `brigade`, quand un te
 savoir où il est (`BRIGADE_CLAUDE_TOKEN_FILE`). Puis elle relance la station.
 
 À l'installation, `postinst` crée le compte système `brigade` (home `/home/brigade`, celui qui fera
-la connexion Max) s'il n'existe pas, puis active et démarre la station et son minuteur. À chaque
-mise à jour, il relance ce qui est activé — les cooks en cours finissent (`KillMode=process`) — et ne
-réactive pas ce que l'administrateur a désactivé. La nouvelle cuisine de la box
-(`brigade-kitchen.service`, posée à la main depuis `runtime/deploy/`) joue le code du paquet : activée
-ou en marche, elle est relancée après la station, ses agents finissent (`KillMode=process`) — sans
-quoi elle garderait le code d'avant jusqu'au prochain redémarrage (#4604). Le retrait arrête la station sans toucher à
+la connexion Max) s'il n'existe pas, arrête et retire l'unité `brigade-kitchen.service` posée à la
+main s'il y en a une, puis active et démarre la station et son minuteur. À chaque
+mise à jour, il relance ce qui est activé — les agents en cours finissent (`KillMode=process`) — et ne
+réactive pas ce que l'administrateur a désactivé. Le retrait arrête la station sans toucher à
 `/var/lib/brigade` ni au compte ; la purge retire en plus ses liens d'activation.
 
 La station tourne sous `brigade`, avec `BRIGADE_STATION_DIR=/var/lib/brigade` et la cloison des
-cooks posée pour tous les projets (`bwrap`, `/var/lib/brigade` et `/etc/brigade` masqués), et sa
+agents posée pour tous les projets (`bwrap`, `/var/lib/brigade` et `/etc/brigade` masqués), et sa
 porte réseau (ci-dessous).
 
 Le `package.json` du runtime livré porte la version du paquet : c'est celle que la station dit
@@ -73,27 +72,21 @@ d'elle-même en démarrant (`/var/lib/brigade/en-service`).
 L'unité de la station ne joint que la boucle locale (`IPAddressDeny=any`, `IPAddressAllow=localhost`).
 Sa seule sortie est `brigade-station-porte.service` (`runtime/src/station/tenir-portes.ts`), une
 unité à côté, sans filtre, qui ne lance rien : elle tient la porte de la station — Anthropic et
-GitHub seulement — et une porte par projet de `/var/lib/brigade/projets`, ouverte quand le projet
-y entre, fermée quand il en sort. La porte d'un projet ne laisse passer que sa liste blanche :
-Anthropic, GitHub et ce que son dépôt déclare dans `.claude/brigade/reseau`, lu au journal du
-projet (`network.declared`), où vont aussi ses refus (`network.refused`). Ce qu'un projet ouvre
-ne l'est pas pour un autre.
+GitHub seulement — et une porte par projet de `/var/lib/brigade/kitchen/projects`, ouverte quand le
+projet y entre, fermée quand il en sort. La porte d'un projet ne laisse passer que sa liste blanche :
+Anthropic, GitHub et ce que son dépôt déclare dans `.claude/brigade/reseau`, que la cuisine publie
+dans `/var/lib/brigade/kitchen/<projet>/network.json`. Ce qu'un projet ouvre ne l'est pas pour un
+autre.
 
 Personne ne choisit les ports : chaque porte reprend celui qu'elle avait, ou en prend un libre, et
 les écrit dans `/var/lib/brigade/portes.json` (`BRIGADE_STATION_PORTES`, dans les deux unités). La
 station y lit le sien — elle attend qu'il y soit avant de rien joindre — et celui de chaque projet,
-qu'elle lui donne ; un projet sans port attend sa porte, un port qui change rouvre son projet, et
-une ligne qui nomme sa propre porte (`BRIGADE_PROXY_PORT`) est refusée.
+qu'elle donne à ses agents ; aucun agent d'un projet sans port ne part.
 
 La station réclame ses portes (`Wants=`, `After=`) : elles ne sont pas activées pour elles-mêmes, et
 une station installée par un paquet qui ne les connaissait pas les démarre à sa première relance.
 À chaque mise à jour, `postinst` les relance avant la station, si elles tournent : chacune reprend
 son port, et les tunnels ouverts sont coupés le temps de la relance.
-
-La bascule d'une machine servie à l'ancienne arrête et retire les `brigade-porte@<projet>`, et
-écrit leurs ports dans `portes.json` avant que la station ne démarre : chaque porte de la station
-reprend le port de l'ancienne, et la même liste, lue au même journal. Un cook en vol à la bascule
-la retrouve où il la connaît, après la coupure de la bascule.
 
 ## La mise à jour
 
@@ -116,8 +109,7 @@ n'est pas réessayée ; la suivante l'est.
 
 `gel=oui` dans `/var/lib/brigade/reglages` gèle la version. L'état exposé est
 `/var/lib/brigade-station/etat.json` ; ce que chaque mise à jour a donné, une ligne JSON chacune, est
-dans `/var/lib/brigade-station/issues` — la station le recopie au journal de chaque projet
-(`update.installed`, `update.reverted`), et la file le dit : « passée en version X à 14 h 02 ».
+dans `/var/lib/brigade-station/issues`.
 
 ## Publier
 
@@ -164,22 +156,15 @@ C'est la commande du guide, le paquet donné au lieu d'être téléchargé. Elle
 `systemctl status brigade-station` actif et `station installée et active — <version>`. La porte
 se voit ensuite, un projet servi : `cat /var/lib/brigade/portes.json` donne le port de la sienne, et
 `curl -sI -x http://127.0.0.1:<port> https://example.org` y reçoit un `403` qui nomme l'hôte et la
-ligne qui l'ouvrirait ; `journalctl -u brigade-station-porte` dit le refus, et le journal du projet
-le porte (`network.refused`). Que l'unité de la station ne sorte pas sans elle se lit à son
-démarrage, pour chaque projet : `réseau — liste blanche, par la porte 127.0.0.1:<port> — un envoi
-direct est refusé par le noyau : l'unité filtre` (`journalctl -u brigade-station`) ; un `MAIS` y dit
-un filtre qui ne tient pas. Pour la
+ligne qui l'ouvrirait ; `journalctl -u brigade-station-porte` dit le refus. La cuisine dit qu'elle
+est en service dans `/var/lib/brigade/en-service` (sa version, son pid, les projets qu'elle sert). Pour la
 défaire : `sudo apt purge brigade-station`, puis, si la machine resservira, `sudo rm -r
 /var/lib/brigade` et `sudo deluser --remove-home brigade`.
 
-Les tests (`runtime/test/paquet/`) construisent un paquet, l'ouvrent, y lancent la station et ses portes telles que
-son unité la lance, et jouent `postinst` et `prerm` sur des doublures des commandes du système ;
+Les tests (`runtime/test/paquet/`) construisent un paquet, l'ouvrent, y lancent la cuisine et ses portes telles que
+leurs unités les lancent, et jouent `postinst` et `prerm` sur des doublures des commandes du système ;
 `runtime/test/deploy/installer-station.test.ts` joue de même `installer-station.sh`, sous Linux et
-sous macOS. `runtime/test/linux/premier-ticket.test.ts`, sous Linux seulement, lance le runtime du
-paquet ouvert tel que ses unités le lancent — la station, sa porte réseau, la cloison `bwrap` de ses
-cooks — et lui fait servir un premier ticket de bout en bout, GitHub et `claude` en doublures : le
-projet cloné sous l'état de la station, un cook lancé dans sa cloison, une PR livrée. Ils ne
-remplacent pas cet essai : aucun n'installe le paquet pour de vrai.
+sous macOS. Ils ne remplacent pas cet essai : aucun n'installe le paquet pour de vrai.
 
 ### La mise à jour, sur une machine de test
 
@@ -207,6 +192,6 @@ cat /var/lib/brigade-station/etat.json
 
 Trois versions construites l'une après l'autre (`node runtime/paquet/construire.ts --repo <compte>/<dépôt> --maintainer "Nom <courriel>"` sur trois
 commits, ou `--version 1.0.0`, `1.1.0`…, dont une qui change `systemd/brigade-station.service`)
-doivent passer seules ; une version dont `src/station/main.ts` sort en erreur doit revenir à la
+doivent passer seules ; une version dont `src/kitchen/main.ts` sort en erreur doit revenir à la
 précédente. Le minuteur seul suffit : `start` ne fait que ne pas l'attendre. L'essai fini, retirer
 le drop-in avec le reste.
