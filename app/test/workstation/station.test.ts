@@ -1,14 +1,21 @@
-// L'app d'un ordinateur est une station : elle tient la station de la machine
-// (runtime/src/kitchen/main.ts) — relancée si elle meurt, retentée si elle refuse, une seule par
-// répertoire. Contre des stations d'essai écrites dans le test.
+// L'app d'un ordinateur est une station : elle lance la cuisine de la machine (runtime/src/kitchen/main.ts, #4603), tient son
+// process, le relance, l'arrête avec elle. Un projet qu'on lui ajoute (kitchen/projects) y est servi par cette cuisine.
+// Contre des doublures de `gh` et de `claude` : ni réseau, ni quota.
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { jusqua, repertoireTemporaire } from "../../../runtime/test/outils.ts";
-import { holdStationLocale, HELD_BY, type OptionsStationLocale } from "../../src/workstation/station.ts";
+import { roleOf } from "../../src/workstation/role.ts";
+import { holdStationLocale, HELD_BY, type OptionsStationLocale, type StationLocale } from "../../src/workstation/station.ts";
 import { CACHE_OF_COMPILATION } from "../helpers/cache-of-compilation.ts";
+import { WITHOUT_POSIX } from "../helpers/posix.ts";
+
+const ENVELOPE = join(import.meta.dirname, "../../src/workstation/envelope.ts");
+const RUNTIME = join(import.meta.dirname, "../../../runtime");
+const role = roleOf({ plateforme: "darwin", runtime: RUNTIME, env: {} });
+const PRINCIPAL = role.role === "station" ? role.principal : assert.fail("la station n'est pas à côté de l'app");
 
 // L'app qui tient la station, arrêtée en fin de test si le test ne l'a pas fait.
 function hold(t: TestContext, options: Omit<OptionsStationLocale, "dire"> & { dire?: (line: string) => void }) {
@@ -17,6 +24,42 @@ function hold(t: TestContext, options: Omit<OptionsStationLocale, "dire"> & { di
   t.after(() => station.arreter());
   return { station, lignes: lines, dit: () => lines.join("\n") };
 }
+
+test("l'app lance la vraie cuisine de la machine : elle lit kitchen/projects du répertoire de la station, et s'arrête avec l'app (#4603)", { skip: WITHOUT_POSIX }, async (t) => {
+  assert.match(PRINCIPAL, /runtime[\\/]src[\\/]kitchen[\\/]main\.ts$/);
+  const root = join(repertoireTemporaire(t), "station");
+  mkdirSync(join(root, "kitchen"), { recursive: true });
+  // Un projet que cette machine sert : la cuisine le dit à son tour (refusé faute de bac à sable, ou son tour échoue sur `gh`).
+  writeFileSync(join(root, "kitchen", "projects"), "brigade acme/brigade main\n");
+  const { station, dit: said } = hold(t, { node: process.execPath, principal: PRINCIPAL, racine: root, env: { ...CACHE_OF_COMPILATION, BRIGADE_GH_BIN: "/nulle/part/gh", BRIGADE_KITCHEN_TURN_SECONDS: "3600" }, appairer: () => assert.fail("la cuisine ne s'appaire pas"), reessaiMs: 200 });
+  await jusqua(() => /^\S+ brigade: /m.test(said()));
+  assert.equal(station.etat(), "demarree");
+  assert.doesNotMatch(said(), /Cannot find module|MODULE_NOT_FOUND/);
+  assert.equal(readFileSync(join(root, HELD_BY), "utf8"), `${process.pid}\n`);
+  await station.arreter();
+  assert.equal(station.etat(), "arretee");
+  assert.equal(existsSync(join(root, HELD_BY)), false);
+});
+
+test("l'app tuée net : l'entrée de sa station se ferme, et la cuisine s'arrête comme sur un SIGTERM (#4603)", { skip: WITHOUT_POSIX }, async (t) => {
+  const root = join(repertoireTemporaire(t), "station");
+  mkdirSync(root, { recursive: true });
+  const marker = join(root, "arretee");
+  const principal = onePrincipal(t, `import { writeFileSync } from "node:fs";\nprocess.on("SIGTERM", () => { writeFileSync(${JSON.stringify(marker)}, "x"); process.exit(0); });\nsetInterval(() => {}, 1000);\nconsole.log("prête");`);
+  const child = spawn(process.execPath, [ENVELOPE, principal], { env: { ...CACHE_OF_COMPILATION, BRIGADE_STATION_DIR: root }, stdio: ["pipe", "pipe", "pipe"] });
+  t.after(() => void child.kill("SIGKILL"));
+  let output = "";
+  child.stdout.on("data", (piece: Buffer) => (output += piece.toString()));
+  const end = new Promise<number | null>((resolve) => child.on("close", (code) => resolve(code)));
+  await jusqua(() => output.includes("prête"));
+
+  // Le process de l'app meurt : ses bouts des tuyaux se ferment tous d'un coup — plus personne ne lit.
+  child.stdout.destroy();
+  child.stderr.destroy();
+  child.stdin.destroy();
+  assert.equal(await end, 0);
+  assert.equal(existsSync(marker), true);
+});
 
 // Une station d'essai, plus simple que la vraie : ce qu'elle fait à chaque lancement est écrit
 // dans le test — dire une ligne, sortir, attendre son SIGTERM.
@@ -31,6 +74,7 @@ function onePrincipal(t: TestContext, body: string): string {
 
 const WAIT_SIGTERM = `
 const veille = setInterval(() => {}, 1000);
+console.log("prête");
 process.on("SIGTERM", () => { console.log("arrêtée"); clearInterval(veille); });
 `;
 
@@ -56,8 +100,10 @@ test("la station refusée (code 2) est retentée d'elle-même avec un délai qui
   });
   await jusqua(() => fallen.station.etat() === "relancee");
   assert.match(fallen.dit(), /this computer's station stopped \(code 1\) — relaunched in 0 s/);
+  // Son point d'entrée est un process à lui : il reçoit le SIGTERM une fois démarré.
+  await jusqua(() => fallen.dit().includes("prête"));
   await fallen.station.arreter();
-  assert.match(fallen.dit(), /arrêtée/);
+  await jusqua(() => /arrêtée/.test(fallen.dit()));
 });
 
 test("une station refusée parce qu'une autre tient encore le répertoire démarre d'elle-même dès que l'autre est partie (mise à jour à chaud)", async (t) => {
