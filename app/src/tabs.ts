@@ -5,13 +5,8 @@ import type { Command } from "./box.ts";
 
 export type Tab = { id: string; titre: string; commande: string; precision?: string };
 
-// Le journal d'un projet qui dure ne tient pas dans une lecture : l'onglet Log n'en demande que la fin.
-// Le nombre vit ici, une fois — la commande lancée et la phrase de l'onglet le lisent d'ici.
-export const EVENTS_OF_LOG = 200;
-
-export const TABS: readonly Tab[] = [
-  { id: "log", titre: "Log", commande: `log --last ${EVENTS_OF_LOG}`, precision: `the end of the log only: the latest ${EVENTS_OF_LOG} events, not the whole log` },
-];
+// Aucun onglet ne relaie plus une commande du runtime : l'onglet Log est parti avec la commande `log` (#4678).
+export const TABS: readonly Tab[] = [];
 
 // Ce que l'écran principal montre en haut : un onglet, Paramètres — une seule page, sans sous-pages
 // (#1700) : ce que le chef règle, en trois groupes. Les

@@ -29,7 +29,7 @@ import { discussionOfGitHub, storyOfGitHub } from "./card-github.ts";
 import { pathConfiguration, EXAMPLE, type Project } from "./config.ts";
 import { confirmationOf } from "./confirmation.ts";
 import { holdTheTrials } from "./trial.ts";
-import { COMMAND_OF_LOG, openTheReport, versionAimed } from "./vue/report/opening.ts";
+import { openTheReport, versionAimed } from "./vue/report/opening.ts";
 import { readTheAgents } from "./team-of-the-box.ts";
 import { holdLastLooks, sinceYouLastLooked } from "./since-last-looked.ts";
 import { writeInTheProject, readInTheProject } from "./vue/card-project/card-project-folder.ts";
@@ -1287,13 +1287,6 @@ ipcMain.handle("signaler", (_, request: unknown) =>
         .then((text) => (JSON.parse(text) as { version?: unknown }).version)
         .catch(() => undefined);
       return versionAimed(readEntry, stations.vu()?.stations ?? [], typeof version === "string" && version !== "" ? version : "unknown");
-    },
-    journal: async (name) => {
-      const { lu: readOne } = kitchenOfProject(name);
-      if (readOne === undefined) throw new Error("no kitchen runs this project on this computer");
-      const rendered = await launchThe({ delaiMs: 15_000 }, readOne, COMMAND_OF_LOG);
-      if (rendered.erreur !== null) throw rendered.erreur;
-      return rendered.sortie;
     },
     ouvrir: (url) => shell.openExternal(url),
   }),

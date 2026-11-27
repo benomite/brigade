@@ -876,7 +876,6 @@ Unchanged: `status`, `rail`, `pass`, `station`, `manager`, `grant`, `base`, `ins
 | Command | Old | New | Old answers until |
 |---|---|---|---|
 | `status` | `--suivre` | `--follow` | 2027-01-14 |
-| `log` | `--derniers` | `--last` | 2027-01-14 |
 | `station` | `retirer` | `remove` | 2027-01-14 |
 | `station` | `aide` | `help` | 2027-01-14 |
 | `manager` | `allumer` | `on` | 2027-01-14 |

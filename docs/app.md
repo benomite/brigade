@@ -2764,23 +2764,7 @@ it stays laid underneath, and re-read, but nothing of it can be clicked through,
 column heads — shows through. Clicking the tab again closes the page, and **the rail comes back as you left it**,
 scrolled where it was. The alert band, above, stays visible: no page covers it, nor do the terminals, on the right.
 
-Two **content readings** remain, plus the one Settings makes. A reading relays **as text, word for word,** the output of
-a runtime command (`docs/runtime/README.md`, "Piloter"):
-
-| Reading | The command the app runs through the project's station | What you read there |
-|---|---|---|
-| **Log** | `brigade <nom> log --last 200` | the end of the log: the last 200 events, not the whole log — the line under the tabs says so |
-
-- **Only the displayed reading is read**: its command goes out when you open it, then every thirty
-  seconds as long as it is on screen. Changing it, closing it or leaving the space stops its
-  reading. With no page open, the app therefore runs only `status` for this project; with
-  one, `status` and the page's command. Added to this is `facts`, read for **all** projects whatever the screen: it is what the bar draws.
-- **A reading has its own time** (`read at 14:32:07`) and, if it fails, its error, in one line, its detail on hover.
-  **A command that fails takes nothing away from the rest** — a runtime too old for `log` leaves the rail readable.
-- A runtime that does not yet know `--last` returns its usage as an error: it is read like any failing command.
-- Under the tabs, the line says what you are reading: ``the output of `brigade <nom> log --last 200`, as
-  the station renders it — re-read alone every thirty seconds, as long as this tab is displayed``.
-- The space gives you back the tab where you left it.
+No **content reading** remains: the Log reading, the last command the app ran through the station to show a page, is gone (#4678). Settings is the only page; the app runs `status` for the project and `facts` for **all** projects whatever the screen: it is what the bar draws.
 
 ### This station's GitHub Apps, in Settings (#2317, epic #2313)
 
@@ -3588,9 +3572,8 @@ Nothing failed, no button. The Android app shows none: its bridge opens nothing.
 A click opens, **in the default browser**, a new issue on `benomite/brigade`, prefilled
 (`app/src/vue/report/opening.ts`): the body starts with `Field report from the brigade app` and the issue carries
 the `field-report` label; it gives the app version, the runtime version (the station serving the project, or the
-runtime next to the app), the system, the failure in a few words, and the log lines about it — the end of the
-project's log (`log --last 200`), read where its kitchen runs on this computer, filtered on the ticket, the station or
-the line (`report/context/`). Everything goes through `redact` (`report/redaction/`) first: no token, no
+runtime next to the app), the system and the failure in a few words — no log lines (#4678: the app no longer reads the station's log).
+Everything goes through `redact` (`report/redaction/`) first: no token, no
 home folder (`~` in its place), no repository content. **The app sends nothing**: it calls no HTTP client and not
 GitHub; the chef reads, edits and submits the issue under their own account. Closing the page sends nothing. While
 the browser opens, the button says `opening…`; then `opened in your browser: nothing is sent until you submit it there`,
