@@ -51,7 +51,7 @@ wait does not go back to the manager, not even after a restart.
 which 3 carry blocked-on-human — read just now on GitHub`, what turning on commits to. It is **a read**
 (a `GET` on the open issues, PRs left out; the log is neither written nor read). The first number is
 what it will **look at**, not "what will go". Both are bare digits before their word: the app reads
-them (`docs/app.md`, "The Manager tab"). GitHub not reached, it exits with `1`.
+them (`docs/app.md`, "One switch for the whole project"). GitHub not reached, it exits with `1`.
 
 ### Several stations on one project
 
