@@ -33,11 +33,9 @@ export const account = (n) => `${n} ${n === 1 ? "card" : "cards"}`;
 
 // Ce que la carte demande, en quelques mots : le genre de sa question, et ses choix.
 /** @param {CardOfTodo} todo */
-export function kindOfTheCard({ sorte: kind, choix: choice, question, validation, revue: review }) {
+export function kindOfTheCard({ sorte: kind, choix: choice, question, validation }) {
   // La carte « Validate its screen » (ticket 3185) : deux gestes, valider ou renvoyer en cuisine.
   if (validation !== undefined) return "Design validation";
-  // La carte « review before merge » d'un ticket sensible (ticket 3224) : merger, ou renvoyer avec une note.
-  if (review !== undefined) return "Review before merge";
   const options = `${choice.length} ${choice.length === 1 ? "option" : "options"}`;
   if (question === null || choice.length === 0) return "Review only you can make";
   // Une PR à merger à la main, mise de côté par la station ou d’un fork (tickets 3368, 3367) : un merge, pas un choix.

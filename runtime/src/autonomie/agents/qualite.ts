@@ -1,5 +1,5 @@
 // The quality figures the autonomy policy reads in the runtime (politique.ts, #4380), in the shape of
-// autonomie/chiffres/chiffres.ts, over the last 30 days:
+// app/src/vue/autonomy/compute.ts, over the last 30 days:
 //   - the reverts: the commits of the base, as the project's clone fetches it, that carry git's trailer
 //     `This reverts commit <sha>` (`commitsRevertes`), each with the tickets its reverted commits cite — `#12` in
 //     their subject, or the `cook/<n>-` branch a merge commit names (`ticketDuMerge`);
@@ -11,7 +11,7 @@ import { promisify } from "node:util";
 import { ticketDuMerge } from "../../closer-github-passe/derive-github.ts";
 import type { Depot as DepotDeStation } from "../../depot.ts";
 import type { GitHub } from "../../github.ts";
-import { commitsRevertes, LABEL_BUG, type BugEchappe, type Revert } from "../chiffres/chiffres.ts";
+import { commitsRevertes, LABEL_BUG, type BugEchappe, type Revert } from "../../../../app/src/vue/autonomy/compute.ts";
 import type { ChiffresDeQualite } from "./politique.ts";
 
 const PERIODE_MS = 30 * 24 * 3600_000;

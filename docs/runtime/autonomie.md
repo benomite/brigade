@@ -1,7 +1,7 @@
 # Autonomy
 
 The autonomy figures: how much of what the kitchen serves needs no human. Code:
-`runtime/src/autonomie/chiffres/chiffres.ts` (`chiffresDAutonomie`). Words from
+`app/src/vue/autonomy/compute.ts` (`chiffresDAutonomie`, moved out of the runtime by #4505). Words from
 [`glossary.md`](../glossary.md).
 
 The figures are computed from GitHub, for the last 7 and 30 days, and the weekly kitchen summary carries the
