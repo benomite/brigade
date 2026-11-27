@@ -187,3 +187,31 @@ test("an unchanged card is read again for free: the second reading answers 304 t
   assert.equal(full, first, "no counted read the second time");
   assert.equal(cardOf(again.faits.kitchenBoard as KitchenBoard, 4).lines?.added, 12);
 });
+
+// #4627 : what a card's timeline gave is kept under its labels, one entry per ticket and column — a card that goes taken →
+// in-pass → taken with the same labels (sent back for a conflict, no new `try:N`) reads its timeline again.
+test("a card back in a column with the same labels reads its timeline again, and shows its new time", async () => {
+  const kept = new Map();
+  const state = { labels: ["fire", "taken", "try:1"], taken: [labeled("taken", 9)] };
+  const read = async (labels: string[], taken: object[]) => {
+    const paths: string[] = [];
+    const call: CallGitHub = async (path) => {
+      paths.push(path);
+      if (path.startsWith(`/repos/${REPOSITORY}/issues?state=open`)) return ok([issue(3, labels)]);
+      if (/\/pulls\?state=/.test(path)) return ok([]);
+      if (/\/issues\/3\/timeline/.test(path)) return ok(taken);
+      return { status: 404, data: { message: "Not Found" } };
+    };
+    const { readKitchenBoard } = await import("../../src/board/kitchen-board.ts");
+    const { board } = await readKitchenBoard({ depot: REPOSITORY, appeler: call, now: NOW.getTime(), kept });
+    return { card: cardOf(board, 3), timelines: paths.filter((path) => path.includes("/timeline")).length };
+  };
+  const first = await read(state.labels, state.taken);
+  assert.equal(first.card.durationMs, 9 * HOUR);
+  assert.equal((await read(state.labels, state.taken)).timelines, 0, "same labels: kept");
+  const inPass = await read(["fire", "in-pass", "try:1"], [...state.taken, labeled("in-pass", 5)]);
+  assert.equal(inPass.card.durationMs, 5 * HOUR);
+  const back = await read(state.labels, [...state.taken, labeled("in-pass", 5), labeled("taken", 1)]);
+  assert.equal(back.timelines, 1, "back to the first labels: read again");
+  assert.equal(back.card.durationMs, 1 * HOUR);
+});

@@ -1,5 +1,5 @@
-// #3925 : la veille du rail se relit toutes les 5 s (et non 30 s), une lecture ne reste fraîche que 4 s. Tests de ce
-// delivery, en plus des tests d'acceptation gelés.
+// #3925, puis #4627 : la veille du rail se relit toutes les 60 s (5 s en #3925 : 8 658 demandes comptées par heure sous une
+// cuisine affairée, le quota entier du compte), une lecture ne reste fraîche que 55 s.
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { openStandbyOfBoard, holdReadsOfBoard } from "../../../src/board/rail.ts";
@@ -8,8 +8,8 @@ import { FRESHNESS_MAX_OF_A_READ_MS, INTERVAL_OF_THE_STANDBY_MS } from "../../..
 const REPOSITORY = "acme/kitchen";
 const T0 = Date.parse("2026-11-20T10:00:00Z");
 
-test("the rail watch waits 5 s between two readings by default", async () => {
-  assert.equal(INTERVAL_OF_THE_STANDBY_MS, 5_000);
+test("the rail watch waits 60 s between two readings by default", async () => {
+  assert.equal(INTERVAL_OF_THE_STANDBY_MS, 60_000);
   const waits: number[] = [];
   let readings = 0;
   let rereadOne!: () => void;
@@ -24,7 +24,7 @@ test("the rail watch waits 5 s between two readings by default", async () => {
   standby.regarder([{ nom: "parade" }], [], 1);
   await twoReads;
   standby.fermer();
-  assert.deepEqual(waits.slice(0, 2), [5_000, 5_000]);
+  assert.deepEqual(waits.slice(0, 2), [60_000, 60_000]);
 });
 
 test("a rail reading never stays fresh as long as a watch turn, whatever freshness is asked", async () => {
