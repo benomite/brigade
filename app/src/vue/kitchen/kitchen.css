@@ -12,7 +12,7 @@
   font-size: var(--taille-meta);
   color: var(--texte-doux);
 }
-#rail .bande-du-haut:not(:has(button, .ligne-du-delai)) {
+#rail .bande-du-haut:not(:has(button)) {
   display: none;
 }
 #rail .cartes-des-agents {
@@ -36,13 +36,6 @@
 }
 #rail .carte-d-agent[aria-expanded="true"] {
   border-color: var(--accent);
-}
-#rail .ligne-du-delai {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--discret);
 }
 #rail .detail-de-l-agent {
   margin: 0;

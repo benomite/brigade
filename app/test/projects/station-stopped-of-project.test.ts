@@ -27,7 +27,6 @@ const FACTS: Facts = {
   cooks: [],
   attend: [],
 };
-const OUTAGE = (stations: string[], reason = "arretee") => ({ raison: reason, phrase: `Station ${stations.join(", ")} is stopped, so no cook can start. Start it on its computer.`, geste: "demarrer-la-station", stations });
 
 const SILENT = { station: "macbook-air-de-benoit/claude", distante: false, plafond: null, ordinaires: false, bacASable: null, prendOrdinaires: false, cuisson: "stopped", cooks: [], vueLe: A };
 const startup = () => ({
@@ -57,20 +56,11 @@ async function open(facts?: unknown): Promise<{ vue: Played; bloc: ReturnType<Pl
 }
 
 test("la panne nomme la station arrêtée : l'étiquette de Stations la nomme, jamais « No station cooks »", async () => {
-  const { vue, bloc: block } = await open({ ...FACTS, stations: [SILENT], attenteDuRail: OUTAGE(["macbook-air-de-benoit/claude"]) });
+  const { vue, bloc: block } = await open({ ...FACTS, stations: [SILENT] });
   const text = block.textContent;
   assert.equal(vue.element("etiquette-de-station").textContent, "macbook-air-de-benoit/claude · stopped");
   assert.doesNotMatch(text, /No station cooks/);
   assert.equal(block.dessous("button").some((button) => button.textContent === "choose its machine"), false);
-});
-
-test("la panne du rail bloqué nomme la station : « Cooks on », le geste une seule fois, pas « choose its machine »", async () => {
-  const blocked = { tickets: [4], depuis: A, cause: "arretee", stations: ["macbook-air-de-benoit/claude"], geste: "demarrer-la-station", constat: "queued", phrase: "Station macbook-air-de-benoit/claude is stopped, so no cook can start. Start it on its computer." };
-  const { vue, bloc: block } = await open({ ...FACTS, stations: [SILENT], railBloque: blocked });
-  assert.equal(vue.element("etiquette-de-station").textContent, "macbook-air-de-benoit/claude · stopped");
-  assert.doesNotMatch(block.textContent, /No station cooks/);
-  assert.equal(block.dessous("button").some((button) => button.textContent === "choose its machine"), false);
-  assert.equal((block.textContent.match(/Start it on its computer/g) ?? []).length, 0);
 });
 
 const buttons = (block: ReturnType<Played["element"]>) => block.dessous("button").map((button) => button.textContent);
@@ -83,7 +73,7 @@ test("une station arrêtée, la file vide : aucune panne, et la page la nomme �
 });
 
 test("secondes : la station arrêtée est nommée par la ligne des stations, et le geste qui la démarre ne se dit qu'une fois dans la page", async () => {
-  const { vue, bloc: block } = await open({ ...FACTS, stations: [SILENT], attenteDuRail: OUTAGE(["macbook-air-de-benoit/claude"]) });
+  const { vue, bloc: block } = await open({ ...FACTS, stations: [SILENT] });
   assert.equal(vue.element("etiquette-de-station").textContent, "macbook-air-de-benoit/claude · stopped");
   assert.equal((block.textContent.match(/Start it on its computer/g) ?? []).length, 0);
   assert.doesNotMatch(block.textContent, /No station cooks/);

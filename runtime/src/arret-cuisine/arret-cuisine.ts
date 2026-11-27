@@ -1,6 +1,6 @@
 // La cuisine arrêtée (#3924, épique #3922) : le 2026-11-20, le rail n'avait aucune carte prise ni en pass, des tickets en
 // file, et rien ne le disait — un ticket gelé tenait une zone de fichiers, et main avait été rouge avant. Ce module ne lit
-// rien : il juge ce qu'on lui donne (la lecture du rail de l'app, app/src/vue/banner-stop/stop-of-rail.ts), et dit
+// rien : il juge ce qu'on lui donne, et dit
 // l'arrêt, sa cause et depuis quand. Une cause qu'il ne sait pas nommer est dite inconnue, jamais tue.
 
 export type CauseDeLArret = { kind: "frozen-zone"; ticket: number; zone: string } | { kind: "zone-held"; pr: number; zone: string } | { kind: "main-red" } | { kind: "unknown" };
@@ -48,7 +48,7 @@ function prQuiTientLaZone(skipped: readonly SautDeLaPorte[] | undefined): { pr: 
   return zone === undefined ? { pr } : { pr, zone };
 }
 
-// Le statut d'un arrêt en une ligne (#4244), la source des mots que la vue du second lit ; le bandeau du navigateur (app/src/vue/banner-stop/banner-stop.js) n'importe pas le runtime : la lecture du rail (stop-of-rail.ts) lui porte ce texte. Une zone tenue se dit avec sa PR ;
+// Le statut d'un arrêt en une ligne (#4244). Une zone tenue se dit avec sa PR ;
 // « cause unknown » ne reste que pour une cause sans code.
 export function statutDeLArret({ cause }: ArretDeLaCuisine): string {
   if (cause.kind === "main-red") return "main is red";

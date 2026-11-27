@@ -1,7 +1,7 @@
 // La vue du rail d'un projet, nourrie de GitHub seul (app/src/board/rail.ts, #1694, #2061) : la lecture des issues, de
 // leurs labels et des PR du dépôt donne ce que le rail lisait de la station — ses tickets et leur état, les cooks en
 // cours, ce qui attend le chef —, sous la forme que ce qui le dessine reçoit déjà (facts.ts, awaiting.ts, slip.ts,
-// upstream.ts). GitHub est une doublure ; tout lancement de processus — le geste de la station d'abord — fait échouer le
+// upstream.ts) ; depuis #4507, le kanban des labels de la cuisine. GitHub est une doublure ; tout lancement de processus — le geste de la station d'abord — fait échouer le
 // test.
 import assert from "node:assert/strict";
 import childProcess from "node:child_process";
@@ -17,7 +17,6 @@ import { withWhatAwaitingTheChef } from "../../src/board/wait-of-chef.ts";
 import type { CallGitHub, AnswerGitHub } from "../../src/board/client.ts";
 import { readTheBoardOfRepository, type ReadOfBoardOfRepository, type LineOfTheFile, type BoardRead } from "../../src/board/read.ts";
 import {
-  upstreamOfBoard,
   readOfBoard,
   openStandbyOfBoard,
   outputOfBoard,
@@ -55,26 +54,18 @@ const issue = (number: number, labels: string[], extra: object = {}) => ({
   labels: labels.map((name) => ({ name })),
   ...extra,
 });
-const taking = (id: number, station: string, the: string) => ({ id, body: `<!-- brigade:prise station=${station} -->`, author_association: "OWNER", created_at: the });
-
-// Le projet sur GitHub : #30 en attente (prio:0), #23 pris par box/claude, #17 en pass (PR #50) cuisiné par mac/claude,
-// #35 parqué (`parked`, WAITING) ; #60, une épique, avant le rail ; #24, une carte du chef (`chef-todo`) qui pose une question.
-// `chemins` : ce qui a été demandé.
+// Le projet sur GitHub, dans les labels de la cuisine : #30 prêt (prio:0), #23 pris par un cook, #17 en pass (PR #50), #35
+// parqué (`parked`) ; #60, une épique, au backlog ; #24, parqué pour le chef (`parked:chef`) avec le commentaire de la cuisine
+// qui dit pourquoi. `chemins` : ce qui a été demandé.
 function github(paths: string[] = []): CallGitHub {
-  // #30, calibré par le manager : rien ne le bloque (le rail bloqué, #3358 : test/rail-blocked/).
-  const atFire = [issue(30, ["fire", "prio:0", "model:sonnet", "effort:medium"]), issue(23, ["fire", "taken"]), issue(17, ["fire", "in-pass"]), issue(35, ["fire", "parked", "taken"])];
+  const open = [issue(30, ["fire", "prio:0", "model:sonnet", "effort:medium"]), issue(23, ["fire", "taken"]), issue(17, ["fire", "in-pass"]), issue(35, ["fire", "parked"]), issue(60, ["epic"]), issue(24, ["fire", "parked:chef"])];
   return async (path) => {
     paths.push(path);
-    if (path.includes("/issues?") && path.includes("labels=fire")) return ok(atFire);
-    if (path.includes("/issues?") && path.includes("labels=chef-todo")) return ok([issue(24, ["chef-todo"])]);
-    if (path.includes("/issues?")) return ok([...atFire, issue(60, ["epic"]), issue(24, ["chef-todo"])]);
-    if (path.includes("/pulls?")) return ok([{ number: 50, html_url: `https://github.com/${REPOSITORY}/pull/50`, created_at: "2026-10-12T09:30:00Z", head: { ref: "cook/17-rail" }, body: "" }]);
+    if (path.includes("/issues?")) return ok(open);
+    if (path.includes("/pulls?state=open")) return ok([{ number: 50, html_url: `https://github.com/${REPOSITORY}/pull/50`, created_at: "2026-10-12T09:30:00Z", head: { ref: "cook/17-github" }, body: "Closes #17" }]);
+    if (path.includes("/pulls?state=closed")) return ok([]);
     if (path === `/repos/${REPOSITORY}`) return ok({ default_branch: "main" });
-    if (path.includes("/commits/main/check-runs")) return ok({ check_runs: [{ conclusion: "success" }] });
-    if (path.includes("/issues/23/comments")) return ok([taking(1, "box/claude", "2026-10-12T09:00:00Z")]);
-    if (path.includes("/issues/17/comments")) return ok([taking(2, "mac/claude", "2026-10-12T08:30:00Z")]);
-    if (path.includes("/issues/24/comments")) return ok([{ body: "<!-- brigade:todo kind=product-question -->\nOne list per project, or one for all?" }]);
-    if (/\/issues\/\d+\/(comments|events)/.test(path)) return ok([]);
+    if (path.includes("/issues/24/comments")) return ok([{ body: "Parked for the chef: one list per project, or one for all?", author_association: "OWNER", created_at: "2026-10-12T09:05:00Z" }]);
     return { status: 404, data: {} };
   };
 }
@@ -125,14 +116,14 @@ test("la garde prend le geste de la station lancé par le chemin des veilles : c
   assert.match(launched[0] ?? "", new RegExp(`^/usr/bin/fausse-node ${join("/tmp/runtime", ACTION).replace(/[\\/.]/g, "\\$&")} brigade facts$`));
 });
 
-test("GitHub seul, aucune box jointe : la couche de données du rail rend les tickets et leur état, les cooks en cours, et les cartes du chef", async (t) => {
+test("GitHub seul, aucune box jointe : la couche de données du rail rend le kanban des labels, et les cartes du chef", async (t) => {
   const launched = withoutProcess(t);
   const paths: string[] = [];
   const { status, facts } = await readByTheStandbys(github(paths));
-  // Les deux veilles ont lu le même rail : une seule lecture de GitHub — le rail, puis ce qui attend le chef, qui relit
-  // les tickets `fire` mis de côté (wait-of-chef.ts).
-  assert.equal(paths.filter((path) => path.includes("labels=fire")).length, 2);
-  assert.equal(paths.filter((path) => path.includes("labels=chef-todo")).length, 1);
+  // Les deux veilles ont lu le même rail : une seule lecture de GitHub — les issues ouvertes, les PR, puis ce qui attend
+  // le chef, de la même liste.
+  assert.equal(paths.filter((path) => path.includes("/issues?")).length, 1);
+  assert.deepEqual(paths.filter((path) => /\/(events|check-runs|contents)\b|labels=/.test(path)), [], "rien du rail d'avant n'est lu");
   assert.deepEqual([status.projet, status.demande, facts.projet, facts.demande], ["brigade", 1, "brigade", 2]);
   // L'âge du rail : l'heure de sa lecture sur GitHub.
   assert.ok(!("erreur" in facts));
@@ -144,45 +135,39 @@ test("GitHub seul, aucune box jointe : la couche de données du rail rend les ti
   const receivedOne: Drawable = heldOnes.recevoir(facts);
   assert.ok("tableau" in receivedOne, JSON.stringify(receivedOne).slice(0, 400));
   const { tableau: board } = receivedOne;
-  const column = (name: string) => board.rail.colonnes.find((c) => c.nom === name)?.cartes.map(({ ticket, etat: state }) => [ticket, state]);
 
-  // Les tickets et leur état, chacun dans sa colonne.
-  assert.deepEqual(board.rail.colonnes.map(({ nom: name }) => name), ["On the rail", "Taken", "Pass", "Awaiting you", "Waiting", "Served"]);
-  assert.deepEqual(column("On the rail"), [[30, "en attente"]]);
-  assert.deepEqual(column("Taken"), [[23, "pris"]]);
-  assert.deepEqual(column("Pass"), [[17, "en pass"]]);
-  assert.deepEqual(column("Waiting"), [[35, "WAITING"]]);
-  // Ce qu'une carte tire de la ligne `status` de son ticket : la priorité, et qui la tient.
-  const card30 = board.rail.colonnes.flatMap(({ cartes: cards }) => cards).find(({ ticket }) => ticket === 30);
-  assert.equal(card30?.prio, "prio:0");
-  assert.ok(board.rail.railLu !== undefined, "les lignes du rail ont été lues");
-
-  // Les cooks en cours : quel ticket, sur quelle station.
-  assert.deepEqual(board.cooks.enCours.map(({ ticket, station }) => [ticket, station]).sort(), [
-    [17, "mac/claude"],
-    [23, "box/claude"],
+  // Les tickets, chacun dans la colonne que ses labels disent.
+  assert.deepEqual(board.kitchenBoard?.columns.map(({ key, cards }) => [key, cards.map(({ ticket }) => ticket)]), [
+    ["backlog", [60]],
+    ["ready", [30]],
+    ["cooking", [23]],
+    ["pass", [17]],
+    ["parked", [24, 35]],
+    ["served", []],
   ]);
+  // Le rail d'avant reste vide : aucune carte n'y est tirée d'une prise.
+  assert.ok(board.rail.colonnes.filter(({ nom: name }) => name !== "Awaiting you").every(({ cartes: cards }) => cards.length === 0));
 
-  // Ce qui attend le chef : TODO, la carte de #24 avec sa sorte et son texte.
+  // Ce qui attend le chef : TODO, la carte de #24 que la cuisine a parqué pour lui.
   const todo = board.rail.colonnes.find((c) => c.nom === "Awaiting you")?.cartes ?? [];
   assert.deepEqual(todo.map(({ ticket }) => ticket), [24]);
-  assert.ok(todo.every(({ attendu: expected }) => expected));
   assert.ok(board.rail.attendLu !== undefined, "le bloc `awaiting` a été pris");
-  assert.deepEqual(todo[0]?.chef, { sorte: "product-question", texte: "One list per project, or one for all?" });
+  assert.deepEqual(todo[0]?.chef, { sorte: "parked-chef", texte: "Parked for the chef: one list per project, or one for all?" });
 
   assert.deepEqual(launched, [], "aucun processus n'est parti");
 });
 
-test("la sortie de `status` refaite de la lecture : ses rubriques, le bloc `awaiting` juste avant la ligne `rail`, et sous elle la ligne de chaque ticket", async () => {
+test("la sortie de `status` refaite de la lecture : ses rubriques, le bloc `awaiting` juste avant la ligne `rail`", async () => {
   const published = await readOne();
   const text = statusOfBoard(published);
   const lines = text.split("\n");
   const rankRail = lines.findIndex((l) => /^rail\s/.test(l));
   const endAwaiting = lines.indexOf("end awaiting");
   assert.ok(lines.findIndex((l) => l.startsWith("awaiting   ")) < endAwaiting && endAwaiting < rankRail);
-  assert.equal(lines[rankRail], "rail       1 taken · 1 in pass · 1 WAITING · 1 queued");
-  assert.deepEqual(lines.slice(rankRail + 1, rankRail + 1 + published.lignesDuRail.length), published.lignesDuRail.map(({ ligne: line }) => line));
-  assert.match(text, /^cooks {6}2 running$/m);
+  assert.equal(lines[rankRail], "rail       1 ready · 1 cooking · 1 in pass · 2 parked");
+  // Aucune ligne par ticket : la cuisine ne les écrit pas.
+  assert.equal(lines[rankRail + 1], "");
+  assert.match(text, /^cooks {6}1 running$/m);
   // Ce que seule la box lit n'y est pas : les derniers événements.
   assert.doesNotMatch(text, /^latest events$/m);
   // Les rubriques d'avant `rail` restent avant le bloc, celles d'après après lui.
@@ -203,27 +188,13 @@ test("le bloc `awaiting` de `status` : ce qui attend le chef, une ligne par entr
   );
   assert.deepEqual(ticketsOf(two.attend ?? "").map(({ ticket }) => ticket), [24, 25]);
   // Lue de GitHub : la carte du chef #24, sa question et son geste.
-  assert.match(statusOfBoard(await readOne()), /^awaiting {3}1 decision awaits the chef — for .*\n {2}#24 {2}for .* {2}One list per project, or one for all\? — answer on its Todo card, in your own words {2}Ticket 24\nend awaiting$/m);
+  assert.match(statusOfBoard(await readOne()), /^awaiting {3}1 decision awaits the chef — for 1 h 00\n {2}#24 {2}for 1 h 00 {2}Parked for the chef: one list per project, or one for all\? — on its Todo card: Answer, in your own words — the ticket goes back on the rail {2}Ticket 24\nend awaiting$/m);
 });
 
-test("ce qui est avant le rail : la sortie de `manager upstream`, chaque issue avec l'adresse de son issue", async () => {
-  const published = await readOne();
-  const reading = readOfBoard(published, "brigade", 1, ["manager upstream"]);
-  const seenOne = seeUpstream(reading);
-  assert.ok("compte" in seenOne, JSON.stringify(seenOne));
-  // #24, une carte du chef, est parquée pour lui (#4260) : à part, comme le runtime la lit (runtime/src/amont.ts).
-  assert.deepEqual(seenOne.groupes.map(({ etat: state, issues }) => [state, issues.map(({ ticket }) => ticket)]), [
-    ["epique", [60]],
-    ["mise-de-cote", [24]],
-  ]);
-  assert.deepEqual(JSON.parse(upstreamOfBoard(published) ?? "null").issues[1], { ticket: 60, titre: "Ticket 60", priorite: null, etat: "epique", dit: "it carries `epic`: not split yet", url: `https://github.com/${REPOSITORY}/issues/60` });
-});
-
-test("ce qui est avant le rail qui n'a pas été lu n'est ni compté ni dit « pas lu » (#1770), et rien d'autre n'est lu", async (t) => {
+// La cuisine n'a pas d'avant le rail (#4507) : son Backlog est une colonne du kanban.
+test("ce qui est avant le rail n'est pas lu : `manager upstream` n'est ni compté ni dit « pas lu » (#1770), et rien d'autre n'est lu", async (t) => {
   const launched = withoutProcess(t);
-  const { avantLeRail: _before, ...withoutUpstream } = await readOne();
-  assert.equal(upstreamOfBoard(withoutUpstream), undefined);
-  const reading = readOfBoard(withoutUpstream, "brigade", 1, ["manager upstream"]);
+  const reading = readOfBoard(await readOne(), "brigade", 1, ["manager upstream"]);
   assert.ok("erreur" in reading && reading.duTableau === true && reading.pasPublie === true);
   const seenOne = seeUpstream(reading);
   assert.ok("nonPublie" in seenOne);

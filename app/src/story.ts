@@ -26,7 +26,7 @@ export const instant = (iso: string) => `${new Date(iso).toISOString().slice(0, 
 const text = (value: unknown): value is string => typeof value === "string";
 const object = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
 
-// Une rétro en laisse au plus trois (runtime/src/apprentissage/retro.ts, `LECONS_MAX`).
+// Une rétro en laisse au plus trois.
 export const LESSONS_MAX = 3;
 export const WITHOUT_RETRO = "no retro for this ticket yet";
 

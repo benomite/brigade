@@ -3,12 +3,10 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { answerOnGithub } from "../../src/board-actions/answer-github.ts";
-import { withWhatAwaitingTheChef, readWhatAwaitingTheChef } from "../../src/board/wait-of-chef.ts";
+import { readWhatAwaitingTheChef } from "../../src/board/wait-of-chef.ts";
 import type { CallGitHub, AnswerGitHub } from "../../src/board/client.ts";
-import { readTheBoardOfRepository } from "../../src/board/read.ts";
 import { cardOfTheQuestionOfEpic } from "../../src/board/question-of-epic-github.ts";
 import { shapeOfChef } from "../../src/board/todo-github.ts";
-import { understand, rail } from "../../src/facts.ts";
 
 const REPOSITORY = "benomite/secondes";
 const QUESTION_OF_MANAGER = [
@@ -97,31 +95,6 @@ describe("TODO d'un projet dont l'épique a posé une question", () => {
       [{ ticket: 5, quoi: "carte", depuis: "2026-11-13T14:58:00Z", sorte: "manager-epic-question" }],
     );
     assert.match(wait.attentes[0]!.ligne, /\(A\) with a link/);
-
-    const readOne = await readTheBoardOfRepository({ depot: REPOSITORY, appeler: call, maintenant: () => new Date("2026-11-13T17:00:00Z") });
-    assert.ok(readOne.lu);
-    const complete = await withWhatAwaitingTheChef(readOne, call);
-    assert.ok(complete.lu);
-    const facts = understand(JSON.stringify(complete.faits));
-    assert.ok(!("informe" in facts), JSON.stringify(facts));
-    assert.equal(facts.attend?.length, 1);
-    const seenOne = rail(facts);
-    const card = [...seenOne.colonnes.flatMap(({ cartes: cards }) => cards), ...seenOne.hors].find(({ ticket }) => ticket === 5);
-    assert.ok(card !== undefined);
-    assert.equal(card.ligne, "The manager asked you a question before splitting this epic: it waits for your answer.");
-    assert.doesNotMatch(JSON.stringify(card), /ready, waits for a place in the kitchen/);
-  });
-
-  test("une épique sans `fire`, dite par la lecture du rail avant lui, pose sa question de même", async () => {
-    const call = github([manager(QUESTION_OF_MANAGER)], ["epic"]);
-    const readOne = await readTheBoardOfRepository({ depot: REPOSITORY, appeler: call, maintenant: () => new Date("2026-11-13T17:00:00Z") });
-    assert.ok(readOne.lu);
-    assert.equal(readOne.avantLeRail?.issues.find(({ ticket }) => ticket === 5)?.etat, "epique");
-    const complete = await withWhatAwaitingTheChef(readOne, call);
-    assert.ok(complete.lu);
-    const facts = understand(JSON.stringify(complete.faits));
-    assert.ok(!("informe" in facts), JSON.stringify(facts));
-    assert.deepEqual(facts.attend?.map(({ ticket, chef: card }) => [ticket, card?.sorte]), [[5, "manager-epic-question"]]);
   });
 
   test("une réponse du chef la fait sortir de TODO, sans autre geste", async () => {

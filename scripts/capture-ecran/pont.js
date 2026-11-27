@@ -84,12 +84,9 @@
         if (typeof nom !== "string" || nom === "then") return undefined;
         if (nom.startsWith("sur")) return (/** @type {(...args: unknown[]) => void} */ ecouter) => void ecoutes.set(nom, ecouter);
         if (Object.hasOwn(lectures, nom)) return lectures[nom];
-        return (/** @type {unknown[]} */ ...args) => {
+        return () => {
           invoques.push(nom);
-          // Une réponse `{ __selon: { <premier argument>: <réponse> } }` dépend de son premier argument — le projet, par
-          // exemple : deux projets rendent deux réponses (`accueil-recap`).
-          const figee = donnees.reponses[nom];
-          const reponse = figee !== null && typeof figee === "object" && "__selon" in figee ? /** @type {Record<string, unknown>} */ (figee.__selon)[String(args[0])] : figee;
+          const reponse = donnees.reponses[nom];
           // Une réponse `{ __enAttente: true }` ne vient jamais : la capture montre ce que la vue pose en l'attendant.
           if (reponse !== null && typeof reponse === "object" && "__enAttente" in reponse) return new Promise(() => undefined);
           // Une réponse `{ __rejet: "…" }` rejette, avec ce message : la capture montre ce que la vue pose d'un échec.
