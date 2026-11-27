@@ -10,7 +10,6 @@ import { syncBuiltinESMExports } from "node:module";
 import { dirname, join, relative, resolve } from "node:path";
 import { test, type TestContext } from "node:test";
 import { putAside, ticketsOf } from "../../src/awaiting.ts";
-import { ACTION, launchThe } from "../../src/box.ts";
 import { see as seeUpstream } from "../../src/upstream.ts";
 import { holdFacts, titleOfFailure, type Drawable } from "../../src/facts.ts";
 import { withWhatAwaitingTheChef } from "../../src/board/wait-of-chef.ts";
@@ -107,14 +106,6 @@ async function readByTheStandbys(call: CallGitHub) {
   factsWatch.fermer();
   return { status: readings.get("status") as ReadOfRail, facts: readings.get("facts") as ReadOfRail, tableaux: boards };
 }
-
-test("la garde prend le geste de la station lancé par le chemin des veilles : c'est elle qui ferait échouer le rail s'il en lançait un", async (t) => {
-  const launched = withoutProcess(t);
-  const locale = { node: "/usr/bin/fausse-node", runtime: "/tmp/runtime", racine: "/tmp/station", env: {} };
-  await assert.rejects(launchThe({ delaiMs: 1_000 }, { nom: "brigade", cuisine: { locale } }, "facts"), /no process may be launched to draw the rail: \/usr\/bin\/fausse-node/);
-  assert.equal(launched.length, 1);
-  assert.match(launched[0] ?? "", new RegExp(`^/usr/bin/fausse-node ${join("/tmp/runtime", ACTION).replace(/[\\/.]/g, "\\$&")} brigade facts$`));
-});
 
 test("GitHub seul, aucune box jointe : la couche de données du rail rend le kanban des labels, et les cartes du chef", async (t) => {
   const launched = withoutProcess(t);

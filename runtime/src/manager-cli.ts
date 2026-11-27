@@ -6,8 +6,6 @@
 //   npm --prefix runtime run manager -- upstream    ce qui n'est pas encore sur le rail : chaque issue ouverte qu'il ne porte pas, et ce qui lui arrive — pour un programme
 //   npm --prefix runtime run manager -- approve <n> l'OK du chef à un geste en attente d'un agent sur « propose » (#4039, autonomie/agents/porte.ts) :
 //                                                   le runtime qui tourne le fait à son prochain réveil, une fois ; `manager` seul les liste
-// Les anciens mots (`allumer`, `eteindre`, `rendre`) répondent encore, en
-// disant le nouveau (`commandes.ts`).
 // Une commande s'écrit dans le journal ; le runtime qui tourne la voit à son
 // prochain réveil, une seconde au plus, sans redémarrage. `backlog` n'écrit
 // rien, nulle part : elle lit GitHub, et ne touche pas au journal. `upstream`
@@ -16,7 +14,6 @@ import { existsSync } from "node:fs";
 import { configRail } from "./alimenter.ts";
 import { enAmont } from "./amont.ts";
 import { enProcess, Sortie, type Appel } from "./appel.ts";
-import { enAnglais } from "./commandes.ts";
 import { decrire, decrireEcart, ecart } from "./dire-manager.ts";
 import type { Ecart } from "./events/manager.ts";
 import { type IssueOuverte } from "./github.ts";
@@ -43,7 +40,7 @@ const REACTIONS_MONTREES = 10;
 
 // Seules `backlog` et `upstream` attendent quelque chose — GitHub : les autres rendent la main aussitôt.
 export function principal({ args: tapes, env, dire, redire }: Appel): void | Promise<void> {
-  const args = enAnglais("manager", tapes, redire);
+  const args = tapes;
   function echouer(code: number, message: string): never {
     redire(`brigade : ${message}`);
     throw new Sortie(code);

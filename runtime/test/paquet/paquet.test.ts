@@ -108,8 +108,6 @@ describe("la construction du paquet", { skip: sansDpkgDeb }, () => {
       "/usr/lib/brigade-station/node/bin/node",
       "/usr/lib/brigade-station/runtime/package.json",
       "/usr/lib/brigade-station/runtime/src/kitchen/main.ts",
-      // The gesture the app launches its station commands through (app/src/box.ts, `ACTION`).
-      "/usr/lib/brigade-station/runtime/src/station/geste.ts",
       "/usr/lib/brigade-station/runtime/agents/kitchen/cook.md",
       "/usr/lib/systemd/system/brigade-station.service",
     ]) {

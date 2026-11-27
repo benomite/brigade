@@ -11,7 +11,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test } from "node:test";
-import { ACTION, type Reading } from "../src/box.ts";
+import type { Reading } from "../src/box.ts";
 import { COMMAND, managerOf, see, type Manager } from "../src/manager.ts";
 import { commandOf, TABS } from "../src/tabs.ts";
 import { SAYS } from "../src/input.ts";
