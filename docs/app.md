@@ -1053,6 +1053,13 @@ rail. The taken-to-merged line of #4299 stays, at the end of the Rail tab's top 
 
 ### The rail and its cooks, read from GitHub (#2220, #2061)
 
+> **Since #4507, no project is read this way.** Every project is read as the kanban of the next section, from the
+> kitchen's labels alone. What this section describes came only from the old runtime and is no longer on the screen: the
+> claims and stations of the cooks, base red, the merge order, the ticket sheets and zones, `tests written`, the
+> set-aside tickets on the rail (`86`), the rail's waits, alerts, stop and blocked-rail lines, the top of the backlog,
+> the last send back, the PR size, and the Backlog band (before the rail). It stays below until the screens that drew
+> it are removed (#4508, #4509).
+
 A project's stations take, cook, review and merge its tickets on GitHub. So the Rail and Cooks tabs are drawn from
 the project's repository alone — nothing comes from a box —, at most once a minute per project, with this computer's
 `gh` token (`app/src/board/read.ts`). Every read is conditional: a 304 costs nothing.
@@ -1141,15 +1148,13 @@ answer but a 304) in any hour, under the 1,000 the test allows.
 `cooks-github-seul-avant.png` and `-apres.png`, `cooks-github-stations-avant.png` and `-apres.png` (one station cooking,
 one idle, one silent).*
 
-### The kanban of a project on the new kitchen, read from its labels (#4482)
+### The kanban of a project, read from its labels (#4482, #4507)
 
-The new kitchen (`runtime/src/kitchen/`, spec
+The kitchen (`runtime/src/kitchen/`, spec
 [`2026-11-26-agents-in-prompts.md`](superpowers/specs/2026-11-26-agents-in-prompts.md)) keeps its whole state in GitHub
-labels. A project is on it when its default branch holds `.brigade/kitchen.json`, the file the kitchen reads its risk
-zones from. The app asks GitHub for that file at most once every ten minutes per project: a 404 carries no ETag, so asking at
-every reading would cost one counted request a minute.
+labels. Every project is read this way (#4507): the app no longer asks for `.brigade/kitchen.json` first.
 
-For such a project, the project view draws **six columns** in place of the plan of the kitchen, each read from the labels
+The project view draws **six columns** in place of the plan of the kitchen, each read from the labels
 alone (`app/src/board/kitchen-board.ts`):
 
 | Column | What it holds |
@@ -1171,10 +1176,11 @@ it, or the one merged that served it. A pull request belongs to a ticket by its 
 merge order, no ticket sheet, and no list of the old labels for the TODO. The reading is the open issues, the open pull
 requests and the recently closed ones (`/pulls?state=closed`, until a page older than the day). The chef's TODO stays the
 line above the columns. It holds the `parked:chef` issues, taken from the same list of open issues
-(`lireCeQuiAttendLeChef`, `newKitchen`). A project without the file keeps the rail described above.
+(`readWhatAwaitingTheChef`, `newKitchen`), with their assignees (vue/cards-assigned/).
 
-*Code: `app/src/board/kitchen-board.ts`, `app/src/vue/kitchen-board/kitchen-board.js`, `lireLeTableauDuDepot` in
-`app/src/board/read.ts`. Tests: `app/test/board/kitchen-board.test.ts`, `app/test/acceptation-4482/kitchen-board.test.ts`
+*Code: `app/src/board/kitchen-board.ts`, `app/src/vue/kitchen-board/kitchen-board.js`, `readTheBoardOfRepository` in
+`app/src/board/read.ts`. Tests: `app/test/board/kitchen-board.test.ts`, `app/test/board/read.test.ts`,
+`app/test/acceptation-4507/no-old-runtime.test.ts`, `app/test/acceptation-4482/kitchen-board.test.ts`
 (a fake `gh` and a fake GitHub, one issue in each column, played in the view). Captures: `docs/captures/4482/` —
 `espace-projet-cuisine-neuve-avant.png` (the same labels, read as the old runtime's rail) and
 `espace-projet-cuisine-neuve-apres.png`, from the screen `espace-projet-cuisine-neuve`.*

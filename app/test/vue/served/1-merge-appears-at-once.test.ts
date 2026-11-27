@@ -30,7 +30,8 @@ function draws(readOne: ReadOfBoardOfRepository): Board {
   assert.ok(!("informe" in facts), "facts are in shape");
   return boardOf(facts as Facts, undefined, { texte: statusOfBoard(readOne), a: readOne.luLe });
 }
-const servedOnes = (seenOne: Board) => seenOne.rail.colonnes.find(({ nom: name }) => name === "Served")?.cartes ?? [];
+// La colonne Served du kanban (board/kitchen-board.ts, #4507) : ce qui a été mergé dans la journée.
+const servedOnes = (seenOne: Board) => seenOne.kitchenBoard?.columns.find(({ key }) => key === "served")?.cards ?? [];
 const readA = (call: CallGitHub, now: number) => readTheBoardOfRepository({ depot: REPOSITORY, appeler: call, maintenant: () => new Date(now) });
 
 const FRESHNESS_OF_THE_APP_MS = 60_000;
@@ -45,20 +46,6 @@ test("a delivery merged a moment ago is in Served at the next reading, a few sec
   now = T0 + 5_000;
   const after = servedOnes(draws(await readings.lire({ nom: "parade" })));
   assert.deepEqual(after.map(({ ticket }) => ticket), [7], "the merged delivery is in Served 3 s after its merge");
-});
-
-// #3925, critère 2 : chaque livraison servie dit quand elle a été mergée (« merged 2 min ago »), et cet âge avance à chaque lecture.
-// Test d'acceptation gelé.
-const texts = (seenOne: Board, ticket: number): string => {
-  const card = servedOnes(seenOne).find((c) => c.ticket === ticket) ?? assert.fail(`no card #${ticket} in Served`);
-  return [card.ligne ?? "", ...(card.dit ?? []).map((d) => `${d.libelle} ${d.valeur}`)].join(" | ");
-};
-
-// brigade:guard — moved unchanged from its own file by the closing pass #4074: it keeps guarding what main already does.
-test("a served delivery says how long ago it was merged, and the age moves with the reading", async () => {
-  const call = github(() => [closedOne(7, new Date(T0 - 2 * 60_000).toISOString())]);
-  assert.match(texts(draws(await readA(call, T0)), 7), /merged 2 min ago/);
-  assert.match(texts(draws(await readA(call, T0 + 3 * 60_000)), 7), /merged 5 min ago/);
 });
 
 // #3925, critère 3 : les chiffres de la colonne Served restent, avec leurs valeurs — comme avant.

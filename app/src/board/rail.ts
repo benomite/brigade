@@ -4,13 +4,12 @@
 //
 // Ce module rend cette lecture sous la forme de ce que le rail lisait jusqu'ici sur la box — une lecture de la veille
 // (box.ts, `Lecture`) dont chaque sortie est celle de la commande qu'elle remplace — pour que ce qui la reçoit (facts.ts,
-// awaiting.ts, slip.ts, alerts.ts, home.ts, upstream.ts) dessine le même rail sans rien changer :
+// awaiting.ts, slip.ts, alerts.ts, home.ts) dessine le même rail sans rien changer :
 //   - `facts`   l'objet `faits` de la lecture ;
 //   - `status`  ses rubriques, le bloc `awaiting` de ce qui attend le chef, et la ligne `rail` suivie de la ligne de
-//               chaque ticket (`lignesDuRail`) — ce que `status` écrit, sans ce qui ne se lit que sur la box ;
-//   - `manager upstream` ce qui est avant le rail (`avantLeRail`, #1836), dans la forme de la sortie de la commande —
-//               chaque issue dans l'un des cinq états, son adresse déduite du dépôt.
-// Ce que GitHub ne porte pas (l'interrupteur du projet, que seul le journal de sa station tient ; une commande composée
+//               chaque ticket (`lignesDuRail`) — ce que `status` écrit, sans ce qui ne se lit que sur la box.
+// Ce que GitHub ne porte pas (l'interrupteur du projet, que seul le journal de sa station tient ; ce qui est avant le
+// rail, `manager upstream` : la cuisine n'en a pas, son Backlog est une colonne du kanban ; une commande composée
 // d'après d'autres sorties) n'est pas lu : la lecture échoue en `pasPublie`, et la vue n'en dit rien — ni nombre, ni
 // « pas lu » (#1770), jamais un rail vide.
 //
@@ -21,9 +20,6 @@ import { setTimeout as wait } from "node:timers/promises";
 import { FRESHNESS_MAX_OF_A_READ_MS, INTERVAL_OF_THE_STANDBY_MS } from "../vue/served/freshness.ts";
 import type { ReadOfBoardOfRepository, LineOfTheFile, HeadingOfBoard, BoardRead } from "./read.ts";
 import { linesOfTheFile, type RailBlockedRead } from "../vue/rail-blocked/rail-blocked.ts";
-import { lignesDeStatus } from "../../../runtime/src/attente-du-rail/raison.ts";
-import type { AttenteDuRail } from "../../../runtime/src/attente-du-rail/raison.ts";
-import type { LinesOfCards } from "../vue/wait-of-rail/wait-of-rail.ts";
 
 // Les commandes que la lecture remplace, comme la veille des box les nomme (facts.ts, `COMMANDE` ; upstream.ts) : la vue
 // du rail les demande, la lecture en rend la sortie.
@@ -42,14 +38,14 @@ export type ReadOfRail = { projet: string; demande: number; a: string } & ({ sor
 // lecture ne rend pas.
 export type CommandRequested = string | ((...readEntries: never[]) => string);
 
-// Les titres de `status` sur onze colonnes (runtime/src/etat.ts, `ligne`).
+// Les titres de `status` sur onze colonnes.
 const TITLE = 11;
 const line = (title: string, value: string) => `${title.padEnd(TITLE)}${value}`;
-// Le bord du bloc `awaiting` (runtime/src/attend.ts, `TETE_AWAITING`, `FIN_AWAITING`).
+// Le bord du bloc `awaiting`, que le second relit.
 const HEAD_AWAITING = "awaiting";
 const END_AWAITING = "end awaiting";
 
-// Une durée, comme `status` la dit en anglais (runtime/src/etat.ts, `dureeEn`).
+// Une durée, comme `status` la dit en anglais.
 export function durationIn(ms: number): string {
   const seconds = Math.max(0, Math.round(ms / 1000));
   if (seconds < 60) return `${seconds} s`;
@@ -65,7 +61,7 @@ export function durationIn(ms: number): string {
 const linesOfHeading = ({ titre: title, lignes: lines }: HeadingOfBoard): string[] =>
   lines.map((text, rank) => (rank === 0 ? (title === "" ? text : line(title, text)) : `${" ".repeat(TITLE)}${text}`));
 
-// Le bloc `awaiting` de `status` (runtime/src/attend.ts, `decrireAttentes`) : sa tête, une ligne par attente — son nom,
+// Le bloc `awaiting` de `status` : sa tête, une ligne par attente — son nom,
 // depuis combien de temps, ce qui attend et le geste, son titre —, puis ce qui n'est pas une décision. Les durées se
 // comptent jusqu'à la lecture (`lu`). Ce qui attend le chef lu de GitHub (wait-of-chef.ts, #2460) passe par lui :
 // l'app et le second en lisent le même bloc. `railBloque` : le rail bloqué (#3358), sa ligne sous la tête.
@@ -101,8 +97,6 @@ export function statusOfBoard(readOne: Pick<BoardRead, "file" | "bilans" | "cuis
     ...before.flatMap(linesOfHeading),
     "",
     ...blockAwaiting({ file: readOne.file, bilans: readOne.bilans, lu: readOne.luLe, depot: readOne.depot, railBloque: readOne.faits?.railBloque as RailBlockedRead | undefined }),
-    // Pourquoi la file ne part pas (#3433), au-dessus d'elle : les lignes mêmes que `brigade <project> status` écrit.
-    ...lignesDeStatus((readOne.faits?.attenteDuRail as AttenteDuRail | undefined)?.phrase ?? null, (readOne.faits?.lignesDesCartes as LinesOfCards | undefined) ?? {}),
     line("rail", rail.lignes[0] ?? ""),
     ...readOne.lignesDuRail.map(({ ligne: itsOwnOne }) => itsOwnOne),
     "",
@@ -111,22 +105,10 @@ export function statusOfBoard(readOne: Pick<BoardRead, "file" | "bilans" | "cuis
   ].join("\n");
 }
 
-// La sortie de `manager upstream` que la lecture porte (upstream.ts, `comprendre`) : l'heure où les issues ouvertes ont été
-// lues, le dépôt, et chaque issue avant le rail avec l'adresse de son issue. Rien, quand elles n'ont pas été lues.
-export function upstreamOfBoard(readOne: Pick<BoardRead, "depot" | "avantLeRail">): string | undefined {
-  if (readOne.avantLeRail === undefined) return undefined;
-  const { lu: readThe, issues } = readOne.avantLeRail;
-  return JSON.stringify({ lu: readThe, depot: readOne.depot, issues: issues.map((issue) => ({ ...issue, url: `https://github.com/${readOne.depot}/issues/${issue.ticket}` })) });
-}
-
 // La sortie d'une commande demandée, tirée de la lecture — ou pourquoi elle ne s'en tire pas, en une phrase.
 export function outputOfBoard(readOne: BoardRead, command: CommandRequested): { texte: string } | { raison: string; pasPublie?: true } {
   if (command === FACTS) return { texte: JSON.stringify(readOne.faits) };
   if (command === STATUS) return { texte: statusOfBoard(readOne) };
-  if (command === UPSTREAM) {
-    const text = upstreamOfBoard(readOne);
-    if (text !== undefined) return { texte: text };
-  }
   const name = typeof command === "string" ? `\`${command}\`` : "this reading";
   return { raison: `${name.charAt(0).toUpperCase()}${name.slice(1)} is not read from GitHub for ${readOne.depot}: only the station's log carries it.`, pasPublie: true };
 }

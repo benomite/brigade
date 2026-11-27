@@ -2,7 +2,8 @@
 // seulement elles, et y répond par les gestes mêmes du chef. Celles qui attendent un autre humain — le chef pour une carte
 // sans assigné — sont au pied de TODO, sous « Awaiting others », avec qui elles attendent, et jamais hors des colonnes ;
 // le chef, lui, y voit celles assignées à un autre (#2985). Joué sur un faux GitHub qui tient ses issues, leurs labels,
-// leurs assignés, leurs commentaires et le fichier du projet.
+// leurs assignés, leurs commentaires et le fichier du projet. Une carte est un ticket que la cuisine parque pour le chef
+// (`parked:chef`, #4474) : sa question est le commentaire de la cuisine qui dit pourquoi.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { putAside } from "../../src/awaiting.ts";
@@ -21,43 +22,40 @@ const READ = "2026-11-07T12:00:00.000Z";
 const now = () => new Date(READ);
 const CHEF = "benomite";
 
-// `labels` : ceux de l'issue — `chef-todo` seul sans eux.
-type Issue = { assignes: string[]; question: string; le: string; labels?: string[] };
-const question = (text: string) => `<!-- brigade:todo kind=product-question -->\n${text}\n- [resume] Yes, go on\n- [drop] No, leave it`;
-// Trois cartes `chef-todo` : #20 et #21 assignées à alice, #22 à bob ; #23 sans assigné, celle du chef. #22 est aussi un
-// ticket du rail que sa question de produit met de côté (`fire`, `served-elsewhere`) : sur le rail, son mot (`86`) n'est
-// d'aucune colonne — retirée de TODO, sa carte tombait sous le rail (#2985).
+type Issue = { assignes: string[]; question: string; le: string };
+// Le commentaire de la cuisine qui parque le ticket pour le chef : sa première ligne est la question de la carte.
+const parkedFor = (text: string) => `Parked for the chef: ${text}`;
+// Quatre tickets parqués pour le chef : #20 et #21 assignés à alice, #22 à bob ; #23 sans assigné, celui du chef.
 const WORLD: Record<number, Issue> = {
   20: { assignes: ["alice"], question: "Which colour for the export button?", le: "2026-11-07T08:00:00Z" },
   21: { assignes: ["Alice", "carol"], question: "Keep the old CSV column order?", le: "2026-11-07T09:00:00Z" },
-  22: { assignes: ["bob"], question: "Drop the legacy importer?", le: "2026-11-07T10:00:00Z", labels: ["fire", "served-elsewhere", "chef-todo"] },
+  22: { assignes: ["bob"], question: "Drop the legacy importer?", le: "2026-11-07T10:00:00Z" },
   23: { assignes: [], question: "Open the beta to everyone?", le: "2026-11-07T11:00:00Z" },
 };
 
-// Un faux GitHub : les issues au label `chef-todo`, leurs commentaires, et `projet.json` — `reglages` : son contenu, `null`
-// quand le dépôt ne l'a pas.
+// Un faux GitHub : le kanban de la cuisine — ses issues ouvertes, chacune `fire` et `parked:chef` avec ses assignés, et
+// aucune PR —, leurs commentaires, et `projet.json` — `reglages` : son contenu, `null` quand le dépôt ne l'a pas.
 function github(world: Record<number, Issue>, settings: Record<string, unknown> | null = { chef: CHEF }, owner = "User"): CallGitHub {
   const ok = (data: unknown): AnswerGitHub => ({ status: 200, data });
   return async (path) => {
     if (path.includes("/contents/.claude/brigade/projet.json")) return settings === null ? { status: 404, data: { message: "Not Found" } } : ok({ content: Buffer.from(JSON.stringify(settings)).toString("base64") });
-    const label = /\/issues\?.*\blabels=([^&]+)/.exec(path)?.[1];
-    if (label !== undefined)
+    if (path.startsWith(`/repos/${REPOSITORY}/issues?`))
       return ok(
-        Object.entries(world)
-          .filter(([, { labels = ["chef-todo"] }]) => labels.includes(label))
-          .map(([number, { assignes, le: the, labels = ["chef-todo"] }]) => ({
-            number: Number(number),
-            title: `Ticket ${number}`,
-            html_url: `https://github.com/${REPOSITORY}/issues/${number}`,
-            created_at: the,
-            labels: labels.map((name) => ({ name })),
-            assignees: assignes.map((login) => ({ login })),
-          })),
+        /[?&]page=1(&|$)/.test(path)
+          ? Object.entries(world).map(([number, { assignes, le: the }]) => ({
+              number: Number(number),
+              title: `Ticket ${number}`,
+              html_url: `https://github.com/${REPOSITORY}/issues/${number}`,
+              created_at: the,
+              labels: ["fire", "parked:chef"].map((name) => ({ name })),
+              assignees: assignes.map((login) => ({ login })),
+            }))
+          : [],
       );
     const number = /\/issues\/(\d+)\/comments/.exec(path)?.[1];
     if (number !== undefined) {
       const issue = world[Number(number)];
-      return ok(issue === undefined ? [] : [{ body: question(issue.question), created_at: issue.le, author_association: "OWNER" }]);
+      return ok(issue === undefined || /[?&]page=[2-9]/.test(path) ? [] : [{ body: parkedFor(issue.question), created_at: issue.le, author_association: "OWNER" }]);
     }
     if (path.includes("/pulls?")) return ok([]);
     if (path === `/repos/${REPOSITORY}`) return ok({ owner: { login: REPOSITORY.split("/")[0], type: owner } });
@@ -148,17 +146,17 @@ describe("ce qui attend un autre humain est au pied de TODO, sous « Awaiting ot
     assert.deepEqual(
       others?.map(({ ticket, todo, qui: who }) => ({ ticket, question: todo?.question, qui: who })),
       [
-        { ticket: 22, question: "Drop the legacy importer?", qui: ["bob"] },
-        { ticket: 23, question: "Open the beta to everyone?", qui: [CHEF] },
+        { ticket: 22, question: parkedFor("Drop the legacy importer?"), qui: ["bob"] },
+        { ticket: 23, question: parkedFor("Open the beta to everyone?"), qui: [CHEF] },
       ],
     );
   });
 
-  test("aucune carte hors des colonnes, ni dans une autre colonne, quel que soit le compte — #22, mise de côté sur le rail, comprise", async () => {
+  test("aucune carte hors des colonnes, ni dans une autre colonne, quel que soit le compte", async () => {
     for (const login of [null, CHEF, "alice", "bob", "dave"]) {
       const { hors: outside, ailleurs: elsewhere } = await todoOf(login);
       assert.deepEqual(outside, [], `${login}: under the rail`);
-      assert.equal(elsewhere.includes(22), false, `${login}: #22 in another column`);
+      assert.deepEqual(elsewhere, [], `${login}: in another column`);
     }
     assert.deepEqual((await todoOf("alice")).autres?.map(({ ticket }) => ticket), [22, 23]);
     assert.deepEqual((await todoOf("bob")).tickets, [22]);
@@ -186,12 +184,14 @@ describe("l'humain répond par les gestes du chef", () => {
           return { status: method === "POST" ? 201 : 200, data: { id: 7 } };
         },
       };
-      const rendered = await answerOnGithub({ depot: REPOSITORY, ticket: 21, chef, reponse: { question: cardReadOfChef(chef)?.question, choix: 1 }, client });
+      // La carte d'un ticket parqué pour le chef n'a que sa réponse libre, Answer.
+      const rendered = await answerOnGithub({ depot: REPOSITORY, ticket: 21, chef, reponse: { question: cardReadOfChef(chef)?.question, texte: "Yes, go on" }, client });
       return { rendu: rendered, ecrits: writtenOnes };
     };
     const byAlice = await reply(vueByAlice);
     assert.ok("repondue" in byAlice.rendu, JSON.stringify(byAlice.rendu));
     assert.match(byAlice.ecrits[0] ?? "", /^POST \/repos\/acme\/kitchen\/issues\/21\/comments .*brigade:reponse gesture=resume.*Yes, go on/);
+    assert.deepEqual(byAlice.ecrits.slice(1), ["DELETE /repos/acme/kitchen/issues/21/labels/parked%3Achef null"]);
     assert.deepEqual(byAlice, await reply(vueByTheChef!));
   });
 });

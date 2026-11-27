@@ -238,10 +238,10 @@ const terminals = openTerminals({
 // se lit pas dit pourquoi.
 const callGitHub = clientGitHub({ jeton: tokenOfGh({ gh: process.env.BRIGADE_GH_BIN || "gh", delaiMs: 10_000 }), envoyer: byFetch() });
 const repositoryOfProject = async (project: Project) => project.depot ?? (await repositoryOfTheOrigin(process.env.BRIGADE_GIT_BIN || "git", project.dossier)) ?? project.nom;
-// Le rail — ses tickets au label `fire`, leur état tiré de leurs labels, de leur PR et de la base, la station qui les
-// tient (vue/rail/github.ts) —, TODO — ce qui attend le chef, la lecture même que le second relaie à son ouverture
-// (board/wait-of-chef.ts, #2460) — et ce qui est avant le rail : relus à chaque lecture (au plus une fois par
-// minute, ou aussitôt après un geste, qui oublie la lecture), par des lectures conditionnelles dont un 304 ne coûte rien.
+// Le kanban — chaque issue dans la colonne que ses labels disent (board/kitchen-board.ts) — et TODO — ce qui attend le
+// chef, la lecture même que le second relaie à son ouverture (board/wait-of-chef.ts, #2460) : relus à chaque lecture (au
+// plus une fois par minute, ou aussitôt après un geste, qui oublie la lecture), par des lectures conditionnelles dont un
+// 304 ne coûte rien.
 const memoriesOfRail = new Map<string, MemoryOfReads>();
 const memoryOfRail = (repository: string): MemoryOfReads => memoriesOfRail.get(repository) ?? memoriesOfRail.set(repository, new Map()).get(repository)!;
 // Le compte GitHub de cet ordinateur, pour les cartes de TODO qui l'attendent (#2761, vue/cards-assigned/) : celles

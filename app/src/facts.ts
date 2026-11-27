@@ -19,7 +19,6 @@ import type { AttenteDuRail } from "../../runtime/src/attente-du-rail/raison.ts"
 import { alertsOfRailRead, expectedOfCardsRead, waitOfRailRead, linesOfCardsRead, type ExpectedOfCards, type LinesOfCards } from "./vue/wait-of-rail/wait-of-rail.ts";
 import type { AlertOfRail } from "./wait-of-rail/alerts.ts";
 import { pauseQuotaRead, type PauseOfAccount } from "./vue/pause-quota/pause-quota.ts";
-import { topOfBacklogRead, type TopOfBacklog } from "./vue/rail/rail.ts";
 import { kitchenBoardRead, type KitchenBoard } from "./board/kitchen-board.ts";
 import type { ActionOfWait } from "./wait.ts";
 import { saysOf, ticketsOf, type Shown } from "./awaiting.ts";
@@ -417,9 +416,6 @@ export type Facts = {
   // La pause de quota GitHub du compte (vue/pause-quota/, #3482) : la limite atteinte, et la reprise — nulle quand elle
   // n'est pas sue ; absente hors pause.
   pauseQuota?: PauseOfAccount;
-  // Le rail, haut du backlog (vue/rail/, #4223) : les issues calibrées et prêtes, par priorité puis âge, et leur écran ;
-  // absent d'une lecture qui ne le compose pas.
-  hautDuBacklog?: TopOfBacklog;
   // Le kanban d'un projet de la nouvelle cuisine (board/kitchen-board.ts, #4482) : ses six colonnes, tirées des labels seuls ;
   // absent d'un projet du runtime d'avant.
   kitchenBoard?: KitchenBoard;
@@ -588,8 +584,6 @@ export type Board = {
   arretCuisine?: ArretDeLaCuisine;
   // La pause de quota GitHub du compte (vue/pause-quota/, #3482) : la tête de l'app la dit, le rail dit qu'il l'attend.
   pauseQuota?: PauseOfAccount;
-  // Le rail, haut du backlog (vue/rail/, #4223) : au-dessus des colonnes, sous le bandeau Backlog. Absent sans lecture qui le porte.
-  hautDuBacklog?: TopOfBacklog;
   // Le kanban d'un projet de la nouvelle cuisine (#4482) : la vue le dessine à la place du plan de la cuisine.
   kitchenBoard?: KitchenBoard;
   // Le dépôt du projet quand le compte GitHub de l'app ne peut pas y écrire (#3163) : la vue l'ouvre en lecture seule —
@@ -907,7 +901,6 @@ export function understand(output: string): Facts | { informe: string } {
       ...alertsOfRailRead(root.alertesDuRail),
       ...stopKitchenRead(root.arretCuisine),
       ...pauseQuotaRead(root.pauseQuota),
-      ...topOfBacklogRead(root.hautDuBacklog),
       ...kitchenBoardRead(root.kitchenBoard),
       ...(root.appelsGithub === undefined ? {} : { appelsGithub: callsRead(root.appelsGithub) }),
       compteurs: {
@@ -1630,7 +1623,6 @@ export function board(facts: Facts, awaiting?: BlockRead, status?: StatusRead, a
     ...(facts.alertesDuRail === undefined ? {} : { alertesDuRail: facts.alertesDuRail }),
     ...(facts.arretCuisine === undefined ? {} : { arretCuisine: facts.arretCuisine }),
     ...(facts.pauseQuota === undefined ? {} : { pauseQuota: facts.pauseQuota }),
-    ...(facts.hautDuBacklog === undefined ? {} : { hautDuBacklog: facts.hautDuBacklog }),
     ...(facts.kitchenBoard === undefined ? {} : { kitchenBoard: facts.kitchenBoard }),
     ...(facts.stations === undefined ? {} : { stations: { ...cookingOf(facts.stations, facts.cooks, facts.lu, facts.agents, facts.rail), ...(facts.stationsSurGithub === undefined ? {} : { surGithub: facts.stationsSurGithub }) } }),
     ...(facts.activiteCuisine === undefined ? {} : { activiteCuisine: facts.activiteCuisine }),

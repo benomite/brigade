@@ -21,7 +21,7 @@ export const ecran: Ecran = {
         situation: situationOf(carte),
         gestesDeFiche: actionsOfCard(carte),
         lireHistoire: storyOf({ steps: [], cost: { attempts: 1, tokens: 412806, durationMs: 722000, incomplete: false } }),
-        lireDiscussion: discussionOf({ found: true, issue: { title: "Les accès sous plafond", state: "closed", body: { author: "chef", at: "2026-10-12T17:20:00.000Z", body: "Un relevé par station." }, comments: [] } }),
+        lireDiscussion: discussionOf({ issue: { title: "Les accès sous plafond", state: "closed", body: { author: "chef", at: "2026-10-12T17:20:00.000Z", body: "Un relevé par station." }, comments: [] } }),
       },
       envois: cuisine(AVEC_MOTEUR),
     };

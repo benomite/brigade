@@ -35,8 +35,8 @@ const NOTHING = "Nothing happened since you last looked.";
 const FILE_OF_RECAP = "recap.json";
 const REPOSITORIES: Record<string, string> = { parade: "chef/parade", cantine: "chef/cantine" };
 const sendBack = (reason: string, the: string) => ({ id: 7, body: `<!-- brigade:renvoi n=1 sha=7579211 -->\nStation \`box/claude\`: sent back to a cook (1/2) — ${reason}\n\nThe next cook takes up the branch of PR #50.`, author_association: "OWNER", created_at: the });
-// Une livraison à merger à la main : la carte du chef (`chef-todo`, #4129) qui le demande.
-const judge = (ticket: number) => ({ id: 8, body: `<!-- brigade:todo kind=merge-by-hand -->\nMerge the PR of #${ticket} by hand? It changes what judges it.\n- [merge] Merge the PR of #${ticket}`, author_association: "OWNER", created_at: "2026-11-10T01:00:00Z" });
+// Une livraison que la cuisine parque pour le chef (`parked:chef`, #4474) : son commentaire dit pourquoi.
+const judge = (ticket: number) => ({ id: 8, body: `Parked for the chef: merge the PR of #${ticket} by hand? It changes what judges it.`, author_association: "OWNER", created_at: "2026-11-10T01:00:00Z" });
 
 const startup = () => ({
   configuration: forTheBar({ chemin: "/tmp/app.json", projets: PROJECTS }, () => true),
@@ -54,7 +54,7 @@ function kitchen(t: TestContext) {
   let now = "2026-11-10T10:00:00.000Z";
   const worlds: Record<string, World> = {
     parade: {
-      issues: [issue("chef/parade", 2408, ["fire", "in-pass", "chef-todo"])],
+      issues: [issue("chef/parade", 2408, ["in-pass", "parked:chef"])],
       commentaires: { 2408: [judge(2408)], 20: [sendBack("the CI is red on `7579211` (PR #50):", "2026-11-10T03:00:00Z")] },
       fermees: [closedOne("chef/parade", 12, 41, "2026-11-10T09:00:00Z"), closedOne("chef/parade", 11, 40, "2026-11-09T08:00:00Z")],
     },
@@ -155,7 +155,7 @@ describe("the recap on the home screen (#3581)", () => {
     await repos();
     const parade = section(vue, "parade");
     assert.match(parade.textContent, /Waiting for you in TODO \(1\)/);
-    assert.deepEqual(lines(parade, "dans-todo"), ["#2408 Merge the PR of #2408 by hand? It changes what judges it."]);
+    assert.deepEqual(lines(parade, "dans-todo"), ["#2408 Parked for the chef: merge the PR of #2408 by hand? It changes what judges it."]);
     assert.match(section(vue, "cantine").textContent, /Reading TODO…/);
   });
 
