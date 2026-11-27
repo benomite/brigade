@@ -15,9 +15,6 @@ It installs the station, starts it, and keeps it up to date. Rerunning it is saf
 **Sign in, once each.** The command asks for them at the end: GitHub (`gh auth login --web`), then
 Claude (your Max account). Nothing else is written by hand.
 
-**Pick your projects in the app.** Open the app signed in to the same GitHub account: the station
-is listed on the home. Tick the projects it should serve, then put the label `fire` on a ticket.
-
 More: [`installation-station.md`](installation-station.md) (what the command puts in place, updates,
 the Max token), [`installation.md`](installation.md) (the app, and a first ticket),
 [`app.md`](app.md) (every screen).
