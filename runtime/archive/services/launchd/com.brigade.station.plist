@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- The station of this Mac: one kitchen, all the projects of /Library/Application Support/brigade.
+     Delivered by the brigade-station archive and replaced by install.sh at each update: do not edit.
+     The tokens are read from etc/ by the shell line below, so no secret sits in this file. -->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.brigade.station</string>
+  <key>UserName</key>
+  <string>brigade</string>
+  <key>GroupName</key>
+  <string>brigade</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/sh</string>
+    <string>-c</string>
+    <string>set -a; . "$1"; . "$2"; shift 2; exec "$@"</string>
+    <string>brigade-station</string>
+    <string>/Library/Application Support/brigade/etc/github.env</string>
+    <string>/Library/Application Support/brigade/etc/jeton.env</string>
+    <string>/opt/brigade-station/current/node/bin/node</string>
+    <string>src/kitchen/main.ts</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>/opt/brigade-station/current/runtime</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>HOME</key>
+    <string>/Library/Application Support/brigade/home</string>
+    <key>PATH</key>
+    <string>/opt/brigade-station/current/node/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <key>BRIGADE_STATION_DIR</key>
+    <string>/Library/Application Support/brigade</string>
+    <key>BRIGADE_SANDBOX_HIDDEN</key>
+    <string>/Library/Application Support/brigade/etc</string>
+    <key>BRIGADE_STATION_PORTES</key>
+    <string>/Library/Application Support/brigade/portes.json</string>
+  </dict>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <dict>
+    <key>SuccessfulExit</key>
+    <false/>
+  </dict>
+  <key>ThrottleInterval</key>
+  <integer>5</integer>
+  <key>StandardOutPath</key>
+  <string>/Library/Application Support/brigade/log/station.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Library/Application Support/brigade/log/station.log</string>
+</dict>
+</plist>
