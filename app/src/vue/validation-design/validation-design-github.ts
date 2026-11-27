@@ -167,8 +167,7 @@ export async function playTheValidation({ depot: repository, design, geste: acti
 }
 
 // Une commande du runtime que le process principal joue, avec ses arguments : ce qu'elle a dit en dernier — `parDefaut`, si
-// elle n'a rien dit —, ou pourquoi rien n'est fait. La carte « review before merge » (vue/card-sensitive/, ticket 3224) joue
-// la sienne par ce même chemin.
+// elle n'a rien dit —, ou pourquoi rien n'est fait.
 // `livraison` : la PR que la commande nomme par son numéro, dite par son ticket dans la ligne que la carte montre (ticket
 // 3716) — le détail au survol reste mot pour mot ce que la commande a dit.
 export async function playTheCommand({ args, commande: command, env, parDefaut: byDefault, livraison: delivery }: { args: string[]; commande: () => Promise<CommandLoaded>; env: Record<string, string | undefined>; parDefaut: string; livraison?: { ticket: number; pr: number } }): Promise<RenderedOfValidation> {

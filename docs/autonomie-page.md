@@ -6,6 +6,8 @@
 
 Depends on #3213 (the autonomy figures), which is not merged. The contract below is an **assumption** the generator of #3213 must produce, or be aligned with. Until then, the generator step of `.github/workflows/pages.yml` is a placeholder that writes no figure, and the page shows "Figures not yet available".
 
+The figures are computed by `app/src/vue/autonomy/compute.ts` (`chiffresDAutonomie`): pure functions with no import, outside the old runtime (#4505), so a generator run by plain `node` in the workflow can reuse them.
+
 ## Input contract: `site/autonomie.json`
 
 ```json

@@ -316,28 +316,12 @@ export type Bridge = {
   // Optionnels : un pont qui ne les porte pas (le téléphone) n'en montre aucun.
   gestesRetenus?(project: string): Promise<import("../held/contract.ts").ReadOfHeld | undefined>;
   approuverGeste?(project: string, id: string): Promise<import("../held/contract.ts").Approval>;
-  // Les tickets récurrents du projet, sous Settings (ticket 3231) : lus par `recurring` là où sa cuisine tourne, et chacun
-  // suspendu, repris ou retiré d'un clic (recurring/recurring.js, recurring/recurring-box.ts). Optionnels : un pont qui
-  // ne les porte pas (le téléphone) ne montre pas la section.
-  listerLesRecurrents?(project: string): Promise<import("./recurring/recurring-box.ts").ReadOfRecurring>;
-  changerUnRecurrent?(project: string, action: import("./recurring/recurring-box.ts").Action, id: string): Promise<import("./recurring/recurring-box.ts").WritingOfARecurring>;
   // La fiche du projet, sous Settings (ticket 4240) : un fichier du projet, le chemin relatif à son dossier — seul
   // `.brigade/fiche-projet.json` (card-project/card-project-folder.ts). `null` : il n'y est pas. Optionnels : un pont qui
   // ne les porte pas (le téléphone) ne montre pas la section.
   lireUnFichierDuProjet?(project: string, path: string): Promise<string | null>;
   ecrireUnFichierDuProjet?(project: string, path: string, text: string): Promise<void>;
-  // Les explications des mots de la cuisine (ticket 3308) : les mots dont le chef de cet ordinateur a vu l'explication, gardés
-  // par chef là où la cuisine du projet tourne ; un mot vu, et tout remontré depuis Settings (explanations/explanations-box.ts).
-  // Optionnels : un pont qui ne les porte pas (le téléphone) ne montre aucune explication.
-  lireLesExplications?(project: string): Promise<import("./explanations/explanations-box.ts").ReadOfExplanations>;
-  marquerUneExplication?(project: string, word: import("./explanations/explanations-box.ts").WordExplained): Promise<import("./explanations/explanations-box.ts").WritingOfExplanations>;
-  remontrerLesExplications?(project: string): Promise<import("./explanations/explanations-box.ts").WritingOfExplanations>;
   envoyerUnMot?(project: string, entry: { ticket: number; text: string }): Promise<import("./word-at-cook/source.js").Answer>; // le mot au cook (ticket 4048)
-  // Le savoir-faire du projet, sous Know-how (ticket 4241) : ses entrées lues, une réécrite, une retirée, là où sa cuisine
-  // tourne (know-how-tab/know-how-box.ts). Optionnels : un pont qui ne les porte pas (le téléphone) le dit sur l'onglet.
-  lireLeSavoirFaire?(project: string): Promise<import("./know-how-tab/know-how-box.ts").ReadOfKnowHow>;
-  modifierLeSavoirFaire?(project: string, id: string, text: string): Promise<import("./know-how-tab/know-how-box.ts").WritingOfKnowHow>;
-  retirerDuSavoirFaire?(project: string, id: string): Promise<import("./know-how-tab/know-how-box.ts").WritingOfKnowHow>;
   // Le récapitulatif de chaque projet, sur l'accueil (ticket 3581) : ce que sa cuisine a fait depuis que le chef a regardé, lu
   // là où elle tourne ; montré, son marqueur avance jusqu'à `until` ; la PR d'un ticket servi s'ouvre (recap/recap-box.ts).
   // Optionnels : un pont qui ne les porte pas (le téléphone) ne montre aucun récapitulatif.
@@ -432,14 +416,6 @@ export type Bridge = {
   // en cuisine avec un commentaire — la commande `design` du runtime, jouée par le process principal ; sur le téléphone, écrit
   // sur GitHub (actions-github-phone.ts). Rien pour un projet inconnu.
   gesteDeValidation(project: string, ticket: number, action: import("./validation-design/validation-design-github.ts").ActionOfValidation): Promise<import("./validation-design/validation-design-github.ts").RenderedOfValidation | undefined>;
-  // Une réponse du chef sur la carte « review before merge » d'un ticket sensible (carte-sensible/, ticket 3224) : merger, ou
-  // renvoyer avec une note — la commande `sensitive` du runtime, jouée par le process principal. Absent du téléphone, qui ne
-  // porte pas le runtime. Rien pour un projet inconnu.
-  gesteSensible?(project: string, ticket: number, action: import("./card-sensitive/card-sensitive-github.ts").ActionSensitive): Promise<import("./card-sensitive/card-sensitive-github.ts").RenderedSensitive | undefined>;
-  // « undo » sur la carte d'un ticket servi (undo/, ticket 3274) : la commande `undo` du runtime, jouée par le process
-  // principal — une PR revert son merge et passe la pass, le ticket est rouvert ; ou, en conflit, un ticket est déposé pour
-  // la cuisine. Absent du téléphone, qui ne porte pas le runtime. Rien pour un projet inconnu.
-  annulerServi?(project: string, ticket: number): Promise<import("./undo/undo-github.ts").RenderedOfCancellation | undefined>;
   ouvrirBilan(project: string, url: string): Promise<boolean>;
   // Un lien de la ligne d'un projet en lecture seule (ticket 3163, vue/read-only/) : comment obtenir l'écriture sur son
   // dépôt, ou le forker — ouvert pour le seul dépôt que la dernière lecture dit en lecture seule (read-only.ts).

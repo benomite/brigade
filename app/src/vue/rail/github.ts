@@ -26,7 +26,6 @@ import type { ActivityOfCook, BoardRead } from "../../board/read.ts";
 import { labelOfSetAside, LABEL_OF_BOARD_OF_THE_KITCHEN, setAsideOf, setAsideOn, WITHOUT_REASON, type SetAside } from "../../board/set-aside-github.ts";
 import { stateOfTheBaseGithub, WORD_OF_THE_STATE, ticketOfThePR } from "../../board/rail-github.ts";
 import { takenOfTheIssue, stationsOfGithub, holdingOfTheIssue, type Taking } from "../cooks/taken.ts";
-import { isSensitive } from "../card-sensitive/label.ts";
 import { PR_OF_TICKET } from "../pr-of-ticket.js";
 import { lastSendBack, type SendBack } from "./send-back.ts";
 import { railBlockedOf, type NotTakenRead } from "../rail-blocked/rail-blocked.ts";
@@ -65,7 +64,7 @@ const text = (value: unknown): string => (typeof value === "string" ? value : ""
 export type PrOfTicket = { numero: number; url: string; le: string; station?: string | null; taille?: { additions: number; deletions: number } };
 // Un ticket du rail lu sur GitHub : son mot d'état (facts.ts, `TONS_DE_TICKET`), sa priorité (`prio:<n>` de ses labels),
 // l'heure de son issue, sa PR ouverte, la station qui le tient, et ce qui le met de côté (ticket 2075) — nulles sans elles.
-// `sensible` : l'issue porte le label `sensitive` (ticket 3224). `renvoi` : le dernier renvoi de sa livraison à un cook, et
+// `renvoi` : le dernier renvoi de sa livraison à un cook, et
 // pourquoi (ticket 3302) — lu des commentaires d'un ticket pris, en pass ou mis de côté ; absent sans renvoi, ou pour un
 // autre ticket. `depend` : les tickets dont son corps dit dépendre (`Depends on #N`) ; `entreLe` : l'instant où `fire` lui a été
 // posé, d'un ticket en file — nul quand ses événements ne le disent pas, absent d'un autre (ticket 3433). `attentes` : d'un
@@ -75,7 +74,7 @@ export type PrOfTicket = { numero: number; url: string; le: string; station?: st
 // commentaires, `auMoins` quand elle est pleine ; absent sans prise lue (ticket 3823). `parqueParEchecs` : la station l'a
 // parqué en arrêtant la boucle de ses échecs (tickets 3875, 4129) — depuis quand, et ce qu'il attend, de son commentaire de parking ;
 // la zone que sa PR ouverte tient encore (ticket 3924).
-export type TicketOnGithub = { ticket: number; titre: string; url: string; etat: string; priorite: number | null; creeLe: string; pr: PrOfTicket | null; prise: Taking | null; miseDeCote?: SetAside; parqueParEchecs?: { depuis: string; raison: string; zoneTenue?: ZoneHeld }; sensible?: true; renvoi?: SendBack; depend?: number[]; zone?: string[]; entreLe?: string | null; attentes?: AttenteSourcee[]; commentairesLus?: boolean; apres?: number[]; qui?: string | null; reparationDeMain?: true; prises?: { fois: number; depuis: string; auMoins?: true } };
+export type TicketOnGithub = { ticket: number; titre: string; url: string; etat: string; priorite: number | null; creeLe: string; pr: PrOfTicket | null; prise: Taking | null; miseDeCote?: SetAside; parqueParEchecs?: { depuis: string; raison: string; zoneTenue?: ZoneHeld }; renvoi?: SendBack; depend?: number[]; zone?: string[]; entreLe?: string | null; attentes?: AttenteSourcee[]; commentairesLus?: boolean; apres?: number[]; qui?: string | null; reparationDeMain?: true; prises?: { fois: number; depuis: string; auMoins?: true } };
 // Un ticket servi dans les 24 h : l'issue fermée par une PR mergée, avec cette PR et la station qui l'a cuisiné.
 export type ServedOnGithub = { ticket: number; titre: string; url: string; livre: string; station: string | null; pr: string; prLue?: { additions?: number; deletions?: number; ouvertLe?: string } };
 // `nonPris` : les tickets `fire` qu'aucun manager n'a pris (ticket 3358, rail-blocked/diagnostic.ts), ou pourquoi ils ne se
@@ -308,7 +307,7 @@ export async function readTheRailOnGithub(options: { depot: string; appeler: Cal
     const zoneOfCard = !IN_FILE.has(state) || comments === null ? undefined : fiche(comments);
     const zone = zoneOfCard === null || zoneOfCard === undefined || zoneOfCard.problems.length > 0 || zoneOfCard.zone.length === 0 ? undefined : zoneOfCard.zone;
     const sourced = { ...(!IN_FILE.has(state) ? {} : { attentes: waits, commentairesLus: commentsRead }), ...(who === undefined ? {} : { qui: who }) };
-    tickets.push({ ticket: number, titre: title, url, etat: state, priorite: priorityOf(labels), creeLe: createdThe, pr, prise: taking, ...(depend.length === 0 ? {} : { depend }), ...(zone === undefined ? {} : { zone }), ...sourced, ...(betweenThe === undefined ? {} : { entreLe: betweenThe }), ...(setAside === undefined ? {} : { miseDeCote: setAside }), ...(parkedByFailures === null ? {} : { parqueParEchecs: parkedByFailures }), ...(isSensitive(labels) ? { sensible: true as const } : {}), ...(sendBack === null ? {} : { renvoi: sendBack }), ...(repairOfMain ? { reparationDeMain: true as const } : {}), ...(taken[0] === undefined ? {} : { prises: { fois: taken.length, depuis: taken[0], ...((ofTheTaking?.length ?? 0) >= BY_PAGE ? { auMoins: true as const } : {}) } }) });
+    tickets.push({ ticket: number, titre: title, url, etat: state, priorite: priorityOf(labels), creeLe: createdThe, pr, prise: taking, ...(depend.length === 0 ? {} : { depend }), ...(zone === undefined ? {} : { zone }), ...sourced, ...(betweenThe === undefined ? {} : { entreLe: betweenThe }), ...(setAside === undefined ? {} : { miseDeCote: setAside }), ...(parkedByFailures === null ? {} : { parqueParEchecs: parkedByFailures }), ...(sendBack === null ? {} : { renvoi: sendBack }), ...(repairOfMain ? { reparationDeMain: true as const } : {}), ...(taken[0] === undefined ? {} : { prises: { fois: taken.length, depuis: taken[0], ...((ofTheTaking?.length ?? 0) >= BY_PAGE ? { auMoins: true as const } : {}) } }) });
     // Ses labels, d'où le haut du backlog se tire (ticket 4223).
     labelsRead[number] = labels;
   }
@@ -494,7 +493,6 @@ export function withTheRail(readOne: BoardRead, { lu: readThe, tickets, servis: 
         ...(ticket.etat === "pris" && ticket.prise !== null ? { depuis: ticket.prise.le } : {}),
         ...((ticket.etat === "en pass" || ticket.etat === "base rouge") && ticket.pr !== null && ticket.pr.le !== "" ? { depuis: ticket.pr.le } : {}),
         ...activityOf(ticket),
-        ...(ticket.sensible === true ? { sensible: true } : {}),
         // Sa PR ouverte et son dernier renvoi (ticket 3302) : le récit du premier ticket les dit.
         ...(ticket.pr === null ? {} : { pr: { numero: ticket.pr.numero, url: ticket.pr.url, ...ticket.pr.taille, ...(ticket.pr.le === "" ? {} : { ouvertLe: ticket.pr.le }) } }),
         ...(ticket.renvoi === undefined ? {} : { renvoi: ticket.renvoi }),

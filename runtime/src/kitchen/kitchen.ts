@@ -18,16 +18,23 @@ export const gitCli = (env: NodeJS.ProcessEnv): Git => (cwd, args) =>
   });
 
 export type KitchenOptions = {
-  repo: string; base: string; clone: string; worktrees: string; state: string;
-  gh: Gh; git: Git;
+  repo: string;
+  base: string;
+  clone: string;
+  worktrees: string;
+  state: string;
+  gh: Gh;
+  git: Git;
   // Builds the launch of one agent: `claude` with its calibration, wrapped in the sandbox.
   launch: (kind: Kind, cwd: string, write: boolean, calibration: { model: string; effort: string }, input: string) => Launch;
-  places: () => number; passPlaces?: number;
+  places: () => number;
+  passPlaces?: number;
   riskPaths: () => string[];
   // The kitchen's own secrets, masked by value in the CI logs it posts, as the relay masks an agent's.
   secrets?: Record<string, string>;
   prompts?: Prompts;
-  supervisorEveryMs?: number; now?: () => number;
+  supervisorEveryMs?: number;
+  now?: () => number;
   log: (line: string) => void;
 };
 
@@ -119,13 +126,15 @@ export function openKitchen(options: KitchenOptions) {
       if (on.length > 0) {
         await act.appendToBody(issue.number, `Depends on ${on.join(", ")} (noted by its cook).`);
         await act.labels(issue.number, [], [LABELS.taken]);
-        return log(`#${issue.number} waits for ${on.join(", ")}`);
+        log(`#${issue.number} waits for ${on.join(", ")}`);
+        return;
       }
     }
     const park = /^PARK:\s*(.+)$/m.exec(run.result);
     if (park !== null) {
       await act.labels(issue.number, [LABELS.parkedChef], [LABELS.taken]);
-      return void (await act.comment(issue.number, `Parked for the chef by its cook: ${park[1]}`));
+      await act.comment(issue.number, `Parked for the chef by its cook: ${park[1]}`);
+      return;
     }
     // Work the cook left uncommitted is kept, not lost.
     if ((await git(wt, ["status", "--porcelain"]).catch(() => "")).trim() !== "") {
@@ -154,7 +163,8 @@ export function openKitchen(options: KitchenOptions) {
     const risky = files.filter((file) => options.riskPaths().some((zone) => file.startsWith(zone)));
     if (risky.length > 0 && !(await chefSays(issue.number, pr.number))) {
       await act.labels(issue.number, [LABELS.parkedChef, LABELS.approved], [LABELS.inPass]);
-      return void (await act.comment(issue.number, `${riskZoneComment(pr.number)} (${risky.slice(0, 5).join(", ")}): it waits for the chef to merge it.`));
+      await act.comment(issue.number, `${riskZoneComment(pr.number)} (${risky.slice(0, 5).join(", ")}): it waits for the chef to merge it.`);
+      return;
     }
     try {
       await merge(issue.number, pr.number);

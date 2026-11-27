@@ -1,8 +1,7 @@
 // L'état du manager d'un projet : allumé ou éteint — il suit l'interrupteur du projet (#1406), et sa
 // ligne le dit —, depuis quand et par qui, ses
 // dernières décisions, ce qu'il a écarté et pourquoi. L'app le lit là où le
-// runtime le montre — la sortie de `manager` (runtime/src/manager-cli.ts,
-// `montrer`), relayée par l'onglet Manager comme celle des autres (tabs.ts) —
+// runtime le montre — la sortie de `manager` (`montrer`), relayée par l'onglet Manager comme celle des autres (tabs.ts) —
 // et n'y lit que trois choses : sa ligne `manager`, les lignes sous
 // `latest decisions`, les lignes sous `set aside`. Il écrit en anglais depuis
 // #951 ; l'app lit aussi les mots d'avant (`ALLUMÉ`, `ÉTEINT`, `dernières décisions`,

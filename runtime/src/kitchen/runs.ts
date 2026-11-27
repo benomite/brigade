@@ -15,16 +15,15 @@ export type Finished = Run & { end: FinDuRelais; result: string };
 const RELAY = join(import.meta.dirname, "..", "relais.ts");
 export const runName = (kind: Kind, issue: number | null) => (issue === null ? kind : `${kind}-${issue}`);
 
-// A JSON file, or null when it is missing or cut.
-export function readJson<T>(path: string): T | null {
+const files = (dir: string) => ({ meta: join(dir, "meta.json"), relay: join(dir, "relay.json"), stream: join(dir, "stream.jsonl"), pid: join(dir, "agent.pid"), end: join(dir, "end.json") });
+
+const readJson = <T>(file: string): T | null => {
   try {
-    return JSON.parse(readFileSync(path, "utf8")) as T;
+    return JSON.parse(readFileSync(file, "utf8")) as T;
   } catch {
     return null;
   }
-}
-
-const files = (dir: string) => ({ meta: join(dir, "meta.json"), relay: join(dir, "relay.json"), stream: join(dir, "stream.jsonl"), pid: join(dir, "agent.pid"), end: join(dir, "end.json") });
+};
 
 function alive(dir: string, name: string): boolean {
   try {
@@ -102,8 +101,10 @@ export function startRun(root: string, meta: Omit<RunMeta, "started">, launch: L
   writeFileSync(files(dir).meta, JSON.stringify(full));
   const relay = spawn(process.execPath, [RELAY, name], { detached: true, stdio: ["pipe", "ignore", "ignore"], env: process.env });
   relay.stdin?.on("error", () => {});
-  const { stream: flux, pid, end: fin } = files(dir);
-  const order: ConsigneDuRelais = { commande: launch.command, args: launch.args, entree: launch.input, cwd: launch.cwd, env: launch.env, flux, pid, fin, secrets: launch.secrets, graceMs: 10_000 };
+  const order: ConsigneDuRelais = {
+    commande: launch.command, args: launch.args, entree: launch.input, cwd: launch.cwd, env: launch.env,
+    flux: files(dir).stream, pid: files(dir).pid, fin: files(dir).end, secrets: launch.secrets, graceMs: 10_000,
+  };
   relay.stdin?.end(`${JSON.stringify(order)}\n`);
   ecrireAtomique(files(dir).relay, JSON.stringify({ pid: relay.pid, run: name }));
   relay.unref();

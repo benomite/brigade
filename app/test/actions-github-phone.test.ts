@@ -181,7 +181,12 @@ async function twoTimes<R>(ofDesktop: (client: ReturnType<typeof desktop>) => Pr
 }
 // Déparquer : `parked` retiré, puis chaque label d'attente d'avant parked (runtime/src/github-etat/etats.ts) — un ticket que
 // l'un d'eux parque reprend aussi.
-const UNPARKED = (ticket: number) => ["parked", ...LABELS_D_AVANT_PARKED].map((label) => `DELETE /repos/${REPOSITORY}/issues/${ticket}/labels/${encodeURIComponent(label)}`);
+// « back to the kitchen » : `parked`, puis les labels d'avant parked que la cuisine lit encore ; une réponse de carte
+// (board-actions/answer-github.ts) retire encore ceux de l'ancien runtime.
+const LABELS_BEFORE_PARKED = ["waiting", "blocked-on-human"];
+const unparked = (labels: readonly string[]) => (ticket: number) => ["parked", ...labels].map((label) => `DELETE /repos/${REPOSITORY}/issues/${ticket}/labels/${encodeURIComponent(label)}`);
+const UNPARKED = unparked(LABELS_BEFORE_PARKED);
+const UNPARKED_BY_ANSWER = unparked(LABELS_D_AVANT_PARKED);
 const resume = (received: Received[]) => received.map(({ methode: method, url, corps: body }) => `${method} ${url.slice(API.length - 1)}${body === undefined ? "" : ` ${JSON.stringify(body)}`}`);
 const HEADERS = { Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28", Authorization: `Bearer ${TOKEN}` };
 
@@ -197,7 +202,7 @@ describe("le téléphone écrit sur GitHub ce que le desktop y écrit pour le m�
       `DELETE /repos/${REPOSITORY}/issues/40/labels/chef-todo`,
       // Une carte parque son ticket pour le chef (#4129) : répondue, `parked` part aussi, et tout label d'attente d'avant parked
       // — l'issue ne les porte pas, GitHub répond 404.
-      ...UNPARKED(40),
+      ...UNPARKED_BY_ANSWER(40),
     ]);
     assert.deepEqual(state.issues[40]?.labels, ["fire"]);
     assert.deepEqual(said, { repondue: true, dit: "answer posted on #40 (resume): `served-elsewhere` and `chef-todo` removed", commentaire: 902 });
@@ -215,7 +220,7 @@ describe("le téléphone écrit sur GitHub ce que le desktop y écrit pour le m�
       `PUT /repos/${REPOSITORY}/pulls/1560/merge {"merge_method":"merge"}`,
       `DELETE /repos/${REPOSITORY}/issues/41/labels/chef-todo`,
       // Mergée, la livraison n'attend plus personne : `parked` et les labels d'avant parked — l'issue ne les porte pas, 404.
-      ...UNPARKED(41),
+      ...UNPARKED_BY_ANSWER(41),
     ]);
     assert.equal(state.pr.merged, true);
   });
@@ -311,7 +316,7 @@ describe("sans station joignable, les trois gestes passent par GitHub seul", () 
     assert.ok("fait" in (await actions.geste(PROJECT, "retirer", 22)));
     // La réponse : son commentaire, `served-elsewhere`, `chef-todo`, `parked` et les labels d'avant parked retirés (#4129) ; puis
     // `parked` et les labels d'avant parked, puis `fire`.
-    assert.equal(world.recues.length, 1 + 2 + UNPARKED(40).length + UNPARKED(31).length + 1);
+    assert.equal(world.recues.length, 1 + 2 + UNPARKED_BY_ANSWER(40).length + UNPARKED(31).length + 1);
     for (const { url, entetes: headers } of world.recues) {
       assert.ok(url.startsWith(API), `${url} is GitHub's API`);
       assert.deepEqual(headers, url.includes("/comments") ? { ...HEADERS, "Content-Type": "application/json" } : HEADERS);
@@ -500,7 +505,7 @@ describe("par le pont de l'APK, sans station, les gestes du chef s'écrivent sur
       `DELETE /repos/${REPOSITORY}/issues/40/labels/chef-todo`,
       // Une carte parque son ticket pour le chef (#4129) : répondue, `parked` part aussi, et tout label d'attente d'avant parked
       // — l'issue ne les porte pas, GitHub répond 404.
-      ...UNPARKED(40),
+      ...UNPARKED_BY_ANSWER(40),
     ]);
     assert.ok("repondue" in said);
     assert.ok(reread.length > 0);
@@ -508,7 +513,7 @@ describe("par le pont de l'APK, sans station, les gestes du chef s'écrivent sur
 
   test("répondre à une carte de TODO par un merge : la PR lue, mergée, puis `chef-todo` retiré", async () => {
     const { ecrites: writtenEntries } = await byTheBridge((client) => answerOnGithub({ depot: REPOSITORY, ticket: 41, chef: CHEFS.get(41), reponse: click(41, 1), client }), "repondreCarte", PROJECT, 41, click(41, 1));
-    assert.deepEqual(resume(writtenEntries).map((line) => line.split(" {")[0]), [`GET /repos/${REPOSITORY}/pulls/1560`, `POST /repos/${REPOSITORY}/issues/41/comments`, `PUT /repos/${REPOSITORY}/pulls/1560/merge`, `DELETE /repos/${REPOSITORY}/issues/41/labels/chef-todo`, ...UNPARKED(41)]);
+    assert.deepEqual(resume(writtenEntries).map((line) => line.split(" {")[0]), [`GET /repos/${REPOSITORY}/pulls/1560`, `POST /repos/${REPOSITORY}/issues/41/comments`, `PUT /repos/${REPOSITORY}/pulls/1560/merge`, `DELETE /repos/${REPOSITORY}/issues/41/labels/chef-todo`, ...UNPARKED_BY_ANSWER(41)]);
   });
 
   test("reprendre — « back to the kitchen » sur la fiche : `parked` retiré", async () => {

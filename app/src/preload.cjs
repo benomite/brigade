@@ -118,21 +118,10 @@ const bridge = {
   lireLesAgents: (project) => ipcRenderer.invoke("lireLesAgents", project),
   gestesRetenus: (project) => ipcRenderer.invoke("gestesRetenus", project),
   approuverGeste: (project, id) => ipcRenderer.invoke("approuverGeste", project, id),
-  // Les tickets récurrents du projet, sous Settings (ticket 3231) : lus, et chacun suspendu, repris ou retiré (recurring-box.ts).
-  listerLesRecurrents: (project) => ipcRenderer.invoke("listerLesRecurrents", project),
-  changerUnRecurrent: (project, action, id) => ipcRenderer.invoke("changerUnRecurrent", project, action, id),
   // La fiche du projet, sous Settings (ticket 4240) : lue et écrite dans le dossier du projet (card-project/card-project-folder.ts).
   lireUnFichierDuProjet: (project, path) => ipcRenderer.invoke("lireUnFichierDuProjet", project, path),
   ecrireUnFichierDuProjet: (project, path, text) => ipcRenderer.invoke("ecrireUnFichierDuProjet", project, path, text),
-  // Les explications des mots de la cuisine (ticket 3308) : ce que le chef en a vu, gardé par le runtime du projet (explanations/explanations-box.ts).
-  lireLesExplications: (project) => ipcRenderer.invoke("lireLesExplications", project),
-  marquerUneExplication: (project, word) => ipcRenderer.invoke("marquerUneExplication", project, word),
-  remontrerLesExplications: (project) => ipcRenderer.invoke("remontrerLesExplications", project),
   envoyerUnMot: (project, entry) => ipcRenderer.invoke("envoyerUnMot", project, entry), // le mot au cook (ticket 4048, mot-au-cook/)
-  // Le savoir-faire du projet, sous Know-how (ticket 4241) : lu, et chaque entrée réécrite ou retirée (know-how-tab/know-how-box.ts).
-  lireLeSavoirFaire: (project) => ipcRenderer.invoke("lireLeSavoirFaire", project),
-  modifierLeSavoirFaire: (project, id, text) => ipcRenderer.invoke("modifierLeSavoirFaire", project, id, text),
-  retirerDuSavoirFaire: (project, id) => ipcRenderer.invoke("retirerDuSavoirFaire", project, id),
   // Le récapitulatif de chaque projet, sur l'accueil (ticket 3581) : lu, dit montré, et la PR d'un ticket servi ouverte (recap/recap-box.ts).
   lireLeRecap: (project) => ipcRenderer.invoke("lireLeRecap", project),
   marquerLeRecap: (project, until) => ipcRenderer.invoke("marquerLeRecap", project, until),
@@ -192,8 +181,6 @@ const bridge = {
   compter: (project) => ipcRenderer.invoke("compter", project),
   repondreCarte: (project, ticket, answer) => ipcRenderer.invoke("repondreCarte", project, ticket, answer),
   gesteDeValidation: (project, ticket, action) => ipcRenderer.invoke("gesteDeValidation", project, ticket, action),
-  gesteSensible: (project, ticket, action) => ipcRenderer.invoke("gesteSensible", project, ticket, action),
-  annulerServi: (project, ticket) => ipcRenderer.invoke("annulerServi", project, ticket),
   ouvrirBilan: (project, url) => ipcRenderer.invoke("ouvrirBilan", project, url),
   ouvrirLectureSeule: (project, page) => ipcRenderer.invoke("ouvrirLectureSeule", project, page),
   regarder: (project, request) => ipcRenderer.send("regarder", project, request),
