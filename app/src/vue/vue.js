@@ -3365,7 +3365,7 @@ function renderCard() {
     if (question !== undefined) panel.append(question);
   }
   // La carte de TODO d'un ticket du chef, sur sa fiche aussi : sur le kanban de la nouvelle cuisine, plus aucun bon ne la porte
-  // (#4593), et c'est ici que le chef écrit sa réponse et clique Answer.
+  //, et c'est ici que le chef écrit sa réponse et clique Answer.
   if (cardItem.attendu && cardItem.todo !== undefined) panel.append(...setTheCardOfTodo(project, ticket, cardItem.todo));
   panel.append(renderCardActions(project, cardItem), ...diagramOfCard(project, ticket), folded(project, ticket), ...suite);
 }

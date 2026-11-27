@@ -158,7 +158,7 @@ export function actionsOfTodo(card, actions) {
   // Un écran à valider : son bouton, quand sa carte dit la PR qu'il tranche — sinon aucun, comme sur sa carte.
   if (isOneValidation(todo)) return "pr" in (todo.validation ?? {}) ? [{ texte: VALIDATE, recommande: true, sorte: "valider" }] : [];
   if (!["repos", "refus"].includes(seenOfTheCard(todo, actions.etat(card.ticket, todo)).vu)) return [];
-  // Une carte qui ne se répond qu'en mots (`parked:chef`, #4593) : son bouton ouvre sa carte, où le chef écrit sa réponse.
+  // Une carte qui ne se répond qu'en mots (`parked:chef`) : son bouton ouvre sa carte, où le chef écrit sa réponse.
   if (todo.choix.length === 0 && todo.repondre !== undefined) return [{ texte: todo.repondre, recommande: true, sorte: "repondre", ouvre: true }];
   const recommended = recommendationOf(todo)?.rang;
   return todo.choix.map(({ texte: text }, rank) => ({ texte: text, recommande: rank + 1 === recommended, sorte: "repondre", reponse: { question: todo.question, choix: rank + 1 } }));
