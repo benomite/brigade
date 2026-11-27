@@ -6,7 +6,6 @@ import assert from "node:assert/strict";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
-import { enAmont } from "../src/amont.ts";
 import { empreinteDEpique, marque, MARQUEUR_QUESTION } from "../src/decouper.ts";
 import { DEBUT, FIN } from "../src/epique.ts";
 import type { Evenement } from "../src/evenements.ts";
@@ -325,9 +324,6 @@ describe("le manager découpe une épique", { concurrency: 8 }, () => {
 
     assert.equal(c.gh.lire(30)?.state, "open");
     assert.ok(!c.faits(30).some((e) => e.type === "manager.split-served"));
-    const amont = enAmont(c.journal.base, [issue(30, ["epic"])]);
-    assert.equal(amont[0]?.etat, "decoupee");
-    assert.match(amont[0]?.dit ?? "", /#502 closed without delivery/);
 
     livrer(c, 501, 503);
     await jusqua(() => c.gh.lire(30)?.state === "closed");

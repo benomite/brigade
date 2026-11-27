@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import type { ClientOfThePriority } from "../../../src/priority.ts";
-import { PROPOSES } from "../../../src/settings-of-project.ts";
+import { PROPOSES } from "../../../src/box.ts";
 import { changeTheKnowledge, readTheKnowledge, readTheKnowledgeOfProject, proposeTheChange } from "../../../src/vue/know-how/know-how-github.ts";
 
 const REPOSITORY = "chef/parade";

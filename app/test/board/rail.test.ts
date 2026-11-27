@@ -10,7 +10,6 @@ import { syncBuiltinESMExports } from "node:module";
 import { dirname, join, relative, resolve } from "node:path";
 import { test, type TestContext } from "node:test";
 import { putAside, ticketsOf } from "../../src/awaiting.ts";
-import { ACTION, launchThe } from "../../src/box.ts";
 import { see as seeUpstream } from "../../src/upstream.ts";
 import { holdFacts, titleOfFailure, type Drawable } from "../../src/facts.ts";
 import { withWhatAwaitingTheChef } from "../../src/board/wait-of-chef.ts";
@@ -18,6 +17,7 @@ import type { CallGitHub, AnswerGitHub } from "../../src/board/client.ts";
 import { readTheBoardOfRepository, type ReadOfBoardOfRepository, type LineOfTheFile, type BoardRead } from "../../src/board/read.ts";
 import {
   readOfBoard,
+  UPSTREAM,
   openStandbyOfBoard,
   outputOfBoard,
   statusOfBoard,
@@ -108,14 +108,6 @@ async function readByTheStandbys(call: CallGitHub) {
   return { status: readings.get("status") as ReadOfRail, facts: readings.get("facts") as ReadOfRail, tableaux: boards };
 }
 
-test("la garde prend le geste de la station lancé par le chemin des veilles : c'est elle qui ferait échouer le rail s'il en lançait un", async (t) => {
-  const launched = withoutProcess(t);
-  const locale = { node: "/usr/bin/fausse-node", runtime: "/tmp/runtime", racine: "/tmp/station", env: {} };
-  await assert.rejects(launchThe({ delaiMs: 1_000 }, { nom: "brigade", cuisine: { locale } }, "facts"), /no process may be launched to draw the rail: \/usr\/bin\/fausse-node/);
-  assert.equal(launched.length, 1);
-  assert.match(launched[0] ?? "", new RegExp(`^/usr/bin/fausse-node ${join("/tmp/runtime", ACTION).replace(/[\\/.]/g, "\\$&")} brigade facts$`));
-});
-
 test("GitHub seul, aucune box jointe : la couche de données du rail rend le kanban des labels, et les cartes du chef", async (t) => {
   const launched = withoutProcess(t);
   const paths: string[] = [];
@@ -192,9 +184,9 @@ test("le bloc `awaiting` de `status` : ce qui attend le chef, une ligne par entr
 });
 
 // La cuisine n'a pas d'avant le rail (#4507) : son Backlog est une colonne du kanban.
-test("ce qui est avant le rail n'est pas lu : `manager upstream` n'est ni compté ni dit « pas lu » (#1770), et rien d'autre n'est lu", async (t) => {
+test("ce qui est avant le rail n'est pas lu : l'amont n'est ni compté ni dit « pas lu » (#1770), et rien d'autre n'est lu", async (t) => {
   const launched = withoutProcess(t);
-  const reading = readOfBoard(await readOne(), "brigade", 1, ["manager upstream"]);
+  const reading = readOfBoard(await readOne(), "brigade", 1, [UPSTREAM]);
   assert.ok("erreur" in reading && reading.duTableau === true && reading.pasPublie === true);
   const seenOne = seeUpstream(reading);
   assert.ok("nonPublie" in seenOne);

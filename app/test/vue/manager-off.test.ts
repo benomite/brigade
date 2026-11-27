@@ -10,7 +10,7 @@ import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import type { Fait } from "../../../runtime/src/evenements.ts";
 import { ouvrirJournal } from "../../../runtime/src/journal.ts";
-import { principal as manager } from "../../../runtime/src/manager-cli.ts";
+import { managerOutput } from "../helpers/manager-output.ts";
 import type { Home } from "../../src/home.ts";
 import { MANAGER_OFF, holdBands, type Band } from "../../src/alerts.ts";
 import { forTheBar } from "../../src/bar.ts";
@@ -40,9 +40,7 @@ function outputOfManager(t: TestContext, lit: boolean): string {
   });
   const done: Fait = { type: lit ? "project.switched-on" : "project.switched-off", payload: {} };
   log.ajouter({ project: "parade", ticket: null, author: "chef", ...done });
-  const lines: string[] = [];
-  void manager({ args: [], env: { BRIGADE_STATE_DIR: directory }, dire: (line) => void lines.push(line), redire: (line) => assert.fail(line) });
-  return `${lines.join("\n")}\n`;
+  return managerOutput(log);
 }
 
 // La bande que le process principal dirait, `manager` lu — ou pas encore.

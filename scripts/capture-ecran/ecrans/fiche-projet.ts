@@ -2,8 +2,7 @@
 // dans son champ — un texte sur une ligne, une liste une entrée par ligne —, puis « Save ».
 import { configuration, cuisine, demarrage, type Ecran, MAINTENANT } from "./commun.ts";
 import { PROJETS, RENDUS } from "./cuisine-figee.ts";
-import { LUS, OUVRIR } from "./reglages-du-projet.ts";
-import { HUMAINS } from "./settings-humains.ts";
+import { OUVRIR } from "./reglages-commun.ts";
 
 // La fiche de parade, telle que la colonne « brigade, espace… » de la spec la déclare.
 export const FICHE = {
@@ -24,7 +23,7 @@ export const ecran: Ecran = {
   etapes: OUVRIR,
   donnees: () => ({
     maintenant: MAINTENANT,
-    reponses: { demarrage: demarrage(configuration(PROJETS)), espace: [], reglagesDuProjet: LUS, listerLesHumains: HUMAINS, lireUnFichierDuProjet: JSON.stringify(FICHE) },
+    reponses: { demarrage: demarrage(configuration(PROJETS)), espace: [], lireUnFichierDuProjet: JSON.stringify(FICHE) },
     envois: cuisine(RENDUS),
   }),
 };

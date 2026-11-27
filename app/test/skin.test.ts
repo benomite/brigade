@@ -498,7 +498,7 @@ describe("le cadre est fait de cartes, sur fond sombre", () => {
     // La vue, ses briques, et les blocs de ses onglets (cost/…) : tout module de la vue qui pose un élément.
     const source = files.filter((file) => file.endsWith(".js")).map(read).join("\n");
     const ids = new Set([...html.matchAll(/\bid="([^"]+)"/g), ...source.matchAll(/\.id = "([^"]+)"/g)].map(([, id = ""]) => id));
-    const classes = new Set([...html.matchAll(/\bclass="([^"]+)"/g), ...source.matchAll(/className = "([^"]+)"/g), ...source.matchAll(/\bnode\(\w+, "\w+", "([^"]+)"/g), ...source.matchAll(/classList\.toggle\("([^"]+)"/g)].flatMap(([, names = ""]) => names.split(" ")));
+    const classes = new Set([...html.matchAll(/\bclass="([^"]+)"/g), ...source.matchAll(/className = "([^"]+)"/g), ...source.matchAll(/className: "([^"]+)"/g), ...source.matchAll(/\bnode\(\w+, "\w+", "([^"]+)"/g), ...source.matchAll(/classList\.toggle\("([^"]+)"/g)].flatMap(([, names = ""]) => names.split(" ")));
     for (const { selecteurs: selectors } of rules(read("vue.css"))) {
       for (const selector of selectors) {
         for (const [, id = ""] of selector.matchAll(/#([a-z-]+)/g)) assert.ok(ids.has(id), `${selector} : aucun élément « #${id} »`);

@@ -10,12 +10,7 @@
   "scripts": {
     "test": "GIT_CORE=\"$(git --exec-path 2>/dev/null)\"; PATH=\"${GIT_CORE:+$GIT_CORE:}$PATH\" NODE_COMPILE_CACHE=\"${NODE_COMPILE_CACHE:-${TMPDIR:-/tmp}/brigade-runtime-compile-cache}\" node --import ./test-hang-guard/charger.ts --test --test-concurrency=5 --test-reporter=spec --test-reporter-destination=stdout --test-reporter=./test/garde-duree/reporteur.ts --test-reporter-destination=stderr --test-force-exit --test-timeout=120000 \"test/**/*.test.ts\" \"test-hang-guard/**/*.test.ts\"",
     "typecheck": "tsc --noEmit",
-    "start": "node src/kitchen/main.ts",
-    "setting": "node src/reglage-cli.ts",
-    "humans": "node src/humains-cli.ts",
-    "contributor-stations": "node src/contributor-stations-cli.ts",
-    "manager": "node src/manager-cli.ts",
-    "help": "node src/aide.ts"
+    "start": "node src/kitchen/main.ts"
   },
   "devDependencies": {
     "@types/node": "26.6.4",

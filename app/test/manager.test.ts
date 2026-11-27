@@ -3,23 +3,16 @@
 // sorties lues ici sont celles que la commande de l'ancien runtime écrivait
 // (runtime/src/manager-cli.ts, supprimé avec lui, #4499), jouée sur un vrai journal,
 // recopiées telles quelles : la forme que l'app lit est celle que le runtime écrivait. Manager n'est
-// plus un onglet (#1700) : sa lecture sert l'amont et les alertes. À côté, les
-// deux gestes, qui envoient leur commande dans le second, s'il est dit
-// libre (terminals.test.ts) : éteindre, direct ; allumer, confirmé — rien ne part
-// sans son « oui » (confirmation.test.ts).
+// plus un onglet (#1700) : sa lecture ne sert plus que les alertes ; l'app ne la lance plus (#4710).
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test } from "node:test";
-import { ACTION, type Reading } from "../src/box.ts";
-import { COMMAND, managerOf, see, type Manager } from "../src/manager.ts";
-import { commandOf, TABS } from "../src/tabs.ts";
-import { SAYS } from "../src/input.ts";
-import { openTerminals } from "../src/terminals.ts";
+import type { Reading } from "../src/box.ts";
+import { COMMAND, managerOf, type Manager } from "../src/manager.ts";
+import { TABS } from "../src/tabs.ts";
 
 const ROOT = join(import.meta.dirname, "../..");
-const PARADE = { nom: "parade", dossier: "/projets/parade" };
-const KITCHEN = { locale: { node: "node", runtime: "/tmp/runtime", racine: "/tmp/station", env: {} } };
 
 // La sortie de `manager` sur un journal où chaque fait est écrit une minute après le précédent, à partir de 9 h 01 :
 // telle que l'ancien runtime l'écrivait.
@@ -258,62 +251,14 @@ describe("l'état du manager, lu dans la sortie de `manager`", () => {
   });
 });
 
-describe("ce que l'app pose de la lecture du manager — l'amont la lit (upstream.ts)", () => {
-  test("lu : l'interrupteur, les décisions et les écartées, avec l'heure de la lecture — la vue n'y calcule rien", () => {
-    assert.deepEqual(see(reading(OUTPUT.ROADMAP)), {
-      projet: "parade",
-      demande: 4,
-      a: "2026-10-13T10:00:00.000Z",
-      interrupteur: { allume: true, mot: "ON", ton: "vert", depuis: "2026-10-13T09:01:00.000Z", par: "chef", dit: "it judges the open issues, sets `fire` and the calibration" },
-      decisions: { lignes: [{ a: "2026-10-13T09:02:00.000Z", ticket: 1, dit: "set aside (`roadmap`)" }], illisibles: [] },
-      ecartees: { lignes: [{ a: "2026-10-13T09:02:00.000Z", ticket: 1, motif: "it is the project's roadmap", rend: "nothing returns it to the manager" }], illisibles: [] },
-    });
-  });
-
-  test("sans décision ni écart, chaque liste dit ce que le runtime en dit, à la place de ses lignes", () => {
-    const seenOne = see(reading(OUTPUT.NEVER));
-
-    assert.ok("interrupteur" in seenOne);
-    // Éteint n'est pas une alerte : c'est l'état d'un manager que personne n'a allumé.
-    assert.equal(seenOne.interrupteur.ton, "gris");
-    assert.deepEqual(seenOne.decisions, { lignes: [], illisibles: [], vide: "none" });
-    assert.deepEqual(seenOne.ecartees, { lignes: [], illisibles: [], vide: "none" });
-  });
-
-  test("une section que la sortie n'a pas se dit « pas lue », jamais « aucune »", () => {
-    const seenOne = see(reading("manager               ÉTEINT — jamais allumé : aucune issue n'est jugée, `fire` et le calibrage se posent à la main\n"));
-
-    assert.ok("interrupteur" in seenOne);
-    assert.deepEqual(seenOne.decisions, { lignes: [], illisibles: [], vide: "not read: the output has no `latest decisions` line. This is not “none” — it is shown below, in full" });
-    assert.deepEqual(seenOne.ecartees, { lignes: [], illisibles: [], vide: "not read: the output has no `set aside` line. This is not “none” — it is shown below, in full" });
-  });
-
-  test("une lecture ratée ne dit rien du manager : ni allumé, ni éteint — ce que l'app a obtenu se lit dessous", () => {
-    const seenOne = see({ projet: "parade", demande: 4, a: "2026-10-13T10:00:00.000Z", erreur: "$ node geste.ts manager\n→ code de sortie 1", atteinte: false, cas: null });
-
-    assert.deepEqual(seenOne, { projet: "parade", demande: 4, a: "2026-10-13T10:00:00.000Z", sans: "the manager's state was not read: what the app got in its place is below. This is not “off”" });
-  });
-
-  test("une sortie qui n'a pas la forme ne dit rien du manager non plus, et l'app dit en quoi", () => {
-    assert.deepEqual(see(reading("usage : brigade <projet> <commande> [arguments…]\n")), {
-      projet: "parade",
-      demande: 4,
-      a: "2026-10-13T10:00:00.000Z",
-      sans: "the manager's state was not read in this output: it has no `manager` line. This is not “off” — it is shown below, in full",
-    });
-    // La lecture d'un autre onglet n'est pas celle du manager.
-    assert.ok("sans" in see({ projet: "parade", demande: 4, a: "2026-10-13T10:00:00.000Z", sorties: [{ commande: "rail", texte: "manager               ALLUMÉ depuis le 2026-10-13T09:01:00.000Z (par chef) — il juge\n" }] }));
-  });
-});
-
-describe("la lecture du manager et ses deux gestes", () => {
-  test("la lecture lance `manager`, sans argument : rien n'y est allumé ni éteint — et Manager n'est plus un onglet (#1700)", () => {
+describe("l'app ne lance plus `manager` (#4710)", () => {
+  test("aucun onglet ne relaie `manager`, et main.ts n'ouvre aucune veille de box pour un onglet", () => {
     assert.equal(COMMAND, "manager");
-    assert.equal(commandOf("manager"), undefined);
     assert.equal(TABS.some(({ id, titre: title }) => id === "manager" || title === "Manager"), false);
+    assert.doesNotMatch(readFileSync(join(ROOT, "app/src/main.ts"), "utf8"), /openStandby\(|standbyOfTab|seeManager/);
   });
 
-  test("le module ne lance rien : il lit une sortie que la veille a déjà rendue", () => {
+  test("le module ne lance rien : il lit une sortie qu'on lui donne", () => {
     const source = readFileSync(join(ROOT, "app/src/manager.ts"), "utf8");
 
     assert.doesNotMatch(source, /node:child_process|\bimport\(|require\(|execFile|spawn/);
