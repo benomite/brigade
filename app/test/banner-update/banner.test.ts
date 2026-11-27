@@ -91,10 +91,10 @@ for (const [workstation, pkg, hint] of [
 
 test("la ligne suit la mise à jour de l'app installée : téléchargement, prête avec « Update now », installation", async () => {
   const { vue, phrase: sentence, classe } = await launch({ publiees: ["1.5.0"], miseAJour: { etat: "telechargement", version: "1.4.0", nouvelle: "1.5.0", recus: 40, taille: 100 } });
-  assert.equal(sentence(), "Brigade 1.4.0 is running — 1.5.0 is out · downloading it, 40 %");
+  assert.equal(sentence(), "Brigade 1.4.0 is running — 1.5.0 is out · downloading 1.5.0, 40 %");
   assert.equal(classe("telecharger"), undefined);
   vue.dire("surMiseAJour", { etat: "prete", version: "1.4.0", nouvelle: "1.5.0" });
-  assert.equal(sentence(), "Brigade 1.4.0 is running — 1.5.0 is out · it is downloaded: it installs at the next launch");
+  assert.equal(sentence(), "Brigade 1.4.0 is running — 1.5.0 is out · 1.5.0 is downloaded: it installs at the next launch");
   const installer = [...vue.element("nouvelle-version").descendants()].find(({ textContent, balise }) => balise === "button" && textContent === "Update now");
   assert.ok(installer, "« Update now » est sur la ligne");
   assert.equal(installer.className, "recommande");
@@ -102,7 +102,38 @@ test("la ligne suit la mise à jour de l'app installée : téléchargement, prê
   await repos();
   assert.deepEqual(vue.dernier("installerMiseAJour"), []);
   vue.dire("surMiseAJour", { etat: "installation", version: "1.4.0", nouvelle: "1.5.0" });
-  assert.equal(sentence(), "Brigade 1.4.0 is running — 1.5.0 is out · installing it — the app relaunches itself…");
+  assert.equal(sentence(), "Brigade 1.4.0 is running — 1.5.0 is out · installing 1.5.0 — the app relaunches itself…");
+  assert.equal(updateNow(vue), undefined);
+});
+
+const updateNow = (vue: Awaited<ReturnType<typeof launch>>["vue"]) => [...vue.element("nouvelle-version").descendants()].find(({ textContent, balise }) => balise === "button" && textContent === "Update now");
+
+test("« Update now » cliqué pendant le téléchargement de la dernière version : la ligne dit sa progression et qu'elle s'installera à la fin, sans second clic (#4494)", async () => {
+  // L'installation ne rend rien tant que le téléchargement n'est pas fini : l'app se ferme alors.
+  let finish: (rendered: undefined) => void = () => undefined;
+  const vue = await playTheVue({
+    demarrage: () => startup({ etat: "telechargement", version: "1.0.424", nouvelle: "1.0.428", recus: 40, taille: 100 }),
+    espace: () => [],
+    avisDeVersion: () => searchOneUpdate({ version: "1.0.424", poste: "mac", fetch: github(["1.0.425", "1.0.428"]) }),
+    telechargerVersion: async () => true,
+    installerMiseAJour: () => new Promise<undefined>((resolve) => (finish = resolve)),
+  });
+  await repos();
+  const sentence = () => [...vue.element("nouvelle-version").descendants()].find(({ className }) => className === "phrase")?.textContent;
+  assert.equal(sentence(), "Brigade 1.0.424 is running — 1.0.428 is out · downloading 1.0.428, 40 %");
+  const button = updateNow(vue);
+  assert.ok(button, "« Update now » est offert pendant le téléchargement");
+  button.click();
+  await repos();
+  assert.deepEqual(vue.dernier("installerMiseAJour"), []);
+  assert.equal(sentence(), "Brigade 1.0.424 is running — 1.0.428 is out · downloading 1.0.428, 40 % — it installs as soon as it is downloaded, then the app relaunches itself");
+  assert.equal(updateNow(vue), undefined, "pas de second clic à faire");
+  vue.dire("surMiseAJour", { etat: "telechargement", version: "1.0.424", nouvelle: "1.0.428", recus: 90, taille: 100 });
+  assert.equal(sentence(), "Brigade 1.0.424 is running — 1.0.428 is out · downloading 1.0.428, 90 % — it installs as soon as it is downloaded, then the app relaunches itself");
+  vue.dire("surMiseAJour", { etat: "installation", version: "1.0.424", nouvelle: "1.0.428" });
+  finish(undefined);
+  await repos();
+  assert.equal(sentence(), "Brigade 1.0.424 is running — 1.0.428 is out · installing 1.0.428 — the app relaunches itself…");
 });
 
 test("« Update now » refusé : la ligne dit pourquoi, à la place de ce qu'elle disait", async () => {
@@ -124,14 +155,23 @@ test("une release sans latest-mac.yml : la mise à jour se dit à jour, la ligne
   assert.equal(sentence(), "Brigade 1.4.0 is running — 1.5.0 is out — Download");
 });
 
-test("la mise à jour porte une version moins haute que la dernière : la ligne la nomme", async () => {
-  const { phrase: sentence } = await launch({ publiees: ["1.5.0", "1.6.0"], miseAJour: { etat: "prete", version: "1.4.0", nouvelle: "1.5.0" } });
-  assert.equal(sentence(), "Brigade 1.4.0 is running — 1.6.0 is out · 1.5.0 is downloaded: it installs at the next launch");
+test("1.0.425 téléchargée, 1.0.428 sortie : la ligne ne nomme que 1.0.428, et « Update now » va la chercher (#4494)", async () => {
+  const { vue, phrase: sentence } = await launch({ version: "1.0.424", publiees: ["1.0.425", "1.0.428"], miseAJour: { etat: "prete", version: "1.0.424", nouvelle: "1.0.425" } });
+  assert.equal(sentence(), "Brigade 1.0.424 is running — 1.0.428 is out");
+  const button = updateNow(vue);
+  assert.ok(button, "« Update now » est sur la ligne");
+  assert.ok([...vue.element("nouvelle-version").descendants()].some(({ ariaLabel }) => /relaunches it on 1\.0\.428$/.test(String(ariaLabel ?? ""))), "son prix nomme 1.0.428");
+  // Pendant le téléchargement d'une version moins haute, pas davantage.
+  vue.dire("surMiseAJour", { etat: "telechargement", version: "1.0.424", nouvelle: "1.0.425", recus: 40, taille: 100 });
+  assert.equal(sentence(), "Brigade 1.0.424 is running — 1.0.428 is out");
+  // La mise à jour passe à 1.0.428 : la ligne dit où elle en est.
+  vue.dire("surMiseAJour", { etat: "telechargement", version: "1.0.424", nouvelle: "1.0.428", recus: 40, taille: 100 });
+  assert.equal(sentence(), "Brigade 1.0.424 is running — 1.0.428 is out · downloading 1.0.428, 40 %");
 });
 
 test("sans avis, la mise à jour qui a trouvé une version plus haute suffit à poser la ligne", async () => {
   const { phrase: sentence } = await launch({ publiees: [], miseAJour: { etat: "disponible", version: "1.4.0", nouvelle: "1.5.0" } });
-  assert.equal(sentence(), "Brigade 1.4.0 is running — 1.5.0 is out · downloading it");
+  assert.equal(sentence(), "Brigade 1.4.0 is running — 1.5.0 is out · downloading 1.5.0");
 });
 
 test("une version plus haute publiée pendant que l'app tourne : la vérification suivante la pousse à la ligne", async () => {

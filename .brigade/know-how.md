@@ -12,3 +12,4 @@
 - The pass's gate on test-only exports (runtime/src/passe/gates/controle.ts) tells a renamed export from a new one through `scripts/rename-code/table.ts` (`newNameOf`): a name the table gives must be the one the rename gave, so give a refused name in `names.ts`, never by hand (#4413)
 - A ticket the pass approved and parked for the chef's merge carries `approved` beside `parked:chef` (runtime/src/kitchen/decide.ts): only those go back to a cook when their PR starts conflicting; any other `parked:chef` holds a question and stays (#4492)
 - The suite's duration guard (#2129) fails any test past 2 s: a test that waits past the gate's 1 s reread floor can afford one such wait, never two (#4480)
+- A capture step that clicks a `buttonAction` must target `button.recommande` (or its class): the action carries a second `button` for its price hover (`?`), and `cliquer` wants exactly one element (#4494)

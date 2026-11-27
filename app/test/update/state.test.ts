@@ -4,10 +4,10 @@
 // Windows (#1156), le même chemin, sur le `latest.yml` et le setup .exe des mêmes releases.
 import assert from "node:assert/strict";
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { jusqua, repertoireTemporaire } from "../../../runtime/test/outils.ts";
-import { FAILURE, READY, holdUpdate, type StateOfUpdate, type OptionsUpdate, type Ready } from "../../src/update/state.ts";
+import { FAILURE, READY, holdUpdate, type Download, type StateOfUpdate, type OptionsUpdate, type Ready } from "../../src/update/state.ts";
 import { fluxGitHub, WINDOWS, type Flux } from "../../src/update/flux.ts";
 import { nameOfSetup, oneFakeFlux, oneAddressSilent, ymlOf } from "./fake-flux.ts";
 
@@ -76,10 +76,11 @@ test("une version plus haute est annoncée avec son numéro, téléchargée, vé
   assert.ok(receivedOnes.length <= 102);
   assert.deepEqual(readdirSync(app.dossier).sort(), ["Brigade-1.1.0-arm64.dmg", READY]);
   assert.ok(readFileSync(join(app.dossier, "Brigade-1.1.0-arm64.dmg")).equals(DMG));
-  // Prête, la version ne se relit plus : rien ne repart.
-  const requests = fake.demandes.length;
+  // Prête, la version relit le flux sans changer d'état (#4494) : rien de plus haut, rien ne se retélécharge.
+  const states = app.etats.length;
   assert.equal((await app.miseAJour.verifier()).etat, "prete");
-  assert.equal(fake.demandes.length, requests);
+  assert.equal(app.etats.length, states);
+  assert.equal(fake.demandes.filter((path) => path.endsWith(".dmg")).length, 1);
 });
 
 test("un .dmg qui n'a pas l'empreinte publiée n'est jamais prêt", async (t) => {
@@ -120,15 +121,99 @@ test("« installer maintenant » télécharge ce qui manque, lance l'installeur 
   assert.equal(existsSync(join(app.dossier, READY)), false);
 });
 
-test("« installer maintenant » sur une version prête l'installe sans rien relire", async (t) => {
+test("« installer maintenant » sur une version prête, la dernière publiée, l'installe sans la retélécharger", async (t) => {
   const fake = await oneFakeFlux(t, { "1.1.0": { dmg: DMG } });
   const app = oneApp(t, onThe(fake.adresse));
   await app.miseAJour.verifier();
   await jusqua(() => app.miseAJour.vu().etat === "prete");
-  const requests = fake.demandes.length;
   assert.equal(await app.miseAJour.installerMaintenant(), undefined);
-  assert.equal(fake.demandes.length, requests);
-  assert.equal(app.installees.length, 1);
+  assert.equal(fake.demandes.filter((path) => path.endsWith(".dmg")).length, 1);
+  assert.deepEqual(app.installees, [{ version: "1.1.0", installeur: "le dmg publié" }]);
+});
+
+// #4494 : 1.0.424 tourne, 1.0.425 est téléchargée, 1.0.428 est sortie depuis.
+const D425 = Buffer.alloc(300_000, 4);
+const D428 = Buffer.alloc(300_000, 5);
+
+test("1.0.425 téléchargée et 1.0.428 sortie : la vérification télécharge 1.0.428 à sa place, et « installer maintenant » installe 1.0.428", async (t) => {
+  const fake = await oneFakeFlux(t, { "1.0.425": { dmg: D425 } });
+  const app = oneApp(t, onThe(fake.adresse), { version: "1.0.424" });
+  await app.miseAJour.verifier();
+  await jusqua(() => app.miseAJour.vu().etat === "prete");
+  assert.deepEqual(readdirSync(app.dossier).sort(), ["Brigade-1.0.425-arm64.dmg", READY]);
+
+  fake.publications.set("1.0.428", { dmg: D428 });
+  assert.deepEqual(await app.miseAJour.verifier(), { etat: "telechargement", version: "1.0.424", nouvelle: "1.0.428", recus: 0, taille: D428.length });
+  await jusqua(() => app.miseAJour.vu().etat === "prete");
+  assert.deepEqual(app.miseAJour.vu(), { etat: "prete", version: "1.0.424", nouvelle: "1.0.428" });
+  // L'ancien téléchargement s'en va : seule la dernière reste à installer, maintenant ou au lancement suivant.
+  assert.deepEqual(readdirSync(app.dossier).sort(), ["Brigade-1.0.428-arm64.dmg", READY]);
+
+  assert.equal(await app.miseAJour.installerMaintenant(), undefined);
+  assert.deepEqual(app.installees.map(({ version, installeur }) => ({ version, installeur: basename(installeur) })), [{ version: "1.0.428", installeur: "Brigade-1.0.428-arm64.dmg" }]);
+  assert.equal(app.fermetures(), 1);
+});
+
+test("1.0.425 prête, 1.0.428 sortie sans vérification depuis : « installer maintenant » relit le flux, télécharge 1.0.428 et l'installe", async (t) => {
+  const fake = await oneFakeFlux(t, { "1.0.425": { dmg: D425 } });
+  const app = oneApp(t, onThe(fake.adresse), { version: "1.0.424" });
+  await app.miseAJour.verifier();
+  await jusqua(() => app.miseAJour.vu().etat === "prete");
+  fake.publications.set("1.0.428", { dmg: D428 });
+  assert.equal(await app.miseAJour.installerMaintenant(), undefined);
+  assert.deepEqual(app.installees.map(({ version, installeur }) => ({ version, installeur: basename(installeur) })), [{ version: "1.0.428", installeur: "Brigade-1.0.428-arm64.dmg" }]);
+  assert.ok(fake.demandes.includes("/benomite/brigade/releases/download/app-v1.0.428/Brigade-1.0.428-arm64.dmg"));
+});
+
+// Un téléchargement qui s'arrête à 40 % tant que le test ne le laisse pas finir : `finir()` pose l'installeur publié.
+function aDownloadHeld() {
+  const waiting: Array<() => void> = [];
+  const download: Download = async (published, file, progress) => {
+    progress(Math.floor(published.taille * 0.4));
+    await new Promise<void>((resolve) => waiting.push(resolve));
+    writeFileSync(file, published.version === "1.0.425" ? D425 : D428);
+    progress(published.taille);
+  };
+  return { telecharger: download, enCours: () => waiting.length, finir: () => waiting.shift()?.() };
+}
+
+test("« installer maintenant » cliqué pendant le téléchargement de la dernière version l'installe dès la fin du téléchargement, sans second geste", async (t) => {
+  const fake = await oneFakeFlux(t, { "1.0.428": { dmg: D428 } });
+  const held = aDownloadHeld();
+  const app = oneApp(t, onThe(fake.adresse), { version: "1.0.424", telecharger: held.telecharger });
+  await app.miseAJour.verifier();
+  await jusqua(() => held.enCours() === 1);
+  assert.deepEqual(app.miseAJour.vu(), { etat: "telechargement", version: "1.0.424", nouvelle: "1.0.428", recus: Math.floor(D428.length * 0.4), taille: D428.length });
+
+  let rendered: { refus: string } | undefined | "pas encore" = "pas encore";
+  void app.miseAJour.installerMaintenant().then((r) => void (rendered = r));
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  // Rien ne s'installe avant la fin du téléchargement.
+  assert.equal(rendered, "pas encore");
+  assert.deepEqual(app.installees, []);
+
+  held.finir();
+  await jusqua(() => rendered !== "pas encore");
+  assert.equal(rendered, undefined);
+  assert.deepEqual(app.installees.map(({ version }) => version), ["1.0.428"]);
+  assert.equal(app.fermetures(), 1);
+  assert.deepEqual(app.miseAJour.vu(), { etat: "installation", version: "1.0.424", nouvelle: "1.0.428" });
+});
+
+test("« installer maintenant » cliqué pendant le téléchargement de 1.0.425, 1.0.428 sortie depuis : c'est 1.0.428 qui s'installe", async (t) => {
+  const fake = await oneFakeFlux(t, { "1.0.425": { dmg: D425 } });
+  const held = aDownloadHeld();
+  const app = oneApp(t, onThe(fake.adresse), { version: "1.0.424", telecharger: held.telecharger });
+  await app.miseAJour.verifier();
+  await jusqua(() => held.enCours() === 1);
+  fake.publications.set("1.0.428", { dmg: D428 });
+  const rendered = app.miseAJour.installerMaintenant();
+  held.finir();
+  await jusqua(() => held.enCours() === 1);
+  assert.deepEqual(app.miseAJour.vu(), { etat: "telechargement", version: "1.0.424", nouvelle: "1.0.428", recus: Math.floor(D428.length * 0.4), taille: D428.length });
+  held.finir();
+  assert.equal(await rendered, undefined);
+  assert.deepEqual(app.installees.map(({ version }) => version), ["1.0.428"]);
 });
 
 test("« installer maintenant » sur une app à jour, ou dont l'installeur ne part pas, dit pourquoi elle reste", async (t) => {
