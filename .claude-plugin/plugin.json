@@ -11,7 +11,8 @@
   "commands": [
     "./commands/start.md",
     "./commands/ask.md",
-    "./commands/ticket.md"
+    "./commands/ticket.md",
+    "./commands/todo.md"
   ],
   "agents": []
 }

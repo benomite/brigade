@@ -7,7 +7,7 @@
 // Ce qui est lu, toutes les trente secondes et quand la vue le demande :
 //   - les projets du chef : ceux que l'app a demandés à ses stations, écrits sur GitHub dans le gist de chacune, sous son
 //     compte — `brigade-projets.json` (projects/request.ts, un nom et un dépôt par projet) et `brigade-selection.json`
-//     (runtime/src/enregistrement-station/contrat.ts, des dépôts, chacun nommé comme la station le nomme). Un même dépôt
+//     (stations-of-account.ts l'écrit, des dépôts, chacun nommé comme la station le nomme). Un même dépôt
 //     n'est qu'un projet ; rangés par nom ;
 //   - le rail et TODO de chacun : la lecture même du desktop (main.ts, `lireLeTableau`) — `lireLeTableauDuDepot`, puis
 //     ce qui attend le chef (`avecCeQuiAttendLeChef`), partagé pour le compte connecté (vue/cards-assigned/), en
@@ -48,8 +48,20 @@ import { activitiesPublished, readTheBoardOfRepository, type ActivitiesPublished
 import { readConditional, type MemoryOfReads } from "./board/rail-github.ts";
 import { UPSTREAM, FACTS, readOfBoard, STATUS } from "./board/rail.ts";
 import { setTheTrace } from "./phone-connected.ts";
-import { FICHIER_ENREGISTREMENT, FICHIER_SELECTION, selectionLue } from "../../runtime/src/enregistrement-station/contrat.ts";
 import { pauseOfAccount, signOfTheRecording, type PauseOfAccount, type Sign } from "./vue/pause-quota/pause-quota.ts";
+
+// Les fichiers du gist d'une station : son enregistrement, et la sélection que l'app lui écrit (stations-of-account.ts).
+const FILE_RECORDING = "brigade-enregistrement.json";
+const FILE_SELECTION = "brigade-selection.json";
+// Les dépôts d'une sélection, aucun quand elle ne se lit pas.
+function repositoriesSelected(raw: string): string[] {
+  try {
+    const { brigade, repositories } = (JSON.parse(raw) ?? {}) as { brigade?: unknown; repositories?: unknown };
+    return brigade === "station-selection" && Array.isArray(repositories) && repositories.every((repository) => typeof repository === "string" && /^[\w.-]+\/[\w.-]+$/.test(repository)) ? repositories : [];
+  } catch {
+    return [];
+  }
+}
 
 // Un projet du chef, tel que GitHub le dit : son nom, et son dépôt `<owner>/<repo>`.
 export type ProjectOfAccount = { nom: string; depot: string };
@@ -137,7 +149,7 @@ export async function readTheProjectsOfAccount(call: CallGitHub, signs: Sign[] =
     for (const gist of renderedOnes) {
       const files = object(object(gist)?.files);
       const id = object(gist)?.id;
-      if (typeof id === "string" && files !== null && (FILE_PROJECTS in files || FICHIER_SELECTION in files)) gists.push(id);
+      if (typeof id === "string" && files !== null && (FILE_PROJECTS in files || FILE_SELECTION in files)) gists.push(id);
     }
     if (renderedOnes.length < BY_PAGE) break;
   }
@@ -159,10 +171,10 @@ export async function readTheProjectsOfAccount(call: CallGitHub, signs: Sign[] =
       return typeof text === "string" ? text : undefined;
     };
     for (const { nom: name, depot: repository } of readRequest(content(FILE_PROJECTS)) ?? []) add(name, repository);
-    const sign = signOfTheRecording(content(FICHIER_ENREGISTREMENT));
+    const sign = signOfTheRecording(content(FILE_RECORDING));
     if (sign !== null) signs.push(sign);
-    const selection = content(FICHIER_SELECTION);
-    if (selection !== undefined) bySelection.push(...(selectionLue(selection)?.repositories ?? []));
+    const selection = content(FILE_SELECTION);
+    if (selection !== undefined) bySelection.push(...repositoriesSelected(selection));
   }
   // Un dépôt demandé sous un nom garde ce nom ; un dépôt choisi seulement prend celui que la station lui donne.
   for (const repository of bySelection) add(nameOfProject(repository), repository);

@@ -1,1 +1,1 @@
-{"risk": ["runtime/src/", "runtime/deploy/", "runtime/paquet/", ".brigade/"]}
+{"risk": ["runtime/src/", "runtime/deploy/", "runtime/paquet/", ".brigade/kitchen.json", ".brigade/try.json"]}

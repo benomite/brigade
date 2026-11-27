@@ -1,7 +1,7 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "brigade",
-  "description": "Brigade, published from main: /brigade:start, /brigade:ask and /brigade:ticket. The V1 plugin stays installable from the tag v1-final: /plugin marketplace add benomite/brigade@v1-final",
+  "description": "Brigade, published from main: /brigade:start, /brigade:ask, /brigade:ticket and /brigade:todo. The V1 plugin stays installable from the tag v1-final: /plugin marketplace add benomite/brigade@v1-final",
   "owner": {
     "name": "benomite"
   },
@@ -9,7 +9,7 @@
     {
       "name": "brigade",
       "source": "./",
-      "description": "You decide. The kitchen ships. /brigade:start tells what brigade is, checks gh and this repository and gives the app download; /brigade:ask <number> answers on a ticket; /brigade:ticket writes one."
+      "description": "You decide. The kitchen ships. /brigade:start tells what brigade is, checks gh and this repository and gives the app download; /brigade:ask <number> answers on a ticket; /brigade:ticket writes one; /brigade:todo answers what waits for you."
     }
   ]
 }

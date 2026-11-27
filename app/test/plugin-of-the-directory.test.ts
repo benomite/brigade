@@ -1,5 +1,5 @@
 // The brigade plugin published from main (#4525): `.claude-plugin/` of the repository, the one a user installs with
-// `/plugin marketplace add benomite/brigade`. It carries `/brigade:start`, `/brigade:ask` and `/brigade:ticket` (#4526), nothing of V1, no agent;
+// `/plugin marketplace add benomite/brigade`. It carries `/brigade:start`, `/brigade:ask`, `/brigade:ticket` (#4526) and `/brigade:todo` (#4527), nothing of V1, no agent;
 // and it lives beside the app's own plugin (plugin-app.ts) in a project that has both: two marketplaces, two plugin
 // ids, one command name space `brigade`, where the only command they share is the same file of `commands/`.
 import assert from "node:assert/strict";
@@ -15,13 +15,13 @@ const plugin = JSON.parse(read(".claude-plugin/plugin.json"));
 const catalog = JSON.parse(read(".claude-plugin/marketplace.json"));
 const FRENCH = /[éèêàùç]|\b(le|la|les|des|du|et|une?)\b/i;
 
-test("the published plugin: English description, version past V1, /brigade:start, /brigade:ask and /brigade:ticket only, no agent", () => {
+test("the published plugin: English description, version past V1, /brigade:start, /brigade:ask, /brigade:ticket and /brigade:todo only, no agent", () => {
   assert.equal(plugin.name, "brigade");
   assert.match(plugin.description, /^You decide\. The kitchen ships\. \S/);
   assert.doesNotMatch(plugin.description, FRENCH);
   const [major = 0, minor = 0] = String(plugin.version).split(".").map(Number);
   assert.ok(major > 0 || minor > 17, `version ${plugin.version} is not past V1's 0.17.0`);
-  assert.deepEqual(plugin.commands, ["./commands/start.md", "./commands/ask.md", "./commands/ticket.md"]);
+  assert.deepEqual(plugin.commands, ["./commands/start.md", "./commands/ask.md", "./commands/ticket.md", "./commands/todo.md"]);
   // An empty list, not an absent key: without it, Claude Code loads every agents/*.md of the plugin's folder.
   assert.deepEqual(plugin.agents, []);
 });

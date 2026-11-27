@@ -30,6 +30,11 @@ const appeler: CallGitHub = async (chemin) => {
   if (chemin.startsWith(`/repos/${DEPOT}/issues?state=closed`)) return ok([]);
   if (chemin.startsWith(`/repos/${DEPOT}/pulls?state=open`)) return ok([pr(40, 34, "SIRET validation")]);
   if (chemin.startsWith(`/repos/${DEPOT}/pulls?state=closed`)) return ok([pr(38, 36, "The append-only journal", { merged_at: "2026-10-13T09:00:00Z" })]);
+  const heure = (h: number) => new Date(Date.parse(MAINTENANT) - h * 3_600_000).toISOString();
+  const pose = (label: string, h: number) => ({ event: "labeled", label: { name: label }, created_at: heure(h) });
+  const frise: Record<string, object[]> = { "32": [pose("fire", 5)], "33": [pose("taken", 3)], "34": [pose("taken", 6), pose("in-pass", 1)], "35": [pose("parked:chef", 30)], "36": [pose("taken", 4)] };
+  const frisee = /\/issues\/(\d+)\/timeline/.exec(chemin)?.[1];
+  if (frisee !== undefined) return ok(frise[frisee] ?? []);
   if (/\/pulls\/\d+$/.test(chemin)) return ok({ additions: 120, deletions: 14, created_at: "2026-10-13T09:30:00Z" });
   if (chemin === `/repos/${DEPOT}`) return ok({ default_branch: "main", permissions: { push: true } });
   if (chemin.includes("/check-runs")) return ok({ check_runs: [{ conclusion: "success" }] });

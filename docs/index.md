@@ -21,7 +21,7 @@ contribute and the release notes — go back to the [repository root](../README.
 - [Tutorial: install brigade on a Mac](tutoriels/installer-sur-mac.md) — from a Mac with nothing on
   it to the app installed and the station of your Mac running.
 - [Try it](../README.md#try-it) — the short version, in the repository's README.
-- [The brigade plugin for Claude Code](plugin.md) — `/brigade:start`, `/brigade:ask` and `/brigade:ticket` from any Claude Code
+- [The brigade plugin for Claude Code](plugin.md) — `/brigade:start`, `/brigade:ask`, `/brigade:ticket` and `/brigade:todo` from any Claude Code
   session: how to install it, and how it lives beside the app's own plugin.
 
 ## Run a station

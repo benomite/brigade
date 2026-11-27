@@ -16,7 +16,7 @@
 // { project, weekStart, weekEnd, themes: [{ title, lines: [{ text,
 // ticketNumber, ticketUrl }] }], autonomy?, waiting: [{ text, ticketNumber,
 // ticketUrl }], markdown }. Fonctions pures : rien n'est lu ni écrit ici.
-import type { ChiffresDAutonomie } from "../autonomie/chiffres/chiffres.ts";
+import type { ChiffresDAutonomie } from "../../../app/src/vue/autonomy/compute.ts";
 
 export type LigneDuResume = { text: string; ticketNumber: number; ticketUrl: string };
 export type Theme = { title: string; lines: LigneDuResume[] };

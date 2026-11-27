@@ -7,7 +7,7 @@
 #                [--zones <text>] [--dev-local <text>] [--doc <text>] [--badge yes|no]
 #
 # What it does, each step convergent — replayed, it only fills what is missing:
-#   1. the labels of the catalogue (labels.tsv, the runtime's runtime/src/etiquettes.ts), on GitHub
+#   1. the labels of the catalogue (labels.tsv), on GitHub
 #      at once;
 #   2. in a throwaway worktree on `brigade/init`, from the integration branch: the bindings block
 #      `## Équipe multi-agents` at the end of `CLAUDE.md`, `.claude/brigade/gates.sh` and
@@ -54,7 +54,7 @@ if [ -z "$BASE" ]; then
 fi
 BRANCH="brigade/init"
 
-# 1. The labels: the catalogue (labels.tsv next to this script, generated from runtime/src/etiquettes.ts),
+# 1. The labels: the catalogue (labels.tsv next to this script),
 # each created if absent, its description corrected if present — a present label keeps its colour. The
 # legacy French name is renamed first, only when the new one is absent: GitHub carries the new name onto its issues.
 LEGACY_SERVED_ELSEWHERE="hors-cuisine"

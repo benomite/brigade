@@ -1,5 +1,5 @@
 // La notification de l'urgence : quand toute la cuisine d'un projet attend le chef, le runtime
-// l'annonce (runtime/src/alerte-urgence.ts) — une fois, puis un rappel espacé —, et l'app le dit au
+// l'annonce — une fois, puis un rappel espacé —, et l'app le dit au
 // système, une notification par annonce, que la fenêtre soit devant, derrière ou réduite. Son clic
 // ramène l'app au premier plan sur le projet, sa ligne d'urgence en tête de la bande et son geste prêt
 // (alerts.ts, « L'urgence »).
