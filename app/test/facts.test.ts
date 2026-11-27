@@ -1,13 +1,12 @@
-// Ce que l'app dessine : les faits que la box rend dans la forme de
-// docs/runtime/. L'exemple de la doc est
-// lu ici tel qu'il y est écrit ; une sortie qui n'est pas cette forme n'est
+// Ce que l'app dessine : les faits que la box rend dans la forme que
+// la doc de l'ancien runtime donnait. Son exemple est
+// lu ici tel qu'elle l'écrivait ; une sortie qui n'est pas cette forme n'est
 // jamais dessinée — ni tableau vide, ni zéros. Une couleur ne se pose que sur
 // un mot des listes fermées. Le rail se range en six colonnes, TODO
 // d'après `attend`, que la forme donne, et le bloc `attend` de `status` ; WAITING
 // d'après les `tiers` de chaque ticket (wait.test.ts). Chaque
 // carte porte ce que la file dit du ticket, et écrit ce qu'elle n'en dit pas :
 // ce qui s'y lit est dans bon.test.ts.
-import { docRuntime } from "./helpers/doc-runtime.ts";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -21,19 +20,8 @@ import type { Header } from "../src/card.ts";
 import { commandOfAction, CONFIRMED } from "../src/actions.ts";
 
 const ROOT = join(import.meta.dirname, "../..");
-const doc = docRuntime(ROOT);
-// L'exemple de la doc : la ligne du bloc `json` qui porte la forme des faits (ses champs `dernierTick` et `compteurs`).
-const EXAMPLE = [...doc.matchAll(/```json\n([^\n]*)\n```/g)].map(([, line = ""]) => line).find((line) => line.includes('"dernierTick"') && line.includes('"compteurs"')) ?? "";
-// Les lignes d'un tableau de la doc dont une ligne a pour premier mot `mot` : de la première à la dernière ligne de ce tableau.
-function boardOfTheDoc(word: string): string[] {
-  const lines = doc.split("\n");
-  const inside = lines.findIndex((line) => line.startsWith(`| \`${word}\` |`));
-  let start = inside;
-  while (start > 0 && lines[start - 1]?.startsWith("|")) start--;
-  let end = inside;
-  while (end < lines.length - 1 && lines[end + 1]?.startsWith("|")) end++;
-  return inside < 0 ? [] : lines.slice(start, end + 1);
-}
+// L'exemple que la doc de l'ancien runtime donnait des faits (ses champs `dernierTick` et `compteurs`).
+const EXAMPLE = "{\"etat\":\"ouverte\",\"lu\":\"2026-10-12T10:04:11.000Z\",\"dernierTick\":\"2026-10-12T10:04:02.000Z\",\"compteurs\":{\"rail\":2,\"auTravail\":1,\"aLaPass\":1,\"attend\":1,\"livres24h\":3},\"dernierEvenement\":{\"seq\":812,\"at\":\"2026-10-12T10:03:58.000Z\",\"type\":\"merge.done\",\"ticket\":216},\"rail\":[{\"ticket\":14,\"etat\":\"pris\",\"titre\":\"Le journal en ajout seul\",\"url\":\"https://github.com/benomite/brigade/issues/14\",\"activite\":{\"fait\":\"lit\",\"faitEn\":\"reading\",\"cible\":\"runtime/src/etat.ts\",\"depuis\":\"2026-10-12T10:01:11.000Z\"},\"attente\":null},{\"ticket\":21,\"etat\":\"BLOQUÉ\",\"titre\":\"L'export du journal\",\"url\":\"https://github.com/benomite/brigade/issues/21\",\"activite\":null,\"attente\":null}],\"cooks\":[{\"ticket\":14,\"titre\":\"Le journal en ajout seul\",\"station\":\"box/claude\"}],\"attend\":[{\"ticket\":21,\"titre\":\"L'export du journal\",\"url\":\"https://github.com/benomite/brigade/issues/21\"}],\"livres\":[{\"ticket\":216,\"titre\":\"Le relevé des mesures\",\"url\":\"https://github.com/benomite/brigade/issues/216\",\"livre\":\"2026-10-12T10:03:58.000Z\",\"station\":\"box/claude\",\"pr\":\"https://github.com/benomite/brigade/pull/219\",\"relecture\":{\"resume\":\"Le relevé des mesures se lit par station, et un seuil franchi se dit en tête de `status`. Rien n'est écrit au journal par la lecture.\",\"constats\":[{\"gravite\":\"remarque\",\"fichier\":\"runtime/src/mesures.ts\",\"constat\":\"Le seuil par défaut est répété dans deux fichiers.\"},{\"gravite\":\"remarque\",\"fichier\":null,\"constat\":\"À supprimer : l'ancien compteur, qui ne sert plus.\"}]}},{\"ticket\":201,\"titre\":\"Les grants sous plafond\",\"url\":\"https://github.com/benomite/brigade/issues/201\",\"livre\":\"2026-10-12T07:12:40.000Z\",\"station\":\"box/claude\",\"pr\":\"https://github.com/benomite/brigade/pull/207\",\"relecture\":{\"resume\":\"Un grant porte désormais un plafond d'usages, et s'éteint seul quand il est atteint.\",\"constats\":[]}},{\"ticket\":188,\"titre\":\"Une fiche sans zone\",\"url\":\"https://github.com/benomite/brigade/issues/188\",\"livre\":\"2026-10-11T16:30:05.000Z\",\"station\":\"box/claude\",\"pr\":null,\"relecture\":null}]}";
 
 // Ce que le reviewer a dit de deux livraisons de l'exemple : un résumé et ses constats, puis un résumé seul.
 const REREAD_216 = {
@@ -108,14 +96,11 @@ function informs(text: string): string {
 }
 
 describe("les faits que l'app dessine", () => {
-  test("la commande lue est un script du runtime, tel qu'il existe", () => {
-    const { scripts } = JSON.parse(readFileSync(join(ROOT, "runtime/package.json"), "utf8")) as { scripts: Record<string, string> };
-
+  test("la commande lue est `facts`", () => {
     assert.equal(COMMAND, "facts");
-    assert.ok(COMMAND in scripts);
   });
 
-  test("l'exemple de docs/runtime/ est compris tel qu'il est écrit — champ pour champ", () => {
+  test("l'exemple de la doc est compris tel qu'il est écrit — champ pour champ", () => {
     assert.deepEqual(understand(`${EXAMPLE}\n`), FACTS);
   });
 
@@ -368,18 +353,14 @@ const cards = (draws: ReturnType<typeof rail>) => [...draws.colonnes.flatMap((co
 const yourOfTicket = (state: string) => cards(rail({ ...FACTS, rail: [{ ticket: 1, etat: state, titre: "", url: "" }] })).find(({ ticket }) => ticket === 1)?.ton;
 
 describe("une couleur sur un mot de la liste fermée", () => {
-  test("les quatre états d'un projet ont la leur — ceux de docs/runtime/, pas un de plus", () => {
+  test("les quatre états d'un projet ont la leur", () => {
     assert.deepEqual(["ouverte", "retenue", "arrêtée", "éteinte"].map(yourOfProject), ["vert", "jaune", "rouge", "rouge"]);
-    assert.deepEqual(boardOfTheDoc("éteinte").flatMap((line) => /^\| `([^`]+)` \|/.exec(line)?.[1] ?? []).sort(), ["arrêtée", "ouverte", "retenue", "éteinte"].sort());
   });
 
-  test("les six états d'un ticket ont la leur — ceux que la doc énumère", () => {
+  test("les six états d'un ticket ont la leur", () => {
     const WORDS = ["en attente", "BLOQUÉ", "pris", "en pass", "servi", "86"];
 
     assert.deepEqual(WORDS.map(yourOfTicket), ["gris", "rouge", "bleu", "jaune", "vert", "rouge"]);
-    // Les six mots, dans cet ordre, entre backticks, séparés de quelques signes ou d'un mot de liaison : la doc se replie et se traduit où elle veut.
-    const list = new RegExp(WORDS.map((word) => `\`${word}\``).join("[^`]{0,24}"));
-    assert.match(doc.replace(/\s+/g, " "), list, "la liste des états d'un ticket a changé dans docs/runtime/");
   });
 
   test("un mot inconnu s'affiche tel quel, sans couleur, et ne se range dans aucune — ni par sa casse, ni par un nom d'objet", () => {
@@ -995,8 +976,6 @@ describe("la bannière d'arrêt", () => {
   });
 
   test("ce qu'elle dit de l'arrêt est ce que docs/runtime/ en dit", () => {
-    assert.ok(doc.includes("`brigade <projet> guardrails stop`"), "docs/runtime/ ne cite plus `guardrails stop`");
-    assert.ok(doc.includes("`brigade <projet> guardrails [stop \\| resume]`"), "docs/runtime/ ne cite plus `guardrails resume`");
     assert.deepEqual(BANNER.texte, [
       "KITCHEN STOPPED — your “stop” holds",
       "All running cooks have been stopped, and none is launched any more — runtime restarts included, until “resume”.",

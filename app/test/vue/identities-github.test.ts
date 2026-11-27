@@ -3,14 +3,10 @@
 // s'applique au `change` d'un des deux champs — un App ID changé sans sa clé dit qu'il l'attend ; la ligne d'en-tête dit que les clés restent sur
 // la station. Rangée, une clé quitte l'écran : son champ se vide et rien ne la redit. Un App ID vide ou une clé qui
 // n'est pas PEM se disent sous leur champ, et rien ne part. L'écran est joué devant un faux document ; derrière son
-// pont, la station range pour de bon, par `rangerApp` du runtime, dans un répertoire du test.
+// pont, une station en mémoire range l'App de chaque rôle.
 import assert from "node:assert/strict";
 import { generateKeyPairSync } from "node:crypto";
-import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { after, describe, test } from "node:test";
-import { AppRefusee, appsRangees, rangerApp } from "../../../runtime/src/identites-stations.ts";
+import { describe, test } from "node:test";
 import {
   KEY_EXPECTED,
   CONFIGURE,
@@ -33,28 +29,29 @@ const doc = { createElement: (balise: string) => new Fake(balise) };
 const KEY = generateKeyPairSync("ed25519").privateKey.export({ type: "pkcs8", format: "pem" }).toString();
 const OTHER_KEY = generateKeyPairSync("ed25519").privateKey.export({ type: "pkcs8", format: "pem" }).toString();
 
-const stations: string[] = [];
-after(() => {
-  for (const station of stations) rmSync(station, { recursive: true, force: true });
-});
+// Une station neuve, en mémoire : l'App ID et la clé rangés de chaque rôle. Elle dit de chaque rôle son App et si sa clé
+// est là — jamais la clé —, et refuse une App déjà rangée sous un autre rôle : une identité par rôle.
+function oneStation() {
+  const apps = new Map<Role, { id: string; cle: string }>();
+  const ranger = (role: Role, id: string, key: string): { rangee: { role: Role; id: string } } | { refus: string } => {
+    const twin = ROLES.find((other) => other !== role && apps.get(other)?.id === id);
+    if (twin !== undefined) return { refus: `the ${twin} role already has the App ${id} — one identity per role, so one App per role` };
+    apps.set(role, { id, cle: key });
+    return { rangee: { role, id } };
+  };
+  return { apps, ranger, lire: () => ROLES.map((role) => ({ role, id: apps.get(role)?.id ?? null, cle: apps.has(role) })) };
+}
 
-// Une station dans un répertoire neuf, et le pont du process principal devant elle : ce qu'il lit et ce qu'il range,
-// par le runtime — chaque appel retenu, pour voir ce qui est parti.
+// Une station neuve, et le pont du process principal devant elle : ce qu'il lit et ce qu'il range — chaque appel retenu,
+// pour voir ce qui est parti.
 function plays(options: { pont?: BridgeOfIdentities } = {}) {
-  const station = mkdtempSync(join(tmpdir(), "identites-github-"));
-  stations.push(station);
+  const station = oneStation();
   const calls: { role: string; id: string; cle: string }[] = [];
   const bridge: BridgeOfIdentities = options.pont ?? {
-    appsDeLaStation: () => Promise.resolve({ apps: appsRangees(station) }),
+    appsDeLaStation: () => Promise.resolve({ apps: station.lire() }),
     rangerUneApp: (role, id, key) => {
       calls.push({ role, id, cle: key });
-      try {
-        const row = rangerApp({ station, role, id, cle: key, env: {} });
-        return Promise.resolve({ rangee: { role: row.role, id: row.id } });
-      } catch (error) {
-        if (error instanceof AppRefusee) return Promise.resolve({ refus: error.message });
-        throw error;
-      }
+      return Promise.resolve(station.ranger(role, id, key));
     },
   };
   let renderedOnes = 0;
@@ -148,9 +145,9 @@ describe("configured", () => {
     assert.ok(line(set.ecran(), "pass").textContent.includes("Saving…"), "le geste en route se dit");
     await repos();
     assert.deepEqual(set.appels, [{ role: "pass", id: "1203457", cle: KEY }]);
-    // La station l'a pour de bon : son ID et sa clé, dans son répertoire des Apps.
-    assert.equal(readFileSync(join(set.station, "apps-github", "pass.pem"), "utf8"), KEY);
-    assert.equal(readFileSync(join(set.station, "apps-github", "pass.id"), "utf8"), "1203457\n");
+    // La station l'a : son ID et sa clé.
+    assert.equal(set.station.apps.get("pass")?.cle, KEY);
+    assert.equal(set.station.apps.get("pass")?.id, "1203457");
     pass = line(set.ecran(), "pass");
     assert.equal(stateOf(pass), CONFIGURE);
     assert.ok(pass.textContent.includes("App 1203457"));
@@ -182,7 +179,7 @@ describe("configured", () => {
 
   test("une station qui a déjà ses Apps les dit configurées, leur ID dans son champ — et aucun « save » n'y attend", async () => {
     const set = plays();
-    rangerApp({ station: set.station, role: "manager", id: "1203458", cle: KEY, env: {} });
+    set.station.ranger("manager", "1203458", KEY);
     await set.tenue.lire();
     const screen = set.ecran();
     const manager = line(screen, "manager");
@@ -220,24 +217,24 @@ describe("configured", () => {
 
   test("une clé écrite sur un rôle déjà configuré remplace son App", async () => {
     const set = plays();
-    rangerApp({ station: set.station, role: "pass", id: "1203457", cle: KEY, env: {} });
+    set.station.ranger("pass", "1203457", KEY);
     await set.tenue.lire();
     const pass = line(set.ecran(), "pass");
     type(fieldId(pass), "1203459");
     write(fieldKey(pass), OTHER_KEY);
     await repos();
-    assert.equal(readFileSync(join(set.station, "apps-github", "pass.pem"), "utf8"), OTHER_KEY);
+    assert.equal(set.station.apps.get("pass")?.cle, OTHER_KEY);
     assert.ok(line(set.ecran(), "pass").textContent.includes("App 1203459"));
   });
 
   test("seul l'App ID changé sur un rôle déjà configuré ne range rien sans sa clé, et la ligne le dit ; l'ID déjà rangé ne dit rien", async () => {
     const set = plays();
-    rangerApp({ station: set.station, role: "pass", id: "1203457", cle: KEY, env: {} });
+    set.station.ranger("pass", "1203457", KEY);
     await set.tenue.lire();
     write(fieldId(line(set.ecran(), "pass")), "1203459");
     await repos();
     assert.deepEqual(set.appels, [], "sans clé, rien ne part vers la station");
-    assert.equal(readFileSync(join(set.station, "apps-github", "pass.id"), "utf8"), "1203457\n");
+    assert.equal(set.station.apps.get("pass")?.id, "1203457");
     let pass = line(set.ecran(), "pass");
     assert.ok(pass.textContent.includes(KEY_EXPECTED), "le changement sans effet se dit");
     assert.deepEqual(errors(pass), []);
@@ -249,7 +246,7 @@ describe("configured", () => {
     type(fieldId(pass), "1203459");
     write(fieldKey(pass), OTHER_KEY);
     await repos();
-    assert.equal(readFileSync(join(set.station, "apps-github", "pass.id"), "utf8"), "1203459\n");
+    assert.equal(set.station.apps.get("pass")?.id, "1203459");
     assert.equal(line(set.ecran(), "pass").textContent.includes(KEY_EXPECTED), false);
   });
 });
@@ -263,7 +260,7 @@ describe("error", () => {
     write(fieldKey(pass), KEY);
     await repos();
     assert.deepEqual(set.appels, [], "rien n'est parti vers la station");
-    assert.deepEqual(readdirSync(set.station), []);
+    assert.deepEqual([...set.station.apps.keys()], []);
     pass = line(set.ecran(), "pass");
     const under = classe(pass, "champ-id")[0] ?? assert.fail("pas de ligne de l'App ID");
     assert.deepEqual(errors(under), [WITHOUT_ID]);
@@ -284,7 +281,7 @@ describe("error", () => {
       assert.deepEqual(errors(classe(cook, "champ-id")[0] ?? assert.fail("pas de ligne de l'App ID")), []);
     }
     assert.deepEqual(set.appels, []);
-    assert.deepEqual(readdirSync(set.station), []);
+    assert.deepEqual([...set.station.apps.keys()], []);
   });
 
   test("les deux à la fois : une erreur sous chaque champ ; corrigé, le champ perd la sienne", async () => {
@@ -311,14 +308,14 @@ describe("error", () => {
 
   test("ce que la station refuse se dit en une ligne sous le rôle, sa suite au survol, sans la clé ; rien n'est écrit, et le rôle reste ce qu'il était", async () => {
     const set = plays();
-    rangerApp({ station: set.station, role: "cook", id: "1203456", cle: KEY, env: {} });
+    set.station.ranger("cook", "1203456", KEY);
     await set.tenue.lire();
     const pass = line(set.ecran(), "pass");
     type(fieldId(pass), "1203456");
     write(fieldKey(pass), OTHER_KEY);
     await repos();
     assert.equal(set.appels.length, 1);
-    assert.deepEqual(readdirSync(join(set.station, "apps-github")).sort(), ["cook.id", "cook.pem"]);
+    assert.deepEqual([...set.station.apps.keys()], ["cook"]);
     const refused = line(set.ecran(), "pass");
     // La ligne, puis le « ? » de son survol.
     assert.deepEqual(errors(refused), ["nothing was written: the cook role already has the App 1203456?"]);

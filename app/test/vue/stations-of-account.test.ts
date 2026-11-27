@@ -3,16 +3,12 @@
 // pose ni seconde ligne, ni section « Under your GitHub account » ; une machine seulement enregistrée a sa ligne, en
 // ligne ou non, avec les projets qu'elle sert ; ouverte, les projets du chef à cocher, chaque case écrite aussitôt, et les
 // autres dépôts du compte par la recherche seulement (#1780) — jamais leur liste entière ; sans
-// station, la commande qui en installe une. Les stations sont écrites par les fonctions mêmes du runtime (`stationDuGist`,
-// `echecDeGh`) : ce que la vue pose est ce qu'elle recevra. La vue jouée entière va jusqu'au gist : ce qui est coché est
-// écrit selon le contrat (stations-of-account.ts), relu par le lecteur du runtime au lancement suivant, et coché encore.
+// station, la commande qui en installe une. Les stations sont écrites telles que le process principal les rend
+// (stations-of-account.ts) : ce que la vue pose est ce qu'elle recevra.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { type Home, type LineOfStation, lineOfStation } from "../../src/home.ts";
 import { reasonOf } from "../../src/stations/reason.ts";
-import { echecDeGh } from "../../../runtime/src/appairage/stations-du-chef.ts";
-import * as contract from "../../../runtime/src/enregistrement-station/contrat.ts";
-import { stationDuGist } from "../../../runtime/src/enregistrement-station/stations-du-compte.ts";
 import { POWER_UP } from "../../src/power-up.ts";
 import { forTheBar } from "../../src/bar.ts";
 import { EXAMPLE, type Project } from "../../src/config.ts";
@@ -43,21 +39,27 @@ import { Fake, type Played, playTheVue, openAllTheStations, repos } from "../hel
 
 const doc = { createElement: (balise: string) => new Fake(balise) };
 const SEEN = "2026-10-26T09:42:00.000Z";
-const READ = Date.parse(SEEN) + 1_000;
 
-// L'enregistrement qu'une station publie (runtime/src/enregistrement-station/README.md), tel quel.
-const recording = (name: string, platform: string, machine: string, stoppedAt: string | null, lastSeen = SEEN) =>
-  JSON.stringify({ brigade: "station-registration", format: 1, name, platform, machine, version: "1.4.0", registeredAt: "2026-10-26T09:00:00.000Z", lastSeen, refreshMs: 120_000, stoppedAt });
-// Une station telle que le lecteur du runtime la rend de son gist.
-function readEntry(id: string, files: Record<string, string>): StationRecorded {
-  const station = stationDuGist(id, files, "chef", READ);
-  return "illisible" in station ? assert.fail(station.illisible) : station;
-}
-const selection = (repositories: string[]) => JSON.stringify({ brigade: "station-selection", format: 1, repositories, updatedAt: SEEN });
+// Une station enregistrée sous le compte du chef, telle que son gist la dit, lue juste après son dernier signe de vie : elle
+// est disponible tant qu'elle ne s'est pas arrêtée depuis. `selection` : les dépôts que l'app lui a choisis.
+const readEntry = (id: string, name: string, platform: string, machine: string, stoppedAt: string | null, lastSeen = SEEN, selection: string[] | null = null): StationRecorded => ({
+  id,
+  name,
+  platform,
+  machine,
+  version: "1.4.0",
+  account: "chef",
+  available: stoppedAt === null,
+  registeredAt: "2026-10-26T09:00:00.000Z",
+  lastSeen,
+  stoppedAt,
+  refreshMs: 120_000,
+  selection,
+});
 
 // La box tourne et sert acme/shop ; le Mac s'est arrêté proprement, et rien ne lui est encore choisi.
-const BOX = readEntry("a1b2c3", { [contract.FICHIER_ENREGISTREMENT]: recording("box", "linux", "Linux 6.1.0", null), [contract.FICHIER_SELECTION]: selection(["acme/shop"]) });
-const MAC = readEntry("d4e5f6", { [contract.FICHIER_ENREGISTREMENT]: recording("mac", "macos", "macOS 24.1.0", SEEN) });
+const BOX = readEntry("a1b2c3", "box", "linux", "Linux 6.1.0", null, SEEN, ["acme/shop"]);
+const MAC = readEntry("d4e5f6", "mac", "macos", "macOS 24.1.0", SEEN);
 const LISTED: StationsOfAccount = { state: "listed", stations: [BOX, MAC], unreadable: [] };
 const NO_LISTED: StationsOfAccount = { state: "listed", stations: [], unreadable: [], reason: "No station is registered under this GitHub account yet: install brigade's station on a machine, and sign it in to this account." };
 const REPOSITORIES = { depots: [{ depot: "acme/shop", base: "main" }, { depot: "acme/site", base: "main" }] };
@@ -66,8 +68,17 @@ const REPOSITORIES = { depots: [{ depot: "acme/shop", base: "main" }, { depot: "
 const OTHERS = Array.from({ length: 31 }, (_, i) => ["acme/notes-", "friend/sandbox-", "asso/site-", "lea/chat-"][i % 4] + String(i).padStart(2, "0"));
 const OF_ACCOUNT = { depots: ["acme/shop", ...OTHERS.slice(0, 10), "acme/brigade", ...OTHERS.slice(10, 20), "acme/espace", ...OTHERS.slice(20), "acme/site", "acme/blog"].map((repository) => ({ depot: repository, base: "main" })) };
 // Ce `gh` n'a pas de compte ; ou GitHub ne répond pas.
-const WITHOUT_ACCOUNT = echecDeGh("gh", 30_000, { code: 4, message: "Command failed: gh api /gists" }, "To get started with GitHub CLI, please run:  gh auth login\n");
-const WITHOUT_NETWORK = echecDeGh("gh", 30_000, { code: 1, message: "Command failed" }, "error connecting to api.github.com\ncheck your internet connection or https://githubstatus.com\n");
+const WITHOUT_ACCOUNT: StationsOfAccount = {
+  state: "sign-in-required",
+  reason: "This computer is not signed in to GitHub, so brigade cannot read the stations registered under your account.",
+  action: { id: "github-sign-in", label: "Sign in to GitHub", command: ["gh", "auth", "login", "--hostname", "github.com", "--web", "--git-protocol", "https"] },
+};
+const WITHOUT_NETWORK: StationsOfAccount = {
+  state: "unavailable",
+  cause: "network",
+  reason: "GitHub cannot be reached from this computer, so your stations could not be read: check its network connection.",
+  detail: "error connecting to api.github.com\ncheck your internet connection or https://githubstatus.com",
+};
 
 // Ce que la vue pose d'après les stations du compte : la ligne de chacune, puis ce que leur lecture dit sous la liste.
 function oneBlock(state: StateOfAccount, empty = false) {
@@ -119,14 +130,14 @@ describe("une ligne par machine : appairée, elle se dit par sa présence ; seul
   });
 
   test("une machine seulement enregistrée a sa ligne, glissée à son nom : les appairées gardent leur ordre", () => {
-    const nas = readEntry("e2d4", { [contract.FICHIER_ENREGISTREMENT]: recording("nas", "linux", "Linux 6.1.0", null) });
-    const alpha = readEntry("e0a0", { [contract.FICHIER_ENREGISTREMENT]: recording("alpha", "linux", "Linux 6.1.0", null) });
+    const nas = readEntry("e2d4", "nas", "linux", "Linux 6.1.0", null);
+    const alpha = readEntry("e0a0", "alpha", "linux", "Linux 6.1.0", null);
     assert.deepEqual(names(oneLineByMachine([pairedOne("box"), pairedOne("parade-box")], [nas, BOX, MAC, alpha])), ["enregistrée alpha", "appairée box", "enregistrée mac", "enregistrée nas", "appairée parade-box"]);
   });
 
   test("deux enregistrements d'une même machine n'en font qu'une : celui qui est en ligne, sinon le dernier vu", () => {
-    const old = readEntry("0ld", { [contract.FICHIER_ENREGISTREMENT]: recording("mac", "macos", "macOS 24.1.0", "2026-10-20T08:00:00.000Z", "2026-10-20T08:00:00.000Z") });
-    const inLine = readEntry("n3w", { [contract.FICHIER_ENREGISTREMENT]: recording("mac", "macos", "macOS 24.1.0", null) });
+    const old = readEntry("0ld", "mac", "macos", "macOS 24.1.0", "2026-10-20T08:00:00.000Z", "2026-10-20T08:00:00.000Z");
+    const inLine = readEntry("n3w", "mac", "macos", "macOS 24.1.0", null);
     assert.deepEqual(oneLineByMachine([], [old, inLine]), [{ enregistree: inLine }]);
     assert.deepEqual(oneLineByMachine([], [MAC, old]), [{ enregistree: MAC }]);
   });
@@ -253,7 +264,7 @@ describe("sous la liste : la lecture en route, la connexion qui manque, la lectu
     assert.deepEqual(oneBlock({}).bloc.children, []);
   });
 
-  test("sans compte GitHub : la phrase du runtime, et le bouton de la connexion", () => {
+  test("sans compte GitHub : la phrase du process principal, et le bouton de la connexion", () => {
     assert.equal(WITHOUT_ACCOUNT.state, "sign-in-required");
     if (WITHOUT_ACCOUNT.state !== "sign-in-required") return;
     const { bouton: button, faits: facts } = oneBlock({ stations: WITHOUT_ACCOUNT });
@@ -307,8 +318,8 @@ async function home(vue: Played) {
 describe("la vue jouée : une seule liste de stations, une ligne par machine", () => {
   test("une machine appairée et enregistrée sous le compte ne fait qu'une ligne : celle de sa présence, avec ses projets", async () => {
     // parade-box fait la cuisine de deux projets, mais rien ne lui est choisi sous le compte ; nas n'est qu'enregistrée.
-    const box = readEntry("e3e5", { [contract.FICHIER_ENREGISTREMENT]: recording("parade-box", "linux", "Linux 6.1.0", null) });
-    const nas = readEntry("e2d4", { [contract.FICHIER_ENREGISTREMENT]: recording("nas", "linux", "Linux 6.1.0", null), [contract.FICHIER_SELECTION]: selection(["acme/shop"]) });
+    const box = readEntry("e3e5", "parade-box", "linux", "Linux 6.1.0", null);
+    const nas = readEntry("e2d4", "nas", "linux", "Linux 6.1.0", null, SEEN, ["acme/shop"]);
     const { stations, accueil: lines } = paired(presence("f0a1", "parade-box", ["brigade", "espace"]));
     const vue = await playTheVue({ demarrage: () => startup(stations, lines), espace: () => [], stationsDuCompte: () => ({ state: "listed", stations: [nas, box], unreadable: [] }) });
     const readOnes = await home(vue);
@@ -324,7 +335,7 @@ describe("la vue jouée : une seule liste de stations, une ligne par machine", (
   });
 
   test("une machine appairée sans cuisine, un projet choisi sous le compte : sa ligne dit qu'elle le sert, et la page de la station ne montre aucune case", async () => {
-    const mac = readEntry("e1c3", { [contract.FICHIER_ENREGISTREMENT]: recording("macbook-air-de-benoit", "macos", "macOS 24.1.0", null), [contract.FICHIER_SELECTION]: selection(["acme/shop"]) });
+    const mac = readEntry("e1c3", "macbook-air-de-benoit", "macos", "macOS 24.1.0", null, SEEN, ["acme/shop"]);
     const { stations, accueil: lines } = paired(presence("f0b2", "macbook-air-de-benoit", []));
     const vue = await playTheVue({ demarrage: () => startup(stations, lines), espace: () => [], stationsDuCompte: () => ({ state: "listed", stations: [mac], unreadable: [] }), depotsDuChef: () => REPOSITORIES, choisirLesProjets: async (_id: string, repositories: string[]) => ({ selection: repositories }) });
     const readOnes = await home(vue);
@@ -342,8 +353,8 @@ describe("la vue jouée : une seule liste de stations, une ligne par machine", (
   });
 
   test("toute ligne ouvre la page de sa station : en ligne qui sert des projets, ou hors ligne qui n'en a aucun — aucune ne se déplie", async () => {
-    const box = readEntry("e3e5", { [contract.FICHIER_ENREGISTREMENT]: recording("parade-box", "linux", "Linux 6.1.0", null) });
-    const nas = readEntry("e2d4", { [contract.FICHIER_ENREGISTREMENT]: recording("nas", "linux", "Linux 6.1.0", SEEN) });
+    const box = readEntry("e3e5", "parade-box", "linux", "Linux 6.1.0", null);
+    const nas = readEntry("e2d4", "nas", "linux", "Linux 6.1.0", SEEN);
     const outsideLine = { ...presence("f0c3", "vieille-box", []), etat: "hors-ligne" as const, dit: "offline for 12 min" };
     const { stations, accueil: lines } = paired(presence("f0a1", "parade-box", ["brigade"]), outsideLine);
     const vue = await playTheVue({ demarrage: () => startup(stations, lines), espace: () => [], stationsDuCompte: () => ({ state: "listed", stations: [nas, box], unreadable: [] }), depotsDuChef: () => REPOSITORIES });

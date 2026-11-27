@@ -171,9 +171,6 @@ try {
   poser(node, dans(INSTALLATION.slice(1), "node", "bin", "node"), 0o755);
   // Le renouvellement de la session Max.
   poser(join(RUNTIME, "deploy", "brigade-renouvellement"), dans(INSTALLATION.slice(1), "renouvellement"), 0o755);
-  // Le geste `brigade`, que l'app lance par `ssh` sur une machine basculée
-  // depuis l'ancien chemin : la bascule y pointe /usr/local/bin/brigade.
-  poser(join(RUNTIME, "deploy", "brigade"), dans(INSTALLATION.slice(1), "brigade"), 0o755);
   for (const unite of UNITES) poser(join(ICI, "systemd", unite), dans("usr", "lib", "systemd", "system", unite), 0o644);
   // La source de la mise à jour : le dépôt qui publie ce paquet.
   const miseAJour = dans("usr", "lib", "systemd", "system", "brigade-station-mise-a-jour.service");
@@ -212,9 +209,9 @@ try {
       "Priority: optional",
       `Homepage: https://github.com/${depotPublie}`,
       "Description: brigade — la station d'une machine",
-      " Un seul service par machine, brigade-station, qui sert tous les projets de",
-      " sa configuration (/var/lib/brigade/projets) : il prend leurs tickets sur",
-      " GitHub et y fait travailler des cooks, sous la connexion Max du compte",
+      " Un seul service par machine, brigade-station : la cuisine, qui sert tous les",
+      " projets de /var/lib/brigade/kitchen/projects : elle prend leurs tickets sur",
+      " GitHub et y fait travailler des agents, sous la connexion Max du compte",
       " brigade. Le paquet porte le runtime, son node, ses unités systemd et le",
       " renouvellement de la session Max ; il n'écrit aucune règle sudoers.",
       "",

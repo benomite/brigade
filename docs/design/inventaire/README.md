@@ -83,6 +83,8 @@ PR #2459 (#2061) removed the app's reading of the Kitchen board, the issue in wh
 | `telephone-file-cooks` | the narrow screen's Cooks tab | #2921 |
 | `ajout-station`, `ajout-station-sans-station` | the « who cooks it » step of the « Add a project » screen, which only picks the repository now | #3181 |
 | `onglet-stations-ajout` | « Add a station » under the stations list of the Stations tab, replaced by the station choice of « Choose who cooks it » (`stations-tab/choix.js`) | (#3195) |
+| `second-outils-manquants`, `second-sans-dossier`, `second-sans-gh` | the old runtime's plan of the second (`second/lancement.ts`: its missing tools, its missing folder), deleted with the old runtime: the app now always starts the second | (#4499) |
+| `premier-lancement-outil-manquant`, `station-connexion-max-sans-claude` | the old runtime's reading of the tools a machine lacks (`outils-requis/machine.ts`), deleted with the old runtime: the app's `outilsManquants` now finds none | (#4499) |
 
 ### Unreachable since they were added
 

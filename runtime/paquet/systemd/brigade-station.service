@@ -1,7 +1,8 @@
 # La station de la machine : brigade-station.service — un seul service brigade
-# par machine, qui sert tous les projets de sa configuration
-# (/var/lib/brigade/projets, une ligne chacun). Ajouter ou retirer un projet
-# n'écrit que cette ligne : ni cette unité, ni un drop-in, ni rien du système.
+# par machine, la cuisine (runtime/src/kitchen/main.ts), qui sert tous les
+# projets de /var/lib/brigade/kitchen/projects (une ligne chacun). Ajouter ou
+# retirer un projet n'écrit que cette ligne : ni cette unité, ni un drop-in,
+# ni rien du système.
 #
 # Livrée par le paquet brigade-station, et remplacée à chacune de ses mises à
 # jour : ne pas l'éditer. Guide : docs/installation-station.md.
@@ -25,7 +26,7 @@ Type=simple
 User=brigade
 # Le `node` que le paquet porte : celui de la machine n'y est pour rien.
 WorkingDirectory=/usr/lib/brigade-station/runtime
-ExecStart=/usr/lib/brigade-station/node/bin/node src/station/main.ts
+ExecStart=/usr/lib/brigade-station/node/bin/node src/kitchen/main.ts
 
 # Tout ce que la station tient — sa configuration, l'état et le clone de
 # chaque projet — vit sous un seul répertoire, créé par systemd au compte. Il
@@ -53,14 +54,6 @@ IPAddressDeny=any
 IPAddressAllow=localhost
 Environment=BRIGADE_STATION_PORTES=/var/lib/brigade/portes.json
 
-# Ce que la mise à jour de la station a donné — à root, lisible de tous — :
-# la station le recopie au journal de chaque projet, la file le dit.
-Environment=BRIGADE_MISE_A_JOUR_DIR=/var/lib/brigade-station
-
-# L'état du renouvellement de la session Max, qu'écrit
-# brigade-station-renouvellement.service, et que chaque projet relit.
-Environment=BRIGADE_SESSION_STATE=/var/lib/brigade/.session/renouvellement
-
 # Où est le jeton longue durée de la connexion Max : l'étape de connexion de
 # l'installation guidée (`claude setup-token`) le range dans /etc/brigade, et
 # pose ce fichier à côté. Absent tant que la connexion n'est pas faite.
@@ -78,9 +71,9 @@ RestartSec=5
 RestartPreventExitStatus=2
 
 # `systemctl stop` et chaque mise à jour du paquet n'envoient SIGTERM qu'au
-# process de la station : les cooks, que chacun un relais détaché porte, ne
-# reçoivent rien et finissent leur travail ; la station suivante les reprend
-# (#704). `control-group` les tuerait tous.
+# process de la station : les agents, que chacun un relais détaché porte, ne
+# reçoivent rien et finissent leur travail ; la cuisine suivante les reprend.
+# `control-group` les tuerait tous.
 KillMode=process
 TimeoutStopSec=30
 
