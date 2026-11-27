@@ -231,7 +231,7 @@ const turns = openTurns();
 type Schedule = (folder: string, args: readonly string[]) => PlanDuSecond;
 let schedule: Schedule | undefined;
 void Promise.all([
-  import(pathToFileURL(join(locations.runtime, "src", "second", "launch.ts")).href) as Promise<typeof import("../../runtime/src/second/lancement.ts")>,
+  import(pathToFileURL(join(locations.runtime, "src", "second", "lancement.ts")).href) as Promise<typeof import("../../runtime/src/second/lancement.ts")>,
   import(pathToFileURL(join(locations.runtime, "src", "second", "outils.ts")).href) as Promise<typeof import("../../runtime/src/second/outils.ts")>,
 ]).then(
   ([{ planDuSecond: planOfSecond }, { programmesDe: programsOf }]) => {
@@ -279,7 +279,7 @@ const memoryOfRail = (repository: string): MemoryOfReads => memoriesOfRail.get(r
 // du compte que la vue fait déjà.
 const signsOfLife = holdTheSignsOfLife({
   lire: async () => {
-    const { lireLesStationsDuCompte: readTheStationsOfAccount } = await ofRuntime<typeof import("../../runtime/src/enregistrement-station/stations-du-compte.ts")>("enregistrement-station", "stations-of-account.ts");
+    const { lireLesStationsDuCompte: readTheStationsOfAccount } = await ofRuntime<typeof import("../../runtime/src/enregistrement-station/stations-du-compte.ts")>("enregistrement-station", "stations-du-compte.ts");
     return readTheStationsOfAccount({ gh: ghHere, env: process.env });
   },
 });
@@ -671,7 +671,7 @@ const projectsOfStations = holdProjects({
   ...(role.role === "station"
     ? {
         accepterSansBac: async (project: string, station: string) => {
-          const { accepterSansBacASable: acceptWithoutSandbox } = (await import(pathToFileURL(join(locations.runtime, "src", "onboarding", "wait.ts")).href)) as typeof import("../../runtime/src/onboarding/attente.ts");
+          const { accepterSansBacASable: acceptWithoutSandbox } = (await import(pathToFileURL(join(locations.runtime, "src", "onboarding", "attente.ts")).href)) as typeof import("../../runtime/src/onboarding/attente.ts");
           acceptWithoutSandbox({ repertoireEtat: join(rootOfTheStation, "etat", project), station });
         },
       }
@@ -1367,7 +1367,7 @@ ipcMain.handle("stationsDuChef", async (): Promise<StationsOfChef> => {
 // chacune a fait des dépôts choisis pour elle — rejoint la cuisine d'une autre, ou refusé (#1790) ; les projets que le
 // chef choisit pour l'une, écrits dans son gist, au fichier que le contrat du runtime nomme (stations-of-account.ts).
 ipcMain.handle("stationsDuCompte", async (): Promise<StationsOfAccount> => {
-  const { lireLesStationsDuCompte: readTheStationsOfAccount } = await ofRuntime<typeof import("../../runtime/src/enregistrement-station/stations-du-compte.ts")>("enregistrement-station", "stations-of-account.ts");
+  const { lireLesStationsDuCompte: readTheStationsOfAccount } = await ofRuntime<typeof import("../../runtime/src/enregistrement-station/stations-du-compte.ts")>("enregistrement-station", "stations-du-compte.ts");
   const readOne = await readTheStationsOfAccount({ gh: ghHere, env: process.env });
   signsOfLife.poser(readOne);
   if (readOne.state === "unavailable") return holdThePage(readOne);
@@ -1379,7 +1379,7 @@ ipcMain.handle("stationsDuCompte", async (): Promise<StationsOfAccount> => {
 });
 const chooseTheProjects = choiceOfProjects({
   ecrire: (id, files) => githubOfStations({ gh: ghHere, delaiMs: 30_000 }).ecrire(id, files),
-  contrat: () => ofRuntime<typeof import("../../runtime/src/enregistrement-station/contrat.ts")>("enregistrement-station", "contract.ts"),
+  contrat: () => ofRuntime<typeof import("../../runtime/src/enregistrement-station/contrat.ts")>("enregistrement-station", "contrat.ts"),
 });
 ipcMain.handle("choisirLesProjets", (_, id: unknown, repositories: unknown) => chooseTheProjects(id, repositories));
 const openOneProjectOfAStation = openOfAStation({
@@ -1451,7 +1451,7 @@ ipcMain.handle("demarrerLaStationIci", async (_, name: unknown) => {
 const toolsRequired = holdToolsRequired({
   charger: async () => {
     const [required, machine, tools] = await Promise.all([
-      ofRuntime<typeof import("../../runtime/src/outils-requis/outils-requis.ts")>("outils-requis", "tools-required.ts"),
+      ofRuntime<typeof import("../../runtime/src/outils-requis/outils-requis.ts")>("outils-requis", "outils-requis.ts"),
       ofRuntime<typeof import("../../runtime/src/outils-requis/machine.ts")>("outils-requis", "machine.ts"),
       ofRuntime<typeof import("../../runtime/src/second/outils.ts")>("second", "outils.ts"),
     ]);
