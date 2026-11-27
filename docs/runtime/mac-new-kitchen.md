@@ -1,8 +1,8 @@
 # A Mac serves a project with the new kitchen
 
 The new kitchen (`runtime/src/kitchen/main.ts`) serves the projects of `<BRIGADE_STATION_DIR>/kitchen/projects`.
-On the box, its own systemd unit runs it (`runtime/deploy/brigade-kitchen.service`). On a Mac, the station the app
-launches runs it itself (`runtime/src/station/new-kitchen.ts`, #4484).
+On the box, its own systemd unit runs it (`runtime/deploy/brigade-kitchen.service`). On a Mac, the app's background station (launchd's `brigade.station` agent) launches it directly: its entry point
+is `runtime/src/kitchen/main.ts` (#4603), and the app rewrites an agent written by an older version of the app.
 
 ## Declare the project
 
@@ -18,11 +18,10 @@ Add one line to `<BRIGADE_STATION_DIR>/kitchen/projects` (create the `kitchen/` 
   left out of the projects the station serves from GitHub only (`station-ordinateur/`).
 - `CLONE=` points at an existing clone; without it, the clone is `<BRIGADE_STATION_DIR>/<name>/depot`. The kitchen's
   state and worktrees go to `<BRIGADE_STATION_DIR>/kitchen/<name>/`.
-- No restart is needed. The station checks the file every two seconds: when the first project is listed, it
-  starts `node src/kitchen/main.ts` with `BRIGADE_STATION_DIR` set to its own folder and the rest of its own
-  environment, gates included. The kitchen reads the file again at every turn. If the kitchen exits, the station
-  starts it again ten seconds later. Stopping the station stops the kitchen; agents in flight keep running under
-  their relays.
+- No restart is needed. The app's station starts `node src/kitchen/main.ts` with `BRIGADE_STATION_DIR` set to its own
+  folder and the rest of its own environment, gates included; the kitchen reads the file again at every turn. If the
+  kitchen exits, the station starts it again five seconds later. Stopping the station stops the kitchen; agents in flight
+  keep running under their relays.
 
 To give a project back to the old runtime, remove its line from `kitchen/projects`.
 

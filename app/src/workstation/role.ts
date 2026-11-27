@@ -1,8 +1,7 @@
 // Ce qu'est l'app sur la machine où elle tourne : une station, ou un poste.
 //
 // Sur un ordinateur — Mac, Windows, Linux de bureau —, l'app installée est une
-// station : elle lance la station de la machine, la même que celle d'un serveur
-// (`PRINCIPAL`, que le paquet Debian lance aussi), et un projet
+// station : elle lance la cuisine de la machine (`PRINCIPAL`), et un projet
 // peut y cuire. Sur un téléphone, elle est un poste : elle pilote, elle ne cuit
 // pas — la station n'y est pas démarrée, et rien n'y lance de cook.
 //
@@ -18,8 +17,9 @@ export type Role = { role: "station"; principal: string } | { role: "poste"; pou
 // Les plateformes d'un téléphone, telles que Node les nomme.
 export const PHONES: readonly string[] = ["android", "ios"];
 
-// Le point d'entrée de la station, dans le dossier du runtime.
-export const PRINCIPAL = join("src", "station", "main.ts");
+// Le point d'entrée de la station, dans le dossier du runtime : la cuisine (#4603), qui sert les projets de
+// `<BRIGADE_STATION_DIR>/kitchen/projects`. Plus rien de ce que l'app lance n'importe l'ancien runtime.
+export const PRINCIPAL = join("src", "kitchen", "main.ts");
 
 export type OptionsRole = {
   plateforme: string;
