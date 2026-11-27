@@ -19,8 +19,10 @@ const home = "/Users/chef";
 const worktrees = posix.join(root, "state", "worktrees");
 const CALIBRATION = { model: "sonnet", effort: "low" };
 
+const PF_CHARGEE = "block drop out all user = 400\npass out quick on lo0 inet to lo0 user = 400\n";
+
 // A Mac whose sandbox is there: Seatbelt, and a recent enough `claude`.
-const mac = (overrides: Partial<Sondes> = {}): Sondes => ({ plateforme: "darwin", existe: () => true, versionDeClaude: () => "2.1.300 (Claude Code)", temporaire: () => "/private/var/folders/xy/T", ...overrides });
+const mac = (overrides: Partial<Sondes> = {}): Sondes => ({ plateforme: "darwin", existe: () => true, versionDeClaude: () => "2.1.300 (Claude Code)", temporaire: () => "/private/var/folders/xy/T", ancrePf: () => PF_CHARGEE, ...overrides });
 
 // The base branch declares one more host than the base ones.
 const git: Git = async (_cwd, args) => {
@@ -29,10 +31,10 @@ const git: Git = async (_cwd, args) => {
 };
 
 function place(probes: Sondes, hosts: Awaited<ReturnType<typeof projectHosts>> = []) {
-  return { project: "demo", env: { HOME: home, PATH: process.env.PATH }, claude: "claude", state: posix.join(root, "state"), clone: posix.join(root, "depot"), worktrees, hosts: () => hosts, probes, portOf: () => null };
+  return { project: "demo", env: { HOME: home, PATH: process.env.PATH }, claude: "claude", state: posix.join(root, "state"), clone: posix.join(root, "depot"), worktrees, hosts: () => hosts, probes, portOf: () => 4321 };
 }
 
-const settingsOf = (args: string[]) => JSON.parse(args[args.indexOf("--settings") + 1] as string) as { sandbox: { filesystem: { allowWrite: string[] }; network: { allowedDomains: string[] } } };
+const settingsOf = (args: string[]) => JSON.parse(args[args.indexOf("--settings") + 1] as string) as { sandbox: { filesystem: { allowWrite: string[] }; network: { allowedDomains?: string[] } } };
 
 test("on darwin, a cook's launch goes through Claude Code's sandbox with the project's hosts, and writes only in its worktree", async () => {
   const launcher = launcherOf(place(mac(), await projectHosts(git, posix.join(root, "depot"), "main")));
@@ -43,9 +45,9 @@ test("on darwin, a cook's launch goes through Claude Code's sandbox with the pro
   assert.equal(launch.args[launch.args.indexOf("--permission-mode") + 1], "dontAsk");
   assert.ok(!launch.args.includes("bypassPermissions"));
   const { sandbox } = settingsOf(launch.args);
-  assert.ok(sandbox.network.allowedDomains.includes("registry.npmjs.org"), sandbox.network.allowedDomains.join(" "));
-  assert.ok(sandbox.network.allowedDomains.includes("github.com"));
-  assert.ok(!sandbox.network.allowedDomains.includes("example.com"));
+  // The hosts are the gate's (`pf` blocks all else): Claude Code's own network filter is off.
+  assert.equal(sandbox.network.allowedDomains, undefined);
+  assert.equal(launch.env.HTTPS_PROXY, "http://127.0.0.1:4321");
   assert.ok(sandbox.filesystem.allowWrite.includes(wt));
   assert.ok(sandbox.filesystem.allowWrite.every((lieu) => lieu === wt || !lieu.startsWith(root) || lieu.startsWith(home)), sandbox.filesystem.allowWrite.join(" "));
 });

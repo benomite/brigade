@@ -14,6 +14,7 @@
 import { existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { execFileSync } from "../sans-invite.ts";
+import { reglesDeLAncre } from "./pf.ts";
 
 export type Detection = { disponible: true; version: string } | { disponible: false; raison: string };
 
@@ -26,6 +27,8 @@ export type Sondes = {
   // Le répertoire temporaire de la machine, où partent les jugements du
   // manager. Par défaut, celui du process.
   temporaire?: () => string;
+  // Les règles que `pfctl` donne pour l'ancre `brigade` (`pf.ts`), null si elles n'ont pu être lues.
+  ancrePf?: () => string | null;
 };
 
 // L'outil par lequel le bac à sable de Claude Code monte Seatbelt.
@@ -67,6 +70,7 @@ export function sondesDeLaMachine(bin: string): Sondes {
     plateforme: process.platform,
     existe: existsSync,
     temporaire: tmpdir,
+    ancrePf: reglesDeLAncre,
     versionDeClaude() {
       try {
         return execFileSync(bin, ["--version"], { encoding: "utf8", timeout: 30_000, stdio: ["ignore", "pipe", "ignore"] });
