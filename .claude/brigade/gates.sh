@@ -851,7 +851,7 @@ if [ -f .brigade/know-how.md ]; then
   rm -f "$BASE_KH"
   case $kh in
     0) ok "savoir-faire trié : chaque leçon ajoutée est à sa place" ;;
-    2) rc=1 ;;
+    2) fail "savoir-faire non trié : voir les lignes ci-dessus" ;;
     *) fail "le contrôle de l'ordre du savoir-faire n'a pas abouti" ;;
   esac
 fi
