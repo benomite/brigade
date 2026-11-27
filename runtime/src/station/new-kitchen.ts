@@ -3,7 +3,7 @@
 // The station's old runtime serves none of them. On a Mac, the station runs
 // `src/kitchen/main.ts` for them itself, as the box's `brigade-kitchen` unit
 // does (docs/runtime/mac-new-kitchen.md).
-import { spawn } from "node:child_process";
+import { spawn } from "../sans-invite.ts";
 import { fileURLToPath } from "node:url";
 import { projectsOfTheKitchen } from "../kitchen/projects.ts";
 
