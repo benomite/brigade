@@ -11,7 +11,7 @@
 // veille lance `status` :
 //
 //   ajout         notée faite dès que la box répond pour le projet : c'est elle qui l'a fait exister
-//   init          `/brigade:init` s'ouvre dans le second ; « mergé » est la parole du chef (`etapes init faite`)
+//   init          la session qui prépare le dépôt s'ouvre dans le second ; « mergé » est la parole du chef (`etapes init faite`)
 //   verification  `installation`, en entier — ce qui manque à la box est annoncé, avec son geste
 //   stations      `installation stations` : les stations que la box fournit, déclarées au plafond choisi
 //   protection    `installation protection poser`
@@ -19,7 +19,7 @@
 //   demarrage     `etapes demarrage faite` : la box revérifie tout, et ne termine que si c'est vert
 //
 // Ce que l'app ne peut pas faire à la place du chef est dit d'emblée, avant le premier
-// bouton : la session `/brigade:init` et son merge, ce que « Vérifier » dit manquer à
+// bouton : la session qui prépare le dépôt et son merge, ce que « Vérifier » dit manquer à
 // la box — chaque manque avec sa commande, mot pour mot —, et le démarrage du service,
 // un geste `root` qu'aucun geste de la box ne donne sans mot de passe. Celui-là, l'app
 // l'écrit dans un shell de l'espace, sans l'envoyer. C'est pour l'annoncer que
@@ -39,8 +39,9 @@ import { titleOfFailure } from "./facts.ts";
 import { SHAPE_EXPECTED, refusalOfShape } from "./name.ts";
 import type { Terminal } from "./terminals.ts";
 
-// La session qui amorce le dépôt (docs/installer.md, « Amorcer le dépôt »).
-export const INIT = "/brigade:init";
+// La session qui amorce le dépôt (docs/installer.md, « Amorcer le dépôt ») : ses instructions lui sont données
+// (setup/setup.ts), aucune commande n'est tapée.
+export const INIT = "the repository setup";
 // La commande du runtime qui dit si le projet est prêt, et tout ce qui manque d'un coup.
 export const VERIFICATION = "installation";
 // La même, qui rend son verdict structuré : c'est elle que « Vérifier »
@@ -527,7 +528,7 @@ function lineOfMissing(lack: MissingJudge, steps: StepVue[]): LineOfMissing {
 const LINES: Readonly<Record<string, (project: Project, here: boolean) => string[]>> = {
   ajout: () => ["The app marks this step done as soon as the station answers for the project: the add is what made it exist there."],
   init: () => [
-    `\`${INIT}\` is a Claude Code session, not a command: the app opens it in this space's second, in the project's folder — the conversation is yours.`,
+    `The repository setup is a Claude Code session, not a command: the app opens it in this space's second, in the project's folder, with its instructions — the conversation is yours.`,
     "Then merge its PR on the integration branch, and say so here: the station only sees of the repository what its origin carries, and the app does not know whether it is merged.",
   ],
   verification: () => [
@@ -543,7 +544,7 @@ const LINES: Readonly<Record<string, (project: Project, here: boolean) => string
 // Les installations, tenues tant que l'app est ouverte : ce qui est lu, ce qui est en route.
 // Rien n'y fait foi — la box redit tout à la lecture suivante. Ce par quoi elles passent
 // leur est donné : la box, par le passage du projet, et les deux terminaux — le second, où
-// s'ouvre la session d'init, et un shell, où s'écrit le démarrage. `surGuide` reçoit chaque
+// s'ouvre la session qui prépare le dépôt, et un shell, où s'écrit le démarrage. `surGuide` reçoit chaque
 // installation qui change. `cuisine` : là où celle d'un projet tourne, demandé à chaque geste —
 // sa box, ou cet ordinateur, où ses commandes partent (workstation/kitchen-here.ts). Absent,
 // c'est sa box.
@@ -551,7 +552,7 @@ export function holdServices(options: {
   delaiMs: number;
   lancer(readOne: ProjectRead, command: string): Promise<RenderedOfBox>;
   cuisine: (project: Project) => Kitchen | undefined;
-  session(project: Project, command: string): Terminal;
+  setup(project: Project): Terminal;
   shell(project: Project, written: string): Terminal;
   surGuide(guide: Guide): void;
   // L'écart minimal entre deux contrôles d'un projet installé, sauf s'il est demandé exprès :
@@ -932,20 +933,20 @@ export function holdServices(options: {
       if (withIt !== undefined) hold(withIt).suivi = true;
     },
 
-    // La session `/brigade:init`, dans le second du projet. Rien n'en est déduit : qu'elle ait
+    // La session qui prépare le dépôt, dans le second du projet. Rien n'en est déduit : qu'elle ait
     // abouti, et que son résultat soit mergé, c'est le chef qui le dit.
     amorcer(project: Project): Terminal | { refus: string } {
       const refusal = withoutTerminal(project);
       const withIt = withItsKitchen(project);
       if (refusal !== undefined || withIt === undefined) return { refus: refusal ?? withoutBox(project.nom) };
       hold(withIt).suivi = true;
-      return options.session(project, INIT);
+      return options.setup(project);
     },
 
     // Le chef dit le résultat de l'init mergé — ou s'en dédit : la box le note, ou le remet à faire.
     direMerge(project: Project, merge: boolean) {
       return act(project, merge ? "recording the merge of the init…" : "putting the init back to do…", (withIt) =>
-        write(withIt, `installation etapes init ${merge ? "faite" : "a-faire"}`, merge ? { ok: `The merge of \`${INIT}\` is recorded on the station`, non: "The station did not record the merge" } : { ok: "The init is back to do", non: "The station did not put the init back to do" }),
+        write(withIt, `installation etapes init ${merge ? "faite" : "a-faire"}`, merge ? { ok: `The merge of ${INIT} is recorded on the station`, non: "The station did not record the merge" } : { ok: "The init is back to do", non: "The station did not put the init back to do" }),
       );
     },
 

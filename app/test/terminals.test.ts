@@ -6,24 +6,30 @@ import { SAYS, settingsFile } from "../src/input.ts";
 import { openTerminals, type Launch, type Terminal } from "../src/terminals.ts";
 import { HERE } from "../src/platform.ts";
 import { ROLE_OF_SECOND } from "../src/second/launch.ts";
+import { START_OF_SETUP, setupInWords } from "../src/setup/setup.ts";
 
 const THREAD_RESUMED = "thread resumed: `claude --continue`, the latest conversation in this folder — whichever it is, not necessarily a second's; it runs with the second's role in its system prompt";
 // Ce que `claude` reçoit pour être le second (second/lancement.ts) : le rôle livré avec l'app, et des réglages vides
 // quand l'app ne suit pas ses tours.
 const ROLE = ["--append-system-prompt-file", ROLE_OF_SECOND, "--settings", "{}"];
 const THE_ROLE = ROLE.join(" ");
+// Les instructions de la préparation d'un dépôt, telles que l'app les a posées (setup/setup.ts), et la session qui les
+// reçoit : une conversation neuve, sans commande.
+const SETUP = "/config/setup/instructions.md";
+const SETUP_SESSION = ["--append-system-prompt-file", SETUP, START_OF_SETUP].join(" ");
 const BRIGADE = { nom: "brigade", dossier: "/projets/brigade" };
 const PARADE = { nom: "parade", dossier: "/projets/parade" };
 
 type FakePty = Launch & { ecrits: string[]; tailles: [number, number][]; tue: boolean };
 
-function registry() {
+function registry(preparation = () => SETUP) {
   const launched: FakePty[] = [];
   const outputs: [number, string][] = [];
   const states: Terminal[] = [];
   const terminals = openTerminals({
     claude: "claude",
     shell: "/bin/zsh",
+    preparation,
     ouvrirPty(launch) {
       const fake: FakePty = { ...launch, ecrits: [], tailles: [], tue: false };
       launched.push(fake);
@@ -279,15 +285,16 @@ describe("le registre des terminaux", () => {
 
 
 describe("ce que la mise en service demande au registre", () => {
-  test("une session s'ouvre dans le second sur sa commande — `claude /brigade:init`, une conversation neuve dans le dossier du projet —, et la note le dit", () => {
+  test("la session qui prépare le dépôt s'ouvre dans le second avec ses instructions — une conversation neuve dans le dossier du projet, aucune commande tapée —, et la note le dit", () => {
     const { terminaux: terminals, commandes: commands, lance: launches } = registry();
 
-    const second = terminals.session(BRIGADE, "/brigade:init");
+    const second = terminals.setup(BRIGADE);
 
-    assert.deepEqual(commands(), ["claude /brigade:init /projets/brigade"]);
+    assert.deepEqual(commands(), [`claude ${SETUP_SESSION} /projets/brigade`]);
     assert.deepEqual(launches(0).ecrits, []);
     assert.deepEqual([second.genre, second.titre, second.arrete], ["second", "Claude", false]);
-    assert.equal(second.note, "session launched on `/brigade:init`: `claude /brigade:init`, a new conversation in this folder — it is not the second: it runs without the second's role");
+    assert.equal(second.note, "setup session launched: `claude`, a new conversation in this folder with the repository setup instructions in its system prompt — it is not the second: it runs without the second's role");
+    assert.doesNotMatch(second.note, /brigade:/);
     // C'est le second de l'espace : l'ouvrir le retrouve, sans rien relancer.
     assert.deepEqual(terminals.espace(BRIGADE), [second]);
     assert.equal(commands().length, 1);
@@ -295,7 +302,7 @@ describe("ce que la mise en service demande au registre", () => {
 
   test("la session quittée est dite arrêtée, sans rien relancer d'office ; une touche reprend son fil, comme pour tout second", () => {
     const { terminaux: terminals, lance: launches, commandes: commands, etats: states } = registry();
-    const second = terminals.session(BRIGADE, "/brigade:init");
+    const second = terminals.setup(BRIGADE);
 
     launches(0).surFin(1);
 
@@ -307,16 +314,16 @@ describe("ce que la mise en service demande au registre", () => {
     assert.equal(terminals.espace(BRIGADE)[0]?.titre, "Second");
   });
 
-  test("un second qui tourne déjà n'est pas remplacé : la commande y est écrite, sans rien qui l'envoie", () => {
+  test("un second qui tourne déjà n'est pas remplacé : la demande qui nomme les instructions y est écrite, sans rien qui l'envoie", () => {
     const { terminaux: terminals, lance: launches, commandes: commands } = registry();
     const second = oneOf(terminals.espace(BRIGADE));
 
-    const said = terminals.session(BRIGADE, "/brigade:init");
+    const said = terminals.setup(BRIGADE);
 
     assert.deepEqual(commands(), [`claude --continue ${THE_ROLE} /projets/brigade`]);
-    assert.deepEqual(launches(0).ecrits, ["/brigade:init"]);
+    assert.deepEqual(launches(0).ecrits, [setupInWords(SETUP)]);
     assert.equal(said.id, second.id);
-    assert.match(said.note, /^written into the second, without Enter: `\/brigade:init` — /);
+    assert.ok(said.note.startsWith(`written into the second, without Enter: \`${setupInWords(SETUP)}\` — `), said.note);
   });
 
   test("un second arrêté repart sur la session, au lieu de reprendre son fil", () => {
@@ -324,19 +331,21 @@ describe("ce que la mise en service demande au registre", () => {
     const second = oneOf(terminals.espace(BRIGADE));
     launches(0).surFin(0);
 
-    const said = terminals.session(BRIGADE, "/brigade:init");
+    const said = terminals.setup(BRIGADE);
 
-    assert.equal(commands().at(-1), "claude /brigade:init /projets/brigade");
+    assert.equal(commands().at(-1), `claude ${SETUP_SESSION} /projets/brigade`);
     assert.deepEqual([said.id, said.arrete], [second.id, false]);
   });
 
-  test("une session dont la commande porterait un caractère de contrôle n'est ni lancée ni écrite", () => {
-    const { terminaux: terminals, commandes: commands } = registry();
+  test("des instructions qui ne se posent pas n'ouvrent aucune session, et la note dit pourquoi", () => {
+    const { terminaux: terminals, commandes: commands } = registry(() => {
+      throw new Error("EACCES: permission denied");
+    });
 
-    const said = terminals.session(BRIGADE, "/brigade:init\r");
+    const said = terminals.setup(BRIGADE);
 
     assert.deepEqual(commands(), []);
-    assert.match(said.note, /^nothing is written: the command carries a control character/);
+    assert.equal(said.note, "the setup session was not opened: its instructions could not be written (EACCES: permission denied)");
   });
 
   test("un shell peut s'ouvrir sur une commande : elle y est écrite telle quelle, sans rien qui l'envoie — c'est le chef qui fait Entrée", () => {
@@ -392,6 +401,7 @@ function registryTracking(proofDelayMs?: number) {
     },
     surSortie: () => {},
     surEtat: () => {},
+    preparation: () => SETUP,
     tours: (id) => ({ chemin: `/tmp/brigade-app-essai/second-${id}.tours`, lire: () => saidOnes.get(id) ?? "", vider: () => void saidOnes.set(id, "") }),
     ...(proofDelayMs === undefined ? {} : { delaiPreuveMs: proofDelayMs }),
   });
@@ -632,10 +642,10 @@ describe("un geste direct part vraiment dans le second, et dit quand il ne peut 
     terminals.shell(BRIGADE);
     assert.deepEqual(launches(2).args, ["-l"]);
 
-    // Une session ouverte sur une commande de `claude` les porte aussi.
+    // La session qui prépare le dépôt les porte aussi.
     const other = registryTracking();
-    other.terminaux.session(PARADE, "/brigade:init");
-    assert.deepEqual(other.lance(0).args.slice(0, 2), ["/brigade:init", "--settings"]);
+    other.terminaux.setup(PARADE);
+    assert.deepEqual(other.lance(0).args, ["--append-system-prompt-file", SETUP, START_OF_SETUP, "--settings", settingsFile(`/tmp/brigade-app-essai/second-${oneOf(other.terminaux.espace(PARADE)).id}.tours`)]);
   });
 });
 
