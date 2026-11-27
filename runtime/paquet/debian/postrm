@@ -11,8 +11,7 @@ case "$1" in
     # Purgée, la station ne doit pas revenir au prochain démarrage : ses liens
     # d'activation, que le retrait laisse pour qu'une réinstallation la
     # retrouve activée, partent.
-    rm -f /etc/systemd/system/multi-user.target.wants/brigade-station.service \
-      /etc/systemd/system/timers.target.wants/brigade-station-renouvellement.timer
+    rm -f /etc/systemd/system/multi-user.target.wants/brigade-station.service
     if [ -d /run/systemd/system ]; then systemctl daemon-reload || true; fi
     ;;
   remove)

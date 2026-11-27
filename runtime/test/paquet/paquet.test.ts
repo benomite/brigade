@@ -6,9 +6,9 @@
 // appellent sont des doublures qui notent leurs appels.
 import assert from "node:assert/strict";
 import { execFile, spawnSync } from "node:child_process";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { after, before, describe, test, type TestContext } from "node:test";
 import { jusqua, lancer, repertoireTemporaire } from "../outils.ts";
 
@@ -101,7 +101,7 @@ describe("la construction du paquet", { skip: sansDpkgDeb }, () => {
     assert.match(lu.stdout, /^Environment=BRIGADE_MISE_A_JOUR_SOURCE=github:acme\/brigade$/m);
   });
 
-  test("il porte le runtime, son node, ses unités et le renouvellement — ni tests, ni rien sous /etc, aucune règle sudoers", () => {
+  test("il porte le runtime, son node, ses unités — ni tests, ni rien sous /etc, aucune règle sudoers", () => {
     const fichiers = contenu();
     const chemins = fichiers.map((f) => f.chemin);
     for (const attendu of [
@@ -111,10 +111,7 @@ describe("la construction du paquet", { skip: sansDpkgDeb }, () => {
       // The gesture the app launches its station commands through (app/src/box.ts, `ACTION`).
       "/usr/lib/brigade-station/runtime/src/station/geste.ts",
       "/usr/lib/brigade-station/runtime/agents/kitchen/cook.md",
-      "/usr/lib/brigade-station/renouvellement",
       "/usr/lib/systemd/system/brigade-station.service",
-      "/usr/lib/systemd/system/brigade-station-renouvellement.service",
-      "/usr/lib/systemd/system/brigade-station-renouvellement.timer",
     ]) {
       assert.ok(chemins.includes(attendu), `${attendu} manque au paquet`);
     }
@@ -123,7 +120,6 @@ describe("la construction du paquet", { skip: sansDpkgDeb }, () => {
     assert.deepEqual(fichiers.filter((f) => f.proprietaire !== "root/root"), []);
     const droits = (chemin: string) => fichiers.find((f) => f.chemin === chemin)?.droits;
     assert.equal(droits("/usr/lib/brigade-station/node/bin/node"), "-rwxr-xr-x");
-    assert.equal(droits("/usr/lib/brigade-station/renouvellement"), "-rwxr-xr-x");
     assert.equal(droits("/usr/lib/brigade-station/runtime/src/kitchen/main.ts"), "-rw-r--r--");
     // The station is the kitchen: nothing of the old runtime's entry points.
     assert.deepEqual(chemins.filter((c) => c.endsWith("/src/station/main.ts") || c === "/usr/lib/brigade-station/brigade"), []);
@@ -251,7 +247,7 @@ describe("ce que dpkg joue à l'installation et à la mise à jour", { skip: san
   // Un système vierge : ni compte ni groupe brigade.
   const vierge = { getent: "exit 2", adduser: "", systemctl: 'case "$1" in is-enabled|--quiet) exit 1 ;; esac' };
 
-  test("la première installation crée le compte, puis active et démarre la station et son renouvellement", (t) => {
+  test("la première installation crée le compte, puis active et démarre la station", (t) => {
     const systeme = doublures(t, vierge);
     const rendu = jouer(postinst(t), ["configure", ""], systeme.env);
     assert.equal(rendu.code, 0, rendu.sortie);
@@ -259,8 +255,14 @@ describe("ce que dpkg joue à l'installation et à la mise à jour", { skip: san
       systeme.appels().filter((a) => !a.startsWith("getent")),
       [
         "adduser --quiet --system --group --home /home/brigade --shell /bin/bash brigade",
+        "systemctl stop brigade-station-renouvellement.service",
+      "systemctl disable brigade-station-renouvellement.service",
+        "systemctl stop brigade-station-renouvellement.timer",
+      "systemctl disable brigade-station-renouvellement.timer",
         "systemctl daemon-reload",
-        "systemctl enable --now brigade-station.service brigade-station-renouvellement.timer",
+        "systemctl reset-failed brigade-station-renouvellement.service",
+        "systemctl reset-failed brigade-station-renouvellement.timer",
+        "systemctl enable --now brigade-station.service",
       ],
     );
   });
@@ -278,13 +280,23 @@ describe("ce que dpkg joue à l'installation et à la mise à jour", { skip: san
   });
 
   test("une mise à jour relance ce qui est activé sur le nouveau code, sans rien réactiver — les portes d'abord, quand elles tournent", (t) => {
-    // Le renouvellement a été désactivé par l'administrateur ; la station, non. Ses portes tournent.
+    // La station est activée, ses portes tournent.
     const systeme = doublures(t, { getent: "exit 0", systemctl: '[ "$2" = is-enabled ] && { [ "$3" = brigade-station.service ] && exit 0; exit 1; }; exit 0' });
     const rendu = jouer(postinst(t), ["configure", "1.2.2"], systeme.env);
     assert.equal(rendu.code, 0, rendu.sortie);
     assert.deepEqual(
       systeme.appels().filter((a) => a.startsWith("systemctl") && !a.includes("is-enabled") && !a.includes("is-active")),
-      ["systemctl daemon-reload", "systemctl restart brigade-station-porte.service", "systemctl restart brigade-station.service"],
+      [
+        "systemctl stop brigade-station-renouvellement.service",
+      "systemctl disable brigade-station-renouvellement.service",
+        "systemctl stop brigade-station-renouvellement.timer",
+      "systemctl disable brigade-station-renouvellement.timer",
+        "systemctl daemon-reload",
+        "systemctl reset-failed brigade-station-renouvellement.service",
+        "systemctl reset-failed brigade-station-renouvellement.timer",
+        "systemctl restart brigade-station-porte.service",
+        "systemctl restart brigade-station.service",
+      ],
     );
   });
 
@@ -293,7 +305,16 @@ describe("ce que dpkg joue à l'installation et à la mise à jour", { skip: san
     assert.equal(jouer(postinst(t), ["configure", "1.2.2"], systeme.env).code, 0);
     assert.deepEqual(
       systeme.appels().filter((a) => a.startsWith("systemctl") && !a.includes("is-enabled") && !a.includes("is-active")),
-      ["systemctl daemon-reload", "systemctl restart brigade-station.service"],
+      [
+        "systemctl stop brigade-station-renouvellement.service",
+      "systemctl disable brigade-station-renouvellement.service",
+        "systemctl stop brigade-station-renouvellement.timer",
+      "systemctl disable brigade-station-renouvellement.timer",
+        "systemctl daemon-reload",
+        "systemctl reset-failed brigade-station-renouvellement.service",
+        "systemctl reset-failed brigade-station-renouvellement.timer",
+        "systemctl restart brigade-station.service",
+      ],
     );
   });
 
@@ -305,15 +326,103 @@ describe("ce que dpkg joue à l'installation et à la mise à jour", { skip: san
     assert.equal(rendu.code, 0, rendu.sortie);
     assert.deepEqual(
       systeme.appels().filter((a) => a.startsWith("systemctl") && !a.includes("is-enabled") && !a.includes("is-active")),
-      ["systemctl disable --now brigade-kitchen.service", "systemctl daemon-reload", "systemctl restart brigade-station.service"],
+      [
+        "systemctl stop brigade-station-renouvellement.service",
+      "systemctl disable brigade-station-renouvellement.service",
+        "systemctl stop brigade-station-renouvellement.timer",
+      "systemctl disable brigade-station-renouvellement.timer",
+        "systemctl stop brigade-kitchen.service",
+        "systemctl disable brigade-kitchen.service",
+        "systemctl daemon-reload",
+        "systemctl reset-failed brigade-station-renouvellement.service",
+        "systemctl reset-failed brigade-station-renouvellement.timer",
+        "systemctl reset-failed brigade-kitchen.service",
+        "systemctl restart brigade-station.service",
+      ],
     );
     assert.equal(existsSync(join(unites, "brigade-kitchen.service")), false);
+  });
+
+  test("les unités de l'ancien runtime — arbitre, renouvellement, sauvegardes quotidiennes — s'arrêtent, se désactivent et partent avec leurs drop-ins ; la station reste", (t) => {
+    const unites = repertoireTemporaire(t);
+    const poser = (...chemin: string[]) => {
+      mkdirSync(dirname(join(unites, ...chemin)), { recursive: true });
+      writeFileSync(join(unites, ...chemin), "[Service]\n");
+    };
+    for (const f of ["brigade-arbitre.service", "brigade-sauvegarde@.service", "brigade-sauvegarde@.timer", "brigade-station.service"]) poser(f);
+    for (const d of ["brigade-arbitre.service.d", "brigade-sauvegarde@brigade.service.d", "brigade-sauvegarde@espace.service.d", "brigade-station.service.d"]) poser(d, "reglage.conf");
+    poser("brigade-station-renouvellement.timer");
+    for (const projet of ["brigade", "calculus-workspace", "espace"]) {
+      mkdirSync(join(unites, "timers.target.wants"), { recursive: true });
+      symlinkSync("/dev/null", join(unites, "timers.target.wants", `brigade-sauvegarde@${projet}.timer`));
+    }
+    symlinkSync("/dev/null", join(unites, "timers.target.wants", "brigade-station-renouvellement.timer"));
+    const systeme = doublures(t, { getent: "exit 0", systemctl: '[ "$1" = disable ] && exit 1; [ "$2" = is-enabled ] && { [ "$3" = brigade-station.service ] && exit 0; exit 1; }; [ "$2" = is-active ] && exit 3; exit 0' });
+    const rendu = jouer(postinst(t, unites), ["configure", "1.2.2"], systeme.env);
+    assert.equal(rendu.code, 0, rendu.sortie);
+    const appels = systeme.appels().filter((a) => a.startsWith("systemctl") && !a.includes("is-enabled") && !a.includes("is-active"));
+    assert.deepEqual(
+      appels.filter((a) => a.startsWith("systemctl disable") || a.startsWith("systemctl stop")).sort(),
+      [
+        "systemctl stop brigade-arbitre.service",
+        "systemctl disable brigade-arbitre.service",
+        "systemctl stop brigade-sauvegarde@brigade.service",
+        "systemctl disable brigade-sauvegarde@brigade.service",
+        "systemctl stop brigade-sauvegarde@brigade.timer",
+        "systemctl disable brigade-sauvegarde@brigade.timer",
+        "systemctl stop brigade-sauvegarde@calculus-workspace.timer",
+        "systemctl disable brigade-sauvegarde@calculus-workspace.timer",
+        "systemctl stop brigade-sauvegarde@espace.service",
+        "systemctl disable brigade-sauvegarde@espace.service",
+        "systemctl stop brigade-sauvegarde@espace.timer",
+        "systemctl disable brigade-sauvegarde@espace.timer",
+        "systemctl stop brigade-station-renouvellement.service",
+        "systemctl disable brigade-station-renouvellement.service",
+        "systemctl stop brigade-station-renouvellement.timer",
+        "systemctl disable brigade-station-renouvellement.timer",
+      ].sort(),
+    );
+    const reload = appels.indexOf("systemctl daemon-reload");
+    assert.equal(appels.at(-1), "systemctl restart brigade-station.service");
+    assert.deepEqual(
+      appels.slice(reload + 1, -1).sort(),
+      [
+        "systemctl reset-failed brigade-arbitre.service",
+        "systemctl reset-failed brigade-sauvegarde@brigade.service",
+        "systemctl reset-failed brigade-sauvegarde@brigade.timer",
+        "systemctl reset-failed brigade-sauvegarde@calculus-workspace.timer",
+        "systemctl reset-failed brigade-sauvegarde@espace.service",
+        "systemctl reset-failed brigade-sauvegarde@espace.timer",
+        "systemctl reset-failed brigade-station-renouvellement.service",
+        "systemctl reset-failed brigade-station-renouvellement.timer",
+      ],
+    );
+    assert.deepEqual(readdirSync(unites).sort(), ["brigade-station.service", "brigade-station.service.d", "timers.target.wants"]);
+    assert.deepEqual(readdirSync(join(unites, "timers.target.wants")), []);
+  });
+
+  test("une mise à jour depuis une version qui livrait le renouvellement sous /usr/lib l'arrête sans condition et oublie son état failed, après le daemon-reload", (t) => {
+    // Aucun fichier sous /etc : seule la machine (systemd) porte encore l'unité.
+    const systeme = doublures(t, { getent: "exit 0", systemctl: '[ "$1" = disable ] && exit 1; [ "$2" = is-enabled ] && { [ "$3" = brigade-station.service ] && exit 0; exit 1; }; [ "$2" = is-active ] && exit 3; exit 0' });
+    const rendu = jouer(postinst(t), ["configure", "1.2.2"], systeme.env);
+    assert.equal(rendu.code, 0, rendu.sortie);
+    const appels = systeme.appels().filter((a) => a.startsWith("systemctl") && !a.includes("is-enabled") && !a.includes("is-active"));
+    assert.deepEqual(appels, [
+      "systemctl stop brigade-station-renouvellement.service",
+      "systemctl disable brigade-station-renouvellement.service",
+      "systemctl stop brigade-station-renouvellement.timer",
+      "systemctl disable brigade-station-renouvellement.timer",
+      "systemctl daemon-reload",
+      "systemctl reset-failed brigade-station-renouvellement.service",
+      "systemctl reset-failed brigade-station-renouvellement.timer",
+      "systemctl restart brigade-station.service",
+    ]);
   });
 
   test("le retrait arrête la station et ses portes, sans toucher à son état", (t) => {
     const systeme = doublures(t, { systemctl: "" });
     assert.equal(jouer(join(PAQUET, "debian/prerm"), ["remove"], systeme.env).code, 0);
-    assert.deepEqual(systeme.appels(), ["systemctl stop brigade-station.service brigade-station-renouvellement.timer brigade-station-porte.service"]);
+    assert.deepEqual(systeme.appels(), ["systemctl stop brigade-station.service brigade-station-porte.service"]);
   });
 
   test("une mise à jour n'arrête pas la station avant de poser le nouveau code", (t) => {
