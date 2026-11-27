@@ -2,10 +2,10 @@
 // la station de sa machine (workstation/station.ts) l'écrit dans son appairage (document.ts), et le
 // reprend dans la demande de chaque projet où la station est ajoutée (projects/projects.ts). La station
 // principale du projet le lit là, et la déclare à son journal avec ces capacités
-// (l'ancien runtime/src/projets/secondaires.ts, retiré par #2713) — sans une commande du chef.
+// (retiré par #2713) — sans une commande du chef.
 //
 // Un Mac fournit toujours `macos` : c'est le système même. S'y ajoute chaque capacité que le runtime
-// détecte sur la machine (runtime/src/projets/ajout-de-station.ts, `capacitesDeLaMachine`) — Chrome,
+// détecte sur la machine (`capacitesDeLaMachine`) — Chrome,
 // le SDK Android… —, regardée sans rien y lancer. Une autre machine ne fournit que ce qu'on y détecte.
 // La plateforme se lit dans platform.ts, comme partout dans l'app.
 import { isOneMac } from "../platform.ts";

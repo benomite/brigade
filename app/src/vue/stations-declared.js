@@ -60,8 +60,8 @@ export function capacityChoice(station, stations, catalog, extra) {
   return [...new Set(allEntries)].map((capacity) => ({ capacite: capacity, dite: saidEntries.get(capacity) ?? "" }));
 }
 
-// La capacité qu'un besoin que la station n'a pas appelle, telle qu'on la déclare : la première que le runtime lui donne
-// (runtime/src/installation/besoins/catalogue.ts, `fourni.capacites`) ; un besoin qu'il ne dit pas ici est sa propre capacité.
+// La capacité qu'un besoin que la station n'a pas appelle, telle qu'on la déclare : la première que le catalogue des besoins
+// lui donne (`fourni.capacites`) ; un besoin qu'il ne dit pas ici est sa propre capacité.
 /** @type {Readonly<Record<string, string>>} */
 export const CAPACITY_OF_NEED = { browser: "navigateur-headless" };
 /** @param {string} need */

@@ -266,6 +266,8 @@ test("la lecture du rail ne joint ni box ni station : ses modules ne chargent qu
     "app/src/board/todo-github.ts",
     "app/src/board/writing.ts",
     "app/src/rail-blocked/diagnostic.ts",
+    // La fraîcheur d'une station enregistrée, de son gist, sans E/S (ticket 4502).
+    "app/src/station-freshness.ts",
     // L'avancement d'un besoin, de la liste de cases à cocher de son corps, sans E/S (ticket 3480).
     "app/src/vue/backlog/progress-github.ts",
     "app/src/vue/banner-stop/stop-of-rail.ts",

@@ -4700,7 +4700,6 @@ function tabOfStations(project) {
       lecture: reading,
       quiCuit: addition !== undefined,
       ...(held !== undefined && "tableau" in held && held.tableau.quotaGithub !== undefined ? { quota: held.tableau.quotaGithub } : {}),
-      ...(standbyVue === undefined ? {} : { veille: standbyVue }),
       ...(stationLocaleRead.projet === project.nom && stationLocaleRead.moteur !== undefined ? { moteurIci: stationLocaleRead.moteur } : {}),
       serveur: serverOf(project.nom, addition !== undefined),
     },
@@ -7914,8 +7913,6 @@ function setBlockStation() {
 // dernière publiée, et si elle est en retard. Tant que le pont ne le lit pas, la case de ce poste dit sa version inconnue.
 /** @type {unknown} */
 let statusOfTheStationSeen;
-/** @type {import("./standby-machine/standby-machine.js").Standby | undefined} */
-let standbyVue;
 function setTheVersions() {
   if (phoneSeen !== undefined) return versionsOfStations.replaceChildren();
   const cases = casesOfVersions({ stations: stationsViews?.stations, locale: projectsSeen?.locale ?? null, poste: WORKSTATION.nom, statut: statusOfTheStationSeen });
@@ -9097,19 +9094,6 @@ void Promise.resolve(brigade.statutDeLaStation?.()).then(
     statusOfTheStationSeen = status;
     setTheVersions();
     setBlockStation();
-  },
-  () => undefined,
-);
-// La veille de la station de cet ordinateur (ticket 3642) : lue au lancement, puis à chaque changement ; la carte de la
-// station suit. Une lecture qui échoue la laisse inconnue : la carte n'en dit rien.
-brigade.surVeilleMachine?.((standby) => {
-  standbyVue = standby;
-  restTheTabStations();
-});
-void Promise.resolve(brigade.veilleMachine?.()).then(
-  (standby) => {
-    standbyVue = standby;
-    restTheTabStations();
   },
   () => undefined,
 );

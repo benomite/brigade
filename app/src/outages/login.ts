@@ -2,13 +2,13 @@
 // officiel, et lui seul — `claude auth login`, qui ouvre la page de connexion dans le navigateur.
 // Rien d'autre ne parle à Anthropic. Un seul login à la fois : un second clic, pendant que le
 // premier attend le chef, ne lance rien de plus. La station voit la connexion rétablie à sa
-// relecture suivante (runtime/src/connexion-max/veille.ts), la publie, et la cuisine reprend seule.
+// relecture suivante, la publie, et la cuisine reprend seule.
 import { spawn } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { RenderedOfOutage } from "./actions.ts";
 
-// Ce que la station garde d'elle (runtime/src/appairage/presence.ts) : son gist y est.
+// Ce que la station garde d'elle : son gist y est.
 const FILE_LOCAL = "appairage.json";
 // Le temps laissé au chef pour se connecter : au-delà, le login est arrêté, et un clic le relance.
 const GUARD_MS = 15 * 60_000;
