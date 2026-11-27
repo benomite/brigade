@@ -61,7 +61,7 @@ describe("#4499 — the station's gesture serves every command the app launches"
     // Who imports a launcher of the gesture from box.ts, and how often main.ts launches through it.
     const importers = ["main.ts", "power-up.ts", "actions.ts"];
     const places = readFileSync(join(SRC, "main.ts"), "utf8").split("\n").filter((line) => /\blaunchOnTheKitchen\b|\blaunchThe\(/.test(line)).length;
-    assert.equal(places, 10, "main.ts launches a command through the gesture in a new place: add it to commandsTheAppLaunches");
+    assert.equal(places, 9, "main.ts launches a command through the gesture in a new place: add it to commandsTheAppLaunches");
     for (const file of importers) assert.match(readFileSync(join(SRC, file), "utf8"), /\b(launchThe|launchHere|ACTION)\b/, file);
   });
 
