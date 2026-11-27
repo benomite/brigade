@@ -3,6 +3,17 @@
 On the chef's Mac, every command a cook runs goes through the sandbox of Claude Code. Brigade writes its
 configuration (`runtime/src/bac-a-sable/configuration.ts`) and hands it to `claude` with `--settings`.
 
+## The new kitchen on a Mac
+
+The new kitchen (`runtime/src/kitchen/`, #4483) launches every agent — cook, closer, reviewer, manager — inside
+the same sandbox when it runs on macOS (`runtime/src/bac-a-sable/kitchen-launch.ts`). The network list is the project's
+`.claude/brigade/reseau` on its base branch, read before each turn. A cook writes only in its worktree (and the
+project's caches); a read-only launch (reviewer, manager, supervisor) writes nowhere. When the detection fails
+(`runtime/src/bac-a-sable/detection.ts`: no Seatbelt, or a `claude` too old), the kitchen launches no agent for
+the project and logs why in one line, `no agent launched: on macOS every agent runs inside Claude Code's sandbox,
+and it is not usable — <reason>`, again only when the reason changes; it tries again each turn. On Linux, the
+launch keeps the `bwrap` partition unchanged.
+
 ## What a cook may do on the network
 
 | A cook may | Detail |

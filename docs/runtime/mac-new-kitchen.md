@@ -35,7 +35,7 @@ the project's network allowlist (`.claude/brigade/reseau` on its base branch). S
 
 - Seatbelt: `/usr/bin/sandbox-exec` exists;
 - a `claude` recent enough to read the sandbox configuration (`VERSION_MINIMALE` in `detection.ts`);
-- `HOME` set to an absolute path, and absolute paths in the project's caches variable.
+- `HOME` set to an absolute path, and absolute paths in the project's caches variable, `BRIGADE_SANDBOX_CACHES`.
 
 ## When the sandbox is missing
 

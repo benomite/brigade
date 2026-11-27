@@ -1,11 +1,11 @@
 // L'app : une fenêtre, et le process qui tient les terminaux, la veille des
 // box et le suivi du fichier des projets.
-import { appendFile } from "node:fs/promises";
+import { appendFile, readFile } from "node:fs/promises";
 import { homedir, userInfo } from "node:os";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { menuOfTheApp } from "./help-community.ts";
-import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, Notification, powerMonitor, protocol, shell, type MenuItemConstructorOptions } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, Notification, protocol, shell, type MenuItemConstructorOptions } from "electron";
 import { answerAtAgents, SCHEMA_OF_AGENTS, SCHEMA_PREFERRED } from "./agents-of-the-box.ts";
 import { setTheIconOfDock } from "./icon-of-dock.ts";
 import { holdMenuBar, type Entry } from "./menu-bar.ts";
@@ -21,8 +21,7 @@ import { POWER_UP, count } from "./power-up.ts";
 import { COMMAND as COMMAND_UPSTREAM, holdUpstream } from "./upstream.ts";
 import { putAside } from "./awaiting.ts";
 import { forTheBar } from "./bar.ts";
-import { launchHere, launchThe, openStandby, type Read } from "./box.ts";
-import { startTheStationOfProject } from "./tray-background/read.ts";
+import { launchThe, openStandby, type Read } from "./box.ts";
 import { situationOf } from "./story.ts";
 import { LinksRead } from "./links-read.ts";
 import { comment, askAtSecond, noteOfTheQuestion } from "./discussion.ts";
@@ -34,25 +33,20 @@ import { holdTheTrials } from "./trial.ts";
 import { COMMAND_OF_LOG, openTheReport, versionAimed } from "./vue/report/opening.ts";
 import { readTheSettings, proposeTheSetting } from "./settings-of-project.ts";
 import { writeTheHumans, readTheHumans } from "./humans-of-project.ts";
-import { approveTheAction, readTheHeld } from "./held/read.ts";
 import { readTheAgents } from "./team-of-the-box.ts";
 import { writeInTheProject, readInTheProject } from "./vue/card-project/card-project-folder.ts";
 import { plugTheWordAtCook } from "./vue/word-at-cook/word-at-cook-box.ts";
-import { readTheRecap, markTheRecap } from "./vue/recap/recap-box.ts";
 import { writeTheStations, readTheStations } from "./stations-contributors.ts";
 import { choice, whole, PALETTE } from "./colors.ts";
 import { blockOfOrdinary } from "./ordinary.ts";
 import { ACTIONS_OF_WAIT } from "./wait.ts";
 import { KITCHEN_ACTIONS } from "./kitchen.ts";
-import { BANNER, COMMAND, holdFacts, type Drawable, type RailOfProjectRead } from "./facts.ts";
+import { BANNER, COMMAND, holdFacts, type Drawable } from "./facts.ts";
 import { holdTheColumns } from "./columns-emptied.ts";
-import { clientGitHub, byFetch, postByFetch } from "./board/client.ts";
+import { clientGitHub, byFetch } from "./board/client.ts";
 import { withWhatAwaitingTheChef } from "./board/wait-of-chef.ts";
 import { playTheWait } from "./vue/wait/wait-github.ts";
 import { readConditional, type MemoryOfReads } from "./board/rail-github.ts";
-import { holdTheSignsOfLife } from "./vue/cooks/signs-of-life.ts";
-import { withThePresenceLocale, withTheStationLocale } from "./vue/pause-quota/pause-quota.ts";
-import type { SignsOfLife } from "./vue/rail/github.ts";
 import { shareOfCardsAssigned, holdTheLogin } from "./vue/cards-assigned/cards-assigned.ts";
 import { tokenOfGh } from "./board/token-gh.ts";
 import { readingUnderBudget, holdTheBudgetGitHub } from "./budget-github.ts";
@@ -67,16 +61,16 @@ import { requestOf, requestOfTheAlert, requestOnTheTicket, noteOfTheRequest } fr
 import { CONFIRMED, DIRECT, writeAction } from "./actions.ts";
 import { actionsOfCard } from "./card-actions.ts";
 import { launchTheTriage, putOnTheRail, proposeTheDeparture } from "./departure-of-project.ts";
+import { create as createTheFirstTicket, draft as draftTheFirstTicket } from "./first-ticket.ts";
 import { changeThePriority, clientOfThePriority, sendByFetch, holdPrioritiesWritten } from "./priority.ts";
 import { changeTheCap, readTheCaps } from "./caps-duration.ts";
 import { changeTheSetting, changeTheVerifications, readTheCloser } from "./closer-health.ts";
 import { changeTheKnowledge, readTheKnowledgeOfProject } from "./vue/know-how/know-how-github.ts";
 import { answerOnGithub } from "./board-actions/answer-github.ts";
-import { playTheValidation } from "./vue/validation-design/validation-design-github.ts";
+import { validateOnGithub } from "./vue/validation-design/validation-design-github.ts";
 import { readTheAutonomyOfRepository, holdTheAutonomy } from "./vue/autonomy/autonomy-github.ts";
-import { changeTheDay, readTheDay, readTheResumes, publishTheResume, type ResumeWeekly, type ResumesOfProject } from "./vue/resume-weekly/resume-kitchen.ts";
 import { repositoryOfTheOrigin, readClone } from "./addition.ts";
-import { readTheAccountGitHub, holdConnectionGitHub } from "./connection-github.ts";
+import { readTheAccountGitHub, holdConnectionGitHub, signInToGitHub } from "./connection-github.ts";
 import { pathOf, locationsOf, readPathOfShell } from "./locations.ts";
 import { searchOneUpdate, workstationOf, type Opinion as OpinionOfVersion } from "./update/opinion.ts";
 import { holdUpdate } from "./update/state.ts";
@@ -88,12 +82,10 @@ import { machineChosen, machinesOf } from "./machines.ts";
 import { commandsOf, TABS, projectsRead, HEADINGS } from "./tabs.ts";
 import { playOutage } from "./outages/actions.ts";
 import { gistLocal, holdLogin } from "./outages/login.ts";
-import { holdToolsRequired } from "./tools-required.ts";
 import { moverOfRuntime } from "./projects/move.ts";
 import { repositoriesOfChef, readOneRepository } from "./projects/github.ts";
-import { preparationOfRepository } from "./projects/preparation-of-repository.ts";
 import { writeSettingsOfTheStation, readSettingsOfTheStation as readTheSettingsOfStation, type Change } from "./settings-of-the-station.ts";
-import { EFFORTS, MODELS, servedElsewhere, holdProjects, type DefaultsOfTheMachine, type FoldersOfTheStation, type SeenOfProjects } from "./projects/projects.ts";
+import { EFFORTS, MODELS, servedElsewhere, holdProjects, type FoldersOfTheStation, type SeenOfProjects } from "./projects/projects.ts";
 import { memoryInFile, holdNotifications } from "./notification.ts";
 import { holdKitchensHere } from "./workstation/kitchen-here.ts";
 import { isOneMac, nameOfWorkstation, persistentOn, shellOfWorkstation } from "./platform.ts";
@@ -103,23 +95,21 @@ import { holdTheStationOfBackground } from "./station-background/attached.ts";
 import { HOST, launchTheBackground } from "./station-background/background.ts";
 import { registerTheStationOfBackground } from "./station-background/registration.ts";
 import { openPty } from "./pty.ts";
-import { claudeOf, connectionOfTheSession, openOfAStation, type StationsOfChef } from "./first-launch.ts";
+import { claudeOf, connectionOfTheSession, openOfAStation } from "./first-launch.ts";
+import { openTheLocalCopy, sessionOfClaude } from "./local-copy.ts";
 import { opinionOfMacOS, passTheFirstLaunch, holdTheOpinionOfBackground } from "./first-launch/index.ts";
-import type { PlanDuSecond } from "../../runtime/src/second/lancement.ts";
 import { readQuestion, reply as answerQuestion, titleOf, type Read as QuestionRead } from "./question.ts";
 import { readCapture } from "./captures.ts";
 import { relaunchOf, holdPassage } from "./catch-up.ts";
 import { holdAnswered } from "./answered.ts";
 import { APP, holdDelays } from "./delay.ts";
 import { openTurns } from "./input.ts";
-import { type Proposals, type AnswerOfChef, holdTheProposals } from "./second/proposals.ts";
 import { holdRemovals } from "./removal.ts";
 import { FOLDER as FOLDER_OF_PLUGIN, launchReally, withoutPluginApp, holdThePluginApp } from "./plugin-app.ts";
 import { holdServices } from "./service.ts";
 import { installerTheStation } from "./workstation/installer.ts";
 import { memoriesInFile } from "./memories.ts";
 import { githubOfStations } from "./stations/github.ts";
-import { withTheirState, withTheirAdditions, choiceOfProjects, type StationsOfAccount } from "./stations-of-account.ts";
 import { holdStations, type SeenOfStations } from "./stations/stations.ts";
 import { versionsInFile } from "./stations/versions.ts";
 import { followConfiguration } from "./tracking.ts";
@@ -218,28 +208,11 @@ let verificationsOfVersion: ReturnType<typeof setInterval> | undefined;
 // Les shells persistants ouverts sont retenus à côté du fichier des projets (memories.ts) :
 // rouverte, l'app les rattache à leur session.
 const turns = openTurns();
-// Le second part comme le runtime le dit (runtime/src/second/lancement.ts, #1433) : le `claude` que le PATH donne, et
-// sous Windows ce qui le lance — ou pourquoi il ne part pas, chaque outil qui manque nommé avec ce qui l'obtient
-// (#1435). Son plan est chargé une fois, du runtime qui est à côté de l'app (locations.ts) ; tant qu'il ne l'est pas,
-// `claude` est lancé par son nom, comme avant lui. S'il ne se charge pas, le second le dit.
-type Schedule = (folder: string, args: readonly string[]) => PlanDuSecond;
-let schedule: Schedule | undefined;
-void Promise.all([
-  import(pathToFileURL(join(locations.runtime, "src", "second", "lancement.ts")).href) as Promise<typeof import("../../runtime/src/second/lancement.ts")>,
-  import(pathToFileURL(join(locations.runtime, "src", "second", "outils.ts")).href) as Promise<typeof import("../../runtime/src/second/outils.ts")>,
-]).then(
-  ([{ planDuSecond: planOfSecond }, { programmesDe: programsOf }]) => {
-    schedule = (folder, args) => planOfSecond({ folder: folder, args, env: process.env, programmes: programsOf(process.env) });
-  },
-  (error: unknown) => {
-    const why = String(error instanceof Error ? error.message : error).replace(/[.\s]+$/, "");
-    schedule = () => ({ state: "cannot-start", cause: "invalid", reason: `The second cannot start: the app could not load what checks its tools (${why}).` });
-  },
-);
 const terminals = openTerminals({
   ouvrirPty: openPty,
   tours: turns.de,
-  planDuSecond: (folder, args) => schedule?.(folder, args) ?? { state: "ready", launch: { command: process.env.BRIGADE_CLAUDE_BIN || "claude", args: [...args], verbatim: false, folder: folder, env: {} }, missing: [], tools: [] },
+  // Le second part par le `claude` que le PATH donne.
+  planDuSecond: (folder, args) => ({ state: "ready", launch: { command: process.env.BRIGADE_CLAUDE_BIN || "claude", args: [...args], verbatim: false, folder: folder, env: {} }, missing: [], tools: [] }),
   souvenirs: memoriesInFile(join(dirname(pathConfiguration()), "shells.json")),
   node: locations.node,
   // La file que le second lit à son ouverture vient de GitHub seul, par le `gh` du poste (second/file.ts, #2460).
@@ -262,35 +235,15 @@ const terminals = openTerminals({
 // se lit pas dit pourquoi.
 const callGitHub = clientGitHub({ jeton: tokenOfGh({ gh: process.env.BRIGADE_GH_BIN || "gh", delaiMs: 10_000 }), envoyer: byFetch() });
 const repositoryOfProject = async (project: Project) => project.depot ?? (await repositoryOfTheOrigin(process.env.BRIGADE_GIT_BIN || "git", project.dossier)) ?? project.nom;
-// Le rail — ses tickets au label `fire`, leur état tiré de leurs labels, de leur PR et de la base, la station qui les
-// tient (vue/rail/github.ts) —, TODO — ce qui attend le chef, la lecture même que le second relaie à son ouverture
-// (board/wait-of-chef.ts, #2460) — et ce qui est avant le rail : relus à chaque lecture (au plus une fois par
-// minute, ou aussitôt après un geste, qui oublie la lecture), par des lectures conditionnelles dont un 304 ne coûte rien.
+// Le kanban — chaque issue dans la colonne que ses labels disent (board/kitchen-board.ts) — et TODO — ce qui attend le
+// chef, la lecture même que le second relaie à son ouverture (board/wait-of-chef.ts, #2460) : relus à chaque lecture (au
+// plus une fois par minute, ou aussitôt après un geste, qui oublie la lecture), par des lectures conditionnelles dont un
+// 304 ne coûte rien.
 const memoriesOfRail = new Map<string, MemoryOfReads>();
 const memoryOfRail = (repository: string): MemoryOfReads => memoriesOfRail.get(repository) ?? memoriesOfRail.set(repository, new Map()).get(repository)!;
-// Ses stations, sur l'onglet Stations, se disent de leurs prises et du signe de vie que chacune réécrit dans son gist
-// (#2358, vue/cooks/signs-of-life.ts) : relu au pas où les stations l'écrivent, deux minutes, par la lecture des stations
-// du compte que la vue fait déjà.
-const signsOfLife = holdTheSignsOfLife({
-  lire: async () => {
-    const { lireLesStationsDuCompte: readTheStationsOfAccount } = await ofRuntime<typeof import("../../runtime/src/enregistrement-station/stations-du-compte.ts")>("enregistrement-station", "stations-du-compte.ts");
-    return readTheStationsOfAccount({ gh: ghHere, env: process.env });
-  },
-});
-// La station de cet ordinateur, que l'app voit tourner, n'est pas tue, même quand le quota GitHub du compte l'empêche
-// d'écrire son signe de vie (ticket 3482, vue/pause-quota/) : son gist, nul quand elle ne tourne pas ici. Pendant que sa mise
-// à jour la redémarre (#3637), elle n'est pas tue non plus : son process est entre deux versions, son signe de vie en retard.
-const gistWhoRunsHere = (): string | null => (stationLocale?.tourne() === true || stationLocale?.redemarrage() != null ? gistLocal(rootOfTheStation) : null);
-const signsSeen = async (): Promise<SignsOfLife> => {
-  const signs = await signsOfLife.signes();
-  return "lus" in signs ? { lus: withTheStationLocale(signs.lus, gistWhoRunsHere(), Date.now()) } : signs;
-};
 // Le compte GitHub de cet ordinateur, pour les cartes de TODO qui l'attendent (#2761, vue/cards-assigned/) : celles
 // qui attendent un autre humain se replient sous « Awaiting others » (#2985).
-const accountConnected = holdTheLogin(async () => {
-  const { echecDeGh: failureOfGh } = await ofRuntime<typeof import("../../runtime/src/appairage/stations-du-chef.ts")>("appairage", "stations-du-chef.ts");
-  return readTheAccountGitHub({ gh: process.env.BRIGADE_GH_BIN || "gh", env: process.env, echecDeGh: failureOfGh });
-});
+const accountConnected = holdTheLogin(() => readTheAccountGitHub({ gh: process.env.BRIGADE_GH_BIN || "gh", env: process.env }));
 // Ces lectures restent loin du budget horaire du jeton du chef (budget-github.ts, #3007) : les relectures d'un rail inchangé sont des 304 que GitHub ne compte pas,
 // et toutes s'arrêtent, chaque projet gardant son dernier rail, quand GitHub dit le budget
 // presque épuisé ou refuse pour dépassement — jusqu'à l'heure où il se remplit.
@@ -303,7 +256,7 @@ const readTheBoard = async (project: Project): Promise<ReadOfBoardOfRepository> 
     depot: repository,
     dernier: () => boards.dernier(project.nom),
     lire: async () => {
-      const readOne = await readTheBoardOfRepository({ depot: repository, appeler: callUnderBudget, memoire: memoryOfRail(repository), signes: signsSeen });
+      const readOne = await readTheBoardOfRepository({ depot: repository, appeler: callUnderBudget, memoire: memoryOfRail(repository) });
       const call = readConditional(callUnderBudget, memoryOfRail(repository));
       return withWhatAwaitingTheChef(readOne, call, shareOfCardsAssigned({ appeler: call, depot: repository, login: accountConnected.login }));
     },
@@ -544,13 +497,11 @@ const services = holdServices({
   controleMs: 60_000,
 });
 // Ce qu'un projet installé a perdu — une station, un geste de box — se relit pour chacun,
-// quel que soit l'écran : sa pastille dans la barre le dit aussi. Toutes les cinq minutes, et
-// dès que la barre est posée ; un contrôle en route ne se double pas.
-const CONTROL_MS = 5 * 60_000;
+// quel que soit l'écran : sa pastille dans la barre le dit aussi. Dès que la barre est posée, et
+// plus à intervalle : c'est un état de l'ancien runtime. Un contrôle en route ne se double pas.
 const checkAll = () => {
   for (const project of projects()) if (kitchens.cuisineDe(project) !== undefined) void services.controler(project);
 };
-const checks = setInterval(checkAll, CONTROL_MS);
 
 // Le plugin de l'app (plugin-app.ts, #2160) : `/brigade:dev` et `/brigade:ask` dans chaque projet qu'elle ouvre, en
 // scope local de son dossier, à la version qu'elle porte — posé dès le lancement, et pour chaque projet qui entre dans
@@ -574,10 +525,6 @@ const removals = holdRemovals({
   retirer: (name) => tracking.retirer(name),
   desinstaller: (project) => void pluginApp.retirer(project),
 });
-// Ce que le second de chaque projet propose au chef (second/proposals.ts, #1520) : le canal du runtime
-// (runtime/src/second-propositions/canal.ts, #1519), chargé une fois de celui qui est à côté de l'app. Tant qu'il ne
-// l'est pas, aucun second n'a de proposition ; s'il ne se charge pas, le terminal reste tel quel, sans boutons dessous.
-let proposalsOfSecond: Proposals | undefined;
 // Ce que la veille de `status` lit en ce moment, tel que la vue l'a demandé en dernier :
 // rejoué, il se relit avec les projets tels que l'app les montre maintenant.
 let see = () => {};
@@ -608,8 +555,6 @@ const tracking = followConfiguration({
     tellTheHome(home.relire());
     // La barre des menus aussi — et le chef l'a peut-être allumée ou éteinte.
     setTheMenuBar();
-    // Le second de chaque projet qui s'ouvre est suivi dans son dossier tel qu'il est maintenant.
-    proposalsOfSecond?.suivre(projects());
     // Un projet qui vient d'y entrer reçoit le plugin de l'app.
     void pluginApp.suivre(projects());
     // Un projet qui vient d'y entrer — ajouté depuis l'app, ou écrit à la main — reçoit ses
@@ -662,30 +607,14 @@ const projectsOfStations = holdProjects({
   locale: () => (role.role === "station" ? gistLocal(rootOfTheStation) : null),
   // Déménager une cuisine, c'est l'opération du runtime, lancée ici avec le répertoire de la station
   // de cet ordinateur (projects/move.ts) : un téléphone, qui n'a pas de runtime, n'en lance aucune.
-  ...(role.role === "station"
-    ? {
-        accepterSansBac: async (project: string, station: string) => {
-          const { accepterSansBacASable: acceptWithoutSandbox } = (await import(pathToFileURL(join(locations.runtime, "src", "onboarding", "attente.ts")).href)) as typeof import("../../runtime/src/onboarding/attente.ts");
-          acceptWithoutSandbox({ repertoireEtat: join(rootOfTheStation, "etat", project), station });
-        },
-      }
-    : {}),
-  // Lever le refus d'un projet : la demande part par le gist de sa principale, quelle qu'elle soit — c'est
-  // l'opération du runtime qui l'écrit et attend la réponse (projects/remedy.ts). Le runtime est à côté de
-  // l'app, du dépôt comme du paquet (locations.ts).
-  demanderLeRemede: async (request) => {
-    const { demanderLeRemede: askTheRemedy } = (await import(pathToFileURL(join(locations.runtime, "src", "remedes", "distant.ts")).href)) as typeof import("../../runtime/src/remedes/distant.ts");
-    return askTheRemedy(request);
-  },
   ...(role.role === "station" ? { demenager: moverOfRuntime({ node: locations.node, runtime: locations.runtime, racine: rootOfTheStation, env: process.env, delaiMs: 60_000 }) } : {}),
-  // Le dépôt et la branche d'un projet, lus dans son clone sur cet ordinateur par l'opération du runtime (#1306) :
-  // une station de plus les en prend quand la première ne les dit pas.
+  // Le dépôt et la branche d'un projet, lus par `git` dans son clone sur cet ordinateur (#1306, addition.ts) : une
+  // station de plus les en prend quand la première ne les dit pas.
   leClone: async (name) => {
     const folder = projects().find((project) => project.nom === name)?.dossier;
     if (folder === undefined) return null;
-    const { projetDuClone: projectOfClone } = (await import(pathToFileURL(join(locations.runtime, "src", "projets", "ajout-de-station.ts")).href)) as typeof import("../../runtime/src/projets/ajout-de-station.ts");
-    const readOne = await projectOfClone(folder);
-    return { depot: readOne.depot, base: readOne.base };
+    const readOne = await readClone(process.env.BRIGADE_GIT_BIN || "git", folder);
+    return { depot: readOne.depot ?? null, base: readOne.base ?? null };
   },
   surLecture: (seenOne) => {
     lastSeenOfProjects = seenOne;
@@ -714,21 +643,9 @@ const stations = holdStations({
     void holdWhatProvidesThisComputer(seenOne);
   },
 });
-// Ce que la station de cet ordinateur fournit (stations/provides.ts, #1757) : `macos` sur un Mac, et ce que
-// le runtime détecte sur la machine — regardé une fois par lancement, sans rien y lancer. Son appairage le
+// Ce que la station de cet ordinateur fournit (stations/provides.ts, #1757) : `macos` sur un Mac. Son appairage le
 // porte : écrit quand l'app l'appaire, et réécrit si une station appairée avant ne le dit pas.
-let providesHere: Promise<string[]> | undefined;
-const whatProvidesHere = () =>
-  (providesHere ??= (async () => {
-    try {
-      const { capacitesDeLaMachine: capacitiesOfTheMachine } = (await import(pathToFileURL(join(locations.runtime, "src", "projets", "ajout-de-station.ts")).href)) as typeof import("../../runtime/src/projets/ajout-de-station.ts");
-      const { sondeDeLaMachine: probeOfTheMachine } = (await import(pathToFileURL(join(locations.runtime, "src", "installation", "besoins", "fourni.ts")).href)) as typeof import("../../runtime/src/installation/besoins/fourni.ts");
-      return whatProvidesThisComputer(process.platform, capacitiesOfTheMachine(probeOfTheMachine(process.env)));
-    } catch (error) {
-      console.error(`brigade: what this computer provides beyond its system could not be read — ${error instanceof Error ? error.message : String(error)}`);
-      return whatProvidesThisComputer(process.platform, []);
-    }
-  })());
+const whatProvidesHere = async () => whatProvidesThisComputer(process.platform, []);
 let providesHeld = false;
 async function holdWhatProvidesThisComputer(seenOne: SeenOfStations): Promise<void> {
   const here = stationLocale === undefined ? null : gistLocal(rootOfTheStation);
@@ -977,20 +894,18 @@ ipcMain.handle("mettreSurLeRail", async (_, name: unknown, lines: unknown) => {
   if (aims === undefined) return gone(name);
   return putOnTheRail({ depot: await repositoryOfProject(aims), lignes: lines, client: clientOfLabels });
 });
-// Le premier ticket d'un projet prêt (ticket 3306, runtime/src/premier-ticket/) : le second l'écrit d'après la réponse du chef,
-// par `claude -p` lancé comme son triage (`lancerLeTriage`) — rien n'est créé ; sur le « oui » du chef seul, l'issue est créée
-// avec ses labels, `fire` compris, par le `gh` de ce poste.
-const firstTicket = () => ofRuntime<typeof import("../../runtime/src/premier-ticket/premier-ticket.ts")>("premier-ticket", "premier-ticket.ts");
+// Le premier ticket d'un projet prêt (ticket 3306, first-ticket.ts) : le second l'écrit d'après la réponse du chef, par
+// `claude -p` lancé comme son triage (`lancerLeTriage`) — rien n'est créé ; sur le « oui » du chef seul, l'issue est créée
+// avec ses labels, `fire` compris, par le jeton du `gh` de ce poste.
 ipcMain.handle("redigerLePremierTicket", async (_, name: unknown, request: unknown) => {
   const aims = knownOne(name);
   if (aims === undefined) return { refus: `${String(name)} is no longer in the projects file`, detail: "" };
-  return (await firstTicket()).rediger({ depot: await repositoryOfProject(aims), dossier: aims.dossier, demande: request, claude: process.env.BRIGADE_CLAUDE_BIN || "claude", lancer: launchTheTriage });
+  return draftTheFirstTicket({ depot: await repositoryOfProject(aims), dossier: aims.dossier, demande: request, claude: process.env.BRIGADE_CLAUDE_BIN || "claude", lancer: launchTheTriage });
 });
 ipcMain.handle("creerLePremierTicket", async (_, name: unknown, draft: unknown) => {
   const aims = knownOne(name);
   if (aims === undefined) return { refus: `nothing was created: ${String(name)} is no longer in the projects file`, detail: "" };
-  const { clientGh } = await ofRuntime<typeof import("../../runtime/src/proteger-branche.ts")>("proteger-branche.ts");
-  return (await firstTicket()).creer(clientGh(ghHere, process.env), await repositoryOfProject(aims), draft);
+  return createTheFirstTicket(clientOfLabels, await repositoryOfProject(aims), draft);
 });
 // Un geste d'une carte que la station a mise de côté (ticket 3147) : « Relaunch » retire `served-elsewhere` de l'issue,
 // « Close as already done » la ferme comme terminée — chacun par l'accès GitHub de l'app (actions-refusal.ts). « Ask the second »
@@ -1212,29 +1127,17 @@ ipcMain.handle("ajouterAUneStation", (_, input: unknown) => projectsOfStations.a
 // La page d'un projet de l'app confie sa cuisine à une première station, ou à une de plus : c'est le
 // seul geste qui l'installe sur une station (projects/projects.ts, `confier`).
 ipcMain.handle("confierAUneStation", (_, input: unknown) => projectsOfStations.confier(input));
-// Ce que le formulaire d'ajout d'une station montre d'emblée pour cet ordinateur (#1307) : l'opération du runtime
-// (#1306) le calcule sur cette machine — ses cœurs, le répertoire de sa station, ce qu'elle a —, sans rien y lancer.
-ipcMain.handle("defautsDeStation", async (_, name: unknown): Promise<DefaultsOfTheMachine> => {
-  const folder = projects().find((project) => project.nom === name)?.dossier;
-  if (folder === undefined) return { refus: "this computer could not be read", detail: `${String(name)} is not in this app's projects file` };
-  try {
-    const { defautsDeStation: defaultsOfStation } = (await import(pathToFileURL(join(locations.runtime, "src", "projets", "ajout-de-station.ts")).href)) as typeof import("../../runtime/src/projets/ajout-de-station.ts");
-    const { cooks, cooksDit: cooksSays, espaceDeTravail: spaceOfWork, capacites: capacities } = await defaultsOfStation({ dossier: folder, racine: rootOfTheStation, env: process.env });
-    return { cooks, cooksDit: cooksSays, espaceDeTravail: spaceOfWork, capacites: capacities };
-  } catch (error) {
-    return { refus: "this computer could not be read", detail: error instanceof Error ? error.message : String(error) };
-  }
-});
-// Les dossiers de la station de cet ordinateur pour un projet (#2489) : où elle garde son clone, où elle pose les
-// worktrees de ses cooks — l'opération du runtime les calcule (`lieuxDuProjet`), sans rien y lancer. Elle les choisit
-// elle-même : ils se lisent, ils ne se changent pas. Un téléphone n'a pas de station.
+// Les dossiers de la cuisine de cet ordinateur pour un projet (#2489) : où elle garde son clone — celui que sa ligne du
+// fichier des projets de la cuisine nomme, ou celui qu'elle prend sans lui (runtime/src/kitchen/projects.ts) —, et où elle
+// pose les worktrees de ses cooks (runtime/src/kitchen/main.ts). Ils se lisent, ils ne se changent pas. Un téléphone n'a
+// pas de station.
 ipcMain.handle("dossiersDeLaStation", async (_, name: unknown): Promise<FoldersOfTheStation> => {
   if (role.role !== "station") return { refus: "this device runs no station" };
   if (typeof name !== "string" || name === "") return { refus: "its folders could not be read", detail: `${String(name)} is not a project name` };
   try {
-    const { lieuxDuProjet: placesOfProject } = (await import(pathToFileURL(join(locations.runtime, "src", "station", "configuration.ts")).href)) as typeof import("../../runtime/src/station/configuration.ts");
-    const { clone, worktrees } = placesOfProject(rootOfTheStation, name, process.env.HOME);
-    return { clone, worktrees };
+    const { projectsOfTheKitchen } = await ofRuntime<typeof import("../../runtime/src/kitchen/projects.ts")>("kitchen", "projects.ts");
+    const served = projectsOfTheKitchen(rootOfTheStation).find((project) => project.name === name);
+    return { clone: served?.clone ?? join(rootOfTheStation, name, "depot"), worktrees: join(rootOfTheStation, "kitchen", name, "worktrees") };
   } catch (error) {
     return { refus: "its folders could not be read", detail: error instanceof Error ? error.message : String(error) };
   }
@@ -1244,15 +1147,8 @@ ipcMain.handle("dossiersDeLaStation", async (_, name: unknown): Promise<FoldersO
 const fileOfSettingsOfTheStation = join(dirname(pathConfiguration()), "station-reglages.json");
 // Le bac à sable est « off » dès qu'un projet cuisiné ici a reçu « continuer sans » (suivi publié par la principale).
 const withoutSandbox = () => (projectsOfStations.vu()?.projets ?? []).some((project) => project.onboarding?.sansBacASable === true && project.suiviPar?.id === projectsOfStations.vu()?.locale);
-ipcMain.handle("reglagesDeLaStation:lire", async () => {
-  if (role.role !== "station") return { refus: "this device runs no station" };
-  try {
-    const { lieuxDuProjet: placesOfProject, worktreesDeLaStation: worktreesOfTheStation } = (await import(pathToFileURL(join(locations.runtime, "src", "station", "configuration.ts")).href)) as typeof import("../../runtime/src/station/configuration.ts");
-    return readTheSettingsOfStation(fileOfSettingsOfTheStation, { clone: dirname(placesOfProject(rootOfTheStation, "x", process.env.HOME).clone), worktrees: worktreesOfTheStation(rootOfTheStation, process.env.HOME) }, withoutSandbox());
-  } catch (error) {
-    return { refus: "its folders could not be read", detail: error instanceof Error ? error.message : String(error) };
-  }
-});
+// Les clones de la cuisine sont sous le répertoire de la station, ses worktrees sous `kitchen/` (runtime/src/kitchen/).
+ipcMain.handle("reglagesDeLaStation:lire", () => (role.role !== "station" ? { refus: "this device runs no station" } : readTheSettingsOfStation(fileOfSettingsOfTheStation, { clone: rootOfTheStation, worktrees: join(rootOfTheStation, "kitchen") }, withoutSandbox())));
 ipcMain.handle("reglagesDeLaStation:ecrire", (_, change: unknown) =>
   role.role !== "station" ? { refus: "this device runs no station" } : writeSettingsOfTheStation(fileOfSettingsOfTheStation, typeof change === "object" && change !== null ? (change as Change) : {}),
 );
@@ -1280,138 +1176,14 @@ ipcMain.handle("autoriserSurGitHub", (_, url: unknown) => {
 });
 // « Retirer la station » : son appairage quitte son gist, elle disparaît de l'accueil.
 ipcMain.handle("retirerLaStation", (_, id: unknown) => stations.retirer(id));
-// Le premier lancement, sur un ordinateur neuf (first-launch.ts, #1434) : les stations du chef et leurs
-// projets, lus par l'opération du runtime (#1428) ; un projet ouvert d'un clic, sa copie reprise ou clonée par
-// celle du runtime (#1429) — chaque étape part à la vue —, puis ajouté au fichier des projets ; la connexion à
-// GitHub, par le geste que le runtime nomme (connection-github.ts). Le runtime est à côté de l'app, du dépôt comme
-// du paquet (locations.ts).
+// La connexion à GitHub, par le geste du `gh` de ce poste (connection-github.ts). Le runtime est à côté de l'app, du
+// dépôt comme du paquet (locations.ts) : seule la cuisine s'y lit (runtime/src/kitchen/).
 const ghHere = process.env.BRIGADE_GH_BIN || "gh";
 const ofRuntime = <M>(...path: string[]) => import(pathToFileURL(join(locations.runtime, "src", ...path)).href) as Promise<M>;
-void ofRuntime<typeof import("../../runtime/src/second-propositions/canal.ts")>("second-propositions", "canal.ts").then(
-  (channel) => {
-    proposalsOfSecond = holdTheProposals({ canal: channel, surProposition: (project, proposal) => tell("proposition", project, proposal) });
-    proposalsOfSecond.suivre(projects());
-  },
-  (error: unknown) => console.error(`brigade: the second's proposals cannot be followed — ${error instanceof Error ? error.message : String(error)}`),
-);
-// Les GitHub Apps de la station de cet ordinateur, depuis Settings (#2317, vue/identities-github.js) : ce qu'elle a
-// de chaque rôle, et en ranger une, par ce que le runtime en fait (identites-stations.ts : `appsRangees`, `rangerApp`)
-// dans le répertoire de la station. La clé ne fait que passer : rien ne la garde ici, et rien ne la rend à la vue — ni
-// la lecture, ni un refus. Un téléphone n'a pas de station : rien.
-const appsOfRuntime = () => ofRuntime<typeof import("../../runtime/src/identites-stations.ts")>("identites-stations.ts");
-const codeOf = (error: unknown) => (error as NodeJS.ErrnoException | undefined)?.code ?? "error";
-ipcMain.handle("appsDeLaStation", async () => {
-  if (role.role !== "station") return undefined;
-  try {
-    const { appsRangees: appsRows } = await appsOfRuntime();
-    return { apps: appsRows(rootOfTheStation) };
-  } catch (error) {
-    return { refus: `this station's Apps directory cannot be read (${codeOf(error)})` };
-  }
-});
-ipcMain.handle("rangerUneApp", async (_, roleOfTheApp: unknown, id: unknown, key: unknown) => {
-  if (role.role !== "station") return { refus: "this device has no station — it keeps no App" };
-  if (typeof roleOfTheApp !== "string" || typeof id !== "string" || typeof key !== "string") return { refus: "the app sent an App this station cannot read" };
-  const { AppRefusee: AppRefused, rangerApp: tidyApp } = await appsOfRuntime();
-  try {
-    const row = tidyApp({ station: rootOfTheStation, role: roleOfTheApp, id, cle: key, env: process.env });
-    return { rangee: { role: row.role, id: row.id } };
-  } catch (error) {
-    // Le refus du runtime ne cite jamais la clé ; une écriture qui échoue, son seul code.
-    return { refus: error instanceof AppRefused ? error.message : `the ${roleOfTheApp} App could not be stored (${codeOf(error)})` };
-  }
-});
-// Les projets que la station de cet ordinateur sert (#2359) : sa seule liste, sa configuration (#3402), lue et écrite par
-// ce que le runtime en fait (station-ordinateur/projets-servis.ts) — lue par son bloc (vue/projects-served/), écrite par
-// l'onglet Stations d'un projet (vue/project/stations/). Ses cuisines la relisent dans les deux secondes. Un téléphone
-// n'a pas de station : rien.
-const projectsServedOfRuntime = () => ofRuntime<typeof import("../../runtime/src/station-ordinateur/projets-servis.ts")>("station-ordinateur", "projets-servis.ts");
-ipcMain.handle("projetsServis", async () => {
-  if (role.role !== "station") return undefined;
-  try {
-    const { lireProjetsServis: readProjectsServed } = await projectsServedOfRuntime();
-    return { depots: readProjectsServed(rootOfTheStation) };
-  } catch (error) {
-    return { refus: error instanceof Error ? error.message : `this station's served projects cannot be read (${codeOf(error)})` };
-  }
-});
-ipcMain.handle("servirUnProjet", async (_, repository: unknown, served: unknown) => {
-  if (role.role !== "station") return { refus: "this device has no station — it serves no project" };
-  if (typeof repository !== "string" || typeof served !== "boolean") return { refus: "the app sent a project this station cannot read" };
-  try {
-    const { ajouterProjetServi: addProjectServed, retirerProjetServi: removeProjectServed } = await projectsServedOfRuntime();
-    return { depots: served ? addProjectServed(rootOfTheStation, repository) : removeProjectServed(rootOfTheStation, repository) };
-  } catch (error) {
-    return { refus: error instanceof Error ? error.message : `the served projects could not be written (${codeOf(error)})` };
-  }
-});
-// Les pages qu'un échec du runtime a nommées — installer `gh`, `git`, demander l'accès à un dépôt : seules
-// celles-là s'ouvrent depuis l'écran.
+// Les pages qu'un échec a nommées — installer `gh`, la version Android : seules celles-là s'ouvrent depuis l'écran.
 const pagesOfFirst = new Set<string>();
-const holdThePage = <T extends { link?: string }>(rendered: T): T => {
-  if (rendered.link !== undefined) pagesOfFirst.add(rendered.link);
-  return rendered;
-};
-ipcMain.handle("stationsDuChef", async (): Promise<StationsOfChef> => {
-  const { lireLesStationsDuChef: readTheStationsOfChef } = await ofRuntime<typeof import("../../runtime/src/appairage/stations-du-chef.ts")>("appairage", "stations-du-chef.ts");
-  const readOne = await readTheStationsOfChef({ gh: ghHere, env: process.env });
-  return readOne.state === "unavailable" ? holdThePage(readOne) : readOne;
-});
-// Les stations enregistrées sous le compte GitHub du chef (#1706), lues par l'opération du runtime (#1705), avec ce que
-// chacune a fait des dépôts choisis pour elle — rejoint la cuisine d'une autre, ou refusé (#1790) ; les projets que le
-// chef choisit pour l'une, écrits dans son gist, au fichier que le contrat du runtime nomme (stations-of-account.ts).
-ipcMain.handle("stationsDuCompte", async (): Promise<StationsOfAccount> => {
-  const { lireLesStationsDuCompte: readTheStationsOfAccount } = await ofRuntime<typeof import("../../runtime/src/enregistrement-station/stations-du-compte.ts")>("enregistrement-station", "stations-du-compte.ts");
-  const readOne = await readTheStationsOfAccount({ gh: ghHere, env: process.env });
-  signsOfLife.poser(readOne);
-  if (readOne.state === "unavailable") return holdThePage(readOne);
-  const github = githubOfStations({ gh: ghHere, delaiMs: 30_000 });
-  // L'état de chacune est celui de son dernier signe de vie, son enregistrement ou sa présence appairée (#3187).
-  // Celle de cet ordinateur, que l'app voit tourner, est en ligne (ticket 3482).
-  const presences = withThePresenceLocale(stations.vu()?.stations ?? [], readOne.state === "listed" ? readOne.stations : [], gistWhoRunsHere());
-  return withTheirAdditions(withTheirState(readOne, presences, Date.now()), (id) => github.lire(id));
-});
-const chooseTheProjects = choiceOfProjects({
-  ecrire: (id, files) => githubOfStations({ gh: ghHere, delaiMs: 30_000 }).ecrire(id, files),
-  contrat: () => ofRuntime<typeof import("../../runtime/src/enregistrement-station/contrat.ts")>("enregistrement-station", "contrat.ts"),
-});
-ipcMain.handle("choisirLesProjets", (_, id: unknown, repositories: unknown) => chooseTheProjects(id, repositories));
-const openOneProjectOfAStation = openOfAStation({
-  ouvrirLaCopie: async (options) => {
-    const { ouvrirLaCopieLocale: openTheCopyLocale } = await ofRuntime<typeof import("../../runtime/src/projets/copie-locale.ts")>("projets", "copie-locale.ts");
-    return openTheCopyLocale({ ...options, gh: ghHere, git: process.env.BRIGADE_GIT_BIN || "git", env: process.env });
-  },
-  lireLaBase: async (folder) => (await readClone(process.env.BRIGADE_GIT_BIN || "git", folder)).base,
-  configuration: () => tracking.configuration(),
-  ajouter: (project) => tracking.ajouter(project),
-  progres: (repository, step) => tell("ouverture", repository, step),
-  // Avant que la cuisine démarre (#4057) : ce que `claude auth status` dit de cet ordinateur, sans appel au modèle.
-  connexionClaude: async () => {
-    const { sessionClaude } = await ofRuntime<typeof import("../../runtime/src/claude.ts")>("claude.ts");
-    return connectionOfTheSession(await sessionClaude(claudeHere, process.env));
-  },
-});
-// Le dépôt choisi dans « Add a project » (#2627) : est-il prêt pour brigade — ses bindings, ses labels —, et le
-// geste qui l'y prépare, par le contrat du runtime (#2626) joué sur sa copie locale (projects/preparation-of-repository.ts).
-const preparation = preparationOfRepository({
-  ouvrirLaCopie: async (repository) => {
-    const { ouvrirLaCopieLocale: openTheCopyLocale } = await ofRuntime<typeof import("../../runtime/src/projets/copie-locale.ts")>("projets", "copie-locale.ts");
-    return openTheCopyLocale({ repository, gh: ghHere, git: process.env.BRIGADE_GIT_BIN || "git", env: process.env });
-  },
-  lireLaBase: async (folder) => (await readClone(process.env.BRIGADE_GIT_BIN || "git", folder)).base,
-  contrat: () => ofRuntime<typeof import("../../runtime/src/depot-prepare/preparation.ts")>("depot-prepare", "preparation.ts"),
-});
-ipcMain.handle("checkRepoSetup", (_, repository: unknown) => preparation.verifier(repository));
-ipcMain.handle("runRepoSetup", (_, repository: unknown) => preparation.installer(repository));
-ipcMain.handle("ouvrirDUneStation", async (_, name: unknown, repository: unknown, base: unknown) => {
-  const opening = await openOneProjectOfAStation(name, repository, base);
-  return opening.state === "failed" && "link" in opening ? holdThePage(opening) : opening;
-});
 const connectionGitHub = holdConnectionGitHub({
-  commande: async () => {
-    const { connexionGitHub: connectionGitHub } = await ofRuntime<typeof import("../../runtime/src/appairage/stations-du-chef.ts")>("appairage", "stations-du-chef.ts");
-    return connectionGitHub(ghHere).command;
-  },
+  commande: async () => signInToGitHub(ghHere),
   env: process.env,
   ouvrir: (address) => shell.openExternal(address),
   apres: (end) => {
@@ -1419,42 +1191,65 @@ const connectionGitHub = holdConnectionGitHub({
     tell("connexionGitHub", end);
   },
 });
-// Le compte GitHub que le `gh` de cet ordinateur tient, pour le premier lancement et « Add a project » (#2475, #3181,
-// connection-github.ts) — relu par la vue au bout d'une connexion, et donc d'un changement de compte.
+// Le compte GitHub que le `gh` de cet ordinateur tient, pour « Add a project » (#2475, #3181, connection-github.ts) —
+// relu par la vue au bout d'une connexion, et donc d'un changement de compte.
 ipcMain.handle("compteGitHub", async () => {
-  const { echecDeGh: failureOfGh } = await ofRuntime<typeof import("../../runtime/src/appairage/stations-du-chef.ts")>("appairage", "stations-du-chef.ts");
-  const readOne = await readTheAccountGitHub({ gh: ghHere, env: process.env, echecDeGh: failureOfGh });
+  const readOne = await readTheAccountGitHub({ gh: ghHere, env: process.env });
   if ("lien" in readOne && readOne.lien !== undefined) pagesOfFirst.add(readOne.lien);
   return readOne;
 });
+const holdThePage = <T extends { link?: string }>(rendered: T): T => {
+  if (rendered.link !== undefined) pagesOfFirst.add(rendered.link);
+  return rendered;
+};
+// Un projet ouvert d'un clic, depuis « Add a project » (first-launch.ts, #1434) : sa copie reprise ou clonée par le `gh`
+// de ce poste (local-copy.ts, #1429) — chaque étape part à la vue —, puis ajouté au fichier des projets, une fois Claude
+// Code connecté sur cet ordinateur (#4057).
+const openOneProjectOfAStation = openOfAStation({
+  ouvrirLaCopie: (options) => openTheLocalCopy({ ...options, gh: ghHere, git: process.env.BRIGADE_GIT_BIN || "git", env: process.env }),
+  lireLaBase: async (folder) => (await readClone(process.env.BRIGADE_GIT_BIN || "git", folder)).base,
+  configuration: () => tracking.configuration(),
+  ajouter: (project) => tracking.ajouter(project),
+  progres: (repository, step) => tell("ouverture", repository, step),
+  connexionClaude: async () => connectionOfTheSession(await sessionOfClaude(claudeHere, process.env)),
+});
+ipcMain.handle("ouvrirDUneStation", async (_, name: unknown, repository: unknown, base: unknown) => {
+  const opening = await openOneProjectOfAStation(name, repository, base);
+  return opening.state === "failed" && "link" in opening ? holdThePage(opening) : opening;
+});
+// Les projets que la cuisine de cet ordinateur sert (#2359) : les dépôts de son fichier des projets
+// (runtime/src/kitchen/projects.ts). Ils s'y écrivent sur la station, avec leur clone : l'app ne l'écrit pas.
+ipcMain.handle("projetsServis", async () => {
+  if (role.role !== "station") return undefined;
+  const { projectsOfTheKitchen } = await ofRuntime<typeof import("../../runtime/src/kitchen/projects.ts")>("kitchen", "projects.ts");
+  return { depots: projectsOfTheKitchen(rootOfTheStation).map(({ repo }) => repo) };
+});
+// Ce que seule l'ancienne station tenait — les stations que le chef appairait ou enregistrait sous son compte, ses GitHub
+// Apps, ses projets servis écrits par l'app, ce que la machine fournit, le rail publié dans un gist, les propositions du
+// second, la préparation d'un dépôt pour elle, les commandes `sensitive` et `undo` — ne se lit ni ne s'écrit plus : la
+// cuisine (runtime/src/kitchen/) n'en a rien, et un dépôt n'a rien à préparer pour elle. Les écrans qui les demandent
+// encore reçoivent ce qu'ils disent quand il n'y a rien ; ils partent avec leurs tickets (#4503, #4505).
+const NOT_PAIRED = "Stations are no longer paired nor registered on GitHub: a station's kitchen serves the projects of its kitchen/projects file.";
+const NOT_DONE = { refus: "nothing was done: stations are no longer paired", detail: NOT_PAIRED };
+ipcMain.handle("stationsDuChef", () => ({ state: "listed", stations: [], unreadable: [], reason: NOT_PAIRED }));
+ipcMain.handle("stationsDuCompte", () => ({ state: "listed", stations: [], unreadable: [], reason: NOT_PAIRED }));
+ipcMain.handle("choisirLesProjets", () => NOT_DONE);
+ipcMain.handle("servirUnProjet", () => ({ refus: "nothing was written: a project is served by its line in the kitchen/projects file of this computer's station, with its clone" }));
+ipcMain.handle("appsDeLaStation", () => undefined);
+ipcMain.handle("rangerUneApp", () => ({ refus: "this computer's kitchen keeps no GitHub App" }));
+ipcMain.handle("defautsDeStation", () => ({ refus: "this computer could not be read", detail: NOT_PAIRED }));
+ipcMain.handle("outilsManquants", () => []);
+ipcMain.handle("railDuProjet", (_, name: unknown) => ({ state: "unavailable", project: String(name), cause: "unreadable", reason: `The rail of ${String(name)} is read on GitHub, not from a station's gist.` }));
+ipcMain.handle("propositionsDuSecond", () => ({}));
+ipcMain.handle("repondreAuSecond", () => ({ state: "refused", reason: "nothing to answer: the second's proposals are no longer followed", current: null }));
+const NOT_PLAYED = { refus: "nothing was done: this gesture was a command of the old runtime, which no kitchen runs — do it on GitHub", detail: "" };
+ipcMain.handle("gesteSensible", () => NOT_PLAYED);
+ipcMain.handle("annulerServi", () => NOT_PLAYED);
+const READY = { ready: true, missingBindings: false, missingLabels: [] };
+ipcMain.handle("checkRepoSetup", () => READY);
+ipcMain.handle("runRepoSetup", () => READY);
 // Le bloc de la station de l'accueil (ticket 2640) : installer celle de cet ordinateur (workstation/installer.ts).
 ipcMain.handle("installerLaStation", () => installerTheStation(stationLocale, () => stations.relire()));
-// « Start this computer's station », sur l'alerte d'un projet dont la station est arrêtée (#3637) : le geste `demarrage` de
-// l'icône de fond (tray-background/read.ts), pour ce projet — `station start <station>` sur la station de cet ordinateur.
-ipcMain.handle("demarrerLaStationIci", async (_, name: unknown) => {
-  const aims = knownOne(name);
-  if (aims === undefined) return gone(name);
-  if (role.role !== "station") return { refus: "this computer is a workstation, not a station: there is no station here to start" };
-  const locale = { node: locations.node, runtime: locations.runtime, racine: rootOfTheStation, env: process.env };
-  const rendered = await startTheStationOfProject({ nom: aims.nom, faits: facts.dernier(aims.nom)?.faits }, (project, command) => launchHere(locale, project, command, 30_000), 30_000);
-  void stations.relire();
-  return rendered;
-});
-// Les outils que l'app ne livre pas (#4059, tools-required.ts) : la connexion à GitHub, le clone et le login Max les
-// demandent d'abord ; un outil qui manque a son écran, qui renvoie à sa page d'installation (l'app n'installe rien, #4266).
-const toolsRequired = holdToolsRequired({
-  charger: async () => {
-    const [required, machine, tools] = await Promise.all([
-      ofRuntime<typeof import("../../runtime/src/outils-requis/outils-requis.ts")>("outils-requis", "outils-requis.ts"),
-      ofRuntime<typeof import("../../runtime/src/outils-requis/machine.ts")>("outils-requis", "machine.ts"),
-      ofRuntime<typeof import("../../runtime/src/second/outils.ts")>("second", "outils.ts"),
-    ]);
-    return { ...required, ...machine, programmesDe: tools.programmesDe };
-  },
-  env: process.env,
-  autoriserLaPage: (link) => pagesOfFirst.add(link),
-});
-ipcMain.handle("outilsManquants", (_, tools: unknown) => toolsRequired.manquants(tools));
 // Le « log in » d'une ouverture que Claude Code retient (#4057) : le login de cette machine, celui de la panne de sa station.
 ipcMain.handle("seConnecterAClaude", () => loginHere());
 // La page où taper le code se rouvre depuis l'écran.
@@ -1496,18 +1291,6 @@ ipcMain.handle("lireLaCuisineVisitee", (_, repository: unknown) =>
     return withWhatAwaitingTheChef(readOne, readConditional(callUnderBudget, memoryOfRail(aims)));
   }),
 );
-// Le rail qu'une station publie dans son gist pour un projet qu'aucune station connue ne sert ici (#1435), lu par
-// l'opération du runtime (#1432) : la vue ne le dessine plus (#2076) — le rail est celui que l'app lit sur GitHub, pour
-// tout projet. Tant qu'il ne se lit pas, il dit pourquoi en une phrase : GitHub à connecter, aucune
-// station du compte qui serve le projet, ou la page qui lève l'échec, ouverte depuis l'écran.
-ipcMain.handle("railDuProjet", async (_, name: unknown): Promise<RailOfProjectRead> => {
-  const aims = declare(name);
-  if (aims === undefined) return { state: "unavailable", project: String(name), cause: "unreadable", reason: `The rail of ${String(name)} is not read: it is no longer in the projects file.` };
-  const { lireLeRailDuProjet: readTheRailOfProject } = await ofRuntime<typeof import("../../runtime/src/appairage/rail-du-projet.ts")>("appairage", "rail-du-projet.ts");
-  const readOne = await readTheRailOfProject({ gh: ghHere, env: process.env, project: aims.depot ?? aims.nom });
-  if (readOne.state === "unavailable") return holdThePage(readOne);
-  return readOne;
-});
 // Les labels d'une issue, lus et changés depuis une fiche (priority.ts, actions-github.ts), et le commentaire du chef,
 // avec le jeton du `gh` de ce poste.
 const clientOfLabels = clientOfThePriority({ jeton: tokenOfGh({ gh: ghHere, delaiMs: 10_000 }), appeler: callGitHub, envoyer: sendByFetch() });
@@ -1570,12 +1353,12 @@ ipcMain.handle("panne", (_, id: unknown, key: unknown) => playOutage(actionsOfOu
 ipcMain.handle("signaler", (_, request: unknown) =>
   openTheReport(request, {
     appVersion: app.getVersion(),
+    // La version du runtime à côté de l'app : celle de son `package.json`.
     runtimeVersion: async (readEntry) => {
-      const locale = await ofRuntime<typeof import("../../runtime/src/mise-a-jour/en-service.ts")>("mise-a-jour", "en-service.ts").then(
-        ({ versionDuRuntime: versionOfRuntime }) => versionOfRuntime(),
-        () => "unknown",
-      );
-      return versionAimed(readEntry, stations.vu()?.stations ?? [], locale === "inconnue" ? "unknown" : locale);
+      const version = await readFile(join(locations.runtime, "package.json"), "utf8")
+        .then((text) => (JSON.parse(text) as { version?: unknown }).version)
+        .catch(() => undefined);
+      return versionAimed(readEntry, stations.vu()?.stations ?? [], typeof version === "string" && version !== "" ? version : "unknown");
     },
     journal: async (name) => {
       const { lu: readOne } = kitchenOfProject(name);
@@ -1616,11 +1399,8 @@ ipcMain.handle("proposerUnReglage", async (_, name: unknown, choice: unknown) =>
 });
 // Les humains du projet, sous Settings (#2930) : lus par `humans` là où sa cuisine tourne, et chaque changement — ajouté,
 // changé ou retiré — écrit par une PR, que le runtime attend comme celle d'un réglage (humans-of-project.ts).
-// Les gestes qu'un agent retient pour l'OK du chef (held/, ticket 4273) : lus par `manager` là où la cuisine du projet tourne,
-// et approuvés un par un par `manager approve <id>` — sans ssh, sans commande tapée.
 // L'équipe du projet que lit la vue (tickets 4029 et 4327) : les enregistrements que `facts` publie, lus là où sa cuisine tourne.
 ipcMain.handle("lireLesAgents", (_, name: unknown) => readTheAgents(kitchenOfProject(name).lu, launchOnTheKitchen));
-ipcMain.handle("gestesRetenus", (_, name: unknown) => readTheHeld(kitchenOfProject(name).lu, launchOnTheKitchen));
 // L'API des agents que lit l'onglet Agents (ticket 4224) : la vue la demande par `fetch` sur `brigade-agents:`, et chaque
 // demande est une commande `agents` ou `agent-settings` lancée là où la cuisine du projet nommé tourne (agents-of-the-box.ts).
 protocol.registerSchemesAsPrivileged([SCHEMA_PREFERRED]);
@@ -1629,7 +1409,6 @@ const serveTheAgents = () =>
     const { statut: status, corps: body } = await answerAtAgents({ methode: request.method, url: request.url, corps: await request.text() }, kitchenOfProject, launchOnTheKitchen);
     return new Response(JSON.stringify(body), { status: status, headers: { "content-type": "application/json" } });
   });
-ipcMain.handle("approuverGeste", (_, name: unknown, id: unknown) => approveTheAction(String(name), kitchenOfProject(name).lu, id, launchOnTheKitchen));
 ipcMain.handle("listerLesHumains", (_, name: unknown) => {
   const { vise: aims, lu: readOne } = kitchenOfProject(name);
   return aims === undefined ? { sans: `${String(name)} is no longer in the projects file` } : readTheHumans(aims.nom, readOne, launchOnTheKitchen);
@@ -1648,27 +1427,6 @@ ipcMain.handle("retirerUnHumain", (_, name: unknown, login: unknown) => writeOne
 ipcMain.handle("lireUnFichierDuProjet", (_, name: unknown, path: unknown) => readInTheProject(knownOne(name), path));
 ipcMain.handle("ecrireUnFichierDuProjet", (_, name: unknown, path: unknown, text: unknown) => writeInTheProject(knownOne(name), path, text));
 plugTheWordAtCook(ipcMain, kitchenOfProject, launchOnTheKitchen); // le mot au cook (#4048, vue/word-at-cook/word-at-cook-box.ts)
-// Le récapitulatif de chaque projet, sur l'accueil (#3581, vue/recap/recap-box.ts) : lu par `recap` là où sa cuisine tourne,
-// et son marqueur avancé par elle quand la vue l'a montré. Seule l'adresse d'une PR qu'une lecture a rendue s'ouvre.
-const linksOfRecaps = new Set<string>();
-ipcMain.handle("lireLeRecap", async (_, name: unknown) => {
-  const { vise: aims, lu: readOne } = kitchenOfProject(name);
-  if (aims === undefined) return { sans: `${String(name)} is no longer in the projects file` };
-  const readEntry = await readTheRecap(aims.nom, readOne, await repositoryOfProject(aims), launchOnTheKitchen);
-  if ("recap" in readEntry) for (const { prUrl } of readEntry.recap.served) linksOfRecaps.add(prUrl);
-  return readEntry;
-});
-ipcMain.handle("marquerLeRecap", async (_, name: unknown, until: unknown) => {
-  const { vise: aims, lu: readOne } = kitchenOfProject(name);
-  return aims === undefined ? gone(name) : markTheRecap(aims.nom, readOne, await repositoryOfProject(aims), until, launchOnTheKitchen);
-});
-ipcMain.handle("ouvrirLaPRDuRecap", (_, url: unknown) => {
-  if (typeof url !== "string" || !linksOfRecaps.has(url)) return false;
-  return shell.openExternal(url).then(
-    () => true,
-    () => false,
-  );
-});
 // Les stations contributrices du projet, sous Settings (#2936) : lues par `contributor-stations` là où sa cuisine tourne, et
 // refusées ou réacceptées par elle (stations-contributors.ts).
 ipcMain.handle("listerLesStationsContributrices", (_, name: unknown) => {
@@ -1681,50 +1439,6 @@ const changeOneStation = (name: unknown, action: { refuse: unknown } | { accept:
 };
 ipcMain.handle("refuserUneStationContributrice", (_, name: unknown, station: unknown) => changeOneStation(name, { refuse: station }));
 ipcMain.handle("accepterUneStationContributrice", (_, name: unknown, station: unknown) => changeOneStation(name, { accept: station }));
-// Les résumés hebdomadaires de la cuisine d'un projet (#3263, vue/resume-weekly/resume-kitchen.ts) : le jour du
-// résumé lu dans `projet.json` sur sa branche d'intégration, et changé par une pull request, par le jeton du `gh` de ce
-// poste ; les résumés lus par `report --week` là où sa cuisine tourne, par son passage, et publiés comme les notes d'une
-// version par `release-notes`. Seul un résumé que la dernière lecture a rendu se publie, et seule l'adresse d'un ticket
-// ou d'une release qu'elles ont rendue s'ouvre depuis l'écran.
-const resumesRead = new Map<string, ResumeWeekly[]>();
-const linksOfResumes = new Set<string>();
-ipcMain.handle("lireLesResumesHebdomadaires", async (_, name: unknown): Promise<ResumesOfProject> => {
-  const { vise: aims, lu: readOne } = kitchenOfProject(name);
-  if (aims === undefined) {
-    const without = { sans: `${String(name)} is no longer in the projects file` };
-    return { projet: String(name), jour: without, resumes: without };
-  }
-  const day = await readTheDay({ depot: await repositoryOfProject(aims), branche: branchOfProject(aims), client: clientOfLabels });
-  const resumes = "sans" in day ? { sans: "weekly summaries unavailable: the summary day was not read", detail: day.detail ?? day.sans } : await readTheResumes({ projet: aims.nom, lu: readOne, jour: day.jour, lancer: launchOnTheKitchen, maintenant: new Date() });
-  if ("resumes" in resumes) {
-    resumesRead.set(aims.nom, resumes.resumes);
-    for (const { themes, waiting } of resumes.resumes) for (const { ticketUrl } of [...themes.flatMap(({ lines }) => lines), ...waiting]) linksOfResumes.add(ticketUrl);
-  }
-  return { projet: aims.nom, jour: day, resumes };
-});
-ipcMain.handle("changerLeJourDuResume", async (_, name: unknown, day: unknown) => {
-  const aims = knownOne(name);
-  if (aims === undefined) return gone(name);
-  const rendered = await changeTheDay({ depot: await repositoryOfProject(aims), branche: branchOfProject(aims), jour: day, client: clientOfLabels });
-  if ("pr" in rendered) proposalsOfSetting.add(rendered.pr);
-  return rendered;
-});
-ipcMain.handle("publierLeResumeHebdomadaire", async (_, name: unknown, weekStart: unknown, tag: unknown) => {
-  const { vise: aims, lu: readOne } = kitchenOfProject(name);
-  if (aims === undefined) return gone(name);
-  const resume = resumesRead.get(aims.nom)?.find((guard) => guard.weekStart === weekStart);
-  if (resume === undefined) return { refus: "nothing was published: this summary is no longer read — open the page again" };
-  const rendered = await publishTheResume({ projet: aims.nom, lu: readOne, resume, tag, lancer: (readOne, command) => launchThe({ delaiMs: 60_000 }, readOne, command) });
-  if ("url" in rendered) linksOfResumes.add(rendered.url);
-  return rendered;
-});
-ipcMain.handle("ouvrirTicketDuResume", (_, url: unknown) => {
-  if (typeof url !== "string" || !linksOfResumes.has(url)) return false;
-  return shell.openExternal(url).then(
-    () => true,
-    () => false,
-  );
-});
 ipcMain.handle("ouvrirLaProposition", (_, url: unknown) => {
   if (typeof url !== "string" || !proposalsOfSetting.has(url)) return false;
   return shell.openExternal(url).then(
@@ -1792,24 +1506,13 @@ ipcMain.handle("repondreCarte", async (_, name: unknown, ticket: unknown, answer
   if ("repondue" in rendered) boards.oublier();
   return rendered;
 });
-// Un geste du chef sur la carte « Validate its screen » (vue/validation-design/, ticket 3185) : la commande `design` du runtime
-// (runtime/src/validation-design/commande.ts), importée et jouée ici, sous le `gh` de ce poste — `validate` merge la PR et
-// ferme la carte, `send-back` la renvoie à un cook avec le commentaire du chef. La carte est celle que la dernière lecture
-// porte. Fait, la lecture suivante va à GitHub : la carte fermée quitte TODO.
+// Un geste du chef sur la carte « Validate its screen » (vue/validation-design/, ticket 3185) : écrit sur GitHub, comme sur
+// le téléphone, par le jeton du `gh` de ce poste — `validate` merge la PR et ferme la carte, `send-back` la renvoie à un cook
+// avec le commentaire du chef. La carte est celle que la dernière lecture porte ; faite, la lecture suivante va à GitHub.
 ipcMain.handle("gesteDeValidation", async (_, name: unknown, ticket: unknown, action: unknown) => {
   const aims = knownOne(name);
   if (aims === undefined) return undefined;
-  const rendered = await playTheValidation({
-    depot: await repositoryOfProject(aims),
-    design: facts.chef(aims.nom, ticket)?.design,
-    geste: action,
-    // La commande, et la `Sortie` du même runtime : son refus se reconnaît à sa classe, pas à sa forme.
-    commande: async () => {
-      const [{ principal }, { Sortie: Output }] = await Promise.all([ofRuntime<typeof import("../../runtime/src/validation-design/commande.ts")>("validation-design", "commande.ts"), ofRuntime<typeof import("../../runtime/src/appel.ts")>("appel.ts")]);
-      return { principal, estUneSortie: (error: unknown): error is InstanceType<typeof Output> => error instanceof Output };
-    },
-    env: { ...process.env, BRIGADE_GH_BIN: ghHere },
-  });
+  const rendered = await validateOnGithub({ depot: await repositoryOfProject(aims), carte: ticket, design: facts.chef(aims.nom, ticket)?.design, geste: action, client: clientOfLabels });
   if ("fait" in rendered) boards.oublier();
   return rendered;
 });
@@ -1836,12 +1539,10 @@ ipcMain.handle("ouvrirLectureSeule", (_, name: unknown, page: unknown) => {
 ipcMain.on("regarder", (_, name: unknown, request: number) => (see = () => look(projects().filter((candidate) => candidate.nom === name), ["status"], request, true))());
 // L'onglet de contenu affiché, et lui seul : sa commande, sur la box de son projet.
 // Aucun — un terminal, « Tous les projets » — ou un nom qui n'est pas celui d'un onglet : plus rien n'est lu pour lui.
-// La page des coûts de l'app (#1022), elle, n'a pas de projet : elle lit `station` sur la box de chaque
-// projet qu'elle sert encore — ses chiffres sont tous projets confondus (vue/cost/head.js).
 ipcMain.on("onglet", (_, name: unknown, id: unknown, request: number) => {
   const commands = commandsOf(id);
   tabRead = { id, demande: request };
-  const readOnes = projectsRead(id, name, shownEntry().projets);
+  const readOnes = projectsRead(name, shownEntry().projets);
   standbyOfTab.regarder(commands.length === 0 ? [] : readOnes, commands, request);
 });
 // « Tous les projets » : le `status` de chacun — ce qui bloque un projet, depuis quand ses décisions
@@ -1883,9 +1584,6 @@ ipcMain.handle("ouvrirIssue", (_, name: unknown, ticket: unknown) => {
     () => false,
   );
 });
-// Les checks du dépôt d'un projet, d'une alerte du rail qui en nomme un (#4238) : la page que la dernière lecture permet de
-// trouver (facts.ts). Rend si elle a été ouverte.
-ipcMain.handle("ouvrirLesChecks", (_, name: unknown) => facts.ouvrirLesChecks(name, (address) => shell.openExternal(address)));
 // Un ticket de Livré s'ouvre aussi sur sa PR mergée : l'adresse est celle que la box a donnée
 // pour lui (facts.ts). Rend si elle a été ouverte.
 ipcMain.handle("ouvrirPr", (_, name: unknown, ticket: unknown) => {
@@ -1907,14 +1605,6 @@ ipcMain.handle("ouvrirPrDuCook", (_, name: unknown, ticket: unknown) => {
       );
 });
 ipcMain.on("ecrire", (_, id: number, data: string) => terminals.ecrire(id, data));
-ipcMain.handle("propositionsDuSecond", () => proposalsOfSecond?.vu() ?? {});
-// Le chef a répondu au second — d'un clic, dont la vue a déjà tapé le choix dans son terminal, ou en tapant : le canal
-// l'efface, s'il porte encore la proposition à laquelle il a répondu.
-ipcMain.handle("repondreAuSecond", (_, name: unknown, answer: AnswerOfChef) => {
-  const aims = knownOne(name);
-  if (aims === undefined || proposalsOfSecond === undefined) return { state: "refused", reason: "nothing to answer: this project's second is not followed", current: null };
-  return proposalsOfSecond.repondre(aims.nom, answer);
-});
 ipcMain.on("redimensionner", (_, id: number, columns: number, lines: number) => terminals.redimensionner(id, columns, lines));
 
 // Les pty appartiennent à l'app, pas à la fenêtre — mais il n'y a qu'une
@@ -1925,7 +1615,6 @@ app.on("will-quit", () => {
   menuBar.fermer();
   preferences.fermer();
   terminals.fermer();
-  proposalsOfSecond?.arreter();
   turns.fermer();
   standby.fermer();
   standbyOfTab.fermer();
@@ -1935,7 +1624,6 @@ app.on("will-quit", () => {
   update.fermer();
   clearInterval(verificationsOfVersion);
   stations.fermer();
-  clearInterval(checks);
   // La station de l'ordinateur ne s'arrête pas avec l'app (#3630) : l'app cesse seulement de la regarder, même pour
   // sa mise à jour. Sauf sous Windows, où l'installeur remplace le `node` que la station de fond joue (#3632) : son hôte
   // est arrêté, la station avec lui (son entrée fermée), et l'app rouverte la relance.

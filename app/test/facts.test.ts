@@ -14,7 +14,7 @@ import { join } from "node:path";
 import { describe, test } from "node:test";
 import { ACTION, type Reading } from "../src/box.ts";
 import { putAside } from "../src/awaiting.ts";
-import { withoutQuestion } from "../src/decision.ts";
+import { withoutQuestion } from "../src/handover-second.ts";
 import { hourHM } from "../src/format.ts";
 import { ACTIVITY_NOT_COMMUNICATED, BANNER, COMMAND, understand, draw, tellInThisMoment, duration, event, rail, board, holdFacts, tick, titleOfFailure, type Facts } from "../src/facts.ts";
 import type { Header } from "../src/card.ts";
@@ -1040,12 +1040,9 @@ describe("station et capacités sur les cartes du rail", () => {
 });
 
 describe("la question d'une carte de TODO, des faits à la carte (#3131)", () => {
-  test("une carte du chef dont l'issue porte une question la dit en une phrase ; sans question, « no question found on #N »", () => {
-    const cardItem = { type: "product", question: "Should the export be CSV or JSON? The second is richer.", choix: [], captures: null };
-    const withIt = rail({ ...WITHOUT_DELIVERED, rail: [], attend: [{ ticket: 40, titre: "Export", url: "https://github.com/benomite/brigade/issues/40", decision: { quoi: "carte", motif: "product", cause: cardItem.question, pr: null }, carte: cardItem }] }, BLOCK).colonnes[3]?.cartes.find(({ ticket }) => ticket === 40);
-    assert.equal(withIt?.ligne, "Should the export be CSV or JSON?");
-    assert.equal(withIt?.fiche.attendu, "Should the export be CSV or JSON?");
-    const without = rail({ ...WITHOUT_DELIVERED, rail: [], attend: [{ ticket: 41, titre: "Export", url: "https://github.com/benomite/brigade/issues/41", decision: { quoi: "carte", motif: "product", cause: null, pr: null } }] }, BLOCK).colonnes[3]?.cartes.find(({ ticket }) => ticket === 41);
+  test("une entrée sans carte du chef ne devine rien : « no question found on #N »", () => {
+    const without = rail({ ...WITHOUT_DELIVERED, rail: [], attend: [{ ticket: 41, titre: "Export", url: "https://github.com/benomite/brigade/issues/41" }] }, BLOCK).colonnes[3]?.cartes.find(({ ticket }) => ticket === 41);
     assert.equal(without?.ligne, "no question found on #41");
+    assert.equal(without?.fiche.attendu, "no question found on #41");
   });
 });

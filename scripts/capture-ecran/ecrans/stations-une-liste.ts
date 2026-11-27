@@ -41,7 +41,7 @@ export function stationsDuChef(dit: string, etapes: Etape[] = [], depots: { depo
     hauteur: 900,
     etapes,
     donnees: () => {
-      const accueil: Home = { projets: [], stations: STATIONS.stations.map((station) => lineOfStation(station, 0, false)), sante: { ton: "vert", dit: "Max ✓  ·  GitHub ✓", survol: "" } };
+      const accueil: Home = { projets: [], stations: STATIONS.stations.map((station) => lineOfStation(station, 0, [])), sante: { ton: "vert", dit: "Max ✓  ·  GitHub ✓", survol: "" } };
       return { maintenant: MAINTENANT, reponses: { demarrage: { ...demarrage(configuration(PROJETS)), stations: STATIONS, accueil }, stationsDuCompte: DU_COMPTE, depotsDuChef: depots }, envois: cuisine(RENDUS) };
     },
   };

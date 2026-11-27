@@ -7,6 +7,7 @@ import { join } from "node:path";
 import { decide, LABELS, triesOf, TRIES_MAX, type Action, type Issue, type PullRequest } from "./decide.ts";
 import { branchOf, gestures, readState, ticketText, trustedComments, type Gh } from "./github.ts";
 import { applyAgentActions, parseAgentActions, parseVerdict, prompts, type Prompts } from "./agents.ts";
+import { allowlistPublisher, KITCHEN_ALLOWLIST } from "../porte-journal.ts";
 import { masquerIdentifiants } from "../identifiants.ts";
 import { masqueDesSecrets } from "../masque.ts";
 import { forget, listRuns, startRun, type Finished, type Kind, type Launch } from "./runs.ts";
@@ -70,6 +71,7 @@ export function openKitchen(options: KitchenOptions) {
   mkdirSync(runs, { recursive: true });
   const maskSecrets = masqueDesSecrets(options.secrets ?? {});
   const mask = (raw: string) => masquerIdentifiants(maskSecrets(raw)).texte;
+
   const lastSupervisor = () => (existsSync(lastSupervisorFile) ? Number(readFileSync(lastSupervisorFile, "utf8")) || 0 : 0);
 
   // The failing checks' last log lines, for a cook that has no token to read them.
@@ -92,8 +94,9 @@ export function openKitchen(options: KitchenOptions) {
     log(`#${issue.number} sent back — ${reason}`);
   }
 
-  // The worktree of a ticket, on its branch, with the base merged in; a merge that conflicts
-  // is left in progress for the cook. For a review, it is exactly the pushed delivery.
+  // The worktree of a ticket, on its branch, with the base merged in. A merge
+  // that conflicts is left in progress: the cook resolves it.
+  // For a review, the worktree is exactly the pushed delivery.
   async function prepare(issue: number, forReview = false): Promise<string> {
     const wt = worktreeOf(issue);
     const branch = branchOf(issue);
@@ -122,12 +125,14 @@ export function openKitchen(options: KitchenOptions) {
     if (on.length > 0) {
       await act.appendToBody(issue.number, `Depends on ${on.join(", ")} (noted by its cook).`);
       await act.labels(issue.number, [], [LABELS.taken]);
-      return log(`#${issue.number} waits for ${on.join(", ")}`);
+      log(`#${issue.number} waits for ${on.join(", ")}`);
+      return;
     }
     const park = /^PARK:\s*(.+)$/m.exec(run.result);
     if (park !== null) {
       await act.labels(issue.number, [LABELS.parkedChef], [LABELS.taken]);
-      return act.comment(issue.number, `Parked for the chef by its cook: ${park[1]}`);
+      await act.comment(issue.number, `Parked for the chef by its cook: ${park[1]}`);
+      return;
     }
     // Work the cook left uncommitted is kept, not lost.
     if ((await git(wt, ["status", "--porcelain"]).catch(() => "")).trim() !== "") {
@@ -156,7 +161,8 @@ export function openKitchen(options: KitchenOptions) {
     const risky = files.filter((file) => options.riskPaths().some((zone) => file.startsWith(zone)));
     if (risky.length > 0 && !(await chefSays(issue.number, pr.number))) {
       await act.labels(issue.number, [LABELS.parkedChef, LABELS.approved], [LABELS.inPass]);
-      return act.comment(issue.number, `${riskZoneComment(pr.number)} (${risky.slice(0, 5).join(", ")}): it waits for the chef to merge it.`);
+      await act.comment(issue.number, `${riskZoneComment(pr.number)} (${risky.slice(0, 5).join(", ")}): it waits for the chef to merge it.`);
+      return;
     }
     await merge(issue.number, pr.number).catch((error: Error) => sendBack(issue, `the merge failed: ${error.message}`, false));
   }
@@ -185,8 +191,13 @@ export function openKitchen(options: KitchenOptions) {
         const pr = prs.get(action.issue);
         if (pr !== undefined && (await chefSays(action.issue, pr.number))) {
           if (pr.checks === "pending") return;
-          const merged = !pr.conflicting && pr.checks !== "failure" && (await merge(action.issue, pr.number).then(() => true, (error: Error) => (log(`#${action.issue} could not be merged as the chef answered, a cook brings it up to date — ${error.message}`), false)));
-          if (merged) return;
+          if (!pr.conflicting && pr.checks !== "failure") {
+            try {
+              return await merge(action.issue, pr.number);
+            } catch (error) {
+              log(`#${action.issue} could not be merged as the chef answered, a cook brings it up to date — ${(error as Error).message}`);
+            }
+          }
         }
         await act.labels(action.issue, [LABELS.taken]);
         const wt = await prepare(action.issue);
@@ -214,9 +225,14 @@ export function openKitchen(options: KitchenOptions) {
     }
   }
 
+  const publishAllowlist = allowlistPublisher(join(options.state, KITCHEN_ALLOWLIST), base, (args) => git(options.clone, args), log);
   let labelled = false;
   async function turn() {
-    labelled ||= await act.ensureLabels([LABELS.ready, LABELS.taken, LABELS.inPass, LABELS.parkedChef, LABELS.approved, LABELS.epic, "try:1", "try:2"]).then(() => true);
+    await publishAllowlist();
+    if (!labelled) {
+      await act.ensureLabels([LABELS.ready, LABELS.taken, LABELS.inPass, LABELS.parkedChef, LABELS.approved, LABELS.epic, "try:1", "try:2"]);
+      labelled = true;
+    }
     const listed = listRuns(runs);
     let state = await readState(gh, repo);
     if (listed.finished.length > 0) {

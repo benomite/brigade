@@ -17,7 +17,6 @@ import { BANNER, holdFacts, type Drawable, type Facts } from "../src/facts.ts";
 import { CONFIRMED, DIRECT } from "../src/actions.ts";
 import { TABS, HEADINGS } from "../src/tabs.ts";
 import { EFFORTS, MODELS } from "../src/projects/projects.ts";
-import type { RailDuProjet } from "../../runtime/src/appairage/rail-du-projet.ts";
 import { cardOfTicket, type Fake, type Played, playTheVue, type Answers, repos } from "./helpers/false-vue.ts";
 
 const PARADE = "parade";
@@ -31,8 +30,9 @@ const PRODUCT = {
     { texte: "One per project.", suite: "resume" },
     { texte: "A single export.", suite: "resume" },
   ],
-  captures: null,
 };
+// Sa carte du chef, telle que son issue la pose sur GitHub (board/todo-github.ts).
+const CHEF = { sorte: PRODUCT.type, texte: [PRODUCT.question, ...PRODUCT.choix.map(({ texte: text, suite }) => `- [${suite}] ${text}`)].join("\n") };
 // Le rail lu : #14 en cuisine, #21 qui attend le chef sur sa carte.
 const FACTS: Facts = {
   etat: "ouverte",
@@ -45,7 +45,7 @@ const FACTS: Facts = {
     { ticket: 21, etat: "en attente", titre: "L'export du journal", url: ISSUE(21), activite: null },
   ],
   cooks: [{ ticket: 14, titre: "Le journal en ajout seul", station: "box/claude" }],
-  attend: [{ ticket: 21, titre: "L'export du journal", url: ISSUE(21), decision: { quoi: "carte", motif: "product", cause: PRODUCT.question, pr: null }, carte: PRODUCT }],
+  attend: [{ ticket: 21, titre: "L'export du journal", url: ISSUE(21), chef: CHEF }],
 };
 // Le chef a tranché #21 ailleurs (sur GitHub, son téléphone) : la cuisine l'a pris.
 const SLICE: Facts = { ...FACTS, compteurs: { ...FACTS.compteurs, auTravail: 2, attend: 0 }, rail: [FACTS.rail[0]!, { ...FACTS.rail[1]!, etat: "pris" }], attend: [] };
@@ -64,12 +64,8 @@ const startup = (served: boolean) => () => ({
   code: undefined,
 });
 
-// Ce que le gist des stations dit d'un projet qu'aucune station du compte ne sert (rail-du-projet.ts) : la phrase que
-// l'écran du chef montrait à la place de ses colonnes.
-const NOT_SERVED: RailDuProjet = { state: "unavailable", project: PARADE, cause: "not-served", reason: `No rail of ${PARADE} is published for this GitHub account: sign in to GitHub with the account your stations publish to.` };
-
 async function open(answers: Answers = {}, served = true): Promise<Played> {
-  const vue = await playTheVue({ demarrage: startup(served), espace: () => [], railDuProjet: () => NOT_SERVED, ...answers });
+  const vue = await playTheVue({ demarrage: startup(served), espace: () => [], ...answers });
   (vue.element("projets").children.at(1) ?? assert.fail("pas d'entrée")).click();
   await repos();
   return vue;
@@ -125,7 +121,6 @@ describe("une lecture ratée ne vide aucune colonne (#2151)", () => {
 
     receive(vue, missed(2));
     assert.deepEqual(content(vue), readOnes);
-    assert.doesNotMatch(vue.element("rail").textContent, /No rail of parade is published/);
     assert.equal(stale(vue).length, 1);
   });
 

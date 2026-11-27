@@ -122,8 +122,7 @@ async function alerts(): Promise<Plays> {
 }
 
 // Une carte qui t'attend, sur le rail.
-const decisionClosed = { quoi: "fermee", motif: "still-red", cause: null, pr: "https://github.com/benomite/brigade/pull/31" };
-const card = { ticket: 12, etat: "servi", ton: "vert", titre: "Validation SIRET", fiche: header({ titre: "Validation SIRET" }), ouvrable: true, attendu: true, decision: decisionClosed, pr: true, attend: ["livraison verte, non mergée"], dit: [] };
+const card = { ticket: 12, etat: "servi", ton: "vert", titre: "Validation SIRET", fiche: header({ titre: "Validation SIRET" }), ouvrable: true, attendu: true, pr: true, attend: ["livraison verte, non mergée"], dit: [] };
 const factsWithTile = (request: number): Drawable =>
   ({
     projet: "parade",
@@ -166,13 +165,10 @@ async function settings(): Promise<Plays> {
   return { vue, racine: screen(vue, ...READING) };
 }
 
-// La page des coûts de l'app (#1022), dont la box ne répond pas : ses chiffres disent ce qui n'est pas communiqué. Les
-// chiffres d'autonomie de tous les projets (#3222), que GitHub ne rend pas, le disent en une ligne.
+// La page des chiffres d'autonomie de tous les projets (#3222), que GitHub ne rend pas : elle le dit en une ligne.
 async function costs(): Promise<Plays> {
   const vue = await open({ lireAutonomie: (_projects, days) => ({ jours: days, sans: "Autonomy figures not reached.", detail: RAW }) }, false);
   const page = await openTheCosts(vue);
-  const number = (vue.dernier("onglet") as [undefined, string, number])[2];
-  vue.dire("surContenu", { projet: "parade", demande: number, a: A, erreur: RAW, atteinte: false, cas: null }, undefined);
   await repos();
   return { vue, racine: page };
 }
@@ -193,7 +189,7 @@ const SCREENS: Screen[] = [
   { nom: "accueil", echec: home, lectures: 0 },
   { nom: "bande d'alertes", echec: alerts, lectures: 0 },
   { nom: "fiche d'une carte", echec: failedCard, lectures: 3 },
-  { nom: "Cost, au niveau de l'app", echec: costs, lectures: 1 },
+  { nom: "Autonomy, au niveau de l'app", echec: costs, lectures: 1 },
   { nom: "Settings", echec: settings, lectures: 0 },
   { nom: "bandeau du second", echec: second, lectures: 0 },
 ];
@@ -316,7 +312,7 @@ describe("en attente de décision, chaque geste attendu est un bouton, pas du te
   test("fiche : chaque geste que la table du chef propose pour la carte est un bouton, dans l'ordre de la table", async () => {
     const { racine: root } = await queuedCard();
     const proposes = actionsOfCard(card);
-    assert.ok(proposes.some(({ id }) => id === "retirer"), "la décision attendue se tranche par le retrait : le geste manque à la table");
+    assert.ok(proposes.length > 0, "la table ne propose aucun geste");
     const cardButtons = buttons(root).map(({ textContent }) => textContent);
     for (const { libelle: wording } of proposes.filter(({ id }) => id !== "priorite")) assert.ok(cardButtons.includes(wording), `« ${wording} » n'est pas un bouton de la fiche`);
     const [first] = proposes;

@@ -86,16 +86,6 @@ export type Bridge = {
   // Retire le projet du fichier des projets, et rien d'autre : rien ne part vers sa box. Rend
   // l'avis à montrer — ou pourquoi il n'est pas retiré. Retiré, il part par `surConfiguration`.
   retirerDeLApp(project: string): Promise<{ avis: Opinion } | { refus: string }>;
-  // Le chef coche l'option qui supprime le journal avec le projet, ou la décoche : le plan
-  // rendu pour l'autre réglage ne vaut plus.
-  direJournal(project: string, ticked: boolean): Promise<Removal | undefined>;
-  // Demande à la box ce qu'elle retirerait du projet, et rend le retrait tel qu'il en sort.
-  // Rien n'est retiré.
-  planifier(project: string): Promise<Removal | undefined>;
-  // Désinstalle le projet de sa box — rien ne part tant que la box n'a pas rendu son plan, et
-  // tant que `confirmation` n'est pas le nom du projet. Désinstallé, il arrive sans sa box par
-  // `surConfiguration`.
-  desinstaller(project: string, confirmation: string): Promise<Removal | undefined>;
   espace(project: string): Promise<Terminal[]>;
   // Tous les terminaux ouverts, de tous les projets, et ce que chacun a écrit (ticket 3159) : une vue rechargée les retrouve,
   // sans rien relancer. Un pont qui n'en tient pas (le téléphone) ne le porte pas.
@@ -120,7 +110,7 @@ export type Bridge = {
   // Les gestes de la fiche de cette carte, à cet instant, chacun avec son prix (card-actions.ts) :
   // ceux qui tranchent ce qu'on attend du chef, puis ceux que la table du chef permet pour son
   // état, et dont l'action est branchée.
-  gestesDeFiche(card: { ticket: number; etat?: string; ouvrable: boolean; attendu: boolean; decision?: import("../decision.ts").Decision; pr?: boolean }): Promise<import("../card-actions.ts").Proposes[]>;
+  gestesDeFiche(card: { ticket: number; etat?: string; ouvrable: boolean; attendu: boolean; pr?: boolean }): Promise<import("../card-actions.ts").Proposes[]>;
   // Un geste de la fiche que la vue ne joue pas : une action de box, qui part dans le second. Là où il n'y a pas de
   // second où l'écrire — le téléphone (ticket 1164) —, le pont joue l'action sur la station et rend ce qu'elle a fait,
   // comme `panne` : `fait`, une phrase, et ce que la station a répondu en `detail`.
@@ -129,10 +119,10 @@ export type Bridge = {
   // second en propose, puis la mise sur le rail des lignes que le chef a gardées, avec leurs priorités.
   departDuProjet(project: string): Promise<import("../departure-of-project.ts").Departure>;
   mettreSurLeRail(project: string, lines: { ticket: number; priorite: number }[]): Promise<import("../departure-of-project.ts").Putting | { refus: string; detail?: string }>;
-  // Le premier ticket d'un projet prêt (ticket 3306, runtime/src/premier-ticket/) : le second l'écrit d'après la réponse du chef —
+  // Le premier ticket d'un projet prêt (ticket 3306, first-ticket.ts) : le second l'écrit d'après la réponse du chef —
   // ou le réécrit avec ses changements —, et rien n'est créé ; sur le « oui » seul, l'issue est créée avec ses labels, `fire` compris.
-  redigerLePremierTicket(project: string, request: import("../../../runtime/src/premier-ticket/premier-ticket.ts").Demande): Promise<import("../../../runtime/src/premier-ticket/premier-ticket.ts").Redaction>;
-  creerLePremierTicket(project: string, draft: import("../../../runtime/src/premier-ticket/premier-ticket.ts").Brouillon): Promise<import("../../../runtime/src/premier-ticket/premier-ticket.ts").Creation>;
+  redigerLePremierTicket(project: string, request: import("../first-ticket.ts").Request): Promise<import("../first-ticket.ts").Redaction>;
+  creerLePremierTicket(project: string, draft: import("../first-ticket.ts").Draft): Promise<import("../first-ticket.ts").Creation>;
   // L'histoire d'un ticket et son coût, lus par `pass <ticket> --json` sur la box (story.ts).
   lireHistoire(project: string, ticket: number): Promise<import("../story.ts").Story | undefined>;
   // Les chiffres d'autonomie des projets nommés, ensemble, sur les `jours` derniers jours, lus de GitHub
@@ -230,7 +220,6 @@ export type Bridge = {
   // Installe la station de cet ordinateur (ticket 2640, home/station/) : rien quand elle est installée, ou pourquoi elle ne
   // l'est pas, en une ligne et son détail. Absent, le bouton de l'accueil dit que cet appareil ne l'installe pas.
   installerLaStation?(): Promise<{ refus: string; detail?: string } | undefined>;
-  demarrerLaStationIci?(project: string): Promise<{ refus?: string }>;
   surStatutDeLaStation?(receive: (status: unknown) => void): void;
   // L'app Android seule (le ticket 2501) : la liste des projets vient d'être lue sur GitHub, ou ne l'a pas été — `liste`
   // dit laquelle. Les projets eux-mêmes arrivent par `surConfiguration`.
@@ -279,7 +268,7 @@ export type Bridge = {
   // Déménage la cuisine d'un projet vers une station appairée — son gist (projects/move.ts).
   demenagerLaCuisine(name: string, to: string): Promise<Move>;
   // « Continue without sandbox », devant une station sans bac à sable (ticket 1113) : le chef décide pour la
-  // station du projet, et la retenue du rail se lève (runtime/src/onboarding/attente.ts). Rend ce qui est fait, ou pourquoi rien.
+  // station du projet, et la retenue du rail se lève. Rend ce qui est fait, ou pourquoi rien.
   continuerSansBacASable(name: string): Promise<{ fait: string } | { refus: string; detail?: string }>;
   // Le bouton du refus de la station (ticket 1205) : la principale du projet joue le remède que ce refus offre
   // — son code, l'identifiant du remède —, puis dit s'il est levé, s'il tient et pourquoi, ou que rien n'est fait.
@@ -302,36 +291,18 @@ export type Bridge = {
   reglagesDuProjet(project: string): Promise<import("../settings-of-project.ts").ReadOfSettings>;
   proposerUnReglage(project: string, choice: import("../settings-of-project.ts").ChoiceOfSetting): Promise<import("../settings-of-project.ts").RenderedOfSetting>;
   ouvrirLaProposition(url: string): Promise<boolean>;
-  // Les résumés hebdomadaires de la cuisine d'un projet et le jour de leur écriture (ticket 3263,
-  // resume-weekly/resume-kitchen.ts) ; le jour changé par une PR, qui s'ouvre par `ouvrirLaProposition` ; un
-  // résumé publié comme les notes d'une version ; puis l'issue d'un ticket qu'ils nomment, ou la release publiée.
-  lireLesResumesHebdomadaires(project: string): Promise<import("./resume-weekly/resume-kitchen.ts").ResumesOfProject>;
-  changerLeJourDuResume(project: string, day: string): Promise<import("./resume-weekly/resume-kitchen.ts").RenderedOfDay>;
-  publierLeResumeHebdomadaire(project: string, weekStart: string, tag: string): Promise<import("./resume-weekly/resume-kitchen.ts").RenderedOfThePublication>;
-  ouvrirTicketDuResume(url: string): Promise<boolean>;
   // Les humains du projet, sous Settings (ticket 2930) : ceux que son `projet.json` déclare, et chaque changement — ajouté, changé
   // ou retiré — écrit par une PR, qui rend son lien ou un refus d'une ligne (settings-humans/humans.js, humans-of-project.ts).
   // Optionnels : un pont qui ne les porte pas (le téléphone) ne montre pas la section.
   listerLesHumains?(project: string): Promise<import("../humans-of-project.ts").ReadOfHumans>;
   enregistrerUnHumain?(project: string, human: import("./settings-humans/humans.js").Human): Promise<import("./settings-humans/humans.js").Rendered>;
   retirerUnHumain?(project: string, login: string): Promise<import("./settings-humans/humans.js").Rendered>;
-  // Les gestes qu'un agent retient pour l'OK du chef (held/, ticket 4273) : lus par `manager` là où la cuisine du projet
-  // tourne — rien pour un projet qui ne cuit pas sur cet ordinateur —, et l'OK donné à l'un par son id.
-  // Optionnels : un pont qui ne les porte pas (le téléphone) n'en montre aucun.
-  gestesRetenus?(project: string): Promise<import("../held/contract.ts").ReadOfHeld | undefined>;
-  approuverGeste?(project: string, id: string): Promise<import("../held/contract.ts").Approval>;
   // La fiche du projet, sous Settings (ticket 4240) : un fichier du projet, le chemin relatif à son dossier — seul
   // `.brigade/fiche-projet.json` (card-project/card-project-folder.ts). `null` : il n'y est pas. Optionnels : un pont qui
   // ne les porte pas (le téléphone) ne montre pas la section.
   lireUnFichierDuProjet?(project: string, path: string): Promise<string | null>;
   ecrireUnFichierDuProjet?(project: string, path: string, text: string): Promise<void>;
   envoyerUnMot?(project: string, entry: { ticket: number; text: string }): Promise<import("./word-at-cook/source.js").Answer>; // le mot au cook (ticket 4048)
-  // Le récapitulatif de chaque projet, sur l'accueil (ticket 3581) : ce que sa cuisine a fait depuis que le chef a regardé, lu
-  // là où elle tourne ; montré, son marqueur avance jusqu'à `until` ; la PR d'un ticket servi s'ouvre (recap/recap-box.ts).
-  // Optionnels : un pont qui ne les porte pas (le téléphone) ne montre aucun récapitulatif.
-  lireLeRecap?(project: string): Promise<import("./recap/recap-box.ts").ReadOfRecap>;
-  marquerLeRecap?(project: string, until: string): Promise<import("./recap/recap-box.ts").BrandOfRecap>;
-  ouvrirLaPRDuRecap?(url: string): Promise<boolean>;
   // Les stations contributrices du projet, sous Settings (ticket 2936) : celles qui ont pris un ticket, le chef refuse ou réaccepte
   // chacune (settings-stations/stations.js, stations-contributors.ts). Optionnels : un pont qui ne les porte pas ne montre pas le bloc.
   listerLesStationsContributrices?(project: string): Promise<import("../stations-contributors.ts").ReadOfStations>;
@@ -354,8 +325,8 @@ export type Bridge = {
   // « Retirer la station », confirmé : son appairage est ôté de son gist (stations/stations.ts) ; la station n'est plus lue.
   retirerLaStation(id: string): Promise<RemovalOfStation>;
   // Les GitHub Apps de la station de cet ordinateur (ticket 2317, identities-github.js) : ce qu'elle a de chaque rôle —
-  // l'ID de son App, si sa clé est là, jamais la clé —, et en ranger une, la clé passée au runtime qui la range
-  // (runtime/src/identites-stations.ts). Absents, ou rien de rendu : cet appareil n'a pas de station.
+  // l'ID de son App, si sa clé est là, jamais la clé —, et en ranger une. Absents, ou rien de rendu : cet appareil n'a
+  // pas de station — la cuisine de cet ordinateur n'en range aucune.
   appsDeLaStation?(): Promise<import("./identities-github.js").ReadOfApps | undefined>;
   rangerUneApp?(role: import("./identities-github.js").Role, id: string, key: string): Promise<import("./identities-github.js").RenderedOfCleanup>;
   // Les projets que la station de cet ordinateur sert sur GitHub seul (ticket 2359, projets-servis/) : la liste qu'elle
@@ -370,7 +341,7 @@ export type Bridge = {
   // reprise ou clonée par le runtime, puis le projet ajouté au fichier des projets — il arrive par `surConfiguration` —,
   // ou pourquoi il ne l'est pas. `base` : la branche par défaut que GitHub a donnée du dépôt, sa branche d'intégration.
   ouvrirDUneStation?(name: string, repository: string, base?: string): Promise<Opening>;
-  // Lance la connexion à GitHub que le runtime nomme : rend le code à taper et sa page, déjà ouverte — ou pourquoi
+  // Lance la connexion à GitHub par le `gh` de cet ordinateur : rend le code à taper et sa page, déjà ouverte — ou pourquoi
   // rien n'est parti. Sa fin arrive par `surConnexionGitHub`. Sur le téléphone (le ticket 2500), le pont la mène
   // lui-même avec GitHub, sans station : le jeton qu'elle rend reste dans son coffre, et la vue ne le voit jamais.
   seConnecterAGitHub?(): Promise<StartOfConnection>;
@@ -407,9 +378,6 @@ export type Bridge = {
   // Écrit, dans le gist d'une station du compte, les projets qu'elle sert : la sélection entière — ou pourquoi elle
   // n'est pas écrite, en une ligne, son détail à part.
   choisirLesProjets?(id: string, repositories: string[]): Promise<Choice>;
-  // Le rail d'un projet que ni une box ni la station de cet ordinateur ne servent (ticket 1435) : celui que sa station
-  // publie sur GitHub, rangé dans les colonnes du rail — ou pourquoi il ne se lit pas, en une phrase.
-  railDuProjet?(name: string): Promise<import("../facts.ts").RailOfProjectRead>;
   // Ce qu'engage l'allumage du manager, chiffré (power-up.ts) : les issues ouvertes du projet, et
   // celles qui sont parquées (`parked`) — `manager backlog`, lancée une fois sur sa box. Demandé
   // quand la confirmation d'« allumer » s'ouvre : son « oui » n'attend pas cette lecture. Rien, pour un projet sans box.
@@ -439,8 +407,6 @@ export type Bridge = {
   // a rendue pour lui n'est pas en https, il n'est plus dans les derniers faits lus, ou le
   // poste n'a pas pu l'ouvrir.
   ouvrirIssue(project: string, ticket: number): Promise<boolean>;
-  // Les checks du dépôt du projet (GitHub Actions), d'une alerte du rail qui en nomme un (ticket 4238). Rend s'ils ont été ouverts.
-  ouvrirLesChecks(project: string): Promise<boolean>;
   // Un ticket de Livré, ouvert sur sa PR mergée dans le navigateur. Faux : l'adresse que la box
   // a rendue pour elle n'est pas en https, il n'est plus dans les derniers faits lus, ou le poste
   // n'a pas pu l'ouvrir.

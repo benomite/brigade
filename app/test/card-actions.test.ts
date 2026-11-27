@@ -2,12 +2,11 @@
 // et seulement ceux-là, chacun avec son prix — nul quand il ne coûte rien. Pour chaque état de la
 // table du chef, l'ensemble exact des gestes proposés — avec les actions telles qu'elles sont
 // branchées (`ACTIONS`), et une fois branchées celles qui ne le sont pas encore : WAITING (#588) et
-// le navigateur (#620). Et, sur un ticket qui t'attend, ceux qui tranchent la décision (#832).
+// le navigateur (#620). Un ticket qui t'attend n'en a pas d'autres : sa carte se tranche sur elle-même.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { requestOnTheTicket, REFUSAL_CONTROL_TICKET } from "../src/request.ts";
 import { holdFacts, type Facts } from "../src/facts.ts";
-import type { Decision } from "../src/decision.ts";
 import { ACTIONS, type Actions, type CardTile, actionsOfCard, cardActions, PRICE } from "../src/card-actions.ts";
 import { PRIORITIES } from "../src/priority.ts";
 
@@ -49,32 +48,10 @@ describe("la table du chef : pour chaque état, l'ensemble exact des gestes prop
     assert.ok(!ids(card("en attente", { ouvrable: false }), ALL).includes("issue"));
   });
 
-  test("qui t'attend : d'abord les gestes qui tranchent la décision, le premier recommandé — puis ceux de tous, chacun une fois", () => {
-    const givesUp: Decision = { quoi: "remontee", motif: "still-red", cause: "manager-escalated", pr: "https://github.com/o/r/pull/8" };
-    const proposes = cardActions(card("86", { attendu: true, decision: givesUp }));
-    assert.deepEqual(
-      proposes.map(({ id, libelle: wording, recommande: recommended }) => [id, wording, recommended === true]),
-      [
-        ["retirer", "remove from the rail", true],
-        ["issue", "open the issue", false],
-        ["second", "ask the second", false],
-        ["priorite", "change the priority", false],
-      ],
-    );
-    // En attente, le retrait que la table donne déjà n'est posé qu'une fois, à la place de la décision.
-    assert.deepEqual(ids(card("en attente", { attendu: true, decision: { ...givesUp, pr: null } })), ["retirer", "issue", "second", "priorite"]);
-    // Revenu de WAITING : le renvoyer en cuisine, recommandé.
-    const resumed = cardActions(card("86", { attendu: true, decision: { quoi: "repris", motif: null, cause: null, pr: null } }));
-    assert.deepEqual(resumed.map(({ id }) => id), ["cuisine", "retirer", "issue", "second", "priorite"]);
-    assert.equal(resumed[0]?.recommande, true);
-    // L'issue recommandée ne se propose que si elle s'ouvre.
-    assert.deepEqual(ids(card("86", { attendu: true, ouvrable: false, decision: { quoi: "86", motif: "no-calibration", cause: null, pr: null } })), ["second", "priorite"]);
-    // Un ticket qui t'attend sans être sur le rail : ni priorité, ni retrait — il n'y a pas de mot d'état.
-    assert.deepEqual(ids(card(undefined, { attendu: true, decision: { quoi: "ecartee", motif: "question", cause: null, pr: null } })), ["issue", "second"]);
-    // Sans décision — une box d'avant ce champ —, rien de plus que les gestes de tous.
+  test("qui t'attend : les gestes de tous, rien de plus — et sans mot d'état, ni priorité ni retrait", () => {
     assert.deepEqual(ids(card("en pass", { attendu: true })), ["issue", "second", "priorite"]);
-    // Une décision sur une carte qui ne t'attend pas n'ajoute rien.
-    assert.deepEqual(ids(card("en pass", { decision: givesUp })), ["issue", "second", "priorite"]);
+    assert.deepEqual(ids(card("86", { attendu: true, ouvrable: false })), ["second", "priorite"]);
+    assert.deepEqual(ids(card(undefined, { attendu: true })), ["issue", "second"]);
   });
 
   test("un mot que la table ne nomme pas — 86, WAITING, un mot inconnu — n'ajoute rien aux gestes de tous", () => {
@@ -85,15 +62,9 @@ describe("la table du chef : pour chaque état, l'ensemble exact des gestes prop
   });
 
   test("un geste qui ne coûte rien n'a pas de prix ; un geste qui coûte le dit en clair — et la priorité se choisit parmi les labels `prio:` que la box lit", () => {
-    const givesUp: Decision = { quoi: "remontee", motif: "still-red", cause: null, pr: "https://github.com/o/r/pull/8" };
-    const all = [
-      ...cardActions(card("servi", { pr: true }), ALL),
-      ...cardActions(card("en attente"), ALL),
-      ...cardActions(card("86", { attendu: true, decision: givesUp })),
-      ...cardActions(card("86", { attendu: true, decision: { quoi: "repris", motif: null, cause: null, pr: null } })),
-    ];
+    const all = [...cardActions(card("servi", { pr: true }), ALL), ...cardActions(card("en attente"), ALL)];
     const price = Object.fromEntries(all.map(({ id, prix: cost }) => [id, cost]));
-    assert.deepEqual(price, { issue: null, pr: null, second: null, priorite: null, navigateur: null, waiting: null, retirer: PRICE.retirer, cuisine: PRICE.cuisine });
+    assert.deepEqual(price, { issue: null, pr: null, second: null, priorite: null, navigateur: null, waiting: null, retirer: PRICE.retirer });
     assert.equal(PRICE.retirer, "the ticket leaves the rail and is not cooked; its issue stays open and loses its `fire` label — put it back to bring the ticket back on the rail. Nothing is lost, nothing is spent");
     assert.deepEqual(all.find(({ id }) => id === "priorite")?.valeurs, PRIORITIES);
     assert.deepEqual(PRIORITIES, ["1", "2", "3", "4", "5", "6", "7", "8", "9", "none"]);
@@ -104,18 +75,15 @@ describe("la table du chef : pour chaque état, l'ensemble exact des gestes prop
     // Un numéro seul : ni issue qui s'ouvre, ni mot d'état — la demande au second, seule.
     assert.deepEqual(actionsOfCard({ ticket: 21 }).map(({ id }) => id), ["second"]);
     assert.deepEqual(actionsOfCard({ ticket: 21, etat: "en attente", ouvrable: true, attendu: false, attend: [] }).map(({ id }) => id), ["issue", "second", "priorite", "retirer"]);
-    // Une décision qui n'en a pas la forme est ignorée : la carte garde les gestes de tous.
+    // Une décision que la vue enverrait encore n'ajoute rien : la carte garde les gestes de tous.
     const decision = { quoi: "remontee", motif: "still-red", cause: null, pr: "https://github.com/o/r/pull/8" };
-    assert.deepEqual(actionsOfCard({ ticket: 21, etat: "86", ouvrable: true, attendu: true, decision }).map(({ id }) => id), ["retirer", "issue", "second", "priorite"]);
-    assert.deepEqual(actionsOfCard({ ticket: 21, etat: "86", ouvrable: true, attendu: true, decision: { ...decision, pr: 8 } }).map(({ id }) => id), ["issue", "second", "priorite"]);
+    assert.deepEqual(actionsOfCard({ ticket: 21, etat: "86", ouvrable: true, attendu: true, decision }).map(({ id }) => id), ["issue", "second", "priorite"]);
   });
 });
 
 describe("les gestes que l'app ne joue pas : aucun bouton n'est proposé puis refusé", () => {
   test("merger la livraison se fait sur sa PR, sur GitHub : le geste n'est branché nulle part, donc jamais proposé", () => {
-    const givesUp: Decision = { quoi: "remontee", motif: "still-red", cause: null, pr: "https://github.com/o/r/pull/8" };
-    assert.ok(!ids(card("86", { attendu: true, decision: givesUp })).includes("merger" as never));
-    assert.ok(!ids(card("86", { attendu: true, decision: { quoi: "verte", motif: null, cause: null, pr: "https://github.com/o/r/pull/8" } })).includes("merger" as never));
+    assert.ok(!ids(card("86", { attendu: true, pr: true }), ALL).includes("merger" as never));
   });
 
   test("chaque action branchée se joue dans l'app : aucune ne part en commande de la box", () => {

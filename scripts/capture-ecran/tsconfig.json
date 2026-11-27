@@ -1,7 +1,7 @@
 {
   "compilerOptions": {
     "target": "esnext",
-    "lib": ["esnext"],
+    "lib": ["esnext", "dom"],
     "module": "nodenext",
     "moduleResolution": "nodenext",
     "types": ["node"],
@@ -11,8 +11,9 @@
     "noFallthroughCasesInSwitch": true,
     "erasableSyntaxOnly": true,
     "allowImportingTsExtensions": true,
+    "allowJs": true,
     "verbatimModuleSyntax": true,
     "skipLibCheck": true
   },
-  "include": ["*.ts", "ecrans", "test"]
+  "include": ["*.ts", "ecrans", "test", "../../app/src/vue/bridge.d.ts"]
 }

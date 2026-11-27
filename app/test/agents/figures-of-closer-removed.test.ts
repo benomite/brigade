@@ -12,7 +12,7 @@ import { PALETTE } from "../../src/colors.ts";
 import { KITCHEN_ACTIONS } from "../../src/kitchen.ts";
 import { BANNER } from "../../src/facts.ts";
 import { CONFIRMED, DIRECT } from "../../src/actions.ts";
-import { COSTS, commandsOf, TABS, projectsRead, HEADINGS } from "../../src/tabs.ts";
+import { commandsOf, TABS, projectsRead, HEADINGS } from "../../src/tabs.ts";
 import { EFFORTS, MODELS } from "../../src/projects/projects.ts";
 import { whatItARemoved } from "../../src/vue/project/banner-health/Closer.js";
 import { FakeStorage, playTheVue, repos } from "../helpers/false-vue.ts";
@@ -23,11 +23,10 @@ test("a merged closing pass says its PR merged, without the lines it removed or 
   assert.deepEqual(whatItARemoved(pass({ numero: 2480, url: "https://github.com/chef/parade/pull/2480", mergee: true, retirees: 1234, ajoutees: 56 })), { retire: true, dit: "its PR merged", precise: "" });
 });
 
-test("the added / removed ratio page is gone: `ratios` reads no box and launches no command; the cost page still reads each served project", () => {
+test("the added / removed ratio page is gone: `ratios` reads no box and launches no command", () => {
   const projects = [{ nom: "parade", servi: true }, { nom: "ici", ici: true }, { nom: "local" }];
   assert.deepEqual(commandsOf("ratios"), []);
-  assert.deepEqual(projectsRead("ratios", undefined, projects), []);
-  assert.deepEqual(projectsRead(COSTS, undefined, projects).map(({ nom: name }) => name), ["parade", "ici"]);
+  assert.deepEqual(projectsRead(undefined, projects), []);
 });
 
 const reloadedOn = async (page: string) => {
@@ -46,10 +45,10 @@ const reloadedOn = async (page: string) => {
   });
   const vue = await playTheVue({ demarrage: startup, espace: () => [] } as never, { session });
   await repos();
-  return vue.appels.filter(({ geste: action, args }) => action === "onglet" && args[1] === page);
+  return vue.appels;
 };
 
-test("a window reloaded on the ratio page opens on the home, and reads no ratio; reloaded on the cost page, it still reopens it", async () => {
-  assert.deepEqual(await reloadedOn("ratios"), [], "aucune lecture de la page des ratios");
-  assert.notEqual((await reloadedOn(COSTS)).length, 0, "la page des coûts, elle, se rouvre et se lit");
+test("a window reloaded on the ratio page opens on the home, and reads no ratio; reloaded on the autonomy page of all projects, it still reopens it", async () => {
+  assert.deepEqual((await reloadedOn("ratios")).filter(({ geste: action, args }) => action === "onglet" && args[1] === "ratios"), [], "aucune lecture de la page des ratios");
+  assert.notEqual((await reloadedOn("couts")).filter(({ geste: action }) => action === "lireAutonomie").length, 0, "la page des chiffres d'autonomie de tous les projets, elle, se rouvre et se lit");
 });

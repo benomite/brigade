@@ -21,7 +21,7 @@ test("the chef's TODO block lists a ticket in WAITING with its follow-up date", 
   };
   const reading = await readWhatAwaitingTheChef({ depot: REPOSITORY, appeler: call, maintenant: () => new Date(READ), enWaiting: true });
   assert.ok(reading.lue, JSON.stringify(reading));
-  const block = blockOfChef({ lu: READ, attentes: reading.attentes, illisibles: reading.illisibles, depot: REPOSITORY }).join("\n");
+  const block = blockOfChef({ lu: READ, attentes: reading.attentes, illisibles: reading.illisibles }).join("\n");
   assert.match(block, /#41/);
   assert.match(block, /2026-11-25/);
   assert.match(block, /API key/);

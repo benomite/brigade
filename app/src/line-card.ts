@@ -15,7 +15,7 @@
 //   mise de côté `Will not start: <raison en mots simples>.` (refusal.ts) ; signal « set aside »
 //   en WAITING   `waiting for <quoi> · from <qui>` ; signal si la relance est passée
 //   répondue     `answered by <qui> · the manager's turn` (#503)
-//   m'attend     ce qu'on attend du chef, en une phrase (decision.ts)
+//   m'attend     ce qu'on attend du chef, en une phrase
 //   livrée       `served at HH:MM · <résumé>`
 import { hourHM } from "./format.ts";
 import { refusalInClear } from "./refusal.ts";
@@ -45,12 +45,9 @@ export const lineBaseRed = (duration: string): LineOfCard => ({ ligne: `waits fo
 
 // Sur le rail, rien ne le tient : ce qui le retient s'il y en a, sinon il attend sa place.
 // Un retenu par des tickets se dit « Waiting for #a, #b » ; un texte sans numéro est relayé tel quel.
-// `derriere` : la ligne que le runtime donne à une carte en file qui ne part pas la prochaine (ticket 3433), et les tickets
-// qu'elle attend, faute d'autre raison : elle ne remplace pas celle d'un retenu. Ses liens sont ces tickets, jamais un numéro
-// de la phrase du corps qu'elle cite (« waits for #1912 — read from the body: 'Builds on #1908' » n'ouvre que #1912, ticket 3763).
-export function queuedLine(state: string, holds: string | undefined, behind?: { ligne: string; attendus: readonly number[] }): LineOfCard {
-  const numbers = holds === undefined && behind !== undefined ? [...new Set(behind.attendus)] : [...new Set((holds?.match(/#\d+/g) ?? []).map((number) => Number(number.slice(1))))];
-  const sentence = holds === undefined && behind !== undefined ? behind.ligne : numbers.length > 0 ? `Waiting for ${numbers.map((n) => `#${n}`).join(", ")}` : holds;
+export function queuedLine(state: string, holds: string | undefined): LineOfCard {
+  const numbers = [...new Set((holds?.match(/#\d+/g) ?? []).map((number) => Number(number.slice(1))))];
+  const sentence = numbers.length > 0 ? `Waiting for ${numbers.map((n) => `#${n}`).join(", ")}` : holds;
   const links = numbers.length > 0 ? { liens: numbers } : {};
   if (state === "BLOQUÉ") return { ligne: sentence ?? BLOCKED, signal: BLOCKED, ...links, ...(sentence === undefined ? { repere: true as const } : {}) };
   return { ligne: sentence ?? READY, ...links };

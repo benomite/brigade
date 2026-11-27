@@ -4,10 +4,10 @@
 // pas la porte assise dessus. La porte d'une installation par projet
 // (`tenir-porte.ts`) et celles de la station (`station/portes.ts`) le lisent
 // de la même façon.
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { cheminJournal, ouvrirJournal } from "./journal.ts";
 import { AUTRES_HOTES, compterLesRefus, garderLaListe } from "./porte.ts";
-import { REGLES_DE_BASE, reglesDuProjet, type Regle } from "./reseau.ts";
+import { DECLARATION_RESEAU, lireDeclaration, REGLES_DE_BASE, reglesDuProjet, type Regle } from "./reseau.ts";
 
 const AUTEUR = "porte";
 // Ce que la liste se garde entre deux lectures du journal. Un hôte
@@ -19,12 +19,46 @@ const RELECTURE_AVANT_REFUS_MS = 1000;
 
 const dire = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
 
+// The allowlist the new kitchen publishes for its project, in its state
+// directory (`kitchen/kitchen.ts`): `{ base, hosts, problems }`, like `network.declared`.
+export const KITCHEN_ALLOWLIST = "network.json";
+
+// Publishes what the base declares in `.claude/brigade/reseau` at `path`,
+// where the project's gate reads it, only when it changed. `git` runs in the
+// kitchen's clone. A failed read keeps the last list: it never closes the
+// project's hosts.
+export function allowlistPublisher(path: string, base: string, git: (args: string[]) => Promise<string>, log: (line: string) => void): () => Promise<void> {
+  let unreadable: string | null = null;
+  return async () => {
+    try {
+      await git(["fetch", "--quiet", "origin", base]).catch(() => "");
+      const present = (await git(["ls-tree", `origin/${base}`, "--", DECLARATION_RESEAU])).trim() !== "";
+      const { hotes, problemes } = lireDeclaration(present ? await git(["show", `origin/${base}:${DECLARATION_RESEAU}`]) : "");
+      const declared = `${JSON.stringify({ base, hosts: hotes, problems: problemes })}\n`;
+      unreadable = null;
+      if (existsSync(path) && readFileSync(path, "utf8") === declared) return;
+      writeFileSync(`${path}.${process.pid}`, declared, { mode: 0o644 });
+      renameSync(`${path}.${process.pid}`, path);
+      log(`network allowlist published — ${hotes.length} declared host${hotes.length === 1 ? "" : "s"}${problemes.length > 0 ? `, ${problemes.length} line${problemes.length === 1 ? "" : "s"} ignored` : ""}`);
+    } catch (error) {
+      if (dire(error) !== unreadable) log(`network declaration unreadable on ${base}, the last allowlist holds — ${dire(error)}`);
+      unreadable = dire(error);
+    }
+  };
+}
+
 // La liste blanche du projet, lue de son journal. Avant le premier démarrage
 // de son runtime, il n'y a pas de journal : le socle suffit à rapatrier le
-// dépôt, d'où viendra le reste.
-export function listeDuJournal(repertoireEtat: string, options: { avertir?: (message: string) => void } = {}): (fraiches?: boolean) => Regle[] {
+// dépôt, d'où viendra le reste. `published`: the file the new kitchen
+// publishes; once it exists, it is read instead of the journal.
+export function listeDuJournal(repertoireEtat: string, options: { avertir?: (message: string) => void; published?: string } = {}): (fraiches?: boolean) => Regle[] {
   return garderLaListe(
     (): Regle[] => {
+      if (options.published !== undefined && existsSync(options.published)) {
+        const { hosts } = JSON.parse(readFileSync(options.published, "utf8")) as { hosts?: unknown };
+        if (!Array.isArray(hosts) || !hosts.every((hote) => typeof hote === "string")) throw new Error(`${options.published}: no list of hosts`);
+        return reglesDuProjet(hosts);
+      }
       if (!existsSync(cheminJournal(repertoireEtat))) return REGLES_DE_BASE;
       const journal = ouvrirJournal(repertoireEtat, { lectureSeule: true });
       try {

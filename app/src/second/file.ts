@@ -19,9 +19,6 @@ import { blockOfChef, readWhatAwaitingTheChef } from "../board/wait-of-chef.ts";
 import { bodyRead, type CallGitHub } from "../board/client.ts";
 import { writingOnTheRepository } from "../board/writing.ts";
 import { EVENT, type Target } from "./hook-of-the-file.ts";
-import { lireLesStationsDuCompte } from "../../../runtime/src/enregistrement-station/stations-du-compte.ts";
-import type { StationsLues } from "../../../runtime/src/attente-du-rail/stations.ts";
-import { readTheRailBlocked } from "../vue/rail-blocked/rail-blocked.ts";
 
 // Ce que la lecture entière a pour se faire, toutes ses vagues d'appels comprises — sous le délai du crochet
 // (hook-of-the-file.ts) : passé, `claude` tue le crochet, et le second n'aurait rien, pas même « file non lue ».
@@ -75,33 +72,12 @@ export function callByGh(gh: string, delayMs: number = DELAY_MS): CallGitHub {
     });
 }
 
-// Ce qui attend le chef dans ce dépôt, lu comme le TODO de l'app le lit, rendu dans le bloc `awaiting`. `stations` : les
-// stations du compte — avec elles, le rail bloqué (#3358) se lit aussi, et sa ligne vient sous la tête du bloc.
-export async function readTheFile(call: CallGitHub, repository: string, now: () => Date = () => new Date(), stations?: () => Promise<StationsLues>): Promise<Reading> {
+// Ce qui attend le chef dans ce dépôt, lu comme le TODO de l'app le lit, rendu dans le bloc `awaiting`.
+export async function readTheFile(call: CallGitHub, repository: string, now: () => Date = () => new Date()): Promise<Reading> {
   const instant = now();
-  const [readEntry, railBlocked] = await Promise.all([
-    readWhatAwaitingTheChef({ depot: repository, appeler: call, maintenant: () => instant, enWaiting: true }),
-    stations === undefined ? undefined : readTheRailBlocked({ depot: repository, appeler: call, stations, maintenant: instant.getTime() }),
-  ]);
+  const readEntry = await readWhatAwaitingTheChef({ depot: repository, appeler: call, maintenant: () => instant, enWaiting: true });
   if (!readEntry.lue) return { lue: false, raison: readEntry.raison, ...(readEntry.horsLigne === undefined ? {} : { horsLigne: true as const }) };
-  return { lue: true, depot: repository, lu: readEntry.lu, texte: blockOfChef({ ...readEntry, depot: repository, ...(railBlocked === undefined ? {} : { railBloque: railBlocked }) }).join("\n") };
-}
-
-// Les stations du compte, par le `gh` du poste (runtime/src/enregistrement-station/stations-du-compte.ts) — dans le délai
-// du crochet : passé, elles sont dites illisibles, et la file se lit sans elles.
-export function stationsByGh(gh: string, delayMs: number = DELAY_MS): () => Promise<StationsLues> {
-  return async () => {
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const silent = new Promise<StationsLues>((resolve) => {
-      timer = setTimeout(() => resolve({ illisibles: `no answer in ${Math.round(delayMs / 1000)} s` }), delayMs);
-    });
-    const readEntries = lireLesStationsDuCompte({ gh, delaiMs: delayMs }).then((readOne): StationsLues => (readOne.state === "listed" ? { lues: readOne.stations } : { illisibles: readOne.reason }));
-    try {
-      return await Promise.race([readEntries, silent]);
-    } finally {
-      clearTimeout(timer);
-    }
-  };
+  return { lue: true, depot: repository, lu: readEntry.lu, texte: blockOfChef(readEntry).join("\n") };
 }
 
 // Ce que le crochet écrit : toujours un contexte, même quand la file n'a pas pu être lue. `dossier` : celui de la
@@ -110,7 +86,7 @@ export async function play(gh: string, target: Target, folder: string, delayMs: 
   const repository = target.depot || (await repositoryOfTheOrigin(process.env.BRIGADE_GIT_BIN || "git", folder));
   if (repository === undefined) return outputOfHook(contextOfTheFile(target, { lue: false, raison: "", sansDepot: true }));
   const call = callByGh(gh, delayMs);
-  const [reading, writing] = await Promise.all([readTheFile(call, repository, undefined, stationsByGh(gh, delayMs)), writingOnTheRepository(repository, call)]);
+  const [reading, writing] = await Promise.all([readTheFile(call, repository), writingOnTheRepository(repository, call)]);
   const written = contextOfTheWriting(repository, writing);
   return outputOfHook(`${contextOfTheFile(target, reading)}${written === "" ? "" : `\n\n${written}`}`);
 }

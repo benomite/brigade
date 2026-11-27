@@ -96,7 +96,10 @@ project without it. The station starts and installs nothing: the service must al
 **The declaration is read on the integration branch, not the cook's worktree** — unlike secrets. A
 host is opened by a **merge**, which the pass never does itself (`review-required`, cause
 `declaration-modified: …`). The runtime re-reads it at each base fetch and tick (`network.declared`);
-the door reads its list there, with no restart. **One exception, by the chef's choice (#1397)**: a
+the door reads its list there, with no restart. **The new kitchen** (`runtime/src/kitchen/`) reads it
+on the base at each turn and writes it, when it changed, to `<station>/kitchen/<project>/network.json`;
+once that file exists, the project's station gate reads it instead of the journal. A failed read keeps
+the last list. **One exception, by the chef's choice (#1397)**: a
 host the project's setup reaches and the list lacks is opened by the kitchen alone, before that
 setup (`repair.network`, appended to every declaration it publishes; a `repair.done` line says so). It
 writes nothing in the file: the host stays open for following cooks, dev secrets included, until the

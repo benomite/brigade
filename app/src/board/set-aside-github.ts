@@ -13,17 +13,15 @@
 // technique (renvois épuisés, cooks sans livraison), le ticket reste sur le rail, dans sa colonne de mise de côté, avec sa
 // ligne : c'est le travail du second. Un `kitchen-board` n'est jamais une carte.
 //
-// Les commentaires de la station (runtime/src/brigade-github.ts, runtime/src/github-seul/renvois/renvois.ts) se disent en
-// une ligne courte ; tout autre commentaire, par sa première ligne. Un `#N` de la ligne s'ouvre sur son issue, ou sa PR :
+// Les commentaires de la station (ses renvois épuisés, ses cooks sans livraison) se disent en une ligne courte ; tout autre commentaire, par sa première ligne. Un `#N` de la ligne s'ouvre sur son issue, ou sa PR :
 // GitHub mène de l'une à l'autre.
 
-import { LABEL_PARKED } from "../../../runtime/src/attente-github/marque.ts";
-import type { ZoneHeld } from "../vue/banner-stop/stop-of-rail.ts";
-import { cardOfComment, shapeOfChef, type CardOfChef, type ChoiceOfChef, type Recommended } from "./todo-github.ts";
+import { LABELS } from "../../../runtime/src/kitchen/decide.ts";
+import { cardOfComment, type CardOfChef, type ChoiceOfChef, type Recommended } from "./todo-github.ts";
 import { tellThePrByItsTicket } from "../vue/pr-of-ticket.js";
 
 export const SERVED_ELSEWHERE = "served-elsewhere";
-// Celui de la station (runtime/src/github.ts, `MIS_DE_COTE`) : `out-of-kitchen` met aussi de côté.
+// Celui de la station : `out-of-kitchen` met aussi de côté.
 export const OUT_OF_KITCHEN = "out-of-kitchen";
 // Dans l'ordre où la carte les nomme quand l'issue porte les deux.
 export const LABELS_OF_SET_ASIDE = [SERVED_ELSEWHERE, OUT_OF_KITCHEN] as const;
@@ -45,14 +43,13 @@ export type LinkOfLine = { numero: number; url: string };
 // commentaire ne la porte —, et les `#N` qu'elle nomme. `auChef` : le ticket lui pose une question, donc entre dans TODO ;
 // `chef` : la question marquée d'un `served-elsewhere`, avec ses boutons.
 // `complete` : le commentaire de la station en entier, sans ses marques — la carte le garde derrière « details ».
-// `zoneTenue` : la zone que sa fiche déclare et que sa PR ouverte tient, et depuis quand (vue/banner-stop/, ticket 3924).
-export type SetAside = { label: string; raison: string | null; complete?: string; liens: LinkOfLine[]; auChef?: boolean; chef?: CardOfChef; zoneTenue?: ZoneHeld };
+export type SetAside = { label: string; raison: string | null; complete?: string; liens: LinkOfLine[]; auChef?: boolean; chef?: CardOfChef };
 
 type Raw = Record<string, unknown>;
 
 // Le label qui met l'issue de côté, ou rien. `parked` l'emporte : le ticket attend quelqu'un d'autre que le chef (#4129).
 export function labelOfSetAside(labels: readonly string[]): string | null {
-  if (labels.includes(LABEL_PARKED)) return null;
+  if (labels.includes(LABELS.parked)) return null;
   return LABELS_OF_SET_ASIDE.find((label) => labels.includes(label)) ?? null;
 }
 
@@ -127,26 +124,9 @@ function sourceOfTheSetAside(label: string, comments: readonly Raw[]): { dit: Ra
   return { dit: question?.commentaire ?? said, question: question?.carte ?? null };
 }
 
-// La carte du chef d'un ticket parqué pour lui par un label d'attente d'avant parked (#4129, la liste
-// `LABELS_D_AVANT_PARKED_POUR_LE_CHEF` de runtime/src/github-etat/etats.ts ; d'abord les écarts du manager, #3370,
-// wait-of-chef.ts) : la question du manager, un bouton par choix, et le champ libre. La question est la dernière
-// ligne qui finit par « ? » du dernier commentaire d'un auteur du dépôt qui en porte une — hors ceux qu'une station écrit en
-// prenant le ticket (`<!-- brigade:manager-prise`) —, tant qu'aucune réponse du chef (`<!-- brigade:reponse`) ne la suit ;
-// ses choix sont les lignes `- [<geste>] <libellé>` qui la suivent (todo-github.ts, `formeDuChef`), et le reste du
-// commentaire la précise. Sans choix : `Back to the kitchen` — `resume` retire le label qui le parque
-// (board-actions/answer-github.ts) : il reprend où il était — et `Close it`. Aucune question sur l'issue : la carte
-// demande ce que son label attend, avec ces deux choix.
 // La réponse que le manager recommande (#3434) est la ligne `Recommended: <libellé d'un choix> — <pourquoi>` qui suit la
-// question (runtime/src/manager.ts) : elle quitte le reste du commentaire pour la carte (`recommandee`). Sans elle — le
-// manager n'avait rien pour en recommander une, ou la carte retombe sur ses deux choix —, la carte n'en recommande aucune :
-// jamais `Back to the kitchen` par défaut.
-const BRAND_OF_TAKING = "<!-- brigade:manager-prise";
-const questionOfTheGap = (label: string) => `It carries \`${label}\`, a waiting label of before parked: what do you decide?`;
-const CHOICE_OF_THE_GAP = ["- [resume] Back to the kitchen", "- [close] Close it"];
-const QUESTION = /\?\s*$/;
-const CHOICE = /^\s*[-*]\s*\[[a-z]+\]\s/i;
-// La sorte de sa carte, quel que soit le label d'avant qui la parque.
-export const KIND_OF_THE_GAP = "manager-parked";
+// question d'une carte du chef : elle quitte le reste du commentaire pour la carte (`recommandee`). Sans elle, la carte n'en
+// recommande aucune.
 const RECOMMENDED = "Recommended: ";
 
 // La ligne du contexte qui recommande l'un des choix, et ce qui la précise : le choix et pourquoi — rien sans elle, ni pour
@@ -163,26 +143,6 @@ export function recommendedOf(context: string, choice: readonly ChoiceOfChef[]):
     return { recommandee: { texte: taken.texte, pourquoi: why }, contexte: remains };
   }
   return null;
-}
-
-export function cardOfTheGap(label: string, comments: readonly Raw[]): CardOfChef {
-  const saidOnes = [...comments].reverse().filter(({ body, author_association: association }) => typeof body === "string" && typeof association === "string" && OF_TRUST.has(association) && !body.includes(BRAND_OF_TAKING));
-  for (const { body } of saidOnes) {
-    if (BRAND_OF_ANSWER.test(body as string)) break;
-    const lines = clean(body as string).split(/\r?\n/);
-    const rank = lines.findLastIndex((line) => !CHOICE.test(line) && QUESTION.test(line));
-    if (rank === -1) continue;
-    const shape = shapeOfChef(lines.slice(rank).join("\n"));
-    const { question, choix: choice } = shape;
-    if (question === null || question === "") continue;
-    const recommended = recommendedOf(shape.contexte, choice);
-    const context = recommended?.contexte ?? shape.contexte;
-    const before = lines.slice(0, rank).join("\n").trim();
-    const precise = [before, context].filter((text) => text !== "").join("\n\n");
-    const buttons = choice.length === 0 ? CHOICE_OF_THE_GAP : choice.map(({ texte: text, suite }) => `- [${suite}] ${text}`);
-    return { sorte: KIND_OF_THE_GAP, texte: [question, ...buttons, ...(precise === "" ? [] : ["", precise])].join("\n"), recommandee: recommended?.recommandee ?? null };
-  }
-  return { sorte: KIND_OF_THE_GAP, texte: [questionOfTheGap(label), ...CHOICE_OF_THE_GAP].join("\n"), recommandee: null };
 }
 
 // Depuis quand un ticket mis de côté par `label` l'est : l'heure du commentaire qui le dit (ce qui attend le chef,

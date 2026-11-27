@@ -3,8 +3,8 @@
 // depuis quand, son bail, ce qu'il brûle, ce qui le bloque. Rien n'y est compté ni déduit : chaque valeur est un morceau
 // de ce que la box a écrit. Deux lectures y entrent :
 //   - `faits`, la forme : la station du cook en cours (`cooks`), et où elle cuit (`stations`) ;
-//   - `status`, du texte : la ligne du ticket sous la ligne `rail`, que le runtime
-//     écrit ainsi (runtime/src/etat.ts, `decrireEtat` et `detail`) —
+//   - `status`, du texte : la ligne du ticket sous la ligne `rail`, que la box
+//     écrit ainsi —
 //       `  #<ticket>  <état>  <priorité>  <détail>  <titre>`
 //     Le détail n'est découpé que s'il a, pour l'état que `faits` donne, la forme
 //     écrite là. Sinon la ligne est relayée entière, mot pour mot, et rien n'en
@@ -71,11 +71,11 @@ export function linesOfRail(status: string): Map<number, string[]> | undefined {
   return readEntries;
 }
 
-// Une durée, telle que `status` l'écrit (runtime/src/etat.ts, `duree`) : `j` pour les jours en
+// Une durée, telle que `status` l'écrit : `j` pour les jours en
 // français, `d` en anglais.
 const duration = (days: string) => String.raw`\d+ (?:s|min|${days}|h \d\d)`;
 const DURATION = duration("j");
-// En anglais, `status` écrit la durée ; le rail lu sur GitHub (vue/rail/github.ts) écrit l'heure à la place
+// En anglais, `status` écrit la durée ; le rail lu sur GitHub écrit l'heure à la place
 // (`2026-10-12 10:00 UTC`).
 const HOUR_IN = String.raw`\d{4}-\d\d-\d\d \d\d:\d\d UTC`;
 const DURATION_IN = `(?:${duration("d")}|${HOUR_IN})`;

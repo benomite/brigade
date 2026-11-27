@@ -5,17 +5,14 @@
 //     la priorité ;
 //   - en attente ou BLOQUÉ : en plus, le retirer du rail, et le mettre en WAITING (#588) ;
 //   - pris ou en pass : rien de plus — on ne touche pas à un ticket en cours ;
-//   - servi : en plus, le voir dans le navigateur (#620), s'il y a un écran ;
-//   - qui t'attend : d'abord, les gestes qui tranchent ce qu'on attend de toi (decision.ts) — le
-//     premier est le recommandé : la sortir du rail, ouvrir l'issue, la
-//     renvoyer en cuisine. Jamais une commande à recopier ni à envoyer : un bouton, qui la joue.
+//   - servi : en plus, le voir dans le navigateur (#620), s'il y a un écran.
+// Jamais une commande à recopier ni à envoyer : un bouton, qui la joue.
 // Un geste n'apparaît que si son action est branchée (`ACTIONS`) : la table dit ce qui est
 // permis, le branchement ce qui se fait. Une action qui n'est pas livrée n'a pas de branchement,
 // et son geste n'est jamais proposé — ni grisé, ni promis. Celles qui manquent aujourd'hui :
 // « mettre en WAITING » (#588) et « voir dans le navigateur » (#620) — leur épique n'est pas
 // livrée ; elle se branche ici à sa livraison, d'une ligne, sans rien toucher d'autre.
 // Ce module ne lance rien : il dit ce qui se propose.
-import { expectedOf, decisionRead, type Decision } from "./decision.ts";
 import { PRIORITIES } from "./priority.ts";
 
 export type CardId = "issue" | "pr" | "second" | "retirer" | "cuisine" | "priorite" | "waiting" | "navigateur";
@@ -42,16 +39,15 @@ export const ACTIONS: Actions = {
 };
 
 // Ce que la fiche lit de la carte cliquée (facts.ts, `Carte`) : son mot d'état, si elle s'ouvre
-// sur son issue, si elle t'attend et ce que `faits` dit de la décision attendue, sa PR.
-export type CardTile = { ticket: number; etat?: string; ouvrable: boolean; attendu: boolean; decision?: Decision; pr?: boolean };
+// sur son issue, si elle t'attend, sa PR.
+export type CardTile = { ticket: number; etat?: string; ouvrable: boolean; attendu: boolean; pr?: boolean };
 
 // Un geste proposé : son nom, ce que son bouton dit, son prix — nul, il ne coûte rien, et rien ne
-// le dit. `recommande` : le geste qu'on attend de toi d'abord. `valeurs` : celles entre lesquelles
+// le dit. `valeurs` : celles entre lesquelles
 // le chef choisit avant de le jouer.
-export type Proposes = { id: CardId; libelle: string; prix: string | null; recommande?: true; valeurs?: readonly string[] };
+export type Proposes = { id: CardId; libelle: string; prix: string | null; valeurs?: readonly string[] };
 
-// Ce que chaque geste coûte, dans les mots de l'app — ceux du runtime pour ses actions
-// (runtime/src/geste-ticket.ts, `price`). Nul : rien ne change sur la box, ou seulement l'ordre
+// Ce que chaque geste coûte, dans les mots de l'app. Nul : rien ne change sur la box, ou seulement l'ordre
 // de service, et rien ne se dépense — ouvrir une adresse, écrire dans le second sans Entrée,
 // changer le label `prio:` d'une issue.
 export const PRICE = {
@@ -87,9 +83,8 @@ const EXTRA: Readonly<Record<string, readonly CardId[]>> = {
   servi: ["navigateur"],
 };
 
-// Les gestes de la fiche de cette carte, dans l'ordre où elle les pose : ceux qui tranchent ce
-// qu'on attend de toi, s'il t'attend, puis ceux que la table du chef permet pour son état — chacun
-// une fois, et seulement si son action est branchée.
+// Les gestes de la fiche de cette carte, dans l'ordre où elle les pose : ceux que la table du chef permet pour son état —
+// chacun une fois, et seulement si son action est branchée.
 export function cardActions(card: CardTile, actions: Actions = ACTIONS): Proposes[] {
   const branch = (id: CardId) => {
     const action = actions[id];
@@ -97,10 +92,8 @@ export function cardActions(card: CardTile, actions: Actions = ACTIONS): Propose
   };
   // L'issue ne se propose que si elle s'ouvre ; la PR, que s'il y en a une qui s'ouvre.
   const possible = (id: CardId) => branch(id) && (id !== "issue" || card.ouvrable) && (id !== "pr" || card.pr === true);
-  const expected = card.attendu ? expectedOf(card.decision, card.ticket).gestes.filter(possible) : [];
   const extra = card.etat === undefined ? [] : (EXTRA[card.etat] ?? []);
   const all: CardId[] = [
-    ...expected,
     "issue",
     "pr",
     "second",
@@ -110,7 +103,7 @@ export function cardActions(card: CardTile, actions: Actions = ACTIONS): Propose
   ];
   return [...new Set(all)]
     .filter(possible)
-    .map((id) => ({ id, libelle: WORDINGS[id], prix: PRICE[id], ...(id === expected[0] ? { recommande: true as const } : {}), ...(id === "priorite" ? { valeurs: PRIORITIES } : {}) }));
+    .map((id) => ({ id, libelle: WORDINGS[id], prix: PRICE[id], ...(id === "priorite" ? { valeurs: PRIORITIES } : {}) }));
 }
 
 const text = (value: unknown): value is string => typeof value === "string";
@@ -118,8 +111,7 @@ const text = (value: unknown): value is string => typeof value === "string";
 // La même, d'une carte venue de la vue : ce qui n'a pas la forme d'une carte n'a pas de geste.
 export function actionsOfCard(card: unknown, actions: Actions = ACTIONS): Proposes[] {
   if (typeof card !== "object" || card === null) return [];
-  const { ticket, etat: state, ouvrable: openable, attendu: expected, decision, pr } = card as Record<string, unknown>;
+  const { ticket, etat: state, ouvrable: openable, attendu: expected, pr } = card as Record<string, unknown>;
   if (typeof ticket !== "number" || !Number.isSafeInteger(ticket)) return [];
-  const readEntry = decisionRead(decision);
-  return cardActions({ ticket, ...(text(state) ? { etat: state } : {}), ouvrable: openable === true, attendu: expected === true, ...(readEntry === undefined ? {} : { decision: readEntry }), ...(typeof pr === "boolean" ? { pr } : {}) }, actions);
+  return cardActions({ ticket, ...(text(state) ? { etat: state } : {}), ouvrable: openable === true, attendu: expected === true, ...(typeof pr === "boolean" ? { pr } : {}) }, actions);
 }

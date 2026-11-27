@@ -21,9 +21,8 @@ export const ADD = "Add";
 export const PROMPT = "a capability not listed";
 export const HELP = "A capability no case offers yet — the one a ticket in WAITING awaits: type its name and add it — it is declared at once. The tickets waiting for it go back on the rail.";
 
-// La règle du nom tapé, celle du runtime (runtime/src/capacite-libre/capacite-libre.ts), que la vue ne peut pas
-// importer : elle ne lit pas de TypeScript. Le test de la vue les tient identiques
-// (app/test/vue/capacity-free/capacity-free.test.ts).
+// La règle du nom tapé, celle que la station applique aux capacités qu'elle déclare : la vue l'écrit elle-même, elle ne lit
+// pas de TypeScript. Le test de la vue la tient (app/test/vue/capacity-free/capacity-free.test.ts).
 const CAPACITY = /^[\p{L}\p{N}][\p{L}\p{N}_-]*$/u;
 const SHAPE = "letters, digits and hyphens (code, navigateur-headless)";
 

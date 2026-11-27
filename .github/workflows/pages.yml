@@ -27,13 +27,27 @@ jobs:
   build:
     runs-on: ubuntu-latest
     # Un check qu'un merge attend sur une PR qui touche `site/` : plafonné à 3 min (#2086), il rend son verdict en 10 à 25 s.
-    timeout-minutes: 3
+    # Hors PR, les chiffres d'autonomie se lisent sur GitHub en 1 à 2 min : 10 min.
+    timeout-minutes: ${{ github.event_name == 'pull_request' && 3 || 10 }}
+    # The generator reads the issues and pull requests of this repository with the workflow's own token, read only.
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: read
     steps:
       - uses: actions/checkout@v4
-      # PLACEHOLDER: replace with #3213 generator. It must write site/autonomie.json as docs/autonomie-page.md describes.
-      # It fails nothing and writes no figure for now: the page then says "Figures not yet available".
+      # The autonomy figures (#4500): site/autonomie.json as docs/autonomie-page.md describes, over the last 30 days.
+      # Figures that cannot be computed fail the step, and nothing is deployed: the page last published stays.
+      # Not on a PR: its artifact is never deployed, and its check stays within its 3 min.
+      - if: github.event_name != 'pull_request'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 26
       - name: Generate the autonomy figures
-        run: echo "::warning::#3213 is not merged - no autonomy figures generated."
+        if: github.event_name != 'pull_request'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/autonomy-page/generate.ts site/autonomie.json
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site
