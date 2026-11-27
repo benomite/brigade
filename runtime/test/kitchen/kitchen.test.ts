@@ -2,7 +2,7 @@
 // that holds issues and pull requests in memory, and a fake agent.
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -412,6 +412,7 @@ test("a pass that ends while the CI's workflow still runs does not merge: the PR
   const env = { ...process.env, GIT_AUTHOR_NAME: "k", GIT_AUTHOR_EMAIL: "k@k", GIT_COMMITTER_NAME: "k", GIT_COMMITTER_EMAIL: "k@k" };
   const lines: string[] = [];
   let passes = 0;
+  const ended = join(root, "first-pass-ended");
   const kitchen = openKitchen({
     repo: "o/r",
     base: "main",
@@ -421,21 +422,19 @@ test("a pass that ends while the CI's workflow still runs does not merge: the PR
     gh: fake.gh,
     git: gitCli(env),
     // While the first pass reads, the workflow plans jobs that do not exist yet: every check so far is green.
+    // The first pass touches a file when it ends, so the test waits for that, not for the clock.
     launch: (kind: Kind, cwd, _write, _calibration, input) => {
-      if (kind === "pass" && passes++ === 0) for (const pr of fake.prs) pr.running = true;
-      return { command: agent, args: [], input, cwd, env, secrets: {} };
+      if (kind !== "pass" || passes++ > 0) return { command: agent, args: [], input, cwd, env, secrets: {} };
+      for (const pr of fake.prs) pr.running = true;
+      return { command: "/bin/sh", args: ["-c", `"${agent}"; touch "${ended}"`], input, cwd, env, secrets: {} };
     },
     places: () => 2,
     riskPaths: () => [],
     supervisorEveryMs: Number.MAX_SAFE_INTEGER,
     log: (line) => lines.push(line),
   });
-  await until(() => passes === 1, kitchen.turn);
-  // The pass ends and the kitchen reads the PR again: a few turns, enough for the pass to finish.
-  for (let i = 0; i < 15; i++) {
-    await kitchen.turn();
-    await new Promise((resolve) => setTimeout(resolve, 100));
-  }
+  await until(() => existsSync(ended), kitchen.turn);
+  await kitchen.turn();
   assert.equal(fake.issues.get(issue)?.closed, false, lines.join("\n"));
   assert.equal(passes, 1);
   assert.ok(fake.issues.get(issue)?.labels.includes("in-pass"));
