@@ -24,7 +24,7 @@ test("le runtime n'a plus de commande `waiting`, ni son ancien nom `attente`", (
 });
 
 test("ni le code, ni les rôles, ni la doc ne composent ou ne citent un geste d'attente de la box", () => {
-  const fichiers = ["runtime/src", "app/src", "commands", "codex/skills", "docs/runtime", "docs/app.md"].flatMap((chemin) => (chemin.endsWith(".md") ? [join(RACINE, chemin)] : sources(join(RACINE, chemin))));
+  const fichiers = ["runtime/src", "app/src", "commands", "docs/runtime", "docs/app.md"].flatMap((chemin) => (chemin.endsWith(".md") ? [join(RACINE, chemin)] : sources(join(RACINE, chemin))));
   assert.ok(fichiers.length > 100);
   assert.deepEqual(
     fichiers.filter((fichier) => GESTE_D_ATTENTE.test(readFileSync(fichier, "utf8"))).map((fichier) => fichier.slice(RACINE.length + 1)),

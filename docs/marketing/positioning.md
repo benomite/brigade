@@ -20,14 +20,15 @@ Autonomy is the goal. Trust is what lets you take it: an agent you must watch is
 
 An agent left alone must not run away. Each ticket runs inside limits you did not have to set.
 
-- A cap on duration and tokens, an idle stop, a breaker after repeated failures, and a "stop" that halts every cook within the second. Proof: the table in [`docs/runtime/README.md`](../runtime/README.md).
+- A cap on simultaneous cooks per project (`PLACES`, four by default), and a ticket refused three times is parked for the chef instead of being tried again. Proof: `runtime/src/kitchen/projects.ts` and `TRIES_MAX` in `runtime/src/kitchen/decide.ts`.
+- Each agent runs in its own worktree, inside a sandbox, behind its project's network filter. Proof: `runtime/src/bac-a-sable/kitchen-launch.ts`.
 
 ### 2. It is judged
 
 Nothing reaches `main` because a cook says it is done.
 
-- The pass judges every delivery: the project's gates, the CI, and an independent review. A delivery is merged only once its verdict is approved and its CI is green. Proof: [`docs/runtime/README.md`](../runtime/README.md).
-- A delivery that changes what judges it is read by a second judge. Proof: [`docs/runtime/README.md`](../runtime/README.md).
+- The pass judges every delivery once its CI is complete: a red or conflicting one goes back to a cook, a green one gets an independent review. A delivery is merged only once its verdict is `merge` and its CI is green. Proof: `runtime/src/kitchen/decide.ts` and `agents/kitchen/pass.md`.
+- A delivery that touches a risk zone the project declares (`.brigade/kitchen.json`) is approved by the pass but waits for the chef's merge. Proof: `onPassEnd` in `runtime/src/kitchen/kitchen.ts`.
 
 ### 3. It is traceable and reversible
 
@@ -48,8 +49,7 @@ Brigade is built by Brigade. The track record is public.
 
 Trust also means not being bothered for nothing. Brigade comes to you with a question, not a pile of work.
 
-- What counts as a question for the chef: a product choice, a design choice, or a review only the chef can make; never a technical merge with a green CI, a rebase, or a rerun. Any other `blocked-on-human` is a bug. Proof: first section of [`CLAUDE.md`](../../CLAUDE.md).
-- Each TODO card @-mentions the chef once on its issue, so that GitHub Mobile notifies them. Proof: merged PR #2765 (`feat(#2746)`), checkable with `git log --grep='#2746'`.
+- What counts as a question for the chef: a product choice, a design choice, or a review only the chef can make; never a technical merge with a green CI, a rebase, or a rerun. Any other `parked:chef` is a bug. Proof: first section of [`CLAUDE.md`](../../CLAUDE.md), and the manager's `park` gesture in `agents/kitchen/manager.md`.
 - The Android app notifies the chef when a TODO card appears and opens it on tap. Proof: merged PR #2779 (`feat(#2747)`), checkable with `git log --grep='#2747'`.
 - Self-healing is a stated goal, not a finished one: anything done by hand to keep the kitchen moving becomes the kitchen's own job (issue [#2745](https://github.com/benomite/brigade/issues/2745)). Do not present it as done.
 
@@ -62,4 +62,4 @@ Trust also means not being bothered for nothing. Brigade comes to you with a que
 
 - **Not an agent you babysit.** You do not watch it, prompt it step by step, or restart it. Proof: arguments 1 and 5.
 - **Not a pile of PRs to review.** Technical merges with a green CI are the kitchen's call, not a queue for you; only reviews that need a human come to you. Proof: argument 2.
-- **Not blind trust.** It runs inside caps and a stop you control, and every change it makes can be read and reverted (arguments 1 and 3).
+- **Not blind trust.** It runs inside a sandbox, with a cap on cooks and on tries, and every change it makes can be read and reverted (arguments 1 and 3).

@@ -17,8 +17,8 @@ test("a file under runtime/src/ changes the app: the app bundles the runtime cod
   assert.equal(touchLApp(["runtime/src/attente-du-rail/raison.ts"]), true);
 });
 
-test("runtime tests, docs, evals, scripts and app/test do not change the app", () => {
-  assert.equal(touchLApp(["runtime/test/a.test.ts", "runtime/package.json", "docs/app.md", "evals/x.md", "scripts/app-release/decider.ts", "app/test/vue/a.test.ts"]), false);
+test("runtime tests, docs, scripts, other root files and app/test do not change the app", () => {
+  assert.equal(touchLApp(["runtime/test/a.test.ts", "runtime/package.json", "docs/app.md", "site/x.md", "scripts/app-release/decider.ts", "app/test/vue/a.test.ts"]), false);
   assert.equal(touchLApp([]), false);
   assert.equal(touchLApp(["application/x.ts", "app-notes.md"]), false);
 });

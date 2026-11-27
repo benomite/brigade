@@ -1237,7 +1237,7 @@ queued, without going through TODO.
 - **Done**: the card says ``back to the kitchen on GitHub: #<n> no longer carries `parked` — it resumes exactly where
   it was`` under its buttons, the issue's address on hover; the sheet says the same under its gestures. While the gesture
   is on its way, the card says `it arrived, back to the kitchen: sent, waiting for the answer…` and its buttons are
-  inactive. An issue that no longer carries `parked` counts as done.
+  inactive. An issue that no longer carries `parked` or `parked:chef` counts as done; the line names the one(s) it removed (`parked` and `parked:chef`, or whichever the issue carried).
 - **Not done**: nothing changes and the card says why in one line, in red — the rail not read yet, a ticket the
   latest reading does not carry, or GitHub refusing (``nothing was changed: GitHub did not remove `parked` from #<n>``,
   GitHub's answer on hover). One click tries again.
@@ -2102,10 +2102,11 @@ Screens: `docs/captures/1706/` (before the single list), `docs/captures/1778/` (
 *Spec: [the station rebuilt from scratch](superpowers/specs/2026-10-15-station-refonte-design.md) (#797).*
 
 **On a computer — Mac, Windows, desktop Linux —, the installed app is a station.** Once open,
-it finds the machine's station running, or starts it: **the same as a server's**, the same entry point
-(`runtime/src/station/main.ts`, the one the Debian package's service starts), the same held directory,
-the same project configuration (one line each, in `projets`), the same presence on
-GitHub. Only the installation differs: a package on a server, the app here (`app/src/workstation/`).
+it finds the machine's station running, or starts it: **the new kitchen**, the same entry point as the box's
+`brigade-kitchen` unit (`runtime/src/kitchen/main.ts`, #4603), the same held directory, the same project list
+(one line each, in `kitchen/projects`). Only the installation differs: a unit on a server, the app here
+(`app/src/workstation/`). The login item the app writes (`brigade.station.plist`) is rewritten at each opening when it
+carries one of the app's brands, including the one from before the English rename.
 
 - **Its directory** is `station/`, next to the projects file (`~/.config/brigade/station`) —
   or `BRIGADE_STATION_DIR`, if it is set. It runs under your account, with your `gh` and your

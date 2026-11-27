@@ -43,11 +43,11 @@ describe("#4510 — the shell's small modules read nothing from the old runtime"
     assert.deepEqual(await readTheProjectsOfAccount(call), [{ nom: "parade", depot: "chef/parade" }]);
   });
 
-  test("« back to the kitchen » removes `parked`, then the waiting labels the kitchen still reads as parked", async () => {
+  test("« back to the kitchen » removes `parked` and `parked:chef`, then the waiting labels the kitchen still reads as parked", async () => {
     const read = { lu: true, depot: "chef/parade", faits: { rail: [], attend: [{ ticket: 31 }] } } as unknown as BoardRead;
     const removed: string[] = [];
     const client = { ecrire: async (_method: string, path: string) => (removed.push(decodeURIComponent(path.split("/labels/")[1] ?? "")), { status: 200, data: [] }) } as unknown as ClientOfThePriority;
     assert.ok("fait" in (await removeTheLabel(read, "cuisine", 31, client)));
-    assert.deepEqual(removed, ["parked", "waiting", "blocked-on-human"]);
+    assert.deepEqual(removed, ["parked", "parked:chef", "waiting", "blocked-on-human"]);
   });
 });
