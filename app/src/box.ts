@@ -58,7 +58,7 @@ const CASE: Readonly<Record<number, Case>> = { 65: "projet-inconnu", 68: "sans-d
 export const cite = (name: string) => (/^[a-z0-9-]+$/.test(name) ? name : `'${name.replaceAll("'", `'\\''`)}'`);
 
 // Le point d'entrée du geste d'une station, dans le dossier du runtime : celui que `brigade`
-// lance sur une station (runtime/src/station/geste.ts).
+// lance sur une station.
 export const ACTION = join("src", "station", "geste.ts");
 
 // Les mots d'une commande, tels qu'un shell les donnerait au geste : séparés par des blancs, un

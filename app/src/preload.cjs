@@ -226,9 +226,6 @@ const bridge = {
   surCode: (receive) => void ipcRenderer.on("code", (_, seenOne) => receive(seenOne)),
   surMiseAJour: (receive) => void ipcRenderer.on("miseAJour", (_, state) => receive(state)),
   surStations: (receive) => void ipcRenderer.on("stations", (_, seenOne) => receive(seenOne)),
-  // La veille de la station de cet ordinateur (ticket 3642) : la dernière lue, puis chaque changement.
-  veilleMachine: () => ipcRenderer.invoke("veilleMachine"),
-  surVeilleMachine: (receive) => void ipcRenderer.on("veilleMachine", (_, standby) => receive(standby)),
   surProjetsDesStations: (receive) => void ipcRenderer.on("projetsDesStations", (_, seenOne) => receive(seenOne)),
   surAccueil: (receive) => void ipcRenderer.on("accueil", (_, seenOne) => receive(seenOne)),
   surOuverture: (receive) => void ipcRenderer.on("ouverture", (_, repository, step) => receive(repository, step)),

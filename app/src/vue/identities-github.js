@@ -12,7 +12,7 @@
 //
 // Ce qui ne se range pas ne part pas : un App ID vide (ou qui n'en a pas la forme) ou une clé qui n'est pas une clé
 // privée PEM se disent sous leur champ, et rien n'est écrit. Le reste est vérifié par la station, qui range l'App
-// (runtime/src/identites-stations.ts, `rangerApp`) : son refus se dit sous la ligne, en une ligne, sa suite au survol.
+// (`rangerApp`) : son refus se dit sous la ligne, en une ligne, sa suite au survol.
 //
 // `tenirLesIdentites` garde l'état de l'écran et ses gestes ; `poserLesIdentites` le dessine. Ni l'un ni l'autre ne
 // touche `document` : la vue leur donne une fabrique (bricks.js).

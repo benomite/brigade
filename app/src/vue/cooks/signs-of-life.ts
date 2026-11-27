@@ -1,12 +1,11 @@
 // Les signes de vie des stations du compte, pour l'onglet Cooks d'un projet sur GitHub seul (ticket 2358) : chaque station
-// réécrit son enregistrement dans son gist toutes les deux minutes (runtime/src/enregistrement-station/contrat.ts,
-// `RAFRAICHI_MS`) ; le process principal le relit à ce pas, pas plus vite — le rail, lui, se relit toutes les trente
+// réécrit son enregistrement dans son gist toutes les deux minutes (`refreshMs`) ; le process principal le relit à ce pas, pas plus vite — le rail, lui, se relit toutes les trente
 // secondes, et chaque lecture reprend la dernière lecture des signes. Une lecture que la vue a déjà faite (les stations
 // de l'accueil) la remplace, sans appel de plus.
 //
 // Une lecture qui échoue garde la dernière qui a réussi : ses signes de vie vieillissent d'eux-mêmes, et une station
 // qui s'est tue depuis se dit tue. Sans aucune lecture réussie, la raison de l'échec, en une phrase.
-import type { StationsDuCompte } from "../../../../runtime/src/enregistrement-station/stations-du-compte.ts";
+import type { StationsOfAccountRead as StationsDuCompte } from "../../stations-of-account.ts";
 import type { SignsOfLife } from "../rail/github.ts";
 import { quotaGithubRead } from "../pause-quota/pause-quota.ts";
 

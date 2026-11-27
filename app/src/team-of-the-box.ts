@@ -1,5 +1,5 @@
 // L'équipe d'un projet que lit la vue (ticket 4327, suite du 4029) : un enregistrement par agent, tel que `facts` le publie
-// sous `equipe` (runtime/src/autonomie/agents/agents.ts), lancé là où la cuisine du projet tourne. Rien n'y est deviné : un
+// sous `equipe`, lancé là où la cuisine du projet tourne. Rien n'y est deviné : un
 // refus de la commande, une sortie qui ne se lit pas, une équipe que le runtime dit illisible ou qu'il ne publie pas encore
 // font échouer la lecture — la vue dit alors `The agents not reached.`, jamais une équipe vide.
 import type { Read, Rendered } from "./box.ts";
