@@ -17,6 +17,14 @@ export const runName = (kind: Kind, issue: number | null) => (issue === null ? k
 
 const files = (dir: string) => ({ meta: join(dir, "meta.json"), relay: join(dir, "relay.json"), stream: join(dir, "stream.jsonl"), pid: join(dir, "agent.pid"), end: join(dir, "end.json") });
 
+const readJson = <T>(file: string): T | null => {
+  try {
+    return JSON.parse(readFileSync(file, "utf8")) as T;
+  } catch {
+    return null;
+  }
+};
+
 function alive(dir: string, name: string): boolean {
   try {
     const { pid } = JSON.parse(readFileSync(files(dir).relay, "utf8")) as { pid: number };
@@ -57,20 +65,13 @@ export function listRuns(root: string): { running: Run[]; finished: Finished[] }
   if (!existsSync(root)) return { running, finished };
   for (const name of readdirSync(root)) {
     const dir = join(root, name);
-    let meta: RunMeta;
-    try {
-      meta = JSON.parse(readFileSync(files(dir).meta, "utf8")) as RunMeta;
-    } catch {
+    const meta = readJson<RunMeta>(files(dir).meta);
+    if (meta === null) {
       rmSync(dir, { recursive: true, force: true });
       continue;
     }
     const run = { ...meta, name, dir };
-    let end: FinDuRelais | null = null;
-    try {
-      end = JSON.parse(readFileSync(files(dir).end, "utf8")) as FinDuRelais;
-    } catch {
-      end = null;
-    }
+    const end = readJson<FinDuRelais>(files(dir).end);
     if (end !== null) finished.push({ ...run, end, result: resultOf(files(dir).stream) });
     else if (alive(dir, name)) running.push(run);
     // Neither alive nor ended: its relay died with the machine. It ended with nothing to say.
