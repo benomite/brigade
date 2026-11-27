@@ -57,7 +57,7 @@ export type Rendered = { repondue: true; dit: string; commentaire?: number } | {
 // du chef (board-actions/answer-github.ts) — aucune box, aucune station ne le joue.
 const POSTED = "your answer is posted on the issue from your GitHub account";
 const PRICE_ON_GITHUB: Readonly<Record<string, string>> = {
-  resume: `${POSTED}, and the app removes what holds the ticket (\`chef-todo\`, \`parked\`, \`served-elsewhere\`, and any waiting label of before parked): it resumes exactly where it was and its cook reads your answer`,
+  resume: `${POSTED}, and the app removes what holds the ticket (\`chef-todo\`, \`parked\`, \`served-elsewhere\`): it resumes exactly where it was and its cook reads your answer`,
   merge: `${POSTED}, and the app merges the PR the card names under your GitHub account — a merge is not undone from the app`,
   drop: `${POSTED}, and the app removes \`fire\`: the ticket is off the rail, no cook takes it, its issue stays open`,
   close: `${POSTED}, and the app closes the issue: the ticket is not cooked`,

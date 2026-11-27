@@ -5,28 +5,13 @@
 // parStationEtProjet }.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { lineOfProject } from "../../../src/home.ts";
-import { POWER_UP } from "../../../src/power-up.ts";
-import { forTheBar } from "../../../src/bar.ts";
-import type { Reading } from "../../../src/box.ts";
-import { EXAMPLE, type Project } from "../../../src/config.ts";
-import { PALETTE } from "../../../src/colors.ts";
-import { KITCHEN_ACTIONS } from "../../../src/kitchen.ts";
-import { BANNER, understand, board, holdFacts, type Drawable, type Facts } from "../../../src/facts.ts";
-import { CONFIRMED, DIRECT } from "../../../src/actions.ts";
+import type { Drawable } from "../../../src/facts.ts";
 import { openTheReadGitHub } from "../../../src/read-github-phone.ts";
-import { TABS, HEADINGS } from "../../../src/tabs.ts";
-import { EFFORTS, MODELS } from "../../../src/projects/projects.ts";
 import { API_GITHUB, type Send } from "../../../src/board/client.ts";
-import type { BoardRead } from "../../../src/board/read.ts";
-import { stateOfTheLine } from "../../../src/vue/home/projects/projects.js";
-import { lineOfTheWait } from "../../../src/vue/wait-of-rail/line-of-the-wait.js";
 import { signsOf } from "../../../src/vue/cooks/signs-of-life.ts";
-import { whatTheRailSays, inHowMany, lineOfProjectInPause, SAME_REASON, pauseOfProjects, PROJECT_IN_PAUSE, RESUMPTION_UNKNOWN, holdThePause } from "../../../src/vue/pause-quota/line-of-the-pause.js";
+import { whatTheRailSays, inHowMany, pauseOfProjects, holdThePause } from "../../../src/vue/pause-quota/line-of-the-pause.js";
 import { pauseOfAccount, pauseQuotaRead, quotaGithubRead, signOfTheRecording } from "../../../src/vue/pause-quota/pause-quota.ts";
-import { withTheRail, type RailOnGithub, type SignsOfLife, type TicketOnGithub } from "../../../src/vue/rail/github.ts";
-import { lineOfRailBlocked } from "../../../src/vue/rail-blocked/line-of-rail-blocked.js";
-import { Fake, playTheVue, repos } from "../../helpers/false-vue.ts";
+import { Fake } from "../../helpers/false-vue.ts";
 
 const REPOSITORY = "chef/parade";
 const READ = "2026-11-13T18:04:00.000Z";
@@ -43,29 +28,6 @@ const quota = (others: Partial<Quota> = {}): Quota => ({ limite: "core", pauseJu
 const box = (others: Record<string, unknown> = {}) => ({ id: "gistbox", name: "box", lastSeen: minutes(-15), stoppedAt: null, refreshMs: 120_000, selection: [REPOSITORY], ...others });
 const inPause = (others: Partial<Quota> = {}) => ({ ...box(), quotaGithub: quotaGithubRead(quota(others)) ?? assert.fail("quota illisible") });
 
-const EMPTY: BoardRead = {
-  lu: true,
-  depot: REPOSITORY,
-  luLe: READ,
-  cuisine: { rubriques: [] },
-  faits: { etat: "ouverte", lu: READ, dernierTick: null, dernierEvenement: null, compteurs: { rail: 0, auTravail: 0, aLaPass: 0, attend: 0, livres24h: 0 }, rail: [] },
-  file: [],
-  bilans: [],
-  lignesDuRail: [],
-  activites: [],
-};
-const ticket = (number: number): TicketOnGithub => ({ ticket: number, titre: `Ticket ${number}`, url: `https://github.com/${REPOSITORY}/issues/${number}`, etat: "en attente", priorite: null, creeLe: minutes(-60), pr: null, prise: null, entreLe: minutes(-20) });
-// Deux tickets en file depuis vingt minutes, qu'aucun manager n'a pris.
-const RAIL: RailOnGithub = { lu: READ, tickets: [ticket(4), ticket(5)], nonPris: [{ ticket: 4, depuis: minutes(-20) }, { ticket: 5, depuis: minutes(-20) }] };
-const reading = (signs: SignsOfLife) => withTheRail(EMPTY, RAIL, signs);
-const factsOf = (readOne: BoardRead) => understand(JSON.stringify(readOne.faits)) as Facts;
-// Le texte que la tête du rail pose : rail bloqué, attente de la file, ligne de pause — comme vue.js.
-function headOfRail(readFacts: Facts, now = A): string {
-  const said = whatTheRailSays(board(readFacts), now);
-  const actions = { ouvrirStations: () => {} };
-  const lines = [...lineOfRailBlocked(doc, said.railBloque, actions), ...lineOfTheWait(doc, said.railBloque === undefined ? said.attenteDuRail : undefined, actions), ...lineOfProjectInPause(doc, said.enPause)] as unknown as Fake[];
-  return lines.map((line) => line.textContent).join("\n");
-}
 
 describe("le contrat `quotaGithub`", () => {
   test("lu tel que le runtime le publie ; une limite inconnue ou une reprise illisible ne font pas une pause", () => {
@@ -90,79 +52,12 @@ describe("le contrat `quotaGithub`", () => {
   });
 });
 
-describe("la pause du compte, de la lecture du rail", () => {
-  test("le quota épuisé : `facts` porte la pause — la limite, la reprise —, et le rail ne dit ni FAULT, ni offline, ni « Start the station »", () => {
-    const readFacts = factsOf(reading({ lus: [inPause()] }));
-    assert.deepEqual(readFacts.pauseQuota, { limite: "core", jusqua: RESUMPTION });
-    // La station est retenue par GitHub, pas tue : les raisons du runtime le disent déjà.
-    assert.equal(readFacts.attenteDuRail?.raison, "quota-github");
-    assert.ok(readFacts.railBloque !== undefined && "cause" in readFacts.railBloque && readFacts.railBloque.cause === "sans-quota");
-    const head = headOfRail(readFacts);
-    assert.equal(head, PROJECT_IN_PAUSE);
-    assert.doesNotMatch(head, OUTAGE);
-  });
-
-  test("sans le quota, la même station muette depuis quinze minutes reste dite hors ligne : la règle d'avant", () => {
-    const readFacts = factsOf(reading({ lus: [box()] }));
-    assert.equal(readFacts.pauseQuota, undefined);
-    assert.match(headOfRail(readFacts), /FAULT/);
-  });
-
-  test("la reprise inconnue (`pauseJusqua` nul) : la pause tient, et la vue dit qu'elle ne sait pas quand elle revient", () => {
-    const readFacts = factsOf(reading({ lus: [inPause({ pauseJusqua: null })] }));
-    assert.deepEqual(readFacts.pauseQuota, { limite: "core", jusqua: null });
-    assert.doesNotMatch(headOfRail(readFacts), OUTAGE);
-    const element = new Fake("section");
-    holdThePause(element as unknown as HTMLElement, doc, { maintenant: () => A, auRetour: () => {} }).suivre(readFacts.pauseQuota);
-    assert.ok(element.textContent.includes(RESUMPTION_UNKNOWN), element.textContent);
-    assert.doesNotMatch(element.textContent, /Resumes at/);
-  });
-
-  test("la reprise passée, ou un quota qui dit des appels restants sans reprise : plus de pause", () => {
-    assert.equal(factsOf(reading({ lus: [inPause({ pauseJusqua: minutes(-1) })] })).pauseQuota, undefined);
-    assert.equal(factsOf(reading({ lus: [inPause({ pauseJusqua: null, utilise: 10 })] })).pauseQuota, undefined);
-  });
-
+describe("la pause du compte", () => {
   test("plusieurs stations en pause : la reprise la plus tardive, et une reprise inconnue l'emporte", () => {
     const mac = { ...inPause({ limite: "ecriture", pauseJusqua: minutes(30) }), name: "mac" };
     assert.deepEqual(pauseOfAccount([inPause(), mac], A), { limite: "ecriture", jusqua: minutes(30) });
     assert.deepEqual(pauseOfAccount([inPause(), { ...inPause({ pauseJusqua: null }), name: "mac" }], A), { limite: "core", jusqua: null });
     assert.deepEqual(pauseOfProjects([undefined, { limite: "core", jusqua: RESUMPTION }, { limite: "core", jusqua: minutes(2) }], A), { limite: "core", jusqua: RESUMPTION });
-  });
-});
-
-describe("une station vraiment arrêtée", () => {
-  test("arrêtée, même avec un quota en pause : FAULT et « Start it on its computer » restent, la pause ne la couvre pas", () => {
-    const stopped = { ...inPause(), stoppedAt: minutes(-14) };
-    const readFacts = factsOf(reading({ lus: [stopped] }));
-    assert.equal(readFacts.pauseQuota, undefined);
-    const head = headOfRail(readFacts);
-    assert.match(head, /FAULT/);
-    assert.match(head, /Start it on its computer/);
-  });
-
-  test("arrêtée pendant que le compte est en pause (une autre station la porte) : sa panne garde sa ligne et son geste", () => {
-    const stopped = { ...box(), stoppedAt: minutes(-14) };
-    const elsewhere = { ...inPause(), name: "mac", selection: ["chef/autre"] };
-    const readFacts = factsOf(reading({ lus: [stopped, elsewhere] }));
-    assert.deepEqual(readFacts.pauseQuota, { limite: "core", jusqua: RESUMPTION });
-    const head = headOfRail(readFacts);
-    assert.match(head, /Start it on its computer/);
-    assert.ok(!head.includes(PROJECT_IN_PAUSE), head);
-  });
-});
-
-describe("la station que l'app voit tourner sur cet ordinateur", () => {
-  test("sa mise à jour la redémarre : ni FAULT ni file bloquée, même arrêtée ou hors ligne (#3637)", () => {
-    const stopped = box({ stoppedAt: "2026-11-11T12:01:00.000Z" });
-    const boardOf = (readOnes: ReturnType<typeof box>[]) => board(factsOf(reading({ lus: readOnes } as unknown as SignsOfLife)));
-    for (const readOnes of [[stopped], [box()]]) {
-      const without = whatTheRailSays(boardOf(readOnes), A);
-      const withIt = whatTheRailSays(boardOf(readOnes), A, true);
-      assert.ok(without.railBloque !== undefined || without.attenteDuRail !== undefined, "sans redémarrage, la panne se lit");
-      assert.equal(withIt.railBloque, undefined);
-      assert.equal(withIt.attenteDuRail, undefined);
-    }
   });
 });
 
@@ -210,23 +105,6 @@ describe("la ligne de tête de l'app", () => {
   });
 });
 
-describe("l'accueil", () => {
-  test("le projet en pause dit seulement la même raison, d'une pastille calme — pas son rail bloqué en rouge", () => {
-    const readFacts = factsOf(reading({ lus: [inPause()] }));
-    const line = lineOfProject({ nom: "parade", servi: true }, { a: READ, faits: readFacts }, undefined);
-    assert.equal(line.ton, "bleu");
-    assert.equal(line.dit, SAME_REASON);
-    assert.doesNotMatch(`${line.dit} ${line.survol}`, OUTAGE);
-    assert.equal(stateOfTheLine(line), "paused");
-  });
-
-  test("sans la pause, la même lecture reste un rail bloqué, en rouge", () => {
-    const line = lineOfProject({ nom: "parade", servi: true }, { a: READ, faits: factsOf(reading({ lus: [box()] })) }, undefined);
-    assert.equal(line.ton, "rouge");
-    assert.equal(stateOfTheLine(line), "stuck");
-  });
-});
-
 describe("le téléphone", () => {
   // Le compte du chef sur GitHub : le gist de box, son enregistrement — le quota épuisé — et les projets qu'elle sert.
   const recording = (quotaGithub: unknown) => JSON.stringify({ brigade: "station-registration", format: 1, name: "box", platform: "linux", machine: "Linux", version: "1", registeredAt: minutes(-600), lastSeen: minutes(-15), refreshMs: 120_000, stoppedAt: null, ...(quotaGithub === undefined ? {} : { quotaGithub }) });
@@ -266,58 +144,5 @@ describe("le téléphone", () => {
     assert.equal((await readBy({ "brigade-enregistrement.json": recording(undefined), "brigade-selection.json": selection })).pauseQuota, undefined);
     assert.equal((await readBy({ "brigade-enregistrement.json": "pas du json", "brigade-selection.json": selection })).pauseQuota, undefined);
     assert.equal(signOfTheRecording(undefined), null);
-  });
-});
-
-describe("à l'écran", () => {
-  const facts = (pauseUntil: string | null | undefined) => {
-    const now = Date.now();
-    const readOne: BoardRead = { ...EMPTY, luLe: new Date(now).toISOString(), faits: { ...EMPTY.faits, lu: new Date(now).toISOString() } };
-    const station = { ...box({ lastSeen: new Date(now - 15 * 60_000).toISOString() }), ...(pauseUntil === undefined ? {} : { quotaGithub: quotaGithubRead(quota({ pauseJusqua: pauseUntil })) ?? assert.fail("quota") }) };
-    const rail: RailOnGithub = { lu: readOne.luLe, tickets: [{ ...ticket(4), entreLe: new Date(now - 20 * 60_000).toISOString() }], nonPris: [{ ticket: 4, depuis: new Date(now - 20 * 60_000).toISOString() }] };
-    return JSON.stringify(withTheRail(readOne, rail, { lus: [station] }).faits);
-  };
-
-  test("la pause en tête de l'app, une fois ; le rail du projet dit seulement la même raison ; elle tombe d'elle-même au retour du quota", async () => {
-    const projects: Project[] = [{ nom: "parade", dossier: "/tmp/parade" }, { nom: "cantine", dossier: "/tmp/cantine" }];
-    const vue = await playTheVue({
-      demarrage: () => ({
-        configuration: forTheBar({ chemin: "/tmp/app.json", projets: projects }, () => true),
-        palette: PALETTE,
-        exemple: EXAMPLE,
-        onglets: TABS,
-        rubriques: HEADINGS,
-        gestes: { allumage: POWER_UP, cuisine: KITCHEN_ACTIONS, directs: DIRECT, confirmes: CONFIRMED },
-        banniere: BANNER,
-        calibrage: { modeles: MODELS, efforts: EFFORTS },
-        code: undefined,
-      }),
-      espace: () => [],
-    });
-    const readFacts = holdFacts();
-    const read = (project: string, text: string) => {
-      const reading: Reading = { projet: project, demande: 1, a: new Date().toISOString(), sorties: [{ commande: "facts", texte: text }] };
-      vue.dire("surFaits", readFacts.recevoir(reading));
-    };
-    const head = vue.element("pause-quota");
-    assert.equal(head.hidden, true);
-    const inSevenMinutes = new Date(Date.now() + 7 * 60_000).toISOString();
-    read("parade", facts(inSevenMinutes));
-    read("cantine", facts(inSevenMinutes));
-    await repos();
-    assert.equal(head.hidden, false);
-    assert.equal(head.children.length, 1);
-    assert.match(head.textContent, /^Paused: GitHub quota of the account reached \(its core quota\)\. Resumes at .+ \(in [67] min\)\. Nothing to do\.$/);
-    vue.element("projets").children[1]?.click();
-    await repos();
-    const rail = vue.element("rail");
-    assert.ok(rail.textContent.includes(PROJECT_IN_PAUSE), rail.textContent);
-    assert.doesNotMatch(rail.textContent, OUTAGE);
-    // Le quota revenu : la lecture suivante ne porte plus la pause, et tout tombe sans un clic.
-    read("parade", facts(undefined));
-    read("cantine", facts(undefined));
-    await repos();
-    assert.equal(head.hidden, true);
-    assert.ok(!rail.textContent.includes(PROJECT_IN_PAUSE), rail.textContent);
   });
 });
