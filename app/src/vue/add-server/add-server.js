@@ -4,7 +4,7 @@
 // it » d'un projet neuf (parcours-premier-projet/). Le panneau dit en une phrase où lancer la ligne d'installation
 // (`INSTALLER`, stations-of-account.js, la même que la page d'installation), la donne à copier, dit qu'un Mac fait la même,
 // puis attend le serveur : une station enregistrée sous le compte (`stationsDuCompte`) qui n'y était pas à l'ouverture du
-// panneau est la sienne — elle s'y inscrit seule, sans code (runtime/src/enregistrement-station/README.md). « check again »
+// panneau est la sienne — elle s'y inscrit seule, sans code. « check again »
 // relit le compte ; le serveur arrivé, le projet lui est confié par le geste de « Choose who cooks it ».
 // Le bouton d'entrée ouvre et ferme le panneau de lui-même, et le dit à la vue (`basculer`), qui le repose ensuite.
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément (bricks.js), et rend des éléments.

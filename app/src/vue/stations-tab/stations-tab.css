@@ -120,11 +120,6 @@
   font-size: var(--taille-corps);
   color: var(--discret);
 }
-/* Ce Mac gardé éveillé tant qu'un cook cuit (veille-machine/, ticket 3642). */
-.carte-de-station .veille-machine {
-  font-size: var(--taille-corps);
-  color: var(--texte);
-}
 /* Ce que la station n'a pas pu cuire (ticket 3870). */
 .carte-de-station .manque {
   margin: 0;
