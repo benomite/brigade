@@ -184,6 +184,9 @@ export type Bridge = {
   surOuvrirCarte?(receive: (project: string, ticket: number) => void): void;
   // L'écran du premier lancement avant l'avis de macOS (ticket 4081, first-launch/opinion-of-background.js) : le process
   // principal l'attend-il déjà, le demande plus tard, et son bouton pressé. Pas sur le téléphone.
+  // "Make this computer cook": offered only where no station is installed; the command is the one to paste.
+  offreDeCuisiner?(): Promise<{ offered: false } | { offered: true; command: string }>;
+  cuisinerIci?(): Promise<{ commande: string } | { refus: string }>;
   avisDeFond?(): Promise<boolean>;
   surAvisDeFond?(receive: () => void): void;
   continuerLePremierLancement?(): Promise<void>;

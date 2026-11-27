@@ -27,6 +27,9 @@
 # Run twice, it changes nothing. A station that cannot have its sandbox (bwrap),
 # its account or its gate is refused, with the reason in one line.
 #
+# BRIGADE_PROJECTS_FILE=<file> gives the project lines (name, repository, base, places;
+# no CLONE=) a station moved from the chef's app: they are written to
+# /var/lib/brigade/kitchen/projects when the station has none, and it clones afresh.
 # `sh install.sh --update` is the mode the station's own update plays, as root, on the
 # archive it just unpacked under /opt/brigade-station/<version>/: it only refreshes the
 # units or the plists. It never touches `current`, the account, the state, the tokens,
@@ -197,6 +200,15 @@ if [ "$OS" = Darwin ]; then
   directory "$STATE/home" 750 "$ACCOUNT:$ACCOUNT"
   directory "$STATE/log" 750 "$ACCOUNT:$ACCOUNT"
   directory "$RACINE/Library/Application Support/brigade-station" 755 root:wheel
+fi
+
+# The projects moved from the app's embedded station, only into a station that has none.
+if [ -n "${BRIGADE_PROJECTS_FILE:-}" ] && [ -f "$BRIGADE_PROJECTS_FILE" ] && [ ! -e "$STATE/kitchen/projects" ]; then
+  directory "$STATE/kitchen" 750 "$ACCOUNT:$ACCOUNT"
+  cp "$BRIGADE_PROJECTS_FILE" "$STATE/kitchen/projects"
+  chmod 640 "$STATE/kitchen/projects"
+  chown "$ACCOUNT:$ACCOUNT" "$STATE/kitchen/projects"
+  say "projects moved from the app's station"
 fi
 
 # 4. The command.

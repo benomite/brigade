@@ -164,6 +164,8 @@ const bridge = {
   surOuvrirCarte: (receive) => void ipcRenderer.on("ouvrirCarte", (_, project, ticket) => receive(project, ticket)),
   // L'écran du premier lancement avant l'avis de macOS (ticket 4081, vue/first-launch/) : attendu dès l'ouverture de
   // la vue, ou plus tard par `surAvisDeFond` ; son bouton rend la main à l'inscription de la station.
+  offreDeCuisiner: () => ipcRenderer.invoke("offreDeCuisiner"),
+  cuisinerIci: () => ipcRenderer.invoke("cuisinerIci"),
   avisDeFond: () => ipcRenderer.invoke("avisDeFond"),
   surAvisDeFond: (receive) => void ipcRenderer.on("avisDeFond", () => receive()),
   continuerLePremierLancement: () => ipcRenderer.invoke("continuerLePremierLancement"),

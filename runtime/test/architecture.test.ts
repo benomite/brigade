@@ -67,7 +67,8 @@ test("`runtime/src` : aucun programme qui joint une autre machine n'est lancé p
   const lances = new Set(sources().flatMap((fichier) => [...lire(fichier).matchAll(/(?<![.\w])(?:spawn|spawnSync|execFile|execFileSync|exec|execSync)\(\s*"([^"]+)"/g)].map((trouve) => trouve[1])));
   // `ps` : pour dire quel processus tient le processeur quand la machine est
   // saturée (`consommateur.ts`, #4090) — il ne lit que la table des processus locale.
-  assert.deepEqual([...lances].sort(), ["du", "git", "ps"]);
+  // `/usr/bin/sudo` : la lecture de l'ancre pf sur Mac (`bac-a-sable/pf.ts`, #4737), locale.
+  assert.deepEqual([...lances].sort(), ["/usr/bin/sudo", "du", "git", "ps"]);
   // Ni nommé ailleurs dans le code — un commentaire peut le citer, pas une chaîne.
   for (const fichier of sources()) {
     const code = lire(fichier)
