@@ -3,7 +3,7 @@
 // input and applies the few gestures an agent may ask for.
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { epicBranch } from "../epics.ts";
+import { epicBranch, siblingDependencies } from "../epics.ts";
 import { LABELS, type Issue } from "./decide.ts";
 import { ACCEPTED, type Gestures } from "./github.ts";
 import type { Run } from "./runs.ts";
@@ -93,7 +93,7 @@ export async function applyAgentActions(actions: AgentAction[], context: { act: 
         const children: number[] = [];
         // A child is work the manager put on the rail: it is fired, at its parent's priority.
         const labels = [LABELS.ready, ...(issues.get(action.split)?.labels.filter((label) => /^prio:\d+$/.test(label)) ?? [])];
-        for (const ticket of action.tickets) children.push(await act.open(ticket.title, `${ticket.body}\n\nEpic: #${action.split}`, labels));
+        for (const ticket of action.tickets) children.push(await act.open(ticket.title, `${siblingDependencies(ticket.body, children)}\n\nEpic: #${action.split}`, labels));
         await act.labels(action.split, [LABELS.epic], [LABELS.ready]);
         await act.comment(action.split, `Split by the manager into ${children.map((n) => `#${n}`).join(", ")}.`);
         acted.add(action.split);

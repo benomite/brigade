@@ -115,3 +115,7 @@ export async function userChangesInBody(gh: Gh, repo: string, pr: number, answer
   const body = (JSON.parse(await gh(["pr", "view", String(pr), "-R", repo, "--json", "body"])) as { body: string }).body;
   await gh(["pr", "edit", String(pr), "-R", repo, "--body-file", "-"], `${body.replace(USER_SECTION, "").trimEnd()}\n\n${section}\n`);
 }
+
+// A split's ticket says `Depends on ticket K` (K = a sibling's rank, from 1): once the K-th child is open, it reads `Depends on #<its number>`. A K that is not an earlier sibling is dropped.
+export const siblingDependencies = (body: string, opened: readonly number[]): string =>
+  body.replace(/^[ \t]*Depends on ticket (\d+)[ \t]*$/gim, (_line, k: string) => (Number(k) >= 1 && Number(k) <= opened.length ? `Depends on #${opened[Number(k) - 1]}` : "")).replace(/\n{3,}/g, "\n\n");

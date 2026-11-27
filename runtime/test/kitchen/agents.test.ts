@@ -53,3 +53,14 @@ test("a split whose ticket body holds a fenced code block is still read: the clo
   assert.equal(actions.length, 1);
   assert.deepEqual((actions[0] as { tickets: Array<{ body: string }> }).tickets.map((one) => one.body), [body, "b"]);
 });
+
+test("a split's `Depends on ticket K` becomes `Depends on #<K-th child>`; a K that is itself or later is dropped (#4754)", async () => {
+  const bodies: string[] = [];
+  let next = 100;
+  const act = { open: async (_title: string, body: string) => (bodies.push(body), next++), labels: async () => {}, createBranch: async () => {}, comment: async () => {} } as unknown as Gestures;
+  const issues = new Map([[5, { number: 5, title: "t", labels: [], trusted: true, dependsOn: [] }]]);
+  const tickets = [{ title: "a", body: "A" }, { title: "b", body: "B\n\nDepends on ticket 3" }, { title: "c", body: "C\n\nDepends on ticket 1" }];
+  await applyAgentActions([{ split: 5, tickets }], { act, issues, log: () => {}, who: "manager" });
+  assert.match(bodies[2], /Depends on #100\b/);
+  assert.doesNotMatch(bodies[1], /Depends on/);
+});
