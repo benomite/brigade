@@ -3,7 +3,7 @@
 // condition de départ, ses plafonds de tokens et de lignes retirées. Ils vivent dans son dépôt
 // (`.claude/brigade/projet.json`) et changent par une PR, comme le code : rien ne s'en pose sur la box.
 //
-// Les deux passent par la commande du runtime `setting` (runtime/src/reglage-cli.ts), là où la cuisine du projet
+// Les deux passent par la commande du runtime `setting`, là où la cuisine du projet
 // tourne, comme le bouton d'une station (cooking.ts) :
 //   - `setting` : les réglages tels que la cuisine les applique, et d'où vient chacun ;
 //   - `setting ceiling|manager|reviewer|closer <modèle> <effort>`, `setting closer-cooks|closer-tokens|closer-lines <n>`,

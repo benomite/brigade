@@ -24,7 +24,6 @@ import type { Guide, StationChanged, StationWanted } from "../service.ts";
 import type { Request as RequestOfReport, RenderedOfReport } from "./report/opening.ts";
 import type { RepositoryOfChef } from "../projects/github.ts";
 import type { Addition, Chosen, DefaultsOfTheMachine, Move, EFFORTS, MODELS, Removal as RemovalOfAStation, SeenOfProjects } from "../projects/projects.ts";
-import type { IssueOfRemedy } from "../projects/remedy.ts";
 import type { Pairing, RemovalOfStation, SeenOfStations } from "../stations/stations.ts";
 import type { Open, Terminal } from "../terminals.ts";
 import type { AccountGitHub, StartOfConnection, EndOfConnection } from "../connection-github.ts";
@@ -270,9 +269,6 @@ export type Bridge = {
   // « Continue without sandbox », devant une station sans bac à sable (ticket 1113) : le chef décide pour la
   // station du projet, et la retenue du rail se lève. Rend ce qui est fait, ou pourquoi rien.
   continuerSansBacASable(name: string): Promise<{ fait: string } | { refus: string; detail?: string }>;
-  // Le bouton du refus de la station (ticket 1205) : la principale du projet joue le remède que ce refus offre
-  // — son code, l'identifiant du remède —, puis dit s'il est levé, s'il tient et pourquoi, ou que rien n'est fait.
-  leverLeRefus(name: string, refusal: string, remedy: string): Promise<IssueOfRemedy>;
   // Une issue de la carte d'un besoin qui manque à la principale du projet (ticket 1400) : le choix — sa clé —, l'issue
   // retenue. Elle s'écrit dans la demande de la principale, qui la pose à son journal. Rend ce qui est fait, ou pourquoi rien.
   choisirUneIssue(name: string, choice: string, issue: string): Promise<Chosen>;
@@ -417,13 +413,6 @@ export type Bridge = {
   ouvrirPrDuCook(project: string, ticket: number): Promise<boolean>;
   ecrire(id: number, data: string): void;
   redimensionner(id: number, columns: number, lines: number): void;
-  // Ce que le second de chaque projet propose au chef, par son canal (second/proposals.ts, ticket 1520) : la proposition en
-  // cours de chaque projet qui en a une, puis chaque changement par `surProposition` — null quand il n'y en a plus.
-  // `repondreAuSecond` signale que le chef a répondu, d'un clic ou en tapant, et rend ce que le canal en a fait. Un
-  // pont qui ne les porte pas (le téléphone) n'a pas de boutons sous le terminal : il n'a pas de terminal.
-  propositionsDuSecond?(): Promise<Record<string, import("../second/proposals.ts").Proposition>>;
-  repondreAuSecond?(project: string, answer: import("../second/proposals.ts").AnswerOfChef): Promise<unknown>;
-  surProposition?(receive: (project: string, proposal: import("../second/proposals.ts").Proposition | null) => void): void;
   surSortie(receive: (id: number, data: string) => void): void;
   surEtat(receive: (terminal: Terminal) => void): void;
   // Ce que fait chaque cook d'un projet, à chaque lecture de son tableau de la cuisine (ticket 1846) — ou pourquoi

@@ -61,7 +61,7 @@ export const NO = "No repository matches.";
 export const PASTE = "or paste a public repository: its GitHub link, or owner/name";
 export const ADD = "add";
 export const SINCE_ONE_COMPUTER = "A project is added from a computer, and this phone reads it from GitHub.";
-// La ligne qui dit où le dépôt choisi vient d'être cloné : dans le dossier que l'app gère (runtime/src/projets/copie-locale.ts),
+// La ligne qui dit où le dépôt choisi vient d'être cloné : dans le dossier que l'app gère,
 // `~/Brigade/<name>` — le dossier du compte écrit `~`, sous macOS, Linux ou Windows.
 const HOME = /^(?:\/home|\/Users)\/[^/]+(?=\/|$)|^[A-Za-z]:\\Users\\[^\\]+(?=\\|$)/i;
 /** @param {string} folder */

@@ -1,7 +1,7 @@
 // @ts-check
 // Le temps que met un projet à servir son premier ticket, sur sa page (ticket 1401, épique 1393) : de son ajout à
-// la station au premier ticket servi, tel que sa principale le publie (`delai` du suivi, runtime/src/installation/
-// delai/). Tant qu'aucun ticket n'est servi, le temps court — compté ici depuis l'ajout, à chaque pose ; une fois
+// la station au premier ticket servi, tel que sa principale le publie (`delai` du suivi).
+// Tant qu'aucun ticket n'est servi, le temps court — compté ici depuis l'ajout, à chaque pose ; une fois
 // servi, la durée est celle que la station a figée, et ne bouge plus. Pas de délai publié, pas de ligne. Ce module
 // ne touche pas `document` : il reçoit de quoi créer un élément (bricks.js).
 

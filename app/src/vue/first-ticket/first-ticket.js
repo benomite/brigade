@@ -1,7 +1,7 @@
 // @ts-check
 // Le premier ticket d'un projet neuf, écrit dans l'app (ticket 3306, épique 3301). Le projet prêt, au-dessus du rail, le
 // second demande au chef ce qu'il veut changer d'abord, avec un champ pour sa réponse. Envoyée, le second écrit l'issue
-// (runtime/src/premier-ticket/, `rediger`) et l'app la montre — son titre et son corps — avec deux gestes : « Yes, put it on
+// (`rediger`, joué par le process principal) et l'app la montre — son titre et son corps — avec deux gestes : « Yes, put it on
 // the rail », le recommandé, et le champ de ce qui doit changer, avec « ask for changes ». Un changement demandé, le second
 // réécrit et la montre de nouveau ; rien n'est créé avant le « oui ». Sur le « oui », le runtime crée l'issue avec ses
 // labels (`creer`, `fire` compris) : elle est sur le rail. Le chef n'ouvre pas GitHub, ne tape ni ne voit aucun label.
@@ -15,10 +15,12 @@ import { AT_RETURN } from "../choice-station/choice-station.js";
 import { YES as YES_A } from "../lexicon.js";
 
 /** @typedef {import("../bricks.js").Fabrique} Fabrique */
-/** @typedef {import("../../../../runtime/src/premier-ticket/premier-ticket.ts").Brouillon} Draft */
-/** @typedef {import("../../../../runtime/src/premier-ticket/premier-ticket.ts").Demande} Request */
-/** @typedef {import("../../../../runtime/src/premier-ticket/premier-ticket.ts").Redaction} Redaction */
-/** @typedef {import("../../../../runtime/src/premier-ticket/premier-ticket.ts").Creation} Creation */
+// Le brouillon du second ; ce que le chef lui donne (sa réponse, et pour une réécriture le brouillon vu et ce qui change) ;
+// ce que la rédaction et la création rendent.
+/** @typedef {{ title: string, body: string }} Draft */
+/** @typedef {{ answer: string, draft?: Draft, changes?: string }} Request */
+/** @typedef {{ draft: Draft } | { refus: string, detail: string }} Redaction */
+/** @typedef {{ ticket: number, url: string } | { refus: string, detail: string }} Creation */
 /** @typedef {{ dit: string, detail: string }} Refusal */
 // Où en est le premier ticket d'un projet :
 //   question    le second demande ce qu'il faut changer d'abord ; `reponse`, ce que le chef a tapé ; `refus`, la dernière
@@ -151,7 +153,7 @@ export function setFirstTicket(doc, { depot: repository, etat: state, absente: a
 const gone = (/** @type {unknown} */ error) => (error instanceof Error ? error.message : String(error));
 
 // Les premiers tickets tenus pour la vue, un par projet prêt que « Add a project » a ouvert, le temps que l'app tourne.
-// `rediger` et `creer` sont les gestes du pont (le process principal joue runtime/src/premier-ticket/) : la vue n'appelle
+// `rediger` et `creer` sont les gestes du pont, joués par le process principal : la vue n'appelle
 // `creer` que sur le « oui » du chef.
 /**
  * @param {{

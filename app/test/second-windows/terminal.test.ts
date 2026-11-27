@@ -1,7 +1,6 @@
-// Du clic au terminal du second sous Windows (#1522, épique #1518) : ce que la vue écrit — la commande, puis `\r` — passe
+// Le terminal du second sous Windows (#1522, épique #1518) : ce que la vue écrit — une commande, puis `\r` — passe
 // par le registre des terminaux, réglé comme sous Windows, jusqu'au pty sans rien changer ; et sur un vrai ConPTY, les
-// octets que reçoit un process sont ceux de la commande publiée. Le canal du runtime refuse ce que Windows y glisserait :
-// une commande sur deux lignes (`\r\n`).
+// octets que reçoit un process sont ceux de la commande écrite.
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -9,8 +8,9 @@ import { join } from "node:path";
 import { describe, test } from "node:test";
 import { openPty, ptyAvailable } from "../../src/pty.ts";
 import { openTerminals, type Launch } from "../../src/terminals.ts";
-import { aProposer, propositionLue, Refus } from "../../../runtime/src/second-propositions/proposition.ts";
-import { WITH_QUOTES, A } from "./helpers.ts";
+
+// Une commande que Windows pourrait abîmer : guillemets, espaces doublés, `!`, `%VAR%`, `\` de chemin.
+const WITH_QUOTES = `! gh pr comment 1480 --body "it's  green!  see 'C:\\Users\\chef\\parade' and %USERPROFILE% — \$HOME stays" && echo done!`;
 
 const PARADE = { nom: "parade", dossier: "C:\\Users\\chef\\parade" };
 
@@ -32,7 +32,7 @@ function registryWindows() {
   return { terminaux: terminals, ecrits: writtenOnes, lances: launched };
 }
 
-// Une ligne `brigade …` et sa forme lancée sous `!`, telles que le second les publie.
+// Une ligne `brigade …` et sa forme lancée sous `!`.
 const LINE_BRIGADE = `cd ~/parade && brigade parade pass 1480 --merge --comment 'ok!  merged'`;
 const BRIGADE_UNDER_BANG = `! ${LINE_BRIGADE}`;
 
@@ -56,24 +56,6 @@ describe("le registre, réglé comme sous Windows", () => {
     assert.equal(launched[0]?.commande, "claude");
     terminals.shell(PARADE);
     assert.deepEqual([launched[1]?.commande, launched[1]?.args], ["powershell.exe", ["-NoLogo"]]);
-  });
-});
-
-describe("le canal du second, pour une commande qui vient de Windows", () => {
-  const published = (command: string) => aProposer({ kind: "gesture", command });
-
-  test("guillemets, espaces doublés, `!`, `%VAR%`, `\\` de chemin et lignes `brigade …` sont gardés tels quels", () => {
-    for (const command of [WITH_QUOTES, LINE_BRIGADE, BRIGADE_UNDER_BANG]) {
-      assert.deepEqual(published(command), { kind: "gesture", command });
-      assert.equal(propositionLue({ kind: "gesture", command, id: "g", at: A })?.kind === "gesture" && (propositionLue({ kind: "gesture", command, id: "g", at: A }) as { command: string }).command, command);
-    }
-  });
-
-  test("une commande qui porte `\\r\\n`, `\\r` ou `\\n` est refusée : Windows y lancerait le début avant la confirmation", () => {
-    for (const command of ["! gh pr merge 1480\r\n--merge", "! gh pr merge 1480\r", "! gh pr merge 1480\n"]) {
-      assert.throws(() => published(command), Refus);
-      assert.equal(propositionLue({ kind: "gesture", command, id: "g", at: A }), null);
-    }
   });
 });
 
@@ -102,7 +84,7 @@ process.stdin.on("data", (morceau) => {
 `;
 
 describe("sur un vrai ConPTY", { skip: SKIPS }, () => {
-  test("la commande publiée et l'Entrée arrivent au process octet pour octet : ni guillemet perdu, ni `!` mangé, ni `\\n` ajouté", async (t) => {
+  test("la commande écrite et l'Entrée arrivent au process octet pour octet : ni guillemet perdu, ni `!` mangé, ni `\\n` ajouté", async (t) => {
     const folder = mkdtempSync(join(tmpdir(), "brigade-second-windows-"));
     const ptys: Array<{ tuer: () => void; fini: () => boolean }> = [];
     // Les pty d'abord : un ConPTY vivant tient son répertoire courant, et sa suppression échoue en EPERM.

@@ -1,5 +1,5 @@
 // Ce que les cooks ont appris au projet (épique #1034, #1058) : ses leçons, provisoires et promues, et ses
-// profils. `facts` le porte dans `apprentissage` (runtime/src/apprentissage/projet.ts) ; la page Reliability
+// profils. `facts` le porte dans `apprentissage` ; la page Reliability
 // du projet le pose sous les causes corrigées. L'app n'en déduit rien : le statut, la date, les tickets et
 // le nombre de cooks sont ceux du runtime.
 //
@@ -7,14 +7,14 @@
 //   - la lecture du champ `apprentissage` de `facts`, champ pour champ (`apprentissageLu`) ;
 //   - la section, prête à poser (`apprentissageDe`) : l'adresse d'une leçon promue n'y passe pas — la vue
 //     nomme la leçon, le process principal ouvre la ligne du carnet que la box a donnée (`facts.ts`, `lecon`).
-// La livraison d'un côté de la date d'entrée (runtime/src/apprentissage/progres.ts, `Livraison`) : `null`,
+// La livraison d'un côté de la date d'entrée (`Livraison`) : `null`,
 // aucun ticket mergé de ce côté.
 export type Delivery = { retenus: number; premiers: number; premierCoup: number; essaisMoyens: number };
 export type Progress = { avant: Delivery | null; apres: Delivery | null };
-// D'où une leçon est née (runtime/src/carnet/carnet.ts, `LessonOrigin`) : une rétro, ou le renvoi de la pass ou la
+// D'où une leçon est née (`LessonOrigin`) : une rétro, ou le renvoi de la pass ou la
 // correction du chef sur un ticket.
 export type Origin = { kind: "retro" } | { kind: "pass-send-back"; ticket: number } | { kind: "chef-correction"; ticket: number };
-// Une leçon, telle que `facts` la dit (runtime/src/apprentissage/projet.ts, `LeconAffichee`).
+// Une leçon, telle que `facts` la dit (`LeconAffichee`).
 export type LessonRead = { id: string; texte: string; statut: "provisoire" | "promue"; date: string; tickets: number[]; origine: Origin; cooks: number; url?: string; progres: Progress };
 // Un profil, tel que `facts` le dit (`ProfilAffiche`) : son carnet, ses leçons promues ou sorties.
 export type ProfileLearnedRead = { nom: string; domaine: string; skills: string[]; perimetre: string[]; carnet: { id: string; texte: string; etat: string }[]; tickets: number[]; progres: Progress };
