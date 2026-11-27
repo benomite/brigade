@@ -16,7 +16,7 @@ export { DELAI_PERIME_MS, ZONE_RELEASED };
 type PRQuiTient = { number: number; auteur: string; miseAJour: string; enCook: boolean; auPass: boolean; surLaBase: NonNullable<PRDeLaPorte["surLaBase"]>; liberee?: boolean };
 export type Bloque = { ticket: number; pr: PRQuiTient };
 
-// Une branche d'un cook (`cook/<n>-…`) ou du second (`<type>/<n>-…`, commands/dev.md).
+// Une branche d'un cook (`cook/<n>-…`) ou du second (`<type>/<n>-…`).
 const BRANCHE_DE_LA_BRIGADE = /^[a-z]+\/\d+-/;
 
 // Le ticket et la PR périmée que la porte de prise ne compte plus sur sa zone : elle n'est ni cuite ni en pass.

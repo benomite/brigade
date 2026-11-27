@@ -1,4 +1,4 @@
-// Le badge « Cooked by Brigade » de la mise en place (#3255) : le vrai script de `/brigade:init` de l'app,
+// Le badge « Cooked by Brigade » de la mise en place (#3255) : le vrai script de la mise en place du dépôt, celui de l'app,
 // contre une origine nue et un `gh` doublure. Proposé une fois ; sa trace (`.claude/brigade/badge`) empêche
 // toute seconde offre, et un badge retiré à la main n'est jamais remis.
 import assert from "node:assert/strict";
@@ -10,7 +10,7 @@ import { BASE, depotGit, ENV_GIT, git, repertoireTemporaire } from "../outils.ts
 
 const RACINE = join(import.meta.dirname, "..", "..", "..");
 const PLUGIN_DE_L_APP = join(RACINE, "app", "src", "plugin");
-const SANS_BASH = process.platform === "win32" && "le script de /brigade:init et son `gh` doublure sont joués par bash";
+const SANS_BASH = process.platform === "win32" && "le script de la mise en place du dépôt et son `gh` doublure sont joués par bash";
 const README = "# Shop\n\nA small shop.\nno final newline";
 const SVG_VALIDE_FILL = /fill="(#[0-9a-f]{3,6}|url\(#\w+\)|none)"/;
 const URL_DU_SITE = /<link rel="canonical" href="([^"]+)">/.exec(readFileSync(join(RACINE, "site", "index.html"), "utf8"))?.[1] ?? "";

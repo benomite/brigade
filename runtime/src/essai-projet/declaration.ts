@@ -15,7 +15,7 @@
 //
 // Un dépôt qu'elle ne reconnaît pas, ou qu'elle ne lit pas, ne donne aucune
 // déclaration : rien n'est écrit, aucun ticket ne part. Deux lectures du même
-// dépôt : son dossier (`/brigade:init`, `declaration-cli.ts`) et sa branche
+// dépôt : son dossier (`declaration-cli.ts`) et sa branche
 // d'intégration dans le clone de la station (le ticket de la cuisine, `ticket.ts`).
 import { readFileSync, statSync, writeFileSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";

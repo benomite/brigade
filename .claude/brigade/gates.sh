@@ -119,7 +119,7 @@ ROLES = ["po", "manager", "dev", "designer"]
 NOT_PUBLISHED = {
     "commands/po.md", "commands/manager.md", "commands/dev.md", "commands/designer.md", "commands/sync.md", "commands/init.md",
     "agents/dev-teammate.md", "agents/dev-teammate-low.md", "agents/dev-teammate-medium.md",
-    "agents/cook.md", "agents/triage.md", "agents/manager.md", "agents/product.md", "agents/second-juge.md", "agents/closer.md",
+    "agents/cook.md", "agents/triage.md", "agents/manager.md", "agents/product.md", "agents/kitchen/second-judge.md", "agents/closer.md",
 }
 bad = []
 root = pathlib.Path(".")

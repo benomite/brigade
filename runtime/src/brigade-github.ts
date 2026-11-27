@@ -522,7 +522,7 @@ const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message :
 // Ce qui juge une livraison : une PR qui y touche ne se merge qu'approuvée
 // aussi par le second juge (#2555) — sa consigne comprise, et la fiche du
 // projet, qui nomme les gates (#4237).
-const JUGES = [".claude/brigade/", ".github/workflows/", "agents/second-juge.md", CHEMIN_DE_LA_FICHE];
+const JUGES = [".claude/brigade/", ".github/workflows/", "agents/kitchen/second-judge.md", CHEMIN_DE_LA_FICHE];
 
 // Le rang d'un ticket dans l'ordre de service : le plus petit `prio:N` qu'il porte.
 const rangDePriorite = (ticket: Pick<TicketLu, "labels">): number =>
@@ -2930,7 +2930,7 @@ export type OptionsDuDepot = {
   // Le plafond de calibrage du projet (`reagir.ts`) : une recalibration du
   // manager après le dernier essai ne le passe pas (#3513). Absent, le défaut.
   plafond?: () => Plafond;
-  // La consigne du second juge (#2555). Par défaut, \`agents/second-juge.md\`
+  // La consigne du second juge (#2555). Par défaut, \`agents/kitchen/second-judge.md\`
   // du plugin de ce runtime.
   consigneDuSecondJuge?: () => string;
   // Où s'écrit le flux de chaque lancement.

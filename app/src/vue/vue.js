@@ -1248,6 +1248,17 @@ function displace({ key, shiftKey, altKey = false, ctrlKey = false, metaKey = fa
   return `\x1b[${meaning}`;
 }
 
+/**
+ * Les lignes que la molette fait défiler : un trackpad les dit en pixels, une souris en lignes, ou en pages.
+ * @param {{ deltaY: number; deltaMode: number }} wheel
+ * @param {{ cellHeight: number; rows: number }} terminal
+ * @returns {number} positif vers le bas, comme `deltaY`
+ */
+function linesOfWheel({ deltaY, deltaMode }, { cellHeight, rows }) {
+  if (deltaMode === 2) return deltaY * rows;
+  return deltaMode === 1 ? deltaY : deltaY / cellHeight;
+}
+
 // Cet ordinateur, tel que le process principal le dit au démarrage : son nom à l'écran, et s'il est un Mac.
 let WORKSTATION = { nom: THIS_COMPUTER, mac: true };
 
@@ -1296,6 +1307,18 @@ function vue(id) {
       }
       if (key.key !== "Enter" || !key.shiftKey) return true;
       if (key.type === "keydown") brigade.ecrire(id, vue(id).terminal.genre === "second" ? "\x1b\r" : "\x16\n");
+      return false;
+    });
+    // La molette dans un shell persistant que tmux tient sur l'écran alterné : xterm n'y a aucun historique, elle
+    // remonte celui de la session (persistence.ts). Ailleurs — le second, un shell sous `screen`, qui écrit sur
+    // l'écran normal —, le défilement reste celui de xterm. Les fractions de ligne d'un trackpad s'additionnent.
+    let notches = 0;
+    xterm.attachCustomWheelEventHandler((wheel) => {
+      if (vue(id).terminal.scrollsSession !== true || xterm.buffer.active.type !== "alternate") return true;
+      notches -= linesOfWheel(wheel, { cellHeight: frame.clientHeight / xterm.rows || 16, rows: xterm.rows });
+      const lines = Math.trunc(notches);
+      notches -= lines;
+      if (lines !== 0) brigade.scroll(id, lines);
       return false;
     });
     xterm.onResize(({ cols, rows }) => brigade.redimensionner(id, cols, rows));

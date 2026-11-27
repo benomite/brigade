@@ -301,8 +301,8 @@ export type GitHub = {
   // Le propriétaire du dépôt : son login, et s'il est une organisation (#2928).
   proprietaire?(): Promise<{ login: string; organisation: boolean }>;
   // L'auteur de la PR mergée qui a posé `.claude/brigade/gates.sh` sur la
-  // branche par défaut — celle de `/brigade:init` ; null si aucune PR ne l'a
-  // posé (#2928).
+  // branche par défaut — celle de la mise en place du dépôt ; null si aucune
+  // PR ne l'a posé (#2928).
   auteurDeLInit?(): Promise<string | null>;
   // Le compte sous lequel ce GitHub agit, et s'il a l'écriture sur le dépôt :
   // sans elle, la station est contributrice (#2935). Facultatif, comme le
@@ -475,7 +475,7 @@ type PRBrute = {
   merge_commit_sha?: string | null;
 };
 
-// Ce que `/brigade:init` pose toujours dans le dépôt (commands/init.md) : la PR qui l'a posé est la sienne.
+// Ce que la mise en place du dépôt pose toujours, par le script de l'app : la PR qui l'a posé est la sienne.
 const GATES_DE_L_INIT = SCRIPT_GATES;
 
 type CheckRun = { name: string; status: string; conclusion: string | null; html_url: string | null; started_at?: string | null };

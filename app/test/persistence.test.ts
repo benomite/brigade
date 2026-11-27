@@ -6,9 +6,9 @@
 // Aucun test n'attend une durée : chacun attend ce que le terminal affiche.
 import assert from "node:assert/strict";
 import { execFileSync, spawn } from "node:child_process";
-import { chmodSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, statSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import {
   destruction,
@@ -21,6 +21,7 @@ import {
   WITHOUT_MULTIPLEXER,
   scriptOfDestruction,
   scriptOfAttachment,
+  scroll,
   type Target,
   type Command,
   type Session,
@@ -84,7 +85,7 @@ describe("la commande d'un shell persistant", () => {
 function plays(t: TestContext, fake: "tmux" | "screen" | "aucun"): { appels: string[]; sortie: string } {
   const root = mkdtempSync(join(tmpdir(), "brigade-app-persistance-"));
   t.after(() => rmSync(root, { recursive: true, force: true }));
-  symlinkSync(execFileSync("/bin/sh", ["-c", "command -v grep"], { encoding: "utf8" }).trim(), join(root, "grep"));
+  for (const tool of ["grep", "mkdir", "chmod"]) symlinkSync(execFileSync("/bin/sh", ["-c", `command -v ${tool}`], { encoding: "utf8" }).trim(), join(root, tool));
   if (fake !== "aucun") {
     // `has-session`, `screen -ls` : rien n'existe.
     writeFileSync(join(root, fake), `#!/bin/sh\nprintf '${fake} %s\\n' "$*" >> '${root}/appels'\n[ "$1" = -u ] && shift\ncase "$1" in has-session|-ls) exit 1;; esac\nexit 0\n`);
@@ -105,10 +106,10 @@ describe("la configuration appliquée à la session", () => {
     assert.deepEqual(calls, [
       "tmux -u has-session -t =brigade-essai-1",
       `tmux -u new-session -d -s brigade-essai-1 -c ${root}`,
-      "tmux -u set-option -t =brigade-essai-1 mouse off",
-      "tmux -u set-option -t =brigade-essai-1 prefix None",
-      "tmux -u set-option -t =brigade-essai-1 prefix2 None",
-      "tmux -u set-option -t =brigade-essai-1 status off",
+      "tmux -u set-option -t =brigade-essai-1: mouse off",
+      "tmux -u set-option -t =brigade-essai-1: prefix None",
+      "tmux -u set-option -t =brigade-essai-1: prefix2 None",
+      "tmux -u set-option -t =brigade-essai-1: status off",
       "tmux -u attach-session -t =brigade-essai-1",
     ]);
     assert.deepEqual(SETTINGS_TMUX, ["mouse off", "prefix None", "prefix2 None", "status off"]);
@@ -117,9 +118,15 @@ describe("la configuration appliquée à la session", () => {
 
   test("avec `screen`, quand `tmux` manque : aucun suivi de la souris, et Ctrl-A reste au shell", { skip: WITHOUT_POSIX }, (t) => {
     const { appels: calls } = plays(t, "screen");
+    // Le réglage est lu depuis un répertoire privé du chef (jamais un nom prévisible de /tmp), qui charge `~/.screenrc` d'abord.
+    const screenCreation = calls.find((call) => call.includes("-dmS")) ?? "";
+    const rc = screenCreation.match(/-c (\S+) -dmS/)?.[1] ?? "";
+    assert.match(rc, /\/\.brigade\/screen\/brigade-essai-1\.screenrc$/);
+    assert.equal(statSync(dirname(rc)).mode & 0o777, 0o700);
+    assert.equal(readFileSync(rc, "utf8"), "termcapinfo * ti@:te@\n");
     assert.deepEqual(calls, [
       "screen -ls",
-      "screen -U -dmS brigade-essai-1",
+      screenCreation,
       "screen -S brigade-essai-1 -X defmousetrack off",
       "screen -S brigade-essai-1 -X mousetrack off",
       "screen -S brigade-essai-1 -X escape ",
@@ -216,6 +223,34 @@ describe(`une session persistante sur ce poste${multiplexer === undefined ? "" :
     // La commande : `cat` est toujours là, il rend ce qui lui est tapé.
     second.ecrire("apres-retour\r");
     await until(() => (withoutEscapes(second.sortie()).match(/apres-retour/g) ?? []).length >= 2, () => second.sortie());
+  });
+
+  test("avec `screen`, le terminal reste sur son écran normal : une sortie plus longue qu'un écran défile dans son historique, que la molette remonte", { skip: multiplexer !== "screen" && "tmux tient la session" }, async (t) => {
+    const { ouvrir: open } = workstation(t);
+
+    const view = open();
+    view.ecrire("seq 1 100 | sed s/^/ligne-/; echo FIN-$((6*7))\r");
+    await until(() => withoutEscapes(view.sortie()).includes("FIN-42"), () => view.sortie());
+    // Écran alterné (`?1047`, `?1049`) : xterm.js n'aurait aucun historique à remonter.
+    assert.ok(!/\x1b\[\?(1047|1049|47)[hl]/.test(view.sortie()), JSON.stringify(view.sortie()));
+    // Ce qui a défilé hors de l'écran de 24 lignes est passé par le terminal : sa première ligne y est.
+    assert.ok(withoutEscapes(view.sortie()).includes("ligne-1\n"), view.sortie());
+  });
+
+  test("avec `tmux`, la molette remonte l'historique de la session jusqu'à la première ligne d'une sortie plus longue qu'un écran, et la frappe suivante va au shell", { skip: multiplexer !== "tmux" && "screen tient la session" }, async (t) => {
+    const { ouvrir: open, session, env } = workstation(t);
+
+    const view = open();
+    view.ecrire("seq 1 100 | sed s/^/ligne-/; echo FIN-$((6*7))\r");
+    await until(() => withoutEscapes(view.sortie()).includes("FIN-42"), () => view.sortie());
+    // La molette : tmux redessine l'écran depuis son historique, jusqu'à la première ligne.
+    const before = view.sortie().length;
+    await scroll(session, 200, { env });
+    await until(() => /ligne-1(?!\d)/.test(withoutEscapes(view.sortie().slice(before))), () => view.sortie().slice(before));
+    // Avant une frappe, l'app en sort : ce qui est tapé va au shell, pas au mode de copie.
+    await scroll(session, 0, { env });
+    view.ecrire("echo APRES-$((6*7))\r");
+    await until(() => withoutEscapes(view.sortie()).includes("APRES-42"), () => view.sortie());
   });
 
   test("détruite, la session n'est plus : le rattachement suivant en crée une neuve, vide", async (t) => {
