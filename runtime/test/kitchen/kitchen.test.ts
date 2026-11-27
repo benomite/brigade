@@ -517,6 +517,22 @@ test("a child PR touching a risk path is merged without the chef: its risk zones
   assert.equal(ticket.labels.includes("parked:chef"), false);
 });
 
+test("an in-pass epic whose PR conflicts with main gets one child, and nothing else while it is open (#4701)", async () => {
+  const { root, clone, agent } = origin();
+  const fake = fakeGh();
+  const epic = fake.add("Big thing", ["epic", "in-pass", "prio:1"]);
+  fake.options.epicBranches.push(epic);
+  fake.prs.push({ number: 50, head: `epic/${epic}`, checks: "SUCCESS", merged: false, base: "main", conflicting: true });
+  const env = { ...process.env, GIT_AUTHOR_NAME: "k", GIT_AUTHOR_EMAIL: "k@k", GIT_COMMITTER_NAME: "k", GIT_COMMITTER_EMAIL: "k@k" };
+  const lines: string[] = [];
+  const kitchen = openKitchen({ repo: "o/r", base: "main", clone, worktrees: join(root, "wt"), state: join(root, "state"), gh: fake.gh, git: gitCli(env), launch: (_kind: Kind, cwd, _write, _calibration, input) => ({ command: agent, args: [], input, cwd, env, secrets: {} }), places: () => 0, riskPaths: () => [], supervisorEveryMs: Number.MAX_SAFE_INTEGER, log: (line) => lines.push(line) });
+  await kitchen.turn();
+  await kitchen.turn();
+  const children = [...fake.issues.values()].filter((one) => one.number !== epic);
+  assert.equal(children.length, 1, lines.join("\n"));
+  assert.match(children[0]?.body ?? "", new RegExp(`^Epic: #${epic}\\n\\n.*conflicts with main`));
+});
+
 test("the kitchen stays under 1,000 lines", () => {
   const dir = join(import.meta.dirname, "../../src/kitchen");
   const lines = readdirSync(dir).reduce((sum, file) => sum + readFileSync(join(dir, file), "utf8").split("\n").length - 1, 0);

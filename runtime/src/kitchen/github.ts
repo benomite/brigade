@@ -18,7 +18,6 @@ const TRUSTED = new Set(["OWNER", "MEMBER", "COLLABORATOR"]);
 export const ACCEPTED = "accepted";
 export const branchOf = (issue: number) => `cook/${issue}-github`;
 export const issueOfBranch = (branch: string) => /^cook\/(\d+)-github$/.exec(branch)?.[1] ?? /^epic\/(\d+)$/.exec(branch)?.[1];
-
 // The tickets this one waits for: every #N after "depends on", "blocked by" or "after" on a line of its body,
 // plus GitHub's own "blocked by" links. A ticket that waits is not a question for the chef: it waits on its own.
 export const dependsOn = (body: string): number[] =>
@@ -40,7 +39,6 @@ const QUERY = `query($owner: String!, $name: String!, $cursor: String) {
     }
   }
 }`;
-
 type Context = { __typename: string; name?: string; conclusion?: string | null; status?: string; context?: string; state?: string };
 type Suite = { status: string; app: { slug: string } | null };
 type RawPr = { number: number; headRefName: string; mergeable: string; commits: { nodes: Array<{ commit: { checkSuites?: { nodes: Suite[] }; statusCheckRollup: { state: string; contexts: { nodes: Context[] } } | null } }> } };
@@ -158,6 +156,8 @@ export function gestures(gh: Gh, repo: string) {
       const now = await gh(["pr", "view", branchOf(issue), ...r, "--json", "body"]).then((out) => (JSON.parse(out) as { body: string }).body, () => null);
       return now?.includes(text) === true ? "" : "the description of the pull request does not contain the report after `gh pr edit`";
     },
+    // The PR of a finished epic, from its branch to the base (#4701).
+    openEpicPr: (epic: number, base: string, title: string, body: string) => gh(["pr", "create", ...r, "--head", `epic/${epic}`, "--base", base, "--title", `#${epic} — ${title}`, "--body-file", "-"], body),
     prFiles: async (pr: number): Promise<string[]> => (JSON.parse(await gh(["pr", "view", String(pr), ...r, "--json", "files"])).files as Array<{ path: string }>).map((file) => file.path),
     prBody: async (pr: number): Promise<string> => (JSON.parse(await gh(["pr", "view", String(pr), ...r, "--json", "body"])) as { body: string }).body,
     // The last lines of each failing Actions job's failed steps: the cook has no token to read them.

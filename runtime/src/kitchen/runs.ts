@@ -11,12 +11,9 @@ export type Kind = "cook" | "pass" | "manager" | "supervisor";
 export type RunMeta = { kind: Kind; issue: number | null; pr: number | null; started: number; worktree: string | null; given?: number[] };
 export type Run = RunMeta & { name: string; dir: string };
 export type Finished = Run & { end: FinDuRelais; result: string };
-
 const RELAY = join(import.meta.dirname, "..", "relais.ts");
 export const runName = (kind: Kind, issue: number | null) => (issue === null ? kind : `${kind}-${issue}`);
-
 const files = (dir: string) => ({ meta: join(dir, "meta.json"), relay: join(dir, "relay.json"), stream: join(dir, "stream.jsonl"), pid: join(dir, "agent.pid"), end: join(dir, "end.json") });
-
 const readJson = <T>(file: string): T | null => {
   try {
     return JSON.parse(readFileSync(file, "utf8")) as T;

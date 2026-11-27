@@ -14,7 +14,6 @@ import { gitCli, openKitchen } from "./kitchen.ts";
 import { projectsFile, readProjects, type KitchenProject } from "./projects.ts";
 
 masquerLaConsole();
-
 const root = process.env.BRIGADE_STATION_DIR;
 if (!root) {
   console.error("kitchen: BRIGADE_STATION_DIR is not set");
@@ -24,7 +23,6 @@ const TURN_MS = Number(process.env.BRIGADE_KITCHEN_TURN_SECONDS || 60) * 1000;
 const claudeBin = process.env.BRIGADE_CLAUDE_BIN || "claude";
 
 const log = (project: string) => (line: string) => console.log(`${new Date().toISOString()} ${project}: ${line}`);
-
 // The project's kitchen, or why it launches no agent.
 function kitchenOf(project: KitchenProject) {
   const state = join(root as string, "kitchen", project.name);

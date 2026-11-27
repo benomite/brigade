@@ -83,6 +83,13 @@ the kitchen closes it with `Merged into epic/<n>: ships with #<n>.` (GitHub's `C
 branch). A child's risk zones are not checked at its merge: they are judged at the epic's pull request. A child of an
 epic with no branch (split before epic branches) and a lone ticket keep the base and its risk zones (#4699).
 
+An epic with a branch, no open child, no open pull request from `epic/<n>` and a branch ahead of `main` gets `origin/main`
+merged into it in a worktree; clean, the kitchen pushes it, opens the PR (`--head epic/<n>`, title `#<n> — <epic title>`,
+body `Closes #<n>`, the epic's "Done when", the list of its children) and labels the epic `in-pass`; a conflict opens one
+child, `Epic #<n>: merge main into epic/<n>` (`fire`, the epic's priority). An `in-pass` epic whose PR is red or conflicting
+gets one such child too, and nothing else happens on that epic while a child is open: never a loop. `closeFinishedEpics`
+closes only the epics with no branch (#4701).
+
 ## Where it runs
 
 | Station | What starts the kitchen |

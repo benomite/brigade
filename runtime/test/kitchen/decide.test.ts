@@ -85,3 +85,12 @@ test("with nothing to calibrate and a short rail, the manager is called on the t
   assert.deepEqual(decide([issue(7, ["epic"], { split: true })], [], context()), []);
   assert.deepEqual(decide([issue(9, ["epic", "parked:chef"])], [], context()), []);
 });
+
+test("an in-pass epic whose PR is red or conflicting gets one child; with a child open, or a sound PR, nothing (#4701)", () => {
+  const epic = issue(7, ["epic", "in-pass"], { split: true });
+  const child = issue(8, ["fire"], { epic: 7 });
+  assert.deepEqual(decide([epic], [pr(7, { checks: "failure", failing: ["tests"] })], context()), [{ kind: "epic-child", epic: 7, reason: "the CI is red: tests" }]);
+  assert.deepEqual(decide([epic], [pr(7, { conflicting: true })], context()), [{ kind: "epic-child", epic: 7, reason: "its branch conflicts with main" }]);
+  assert.deepEqual(decide([epic, child], [pr(7, { checks: "failure", failing: ["tests"] })], context()), [{ kind: "take", issue: 8 }]);
+  assert.deepEqual(decide([epic], [pr(7)], context()), []);
+});
