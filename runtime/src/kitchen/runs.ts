@@ -29,8 +29,8 @@ function alive(dir: string, name: string): boolean {
   try {
     const { pid } = JSON.parse(readFileSync(files(dir).relay, "utf8")) as { pid: number };
     process.kill(pid, 0);
-    // A recycled pid must still be this relay.
-    try { return readFileSync(`/proc/${pid}/cmdline`, "utf8").split("\0").includes(name); } catch { return true; }
+    // A recycled pid must still be this relay; one still showing the kitchen's own cmdline is a relay not yet exec'd.
+    try { const cmd = readFileSync(`/proc/${pid}/cmdline`, "utf8"); return cmd.split("\0").includes(name) || cmd === readFileSync("/proc/self/cmdline", "utf8"); } catch { return true; }
   } catch {
     return false;
   }
