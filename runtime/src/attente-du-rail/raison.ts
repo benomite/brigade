@@ -136,7 +136,7 @@ export function lignesDesCartes(tickets: readonly TicketDuRail[], waiting: reado
 }
 
 // Les tickets qu'attend chaque carte dont la ligne dit une attente, par ticket (#3763) : ceux de ses attentes, jamais un
-// numéro relu de la phrase du corps qu'elle cite. La carte de l'app en tire ses liens (app/src/ligne-carte.ts).
+// numéro relu de la phrase du corps qu'elle cite. La carte de l'app en tire ses liens (app/src/line-card.ts).
 export function attendusDesCartes(tickets: readonly TicketDuRail[], waiting: readonly TicketEnWaiting[] = []): Record<number, number[]> {
   const attendus: Record<number, number[]> = {};
   for (const carte of tickets) {

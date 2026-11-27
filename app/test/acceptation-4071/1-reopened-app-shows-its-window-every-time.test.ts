@@ -5,13 +5,13 @@ import { existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from 
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { jusqua, repertoireTemporaire } from "../../../runtime/test/outils.ts";
-import { PRINCIPAL } from "../../src/poste/role.ts";
-import { tenantDeLaStation } from "../../src/poste/station.ts";
-import { lancerLeFond, lireEtatDuFond } from "../../src/station-fond/fond.ts";
-import { CACHE_DE_COMPILATION } from "../aides/cache-de-compilation.ts";
+import { PRINCIPAL } from "../../src/workstation/role.ts";
+import { holdingOfTheStation } from "../../src/workstation/station.ts";
+import { launchTheBackground, readStateOfBackground } from "../../src/station-background/background.ts";
+import { CACHE_OF_COMPILATION } from "../helpers/cache-of-compilation.ts";
 
 const APP = join(import.meta.dirname, "..", "..");
-const SOUS_POSIX: string | false = process.platform === "win32" ? "the fake host is stopped by a signal, which Windows does not send like a POSIX system" : false;
+const UNDER_POSIX: string | false = process.platform === "win32" ? "the fake host is stopped by a signal, which Windows does not send like a POSIX system" : false;
 
 // La station d'essai : un cook qui écrit dans son worktree tant qu'il vit ; un SIGTERM — l'arrêt de la station — laisse sa marque.
 const STATION = `import { spawn } from "node:child_process";
@@ -29,7 +29,7 @@ process.on("SIGTERM", () => { writeFileSync(join(dossier, "station-arretee"), "x
 // Electron, doublé : aucun Electron lancé. Chaque chose que l'app en fait est dite sur la sortie standard. Le verrou d'instance
 // unique est refusé quand FAKE_VERROU_REFUSE est posé — ce que le Mac rend à l'app rouverte tant que le processus de l'icône,
 // du même paquet, tourne. Une fenêtre dont le chargement échoue, quand FAKE_CHARGEMENT_ECHOUE est posé.
-const FAUX_ELECTRON = `import { EventEmitter } from "node:events";
+const FAKE_ELECTRON = `import { EventEmitter } from "node:events";
 const dit = (e) => process.stdout.write("@@" + JSON.stringify({ ...e, t: Date.now() }) + "\\n");
 const souple = (nom) => new Proxy(function () {}, { get: (_, p) => (p === "then" ? undefined : p === Symbol.toPrimitive ? () => nom : souple(nom + "." + String(p))), apply: () => souple(nom + "()"), construct: () => souple("new " + nom) });
 class App extends EventEmitter {
@@ -82,13 +82,13 @@ export const shell = souple("shell");
 export const Tray = souple("Tray");
 export default { app };
 `;
-const CROCHET = `import { register } from "node:module";
+const HOOK = `import { register } from "node:module";
 import { pathToFileURL } from "node:url";
 register("data:text/javascript," + encodeURIComponent('export async function resolve(s, c, n) { if (s === "electron") return { url: ' + JSON.stringify(pathToFileURL(process.env.FAKE_ELECTRON).href) + ', shortCircuit: true }; return n(s, c); }'));
 Object.defineProperty(process, "resourcesPath", { value: process.env.FAKE_RESOURCES });
 `;
 
-const vivant = (pid: number) => {
+const alive = (pid: number) => {
   try {
     process.kill(pid, 0);
     return true;
@@ -97,115 +97,115 @@ const vivant = (pid: number) => {
   }
 };
 
-type Evenement = { evenement: string; t: number; [cle: string]: unknown };
+type Event = { evenement: string; t: number; [key: string]: unknown };
 
 // Un Mac où l'icône de fond (`--tray-fond`, du même paquet que l'app) tourne, et — avec `station` — la station de fond, son
 // hôte réel et son cook. `ouvrirLApp` y ouvre l'app installée, point d'entrée réel sous l'Electron doublé.
-async function unMac(t: TestContext, options: { station?: boolean } = {}) {
+async function oneMac(t: TestContext, options: { station?: boolean } = {}) {
   const machine = repertoireTemporaire(t);
-  const ressources = join(machine, "Brigade.app", "Contents", "Resources");
-  mkdirSync(join(ressources, "runtime", "src", "station"), { recursive: true });
-  writeFileSync(join(ressources, "runtime", "package.json"), `${JSON.stringify({ name: "brigade-runtime", version: "1.0.0" })}\n`);
-  writeFileSync(join(ressources, "runtime", PRINCIPAL), STATION);
-  symlinkSync(APP, join(ressources, "app"));
+  const resources = join(machine, "Brigade.app", "Contents", "Resources");
+  mkdirSync(join(resources, "runtime", "src", "station"), { recursive: true });
+  writeFileSync(join(resources, "runtime", "package.json"), `${JSON.stringify({ name: "brigade-runtime", version: "1.0.0" })}\n`);
+  writeFileSync(join(resources, "runtime", PRINCIPAL), STATION);
+  symlinkSync(APP, join(resources, "app"));
   mkdirSync(join(machine, "modules", "node-pty"), { recursive: true });
   writeFileSync(join(machine, "modules", "node-pty", "package.json"), `${JSON.stringify({ name: "node-pty", version: "0.0.0" })}\n`);
-  for (const dossier of ["maison", "donnees"]) mkdirSync(join(machine, dossier));
-  writeFileSync(join(machine, "crochet.mjs"), CROCHET);
-  writeFileSync(join(machine, "faux-electron.mjs"), FAUX_ELECTRON);
-  const racine = join(machine, "station");
-  const embarque = join(ressources, "runtime", PRINCIPAL);
+  for (const folder of ["maison", "donnees"]) mkdirSync(join(machine, folder));
+  writeFileSync(join(machine, "crochet.mjs"), HOOK);
+  writeFileSync(join(machine, "faux-electron.mjs"), FAKE_ELECTRON);
+  const root = join(machine, "station");
+  const embedded = join(resources, "runtime", PRINCIPAL);
 
-  const icone = spawn(process.execPath, ["-e", "setInterval(() => {}, 60_000)", "--", "--tray-fond"], { stdio: "ignore" });
-  const ouverts: ChildProcess[] = [];
+  const icon = spawn(process.execPath, ["-e", "setInterval(() => {}, 60_000)", "--", "--tray-fond"], { stdio: "ignore" });
+  const openOnes: ChildProcess[] = [];
   const station = { hote: 0, cook: 0 };
   t.after(async () => {
-    for (const app of ouverts) app.kill("SIGKILL");
-    icone.kill("SIGKILL");
-    if (station.hote > 0 && vivant(station.hote)) process.kill(station.hote, "SIGTERM");
-    await jusqua(() => station.hote === 0 || !vivant(station.hote), 2_000);
-    if (station.cook > 0 && vivant(station.cook)) process.kill(station.cook, "SIGKILL");
+    for (const app of openOnes) app.kill("SIGKILL");
+    icon.kill("SIGKILL");
+    if (station.hote > 0 && alive(station.hote)) process.kill(station.hote, "SIGTERM");
+    await jusqua(() => station.hote === 0 || !alive(station.hote), 2_000);
+    if (station.cook > 0 && alive(station.cook)) process.kill(station.cook, "SIGKILL");
   });
   if (options.station) {
-    lancerLeFond({ node: process.execPath, embarque, racine, env: { ...process.env } });
-    await jusqua(() => tenantDeLaStation(racine) !== undefined && existsSync(join(racine, "worktree", "travail.txt")) && lireEtatDuFond(racine) !== null, 5_000);
-    station.hote = tenantDeLaStation(racine) ?? assert.fail("the station host did not start");
-    station.cook = Number(readFileSync(join(racine, "cook.pid"), "utf8"));
-    assert.ok(vivant(station.hote) && vivant(station.cook), "the station host and its cook run before the app opens");
+    launchTheBackground({ node: process.execPath, embarque: embedded, racine: root, env: { ...process.env } });
+    await jusqua(() => holdingOfTheStation(root) !== undefined && existsSync(join(root, "worktree", "travail.txt")) && readStateOfBackground(root) !== null, 5_000);
+    station.hote = holdingOfTheStation(root) ?? assert.fail("the station host did not start");
+    station.cook = Number(readFileSync(join(root, "cook.pid"), "utf8"));
+    assert.ok(alive(station.hote) && alive(station.cook), "the station host and its cook run before the app opens");
   }
 
   // L'app ouverte : ce qu'elle fait dans les secondes qui comptent. `pidLaisse` : le pid que le fichier `app.pid` de l'app
   // quittée porte encore — celui d'un process vivant, qui n'est plus l'app (le pid a été rendu à un autre).
-  async function ouvrirLApp(env: Record<string, string> = {}, pidLaisse?: number) {
-    if (pidLaisse !== undefined) writeFileSync(join(machine, "donnees", "app.pid"), String(pidLaisse));
-    const evenements: Evenement[] = [];
-    let sortie = "";
-    let erreurs = "";
-    const app = spawn(process.execPath, ["--import", join(machine, "crochet.mjs"), join(APP, "src", "tray-fond", "entree.ts")], {
+  async function openTheApp(env: Record<string, string> = {}, pidLeaves?: number) {
+    if (pidLeaves !== undefined) writeFileSync(join(machine, "donnees", "app.pid"), String(pidLeaves));
+    const events: Event[] = [];
+    let output = "";
+    let errors = "";
+    const app = spawn(process.execPath, ["--import", join(machine, "crochet.mjs"), join(APP, "src", "tray-background", "entry.ts")], {
       cwd: APP,
       stdio: ["ignore", "pipe", "pipe"],
       env: {
         ...process.env,
-        ...CACHE_DE_COMPILATION,
+        ...CACHE_OF_COMPILATION,
         NODE_PATH: join(machine, "modules"),
         HOME: join(machine, "maison"),
         FAKE_ELECTRON: join(machine, "faux-electron.mjs"),
-        FAKE_RESOURCES: ressources,
+        FAKE_RESOURCES: resources,
         FAKE_USER_DATA: join(machine, "donnees"),
-        BRIGADE_STATION_DIR: racine,
+        BRIGADE_STATION_DIR: root,
         BRIGADE_APP_CONFIG: join(machine, "app.json"),
         BRIGADE_NODE_BIN: process.execPath,
         ...env,
       },
     });
-    ouverts.push(app);
-    let fini = false;
-    app.once("close", () => (fini = true));
-    app.stdout.on("data", (morceau: Buffer) => {
-      sortie += morceau.toString();
-      const lignes = sortie.split("\n");
-      sortie = lignes.pop() ?? "";
-      for (const ligne of lignes) if (ligne.startsWith("@@")) evenements.push(JSON.parse(ligne.slice(2)) as Evenement);
+    openOnes.push(app);
+    let finished = false;
+    app.once("close", () => (finished = true));
+    app.stdout.on("data", (piece: Buffer) => {
+      output += piece.toString();
+      const lines = output.split("\n");
+      output = lines.pop() ?? "";
+      for (const line of lines) if (line.startsWith("@@")) events.push(JSON.parse(line.slice(2)) as Event);
     });
-    app.stderr.on("data", (morceau: Buffer) => (erreurs += morceau.toString()));
-    const montree = () => {
-      const creee = evenements.find((e) => e.evenement === "fenetre-creee");
-      return creee !== undefined && (creee.visible === true || evenements.some((e) => e.evenement === "fenetre-montree"));
+    app.stderr.on("data", (piece: Buffer) => (errors += piece.toString()));
+    const shownOne = () => {
+      const created = events.find((e) => e.evenement === "fenetre-creee");
+      return created !== undefined && (created.visible === true || events.some((e) => e.evenement === "fenetre-montree"));
     };
-    await jusqua(() => montree() || fini, 10_000);
+    await jusqua(() => shownOne() || finished, 10_000);
     return {
-      evenements,
-      montree: montree(),
-      erreurs: () => erreurs,
+      evenements: events,
+      montree: shownOne(),
+      erreurs: () => errors,
       // L'app quittée : elle part sans rien nettoyer de plus que ce qu'elle nettoie d'elle-même.
       quitter: async () => {
         app.kill("SIGKILL");
-        await jusqua(() => fini, 5_000);
+        await jusqua(() => finished, 5_000);
       },
     };
   }
 
-  return { racine, hote: station.hote, cook: station.cook, icone: icone.pid ?? 0, ouvrirLApp };
+  return { racine: root, hote: station.hote, cook: station.cook, icone: icon.pid ?? 0, ouvrirLApp: openTheApp };
 }
 
-function stationIntacte(ordi: Awaited<ReturnType<typeof unMac>>) {
-  assert.equal(tenantDeLaStation(ordi.racine), ordi.hote, "the station host is the same process");
-  assert.ok(vivant(ordi.hote), "the station host still runs");
+function stationIntacte(ordi: Awaited<ReturnType<typeof oneMac>>) {
+  assert.equal(holdingOfTheStation(ordi.racine), ordi.hote, "the station host is the same process");
+  assert.ok(alive(ordi.hote), "the station host still runs");
   assert.equal(existsSync(join(ordi.racine, "station-arretee")), false, "the station was never stopped");
   assert.equal(Number(readFileSync(join(ordi.racine, "cook.pid"), "utf8")), ordi.cook, "no cook was re-created");
-  assert.ok(vivant(ordi.cook), "the cook still runs");
+  assert.ok(alive(ordi.cook), "the cook still runs");
   assert.equal(readFileSync(join(ordi.racine, "worktree", "travail.txt"), "utf8"), "travail non commité");
-  assert.notEqual(lireEtatDuFond(ordi.racine)?.etat, "arretee");
+  assert.notEqual(readStateOfBackground(ordi.racine)?.etat, "arretee");
 }
 
-test("the app quit and opened again shows its window every time, while the icon process of the same bundle keeps running", { skip: SOUS_POSIX }, async (t) => {
-  const ordi = await unMac(t);
-  for (let fois = 1; fois <= 3; fois++) {
+test("the app quit and opened again shows its window every time, while the icon process of the same bundle keeps running", { skip: UNDER_POSIX }, async (t) => {
+  const ordi = await oneMac(t);
+  for (let times = 1; times <= 3; times++) {
     // Le Mac refuse le verrou d'instance (l'icône, du même paquet, tourne) et `app.pid` porte un pid vivant : ce n'est plus l'app.
     const app = await ordi.ouvrirLApp({ FAKE_VERROU_REFUSE: "1" }, ordi.icone);
-    assert.equal(app.montree, true, `reopen n°${fois}: no window — events: ${JSON.stringify(app.evenements.map((e) => e.evenement))} ${app.erreurs()}`);
-    assert.equal(app.evenements.some((e) => e.evenement === "exit"), false, `reopen n°${fois}: the app left without a window`);
-    assert.ok(vivant(ordi.icone), "the icon process still runs");
+    assert.equal(app.montree, true, `reopen n°${times}: no window — events: ${JSON.stringify(app.evenements.map((e) => e.evenement))} ${app.erreurs()}`);
+    assert.equal(app.evenements.some((e) => e.evenement === "exit"), false, `reopen n°${times}: the app left without a window`);
+    assert.ok(alive(ordi.icone), "the icon process still runs");
     await app.quitter();
   }
 });

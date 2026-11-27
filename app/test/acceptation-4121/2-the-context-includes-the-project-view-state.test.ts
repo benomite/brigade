@@ -1,7 +1,7 @@
 // Test d'acceptation gelé (#4121). Critère 2 : le contexte du second porte l'état de la vue du projet (bandeaux, cartes du rail, état affiché).
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { contexteDuBlocage } from "../../src/second/contexte-du-blocage.ts";
+import { contextOfBlockage } from "../../src/second/context-of-blockage.ts";
 
 const QUESTION = "pourquoi on est bloqués ?";
 const VUE = {
@@ -22,10 +22,10 @@ const VUE = {
 };
 
 test("the context shows both banners and card #221 with its displayed state", () => {
-  const contexte = contexteDuBlocage(QUESTION, VUE);
-  assert.match(contexte, /STOPPED/);
-  assert.match(contexte, /FAULT #221/);
-  assert.match(contexte, /#221/);
-  assert.match(contexte, /Espace: sync the board/);
-  assert.match(contexte, /queued - ready, waits for a place in the kitchen/);
+  const context = contextOfBlockage(QUESTION, VUE);
+  assert.match(context, /STOPPED/);
+  assert.match(context, /FAULT #221/);
+  assert.match(context, /#221/);
+  assert.match(context, /Espace: sync the board/);
+  assert.match(context, /queued - ready, waits for a place in the kitchen/);
 });

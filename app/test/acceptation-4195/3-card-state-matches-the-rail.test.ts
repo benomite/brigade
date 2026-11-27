@@ -4,13 +4,13 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import type { Tableau } from "../../src/faits.ts";
-import type { VueDuProjet } from "../../src/second/contexte-du-blocage.ts";
-import { deposerLaVue } from "../../src/second/vue-du-projet.ts";
+import type { Board } from "../../src/facts.ts";
+import type { VueOfProject } from "../../src/second/context-of-blockage.ts";
+import { dropTheVue } from "../../src/second/vue-of-project.ts";
 
 const base = { attendu: false, attend: [], fiche: {}, ouvrable: true, dit: [] };
 // Main est verte : ni `baseRouge`, ni alerte de base ; #4047 est en WAITING, la station a arrêté sa boucle de relances.
-const tableau = {
+const board = {
   alertesDuRail: [
     { sorte: "relance-en-boucle", phrase: "#4047 was relaunched 5 times in 20 min.", fait: { depuis: "2026-11-24T22:00:00Z", ticket: 4047 }, geste: null, geree: "The station stopped the loop and set the card aside.", cause: undefined },
   ],
@@ -21,17 +21,17 @@ const tableau = {
     ],
     hors: [],
   },
-} as unknown as Tableau;
+} as unknown as Board;
 
 test("main verte : aucune carte ne dit « base rouge » ; boucle déjà arrêtée par la station : aucun bandeau FAULT #4047", () => {
-  const vues = mkdtempSync(join(tmpdir(), "vue-4195-"));
+  const views = mkdtempSync(join(tmpdir(), "vue-4195-"));
   try {
-    deposerLaVue("espace", tableau, vues);
-    const vue = JSON.parse(readFileSync(join(vues, "espace.json"), "utf8")) as VueDuProjet;
-    const dit = JSON.stringify(vue.rail);
-    assert.doesNotMatch(dit, /base rouge|waits for main to be green/i);
+    dropTheVue("espace", board, views);
+    const vue = JSON.parse(readFileSync(join(views, "espace.json"), "utf8")) as VueOfProject;
+    const said = JSON.stringify(vue.rail);
+    assert.doesNotMatch(said, /base rouge|waits for main to be green/i);
     assert.ok(!vue.banners.some((b) => b.label === "FAULT #4047"), "the stopped loop must not be a FAULT banner");
   } finally {
-    rmSync(vues, { recursive: true, force: true });
+    rmSync(views, { recursive: true, force: true });
   }
 });

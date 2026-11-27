@@ -1,7 +1,7 @@
 // Les réglages de « parade », le plafond `sonnet / high` proposé (#1309) : choisir `sonnet` dans sa liste le propose
 // aussitôt, sans bouton (#2920). La PR est ouverte sur son dépôt, dite sous la rangée avec de quoi l'ouvrir ; la valeur
 // en vigueur ne change pas — elle vaut une fois la PR mergée.
-import { PROPOSE } from "../../../app/src/reglages-du-projet.ts";
+import { PROPOSES } from "../../../app/src/settings-of-project.ts";
 import { configuration, cuisine, demarrage, type Ecran, MAINTENANT } from "./commun.ts";
 import { PROJETS, RENDUS } from "./cuisine-figee.ts";
 import { LUS, OUVRIR, PLAFOND } from "./reglages-du-projet.ts";
@@ -13,7 +13,7 @@ export const ecran: Ecran = {
   etapes: [...OUVRIR, { saisir: `${PLAFOND} select[aria-label$="model"]`, texte: "sonnet" }],
   donnees: () => ({
     maintenant: MAINTENANT,
-    reponses: { demarrage: demarrage(configuration(PROJETS)), espace: [], reglagesDuProjet: LUS, proposerUnReglage: { propose: PROPOSE, pr: "https://github.com/benomite/parade/pull/51", numero: 51 } },
+    reponses: { demarrage: demarrage(configuration(PROJETS)), espace: [], reglagesDuProjet: LUS, proposerUnReglage: { propose: PROPOSES, pr: "https://github.com/benomite/parade/pull/51", numero: 51 } },
     envois: cuisine(RENDUS),
   }),
 };

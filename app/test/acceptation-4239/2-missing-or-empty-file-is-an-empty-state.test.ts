@@ -2,22 +2,22 @@
 // `lireLeSavoir` (see test 1) does not throw on a missing or empty file: it answers `vide: true` with no entry.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { lireLeSavoir } from "../../src/vue/know-how/know-how-github.ts";
-import type { ClientDeLaPriorite } from "../../src/priorite.ts";
+import { readTheSavoir } from "../../src/vue/know-how/know-how-github.ts";
+import type { ClientOfThePriority } from "../../src/priority.ts";
 
-const clientDe = (reponse: { status: number; data: unknown }): ClientDeLaPriorite => ({ lire: async () => reponse, ecrire: async () => ({ status: 500, data: {} }) });
-const fichier = (texte: string) => ({ status: 200, data: { type: "file", content: Buffer.from(texte).toString("base64"), sha: "s1" } });
+const clientOf = (answer: { status: number; data: unknown }): ClientOfThePriority => ({ lire: async () => answer, ecrire: async () => ({ status: 500, data: {} }) });
+const file = (text: string) => ({ status: 200, data: { type: "file", content: Buffer.from(text).toString("base64"), sha: "s1" } });
 
 test("a missing file (404) is an empty state, not an error", async () => {
-  const lu = await lireLeSavoir(clientDe({ status: 404, data: { message: "Not Found" } }), "chef/parade", "main");
-  assert.equal(lu.vide, true);
-  assert.deepEqual(lu.entries, []);
+  const readOne = await readTheSavoir(clientOf({ status: 404, data: { message: "Not Found" } }), "chef/parade", "main");
+  assert.equal(readOne.vide, true);
+  assert.deepEqual(readOne.entries, []);
 });
 
 test("an empty file, or one with section headings only, is an empty state", async () => {
-  for (const texte of ["", "## Conventions\n\n## Pitfalls\n\n## Tools\n"]) {
-    const lu = await lireLeSavoir(clientDe(fichier(texte)), "chef/parade", "main");
-    assert.equal(lu.vide, true);
-    assert.deepEqual(lu.entries, []);
+  for (const text of ["", "## Conventions\n\n## Pitfalls\n\n## Tools\n"]) {
+    const readOne = await readTheSavoir(clientOf(file(text)), "chef/parade", "main");
+    assert.equal(readOne.vide, true);
+    assert.deepEqual(readOne.entries, []);
   }
 });

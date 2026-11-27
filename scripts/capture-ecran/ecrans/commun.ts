@@ -2,23 +2,23 @@
 // rend, et une cuisine figée — ce que des box rendraient, passé par les modules du process
 // principal tels qu'ils sont (faits.ts, attend.ts, alertes.ts). Un écran n'écrit donc que ce
 // qu'une box dit, mot pour mot ; ce que la vue en reçoit est calculé par le code de l'app.
-import { tenirBandes } from "../../../app/src/alertes.ts";
-import { ALLUMAGE } from "../../../app/src/allumage.ts";
-import { mettreAPart } from "../../../app/src/attend.ts";
-import { pourLaBarre } from "../../../app/src/barre.ts";
-import type { Cuisine, Lecture } from "../../../app/src/box.ts";
-import { type Configuration, EXEMPLE, type Projet } from "../../../app/src/config.ts";
-import { PALETTE } from "../../../app/src/couleurs.ts";
-import { GESTES_DE_LA_CUISINE } from "../../../app/src/cuisine.ts";
-import { GESTES_D_ATTENTE } from "../../../app/src/attente.ts";
-import { BANNIERE, type Carte, type Faits, tenirFaits } from "../../../app/src/faits.ts";
-import { CONFIRMES, DIRECTS } from "../../../app/src/gestes.ts";
-import type { PrioriteMontree } from "../../../app/src/priorite.ts";
-import { EFFORTS, MODELES } from "../../../app/src/projets/projets.ts";
-import { ONGLETS, RUBRIQUES } from "../../../app/src/onglets.ts";
-import type { Vu as VuDuCode } from "../../../app/src/retard.ts";
-import type { VuDesProjets } from "../../../app/src/projets/projets.ts";
-import type { VuDesStations } from "../../../app/src/stations/stations.ts";
+import { holdBands } from "../../../app/src/alerts.ts";
+import { POWER_UP } from "../../../app/src/power-up.ts";
+import { putAPart } from "../../../app/src/awaiting.ts";
+import { forTheBar } from "../../../app/src/bar.ts";
+import type { Kitchen, Reading } from "../../../app/src/box.ts";
+import { type Configuration, EXAMPLE, type Project } from "../../../app/src/config.ts";
+import { PALETTE } from "../../../app/src/colors.ts";
+import { KITCHEN_ACTIONS } from "../../../app/src/kitchen.ts";
+import { ACTIONS_OF_WAIT } from "../../../app/src/wait.ts";
+import { BANNER, type Card, type Facts, holdFacts } from "../../../app/src/facts.ts";
+import { CONFIRMED, DIRECT } from "../../../app/src/actions.ts";
+import type { PriorityShown } from "../../../app/src/priority.ts";
+import { EFFORTS, MODELS } from "../../../app/src/projects/projects.ts";
+import { TABS, HEADINGS } from "../../../app/src/tabs.ts";
+import type { Seen as VuDuCode } from "../../../app/src/delay.ts";
+import type { SeenOfProjects } from "../../../app/src/projects/projects.ts";
+import type { SeenOfStations } from "../../../app/src/stations/stations.ts";
 
 // Ce que le process principal envoie à la vue : la méthode `sur…` du pont qui le reçoit, et ses
 // arguments. `demande` : le premier argument porte le numéro de la lecture qu'il sert, que la vue
@@ -55,34 +55,34 @@ export type Ecran = {
 };
 
 // La cuisine que lit l'app : la station de cet ordinateur.
-export const CUISINE: Cuisine = { locale: { node: "node", runtime: "/Users/chef/brigade/runtime", racine: "/Users/chef/.brigade/station", env: {} } };
+export const CUISINE: Kitchen = { locale: { node: "node", runtime: "/Users/chef/brigade/runtime", racine: "/Users/chef/.brigade/station", env: {} } };
 
 // L'heure de toutes les captures : la vue la lit pour l'âge d'une lecture, les heures affichées.
 export const MAINTENANT = "2026-10-13T10:04:12.000Z";
 
-// Le fichier des projets que la vue reçoit, tel que barre.ts le rend.
-export const configuration = (projets: Projet[]): Configuration => ({ chemin: "/Users/chef/.config/brigade/app.json", projets });
+// Le fichier des projets que la vue reçoit, tel que bar.ts le rend.
+export const configuration = (projets: Project[]): Configuration => ({ chemin: "/Users/chef/.config/brigade/app.json", projets });
 
 // L'état des clones, des stations et de leurs projets, tel qu'une lecture à l'heure le rend :
 // tout est à jour, une station en ligne qui sert les deux projets.
 const CODE: VuDuCode = { a: MAINTENANT, clones: [{ id: "app", etat: "a-jour", tete: "this app's code: up to date with origin/v2", lignes: [] }] };
-const STATIONS: VuDesStations = { a: MAINTENANT, stations: [{ id: "box", nom: "box", machine: "Debian 12 · 8 cores", etat: "en-ligne", ligne: "online · 2 projects: parade, cantine", pannes: [], dit: "online", version: "", projets: ["parade", "cantine"], max: null }] };
-const PROJETS_DES_STATIONS: VuDesProjets = { a: MAINTENANT, projets: [], recommandee: null, avertissements: {}, machines: {}, calibrage: { manager: { modele: "opus", effort: "high" }, reviewer: { modele: "opus", effort: "high" }, dit: "" } };
+const STATIONS: SeenOfStations = { a: MAINTENANT, stations: [{ id: "box", nom: "box", machine: "Debian 12 · 8 cores", etat: "en-ligne", ligne: "online · 2 projects: parade, cantine", pannes: [], dit: "online", version: "", projets: ["parade", "cantine"], max: null }] };
+const PROJETS_DES_STATIONS: SeenOfProjects = { a: MAINTENANT, projets: [], recommandee: null, avertissements: {}, machines: {}, calibrage: { manager: { modele: "opus", effort: "high" }, reviewer: { modele: "opus", effort: "high" }, dit: "" } };
 
 // La réponse de `demarrage`, comme main.ts la rend : les listes de l'app sont celles de son code.
-// `ici` : les projets dont la cuisine tourne sur cet ordinateur (poste/cuisine-ici.ts).
+// `ici` : les projets dont la cuisine tourne sur cet ordinateur (workstation/kitchen-here.ts).
 // `tourne` : la station de cet ordinateur tourne-t-elle ? Sinon, ceux de `ici` n'ont rien à lire.
 // `servi` : les projets qu'une station sert, dont le rail se lit — tous, par défaut.
-export function demarrage(projets: Configuration, ici: (nom: string) => boolean = () => false, tourne = true, servi: (projet: Projet) => boolean = () => true) {
+export function demarrage(projets: Configuration, ici: (nom: string) => boolean = () => false, tourne = true, servi: (projet: Project) => boolean = () => true) {
   return {
-    configuration: pourLaBarre(projets, servi, ici, () => tourne),
+    configuration: forTheBar(projets, servi, ici, () => tourne),
     palette: PALETTE,
-    exemple: EXEMPLE,
-    onglets: ONGLETS,
-    rubriques: RUBRIQUES,
-    gestes: { allumage: ALLUMAGE, cuisine: GESTES_DE_LA_CUISINE, directs: DIRECTS, confirmes: CONFIRMES, attente: GESTES_D_ATTENTE },
-    banniere: BANNIERE,
-    calibrage: { modeles: MODELES, efforts: EFFORTS },
+    exemple: EXAMPLE,
+    onglets: TABS,
+    rubriques: HEADINGS,
+    gestes: { allumage: POWER_UP, cuisine: KITCHEN_ACTIONS, directs: DIRECT, confirmes: CONFIRMED, attente: ACTIONS_OF_WAIT },
+    banniere: BANNER,
+    calibrage: { modeles: MODELS, efforts: EFFORTS },
     code: CODE,
     stations: STATIONS,
     projetsDesStations: PROJETS_DES_STATIONS,
@@ -91,22 +91,22 @@ export function demarrage(projets: Configuration, ici: (nom: string) => boolean 
 
 // Ce qu'une box rend d'un projet : `facts`, `status` et `station`, mot pour mot — et `manager`,
 // que l'app lit elle-même pour chaque projet (main.ts, la veille du manager) : absent, il n'est pas lu.
-export type Rendu = { facts: Faits; status: string; station: string; manager?: string };
+export type Rendu = { facts: Facts; status: string; station: string; manager?: string };
 
 // Les envois d'une cuisine figée, dans l'ordre où main.ts les fait : la barre posée, `facts` de
 // chaque projet, puis `manager` de ceux qui le rendent ; « Tous les projets », `status` et `station` de
 // chacun ; un espace ouvert, le `status` de son projet. Chaque lecture passe par les modules de l'app, comme dans main.ts.
-// `ecrites` : les priorités que l'app vient d'écrire sur des issues (app/src/priorite.ts), que le rail montre.
-export function cuisine(rendus: Record<string, Rendu>, ecrites?: (projet: string) => PrioriteMontree): Required<Pick<Donnees["envois"], "faits" | "tous" | "regarder">> {
-  const faits = tenirFaits(undefined, ecrites);
-  const bandes = tenirBandes({ maintenant: () => Date.parse(MAINTENANT) });
-  const lecture = (projet: string, sorties: Record<string, string>): Lecture => ({ projet, demande: 0, a: MAINTENANT, sorties: Object.entries(sorties).map(([commande, texte]) => ({ commande, texte })) });
+// `ecrites` : les priorités que l'app vient d'écrire sur des issues (app/src/priority.ts), que le rail montre.
+export function cuisine(rendus: Record<string, Rendu>, ecrites?: (projet: string) => PriorityShown): Required<Pick<Donnees["envois"], "faits" | "tous" | "regarder">> {
+  const faits = holdFacts(undefined, ecrites);
+  const bandes = holdBands({ maintenant: () => Date.parse(MAINTENANT) });
+  const lecture = (projet: string, sorties: Record<string, string>): Reading => ({ projet, demande: 0, a: MAINTENANT, sorties: Object.entries(sorties).map(([commande, texte]) => ({ commande, texte })) });
   const projets = Object.keys(rendus);
   const alertes = (bande: unknown): Envoi => ({ sur: "surAlertes", args: [bande] });
   const dessine = (recue: unknown): Envoi => ({ sur: "surFaits", args: [recue], demande: "faits" });
   // `status` lu : la lecture, ce qu'elle redessine des faits, et la bande.
   const statusLu = (projet: string, sorties: Record<string, string>): Envoi[] => {
-    const montree = mettreAPart(lecture(projet, sorties));
+    const montree = putAPart(lecture(projet, sorties));
     const redessine = faits.attendre(montree);
     return [...(redessine === undefined ? [] : [dessine(redessine)]), alertes(bandes.status(montree))];
   };
@@ -128,11 +128,11 @@ export function cuisine(rendus: Record<string, Rendu>, ecrites?: (projet: string
 
 // La carte d'un ticket telle que la vue la reçoit sur le rail du projet, `facts` puis `status` lus —
 // pour calculer, par les modules de l'app, ce que sa fiche demande au pont.
-export function carteDe(rendu: Rendu, projet: string, ticket: number, ecrites?: (projet: string) => PrioriteMontree): Carte {
-  const faits = tenirFaits(undefined, ecrites);
-  const lecture = (sorties: Record<string, string>): Lecture => ({ projet, demande: 0, a: MAINTENANT, sorties: Object.entries(sorties).map(([commande, texte]) => ({ commande, texte })) });
+export function carteDe(rendu: Rendu, projet: string, ticket: number, ecrites?: (projet: string) => PriorityShown): Card {
+  const faits = holdFacts(undefined, ecrites);
+  const lecture = (sorties: Record<string, string>): Reading => ({ projet, demande: 0, a: MAINTENANT, sorties: Object.entries(sorties).map(([commande, texte]) => ({ commande, texte })) });
   faits.recevoir(lecture({ facts: JSON.stringify(rendu.facts) }));
-  const recue = faits.attendre(mettreAPart(lecture({ status: rendu.status })));
+  const recue = faits.attendre(putAPart(lecture({ status: rendu.status })));
   const carte = recue !== undefined && "tableau" in recue ? recue.tableau.rail.colonnes.flatMap(({ cartes }) => cartes).find((candidate) => candidate.ticket === ticket) : undefined;
   if (carte === undefined) throw new Error(`pas de carte #${ticket} sur le rail de ${projet}`);
   return carte;

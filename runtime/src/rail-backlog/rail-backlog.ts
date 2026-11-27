@@ -8,7 +8,7 @@
 // après les autres ; à priorité égale, la plus ancienne d'abord.
 //
 // Ce module ne lit rien et n'importe rien de lourd : l'app le charge dans son process principal (vue/rail/github.ts), où
-// la lecture du rail ne joint ni box ni journal (app/test/tableau/lecture.test.ts). Il redit donc la priorité
+// la lecture du rail ne joint ni box ni journal (app/test/board/read.test.ts). Il redit donc la priorité
 // (alimenter.ts, `priorite`) sans l'importer — alimenter.ts tire le journal avec lui ; un test les joue toutes deux sur les
 // mêmes labels (test/rail-backlog/rail-backlog.test.ts).
 import { LABELS_D_ECART } from "../attente-du-rail/stations.ts";

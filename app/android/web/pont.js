@@ -10,7 +10,7 @@
 //   - un abonnement (`sur…`) ne reçoit jamais rien ; tout autre geste ne fait rien et ne rend rien.
 // Et la connexion du téléphone à GitHub (le ticket 2500, épique 2498), sans station ni terminal :
 //   - `demarrage` rend aussi `telephone.github`, le compte sous lequel ce téléphone est connecté — aucun sur une
-//     installation neuve : la vue s'ouvre alors sur l'écran de connexion (app/src/vue/connexion-github.js) ;
+//     installation neuve : la vue s'ouvre alors sur l'écran de connexion (app/src/vue/connection-github.js) ;
 //   - `seConnecterAGitHub` mène le « device flow » de GitHub par le HTTP natif de Capacitor — github.com ne répond pas
 //     à une WebView (CORS) : il demande un code à usage unique, ouvre la page où le taper dans le navigateur du
 //     téléphone (Pont.java, `ouvrir`), et rend le code à la vue. Il attend ensuite que le chef l'ait tapé, au pas que
@@ -19,7 +19,7 @@
 //     d'Android), le compte dans le stockage de l'app ; la vue ne voit jamais le jeton ;
 //   - `ouvrirLaPage` rouvre la page de GitHub où taper le code.
 // Et, connecté, les projets du chef, le rail et TODO de chacun, lus sur GitHub seul (le ticket 2501) : `demarrage`,
-// `faits`, `tous`, `regarder` et `relireBox` passent par la lecture d'app/src/lecture-github-telephone.ts — celle du
+// `faits`, `tous`, `regarder` et `relireBox` passent par la lecture d'app/src/read-github-phone.ts — celle du
 // desktop, avec le jeton du coffre, par le HTTP natif de Capacitor, à l'API de GitHub et nulle part ailleurs —, et ce qui
 // en sort arrive à la vue par ses abonnements (`surConfiguration`, `surFaits`, `surAlertes`, `surAccueil`, `surActivites`,
 // `surAmont`, `surTelephone`), tel que le process principal du desktop l'enverrait. La construction pose ce module à côté
@@ -28,7 +28,7 @@
 // rien.
 // `oublierLeTelephone` oublie sa connexion à GitHub — celle que GitHub refuse.
 // Et, connecté, les gestes du chef, écrits sur GitHub seul (le ticket 2502) : `gestesDeFiche`, `gesteDeFiche`, `attente` et
-// `repondreCarte` passent par les gestes de la même lecture (app/src/gestes-github-telephone.ts) — le code d'écriture du
+// `repondreCarte` passent par les gestes de la même lecture (app/src/actions-github-phone.ts) — le code d'écriture du
 // desktop, sur le dernier rail lu, avec le jeton du coffre, par le HTTP natif de Capacitor, à l'API de GitHub et nulle part
 // ailleurs. Répondre à une carte de TODO poste sa réponse sur l'issue et joue son geste ; reprendre (« back to the
 // kitchen », « it arrived ») retire `waiting` ; mettre en suspens (« remove from the rail ») retire `fire`. Ce que GitHub
@@ -53,7 +53,7 @@ const DELAI_D_ECRITURE_MS = 60_000;
 // Ce que dit un geste quand le téléphone n'est pas connecté à GitHub : rien n'est parti.
 const SANS_GITHUB = "nothing was sent: this phone is not signed in to GitHub — sign in, then try again";
 // La connexion à GitHub (le ticket 2500) : l'App OAuth au nom de laquelle le téléphone demande son code — celle de la
-// GitHub CLI, que le desktop emploie déjà par `gh auth login` (connexion-github.ts) : le chef y a déjà donné son accord
+// GitHub CLI, que le desktop emploie déjà par `gh auth login` (connection-github.ts) : le chef y a déjà donné son accord
 // et n'en donne aucun à un tiers de plus. Son « device flow » ne demande aucun secret. Une App OAuth de brigade, son
 // device flow activé, la remplacerait ici. Les droits demandés sont ceux de `gh` : les dépôts, les gists, l'organisation lue.
 const CLIENT_GITHUB = "178c6fc778ccc68e1d6a";
@@ -212,7 +212,7 @@ async function garderLaConnexion(jeton) {
   return { connecte: true, compte };
 }
 
-// La lecture des projets sur GitHub (app/src/lecture-github-telephone.ts), ouverte une fois le téléphone connecté : son
+// La lecture des projets sur GitHub (app/src/read-github-phone.ts), ouverte une fois le téléphone connecté : son
 // module, posé par la construction à côté de la vue (www/src/lecture-github-telephone.js), est chargé à la première
 // lecture. Rien sans connexion. Les faits que la vue a demandés avant — la barre posée derrière l'écran de connexion —
 // lui sont demandés dès qu'elle s'ouvre.

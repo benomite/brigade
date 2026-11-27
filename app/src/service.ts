@@ -32,12 +32,12 @@
 // L'installation terminée, l'écran ne revient plus (`termine`). Le projet est alors contrôlé :
 // ses stations (`installation stations --json`) et ce que la vérification dit manquer, relus
 // sans rien noter au journal — une étape remise à faire rouvrirait l'écran. Ce qu'il a perdu
-// se dit dans la bande d'alertes, avec son geste (alertes.ts, « Ce qu'un projet installé a perdu »).
-import { echecDe, type Cuisine, type Echec, type Lu as ProjetLu, type Rendu as RenduDeBox } from "./box.ts";
-import type { Projet } from "./config.ts";
-import { titreDEchec } from "./faits.ts";
-import { FORME_ATTENDUE, refusDeForme } from "./nom.ts";
-import type { Terminal } from "./terminaux.ts";
+// se dit dans la bande d'alertes, avec son geste (alerts.ts, « Ce qu'un projet installé a perdu »).
+import { failureOf, type Kitchen, type Failure, type Read as ProjectRead, type Rendered as RenderedOfBox } from "./box.ts";
+import type { Project } from "./config.ts";
+import { titleOfFailure } from "./facts.ts";
+import { SHAPE_EXPECTED, refusalOfShape } from "./name.ts";
+import type { Terminal } from "./terminals.ts";
 
 // La session qui amorce le dépôt (docs/installer.md, « Amorcer le dépôt »).
 export const INIT = "/brigade:init";
@@ -45,9 +45,9 @@ export const INIT = "/brigade:init";
 export const VERIFICATION = "installation";
 // La même, qui rend son verdict structuré (runtime/src/verdict.ts) : c'est elle que « Vérifier »
 // lance. Le contrôle d'un projet installé lit, lui, la sortie texte.
-export const JUGEMENT = `${VERIFICATION} --json`;
+export const JUDGMENT = `${VERIFICATION} --json`;
 // Les commandes du runtime que l'écran lance, chacune sous `installation` (runtime/src/installation-cli.ts).
-export const COMMANDES = {
+export const COMMANDS = {
   etapes: "installation etapes --json",
   stations: "installation stations --json",
   protection: "installation protection --json",
@@ -58,25 +58,25 @@ const DOC = "docs/installer.md";
 // --- Ce que le runtime rend, lu sans rien croire sur parole. Chaque forme est un
 // contrat que le runtime fige dans ses tests ; le test de l'app la tire de ses fonctions.
 
-export type EtatDEtape = "todo" | "done" | "waiting";
+export type StateOfStep = "todo" | "done" | "waiting";
 // Les mots du runtime (`ETATS_LUS`, runtime/src/etapes-cli.ts).
-const ETATS: Readonly<Record<string, EtatDEtape>> = { "à faire": "todo", faite: "done", "en attente": "waiting" };
+const STATES: Readonly<Record<string, StateOfStep>> = { "à faire": "todo", faite: "done", "en attente": "waiting" };
 
-export type EtapeLue = { id: string; titre: string; etat: EtatDEtape; sert: string; sauter: string; geste: string | null };
+export type StepRead = { id: string; titre: string; etat: StateOfStep; sert: string; sauter: string; geste: string | null };
 // `courante` : la première étape qui n'est pas faite — null, l'installation est terminée.
-export type EtapesLues = { courante: string | null; etapes: EtapeLue[] };
+export type StepsRead = { courante: string | null; etapes: StepRead[] };
 
-export type StationProposee = { nom: string; moteur: string; fournit: string[] };
-export type StationDeclaree = { nom: string; moteur: string; fournit: string[]; cooks: number; distante: boolean };
+export type StationProposed = { nom: string; moteur: string; fournit: string[] };
+export type StationDeclared = { nom: string; moteur: string; fournit: string[]; cooks: number; distante: boolean };
 // `absent` : pourquoi la box ne fournit aucune station — null, si elle en fournit.
-export type StationsLues = { proposees: StationProposee[]; absent: string | null; declarees: StationDeclaree[] };
+export type StationsRead = { proposees: StationProposed[]; absent: string | null; declarees: StationDeclared[] };
 
-export type Droit = { droit: string; action: string; pourquoi: string };
-export type ProtectionLue = { depot: string; branche: string; protection: "posée" | "autre" | "absente" | "illisible"; manque: string[]; droits: Droit[]; raison: string | null };
+export type Right = { droit: string; action: string; pourquoi: string };
+export type ProtectionRead = { depot: string; branche: string; protection: "posée" | "autre" | "absente" | "illisible"; manque: string[]; droits: Right[]; raison: string | null };
 
 export type Option = { valeur: string; effet: string };
 // `avec` : la décision qui se répond en même temps qu'elle (le modèle du closer et son effort).
-export type DecisionLue = {
+export type DecisionRead = {
   nom: string;
   question: string;
   options: Option[];
@@ -86,19 +86,19 @@ export type DecisionLue = {
   avec: { nom: string; question: string; options: Option[] } | null;
 };
 // `courante` : la seule décision à poser maintenant — null, aucune n'attend. `enAttente` la compte.
-export type CouranteLue = { enAttente: number; courante: DecisionLue | null; suivantes: string[] };
+export type CurrentRead = { enAttente: number; courante: DecisionRead | null; suivantes: string[] };
 
-type Lu = Record<string, unknown>;
-const chaine = (lu: unknown): lu is string => typeof lu === "string";
-const chaines = (lu: unknown): lu is string[] => Array.isArray(lu) && lu.every(chaine);
+type Read = Record<string, unknown>;
+const string = (readOne: unknown): readOne is string => typeof readOne === "string";
+const strings = (readOne: unknown): readOne is string[] => Array.isArray(readOne) && readOne.every(string);
 
 // Le dernier objet JSON de la sortie que `est` reconnaît : une commande du runtime le rend
 // sur une ligne, et rien d'autre ne s'en déduit.
-function objetDe(sortie: string, est: (lu: Lu) => boolean): Lu | undefined {
-  for (const ligne of sortie.split("\n").reverse()) {
+function objectOf(output: string, is: (readOne: Read) => boolean): Read | undefined {
+  for (const line of output.split("\n").reverse()) {
     try {
-      const lu: unknown = JSON.parse(ligne);
-      if (lu !== null && typeof lu === "object" && !Array.isArray(lu) && est(lu as Lu)) return lu as Lu;
+      const readOne: unknown = JSON.parse(line);
+      if (readOne !== null && typeof readOne === "object" && !Array.isArray(readOne) && is(readOne as Read)) return readOne as Read;
     } catch {
       // Pas un objet : une autre ligne de la sortie.
     }
@@ -106,87 +106,87 @@ function objetDe(sortie: string, est: (lu: Lu) => boolean): Lu | undefined {
   return undefined;
 }
 
-export function lireEtapes(sortie: string): EtapesLues | undefined {
-  const lu = objetDe(sortie, (objet) => Array.isArray(objet.etapes) && "courante" in objet);
-  if (lu === undefined) return undefined;
-  const etapes: EtapeLue[] = [];
-  for (const recue of lu.etapes as unknown[]) {
-    const { id, titre, etat, sert, sauter, geste } = (recue ?? {}) as Lu;
-    const lue = chaine(etat) ? ETATS[etat] : undefined;
-    if (!chaine(id) || !chaine(titre) || lue === undefined || !chaine(sert) || !chaine(sauter) || !(geste === null || chaine(geste))) return undefined;
-    etapes.push({ id, titre, etat: lue, sert, sauter, geste });
+export function readSteps(output: string): StepsRead | undefined {
+  const readOne = objectOf(output, (object) => Array.isArray(object.etapes) && "courante" in object);
+  if (readOne === undefined) return undefined;
+  const steps: StepRead[] = [];
+  for (const receivedOne of readOne.etapes as unknown[]) {
+    const { id, titre: title, etat: state, sert: serves, sauter, geste: gesture } = (receivedOne ?? {}) as Read;
+    const readEntry = string(state) ? STATES[state] : undefined;
+    if (!string(id) || !string(title) || readEntry === undefined || !string(serves) || !string(sauter) || !(gesture === null || string(gesture))) return undefined;
+    steps.push({ id, titre: title, etat: readEntry, sert: serves, sauter, geste: gesture });
   }
-  const { courante } = lu;
-  if (!(courante === null || (chaine(courante) && etapes.some(({ id }) => id === courante)))) return undefined;
-  return { courante, etapes };
+  const { courante: current } = readOne;
+  if (!(current === null || (string(current) && steps.some(({ id }) => id === current)))) return undefined;
+  return { courante: current, etapes: steps };
 }
 
-export function lireStations(sortie: string): StationsLues | undefined {
-  const lu = objetDe(sortie, (objet) => Array.isArray(objet.proposees) && Array.isArray(objet.declarees));
-  if (lu === undefined || !(lu.absent === null || chaine(lu.absent))) return undefined;
-  const proposees: StationProposee[] = [];
-  for (const recue of lu.proposees as unknown[]) {
-    const { nom, moteur, fournit } = (recue ?? {}) as Lu;
-    if (!chaine(nom) || !chaine(moteur) || !chaines(fournit)) return undefined;
-    proposees.push({ nom, moteur, fournit });
+export function readStations(output: string): StationsRead | undefined {
+  const readOne = objectOf(output, (object) => Array.isArray(object.proposees) && Array.isArray(object.declarees));
+  if (readOne === undefined || !(readOne.absent === null || string(readOne.absent))) return undefined;
+  const proposed: StationProposed[] = [];
+  for (const receivedOne of readOne.proposees as unknown[]) {
+    const { nom: name, moteur: engine, fournit: provides } = (receivedOne ?? {}) as Read;
+    if (!string(name) || !string(engine) || !strings(provides)) return undefined;
+    proposed.push({ nom: name, moteur: engine, fournit: provides });
   }
-  const declarees: StationDeclaree[] = [];
-  for (const recue of lu.declarees as unknown[]) {
-    const { nom, moteur, fournit, cooks, distante } = (recue ?? {}) as Lu;
-    if (!chaine(nom) || !chaine(moteur) || !chaines(fournit) || typeof cooks !== "number") return undefined;
-    declarees.push({ nom, moteur, fournit, cooks, distante: distante === true });
+  const declaredEntries: StationDeclared[] = [];
+  for (const receivedOne of readOne.declarees as unknown[]) {
+    const { nom: name, moteur: engine, fournit: provides, cooks, distante: remote } = (receivedOne ?? {}) as Read;
+    if (!string(name) || !string(engine) || !strings(provides) || typeof cooks !== "number") return undefined;
+    declaredEntries.push({ nom: name, moteur: engine, fournit: provides, cooks, distante: remote === true });
   }
-  return { proposees, absent: lu.absent, declarees };
+  return { proposees: proposed, absent: readOne.absent, declarees: declaredEntries };
 }
 
 const PROTECTIONS = ["posée", "autre", "absente", "illisible"] as const;
 
-export function lireProtection(sortie: string): ProtectionLue | undefined {
-  const lu = objetDe(sortie, (objet) => chaine(objet.protection) && chaine(objet.branche));
-  if (lu === undefined) return undefined;
-  const { depot, branche, protection, manque, droits, raison } = lu;
-  const connue = PROTECTIONS.find((mot) => mot === protection);
-  if (!chaine(depot) || !chaine(branche) || connue === undefined || !chaines(manque) || !Array.isArray(droits) || !(raison === null || chaine(raison))) return undefined;
-  const lus: Droit[] = [];
-  for (const recu of droits as unknown[]) {
-    const { droit, action, pourquoi } = (recu ?? {}) as Lu;
-    if (!chaine(droit) || !chaine(action) || !chaine(pourquoi)) return undefined;
-    lus.push({ droit, action, pourquoi });
+export function readProtection(output: string): ProtectionRead | undefined {
+  const readOne = objectOf(output, (object) => string(object.protection) && string(object.branche));
+  if (readOne === undefined) return undefined;
+  const { depot: repository, branche: branch, protection, manque: lack, droits, raison: reason } = readOne;
+  const known = PROTECTIONS.find((word) => word === protection);
+  if (!string(repository) || !string(branch) || known === undefined || !strings(lack) || !Array.isArray(droits) || !(reason === null || string(reason))) return undefined;
+  const readOnes: Right[] = [];
+  for (const received of droits as unknown[]) {
+    const { droit: right, action, pourquoi: why } = (received ?? {}) as Read;
+    if (!string(right) || !string(action) || !string(why)) return undefined;
+    readOnes.push({ droit: right, action, pourquoi: why });
   }
-  return { depot, branche, protection: connue, manque, droits: lus, raison };
+  return { depot: repository, branche: branch, protection: known, manque: lack, droits: readOnes, raison: reason };
 }
 
-function options(lu: unknown): Option[] | undefined {
-  if (!Array.isArray(lu)) return undefined;
-  const lues: Option[] = [];
-  for (const recue of lu as unknown[]) {
-    const { valeur, effet } = (recue ?? {}) as Lu;
-    if (!chaine(valeur) || !chaine(effet)) return undefined;
-    lues.push({ valeur, effet });
+function options(readOne: unknown): Option[] | undefined {
+  if (!Array.isArray(readOne)) return undefined;
+  const readEntries: Option[] = [];
+  for (const receivedOne of readOne as unknown[]) {
+    const { valeur: value, effet } = (receivedOne ?? {}) as Read;
+    if (!string(value) || !string(effet)) return undefined;
+    readEntries.push({ valeur: value, effet });
   }
-  return lues;
+  return readEntries;
 }
 
-export function lireCourante(sortie: string): CouranteLue | undefined {
-  const lu = objetDe(sortie, (objet) => typeof objet.enAttente === "number" && "courante" in objet);
-  if (lu === undefined || !chaines(lu.suivantes)) return undefined;
-  const { enAttente, suivantes } = lu as { enAttente: number; suivantes: string[] };
-  if (lu.courante === null) return { enAttente, courante: null, suivantes };
-  const { nom, question, options: recues, recommandee, sauter, reclamee, avec } = (lu.courante ?? {}) as Lu;
-  const lues = options(recues);
-  const conseil = recommandee as Lu | null;
-  if (!chaine(nom) || !chaine(question) || lues === undefined || !chaine(sauter) || typeof reclamee !== "boolean") return undefined;
-  if (!(conseil === null || (typeof conseil === "object" && chaine(conseil.valeur) && chaine(conseil.pourquoi)))) return undefined;
-  let compagne: DecisionLue["avec"] = null;
-  if (avec !== null) {
-    const { nom: autre, question: demande, options: siennes } = (avec ?? {}) as Lu;
-    const lues = options(siennes);
-    if (!chaine(autre) || !chaine(demande) || lues === undefined) return undefined;
-    compagne = { nom: autre, question: demande, options: lues };
+export function readCurrent(output: string): CurrentRead | undefined {
+  const readOne = objectOf(output, (object) => typeof object.enAttente === "number" && "courante" in object);
+  if (readOne === undefined || !strings(readOne.suivantes)) return undefined;
+  const { enAttente: queued, suivantes } = readOne as { enAttente: number; suivantes: string[] };
+  if (readOne.courante === null) return { enAttente: queued, courante: null, suivantes };
+  const { nom: name, question, options: received, recommandee: recommended, sauter, reclamee, avec: withIt } = (readOne.courante ?? {}) as Read;
+  const readEntries = options(received);
+  const advice = recommended as Read | null;
+  if (!string(name) || !string(question) || readEntries === undefined || !string(sauter) || typeof reclamee !== "boolean") return undefined;
+  if (!(advice === null || (typeof advice === "object" && string(advice.valeur) && string(advice.pourquoi)))) return undefined;
+  let compagne: DecisionRead["avec"] = null;
+  if (withIt !== null) {
+    const { nom: other, question: request, options: itsOwn } = (withIt ?? {}) as Read;
+    const readEntries = options(itsOwn);
+    if (!string(other) || !string(request) || readEntries === undefined) return undefined;
+    compagne = { nom: other, question: request, options: readEntries };
   }
   return {
-    enAttente,
-    courante: { nom, question, options: lues, recommandee: conseil === null ? null : { valeur: conseil.valeur as string, pourquoi: conseil.pourquoi as string }, sauter, reclamee, avec: compagne },
+    enAttente: queued,
+    courante: { nom: name, question, options: readEntries, recommandee: advice === null ? null : { valeur: advice.valeur as string, pourquoi: advice.pourquoi as string }, sauter, reclamee, avec: compagne },
     suivantes,
   };
 }
@@ -195,29 +195,29 @@ export function lireCourante(sortie: string): CouranteLue | undefined {
 // règle, et l'étape à reprendre qu'il nomme — lus dans la sortie d'`installation`, telle
 // que runtime/src/installation-cli.ts l'écrit. Rien n'y est reformulé. Une box d'avant #933 l'écrit
 // en français (`MANQUE`, `étape à reprendre`) : les deux se lisent.
-export type Manque = { texte: string; geste: string | null; etape: string | null };
+export type Missing = { texte: string; geste: string | null; etape: string | null };
 
-export function manquesDe(sortie: string): Manque[] {
-  const manques: Manque[] = [];
-  let dernier: Manque | undefined;
-  for (const ligne of sortie.split("\n")) {
-    const manque = /^ {2}(?:MISSING {3}|MANQUE {4})(.+)$/.exec(ligne);
-    if (manque !== null) {
-      dernier = { texte: manque[1] ?? "", geste: null, etape: null };
-      manques.push(dernier);
+export function gapsOf(output: string): Missing[] {
+  const gaps: Missing[] = [];
+  let last: Missing | undefined;
+  for (const line of output.split("\n")) {
+    const lack = /^ {2}(?:MISSING {3}|MANQUE {4})(.+)$/.exec(line);
+    if (lack !== null) {
+      last = { texte: lack[1] ?? "", geste: null, etape: null };
+      gaps.push(last);
       continue;
     }
-    const fleche = /^ {12}→ (.+)$/.exec(ligne)?.[1];
-    if (fleche !== undefined && dernier !== undefined) {
-      const etape = /^(?:step to resume:|étape à reprendre :) \d+\. .+ \(([a-z-]+)\)$/.exec(fleche)?.[1];
-      if (etape !== undefined) dernier.etape = etape;
-      else if (dernier.geste === null) dernier.geste = fleche;
+    const arrow = /^ {12}→ (.+)$/.exec(line)?.[1];
+    if (arrow !== undefined && last !== undefined) {
+      const step = /^(?:step to resume:|étape à reprendre :) \d+\. .+ \(([a-z-]+)\)$/.exec(arrow)?.[1];
+      if (step !== undefined) last.etape = step;
+      else if (last.geste === null) last.geste = arrow;
       continue;
     }
     // Une flèche sous une ligne `à savoir` ne retient rien : elle n'est pas lue.
-    dernier = undefined;
+    last = undefined;
   }
-  return manques;
+  return gaps;
 }
 
 // --- Le verdict de « Vérifier », structuré : ce qu'`installation --json` rend (runtime/src/verdict.ts).
@@ -229,90 +229,90 @@ export type Action = (typeof ACTIONS)[number];
 // Un manque, dit au chef : `texte` en mots simples, et qui le lève. Pour le chef, l'étape que
 // l'app fait d'un bouton, ou la commande exacte — ni l'une ni l'autre quand la box ne les dit pas.
 // `constat`, `geste`, `etape` : la ligne, la flèche et l'étape que la sortie texte en écrit.
-export type ManqueJuge = { texte: string; constat: string; geste: string | null; etape: string | null } & ({ acteur: "chef"; action: Action | null; commande: string | null } | { acteur: "brigade" });
+export type MissingJudge = { texte: string; constat: string; geste: string | null; etape: string | null } & ({ acteur: "chef"; action: Action | null; commande: string | null } | { acteur: "brigade" });
 // Une ligne « à savoir » : elle ne retient rien, et ne compte pas parmi les manques.
 export type ASavoir = { texte: string; geste: string | null };
 // `phrase` : le verdict en une phrase, tel que le runtime le dit. `brut` : la sortie texte de la
 // vérification — ou sa ligne d'erreur, plantée —, au caractère près. `panne` : ce qui a arrêté la
 // vérification ; `connue`, l'issue qui la suit.
-export type Jugement =
+export type Judgment =
   | { verdict: "pret"; phrase: string; aSavoir: ASavoir[]; brut: string }
-  | { verdict: "pas-pret"; phrase: string; manques: ManqueJuge[]; aSavoir: ASavoir[]; brut: string }
+  | { verdict: "pas-pret"; phrase: string; manques: MissingJudge[]; aSavoir: ASavoir[]; brut: string }
   | { verdict: "plantee"; phrase: string; panne: { erreur: string; connue: { issue: number; texte: string } | null }; brut: string };
 
-const optionnelle = (lu: unknown): string | null | undefined => (lu === undefined ? null : chaine(lu) ? lu : undefined);
+const optional = (readOne: unknown): string | null | undefined => (readOne === undefined ? null : string(readOne) ? readOne : undefined);
 
-function lireASavoir(lu: unknown): ASavoir[] | undefined {
-  if (!Array.isArray(lu)) return undefined;
-  const lues: ASavoir[] = [];
-  for (const recue of lu as unknown[]) {
-    const { texte, geste } = (recue ?? {}) as Lu;
-    const fleche = optionnelle(geste);
-    if (!chaine(texte) || fleche === undefined) return undefined;
-    lues.push({ texte, geste: fleche });
+function readASavoir(readOne: unknown): ASavoir[] | undefined {
+  if (!Array.isArray(readOne)) return undefined;
+  const readEntries: ASavoir[] = [];
+  for (const receivedOne of readOne as unknown[]) {
+    const { texte: text, geste: gesture } = (receivedOne ?? {}) as Read;
+    const arrow = optional(gesture);
+    if (!string(text) || arrow === undefined) return undefined;
+    readEntries.push({ texte: text, geste: arrow });
   }
-  return lues;
+  return readEntries;
 }
 
-function lireManques(lu: unknown): ManqueJuge[] | undefined {
-  if (!Array.isArray(lu)) return undefined;
-  const lus: ManqueJuge[] = [];
-  for (const recu of lu as unknown[]) {
-    const { texte, constat, geste, etape, acteur, action, commande } = (recu ?? {}) as Lu;
-    const [fleche, nommee, exacte] = [optionnelle(geste), optionnelle(etape), optionnelle(commande)];
-    if (!chaine(texte) || !chaine(constat) || fleche === undefined || nommee === undefined || exacte === undefined) return undefined;
-    const commun = { texte, constat, geste: fleche, etape: nommee };
-    if (acteur === "brigade") lus.push({ ...commun, acteur });
+function readGaps(readOne: unknown): MissingJudge[] | undefined {
+  if (!Array.isArray(readOne)) return undefined;
+  const readOnes: MissingJudge[] = [];
+  for (const received of readOne as unknown[]) {
+    const { texte: text, constat: finding, geste: gesture, etape: step, acteur, action, commande: command } = (received ?? {}) as Read;
+    const [arrow, named, exacte] = [optional(gesture), optional(step), optional(command)];
+    if (!string(text) || !string(finding) || arrow === undefined || named === undefined || exacte === undefined) return undefined;
+    const common = { texte: text, constat: finding, geste: arrow, etape: named };
+    if (acteur === "brigade") readOnes.push({ ...common, acteur });
     // Une action qu'elle ne connaît pas, l'app n'en fait pas de bouton : la flèche dit le geste.
-    else if (acteur === "chef") lus.push({ ...commun, acteur, action: ACTIONS.find((connue) => connue === action) ?? null, commande: exacte });
+    else if (acteur === "chef") readOnes.push({ ...common, acteur, action: ACTIONS.find((known) => known === action) ?? null, commande: exacte });
     else return undefined;
   }
-  return lus;
+  return readOnes;
 }
 
-export function lireJugement(sortie: string): Jugement | undefined {
-  const lu = objetDe(sortie, (objet) => chaine(objet.verdict) && chaine(objet.phrase) && chaine(objet.brut));
-  if (lu === undefined) return undefined;
-  const { verdict, phrase, brut } = lu as { verdict: string; phrase: string; brut: string };
+export function readJudgment(output: string): Judgment | undefined {
+  const readOne = objectOf(output, (object) => string(object.verdict) && string(object.phrase) && string(object.brut));
+  if (readOne === undefined) return undefined;
+  const { verdict, phrase: sentence, brut: raw } = readOne as { verdict: string; phrase: string; brut: string };
   if (verdict === "plantee") {
-    const { erreur, connue } = (lu.panne ?? {}) as Lu;
-    if (!chaine(erreur)) return undefined;
-    if (connue === null) return { verdict, phrase, panne: { erreur, connue: null }, brut };
-    const { issue, texte } = (connue ?? {}) as Lu;
-    if (typeof issue !== "number" || !Number.isInteger(issue) || !chaine(texte)) return undefined;
-    return { verdict, phrase, panne: { erreur, connue: { issue, texte } }, brut };
+    const { erreur: error, connue: known } = (readOne.panne ?? {}) as Read;
+    if (!string(error)) return undefined;
+    if (known === null) return { verdict, phrase: sentence, panne: { erreur: error, connue: null }, brut: raw };
+    const { issue, texte: text } = (known ?? {}) as Read;
+    if (typeof issue !== "number" || !Number.isInteger(issue) || !string(text)) return undefined;
+    return { verdict, phrase: sentence, panne: { erreur: error, connue: { issue, texte: text } }, brut: raw };
   }
-  const manques = lireManques(lu.manques);
-  const aSavoir = lireASavoir(lu.aSavoir);
-  if (manques === undefined || aSavoir === undefined) return undefined;
-  if (verdict === "pret" && manques.length === 0) return { verdict, phrase, aSavoir, brut };
-  if (verdict === "pas-pret" && manques.length > 0) return { verdict, phrase, manques, aSavoir, brut };
+  const gaps = readGaps(readOne.manques);
+  const aSavoir = readASavoir(readOne.aSavoir);
+  if (gaps === undefined || aSavoir === undefined) return undefined;
+  if (verdict === "pret" && gaps.length === 0) return { verdict, phrase: sentence, aSavoir, brut: raw };
+  if (verdict === "pas-pret" && gaps.length > 0) return { verdict, phrase: sentence, manques: gaps, aSavoir, brut: raw };
   return undefined;
 }
 
 // Les manques d'un verdict, comme les étapes et les annonces les lisent : la ligne de la sortie texte.
-const manquesDuJugement = (jugement: Jugement): Manque[] => (jugement.verdict === "pas-pret" ? jugement.manques.map(({ constat, geste, etape }) => ({ texte: constat, geste, etape })) : []);
+const gapsOfJudgment = (judgment: Judgment): Missing[] => (judgment.verdict === "pas-pret" ? judgment.manques.map(({ constat: finding, geste: gesture, etape: step }) => ({ texte: finding, geste: gesture, etape: step })) : []);
 
 // Le renouvellement de la session Max en échec, tel que la ligne `à savoir` de la vérification le
 // dit (runtime/src/installation.ts, `jugerRenouvellement`) : combien de passages de suite ont
 // échoué — la ligne ne le compte qu'à partir de deux, un seul échec est donc 1 — et pourquoi.
 // Rien quand la ligne dit un passage réussi, un minuteur inactif, ou n'y est pas : ce n'est pas
 // un échec du renouvellement.
-export type RenouvellementEnEchec = { echecs: number; raison: string };
+export type RenewalEnFailure = { echecs: number; raison: string };
 
-export function renouvellementDe(sortie: string): RenouvellementEnEchec | undefined {
-  for (const ligne of sortie.split("\n")) {
+export function renewalOf(output: string): RenewalEnFailure | undefined {
+  for (const line of output.split("\n")) {
     // Deux écritures : la ligne `note` d'aujourd'hui, la ligne `à savoir` d'une box d'avant #933.
-    const lu =
-      /^ {2}(?:note {6}|à savoir {2})renewal: (?:failed|`claude` not found)(?:, (\d+) failures in a row)?(?: \(last successful run at [^)]*\))? — (.+)$/.exec(ligne) ??
-      /^ {2}(?:note {6}|à savoir {2})renouvellement : (?:échec|`claude` introuvable)(?:, (\d+) échecs de suite)?(?: \(dernier passage réussi à [^)]*\))? — (.+)$/.exec(ligne);
-    if (lu !== null) return { echecs: lu[1] === undefined ? 1 : Number(lu[1]), raison: lu[2] ?? "" };
+    const readOne =
+      /^ {2}(?:note {6}|à savoir {2})renewal: (?:failed|`claude` not found)(?:, (\d+) failures in a row)?(?: \(last successful run at [^)]*\))? — (.+)$/.exec(line) ??
+      /^ {2}(?:note {6}|à savoir {2})renouvellement : (?:échec|`claude` introuvable)(?:, (\d+) échecs de suite)?(?: \(dernier passage réussi à [^)]*\))? — (.+)$/.exec(line);
+    if (readOne !== null) return { echecs: readOne[1] === undefined ? 1 : Number(readOne[1]), raison: readOne[2] ?? "" };
   }
   return undefined;
 }
 
 // Les étapes dont un manque est un geste sur la box elle-même : l'app ne le fait pas.
-const SUR_LA_BOX = ["ajout", "verification"];
+const ON_THE_BOX = ["ajout", "verification"];
 
 // --- Vérifier : `installation`, lancée une fois — en texte, pour le contrôle d'un projet
 // installé ; structurée (`installation --json`), pour l'écran.
@@ -324,26 +324,26 @@ const SUR_LA_BOX = ["ajout", "verification"];
 //   `sans-verdict` elle n'a rien rendu d'elle-même — la station pas jointe, le geste qui refuse, la commande arrêtée
 // `obtenu` : la ligne lancée, ce que la box a écrit, le code de sortie — tel quel. `sortie` :
 // ce qu'elle a écrit sur sa sortie standard, seul : c'est là que ses manques se lisent.
-export type Verifiee = { a: string } & ({ etat: "pret" | "incomplete" | "illisible"; obtenu: string; sortie: string } | ({ etat: "sans-verdict" } & Echec));
+export type Verified = { a: string } & ({ etat: "pret" | "incomplete" | "illisible"; obtenu: string; sortie: string } | ({ etat: "sans-verdict" } & Failure));
 
 // Les lignes par lesquelles `installation` dit un projet prêt (runtime/src/installation-cli.ts) :
 // la sienne, et celle d'une box d'avant #933.
-const verdicts = (nom: string) => [`brigade : project “${nom}” : ready`, `brigade : projet « ${nom} » : prêt`];
+const verdicts = (name: string) => [`brigade : project “${name}” : ready`, `brigade : projet « ${name} » : prêt`];
 
 // Ce que prouve ce que la box a rendu d'`installation`. Les codes sont ceux de
 // docs/installer.md, « Vérifier que le projet est prêt » : 0, 1 ou 2, la commande a été
 // lancée ; tout autre vient du geste.
-export function verdictDe(rendu: RenduDeBox, nom: string, delaiMs: number): Verifiee {
+export function verdictOf(rendered: RenderedOfBox, name: string, delayMs: number): Verified {
   const a = new Date().toISOString();
-  const { erreur } = rendu;
-  const obtenu = (code: number) => `${rendu.lance}\n${rendu.erreurs}${rendu.sortie}\n→ exit code ${code}`;
-  if (erreur === null) {
+  const { erreur: error } = rendered;
+  const obtained = (code: number) => `${rendered.lance}\n${rendered.erreurs}${rendered.sortie}\n→ exit code ${code}`;
+  if (error === null) {
     // Un compte enfermé dans une commande forcée rend 0, lui aussi, et autre chose que le verdict.
-    const dit = rendu.sortie.split("\n").some((ligne) => verdicts(nom).some((prete) => ligne.startsWith(prete)));
-    return { a, etat: dit ? "pret" : "illisible", obtenu: obtenu(0), sortie: rendu.sortie };
+    const said = rendered.sortie.split("\n").some((line) => verdicts(name).some((ready) => line.startsWith(ready)));
+    return { a, etat: said ? "pret" : "illisible", obtenu: obtained(0), sortie: rendered.sortie };
   }
-  if (erreur.killed !== true && (erreur.code === 1 || erreur.code === 2)) return { a, etat: "incomplete", obtenu: obtenu(erreur.code), sortie: rendu.sortie };
-  return { a, etat: "sans-verdict", ...echecDe({ ...rendu, erreur }, delaiMs) };
+  if (error.killed !== true && (error.code === 1 || error.code === 2)) return { a, etat: "incomplete", obtenu: obtained(error.code), sortie: rendered.sortie };
+  return { a, etat: "sans-verdict", ...failureOf({ ...rendered, erreur: error }, delayMs) };
 }
 
 // Ce qu'`installation --json` a rendu, lancée une fois : c'est ce que « Vérifier » lance.
@@ -353,25 +353,25 @@ export function verdictDe(rendu: RenduDeBox, nom: string, delaiMs: number): Veri
 //   `sans-verdict` rien n'est venu d'elle — la station pas jointe, le geste qui refuse, la commande arrêtée
 // `obtenu` : la ligne lancée, ce que la box a écrit sur sa sortie d'erreur, la sortie brute de la
 // vérification à la place de son objet, et le code de sortie.
-export type Jugee = { a: string } & ({ etat: "jugee"; jugement: Jugement; obtenu: string } | { etat: "illisible"; obtenu: string } | ({ etat: "sans-verdict" } & Echec));
+export type Judged = { a: string } & ({ etat: "jugee"; jugement: Judgment; obtenu: string } | { etat: "illisible"; obtenu: string } | ({ etat: "sans-verdict" } & Failure));
 
 // `cuisine` : là où elle a été lancée — sur cet ordinateur.
-export function jugementDe(rendu: RenduDeBox, delaiMs: number, cuisine?: Cuisine): Jugee {
+export function judgmentOf(rendered: RenderedOfBox, delayMs: number, kitchen?: Kitchen): Judged {
   const a = new Date().toISOString();
-  const { erreur } = rendu;
-  const code = erreur === null ? 0 : erreur.killed !== true && (erreur.code === 1 || erreur.code === 2) ? erreur.code : undefined;
-  if (erreur !== null && code === undefined) return { a, etat: "sans-verdict", ...echecDe({ ...rendu, erreur }, delaiMs) };
-  const jugement = lireJugement(rendu.sortie);
+  const { erreur: error } = rendered;
+  const code = error === null ? 0 : error.killed !== true && (error.code === 1 || error.code === 2) ? error.code : undefined;
+  if (error !== null && code === undefined) return { a, etat: "sans-verdict", ...failureOf({ ...rendered, erreur: error }, delayMs) };
+  const judgment = readJudgment(rendered.sortie);
   // Son code est celui du verdict : 0 prêt, 1 sinon (runtime/src/installation-cli.ts, `juger`).
-  if (jugement === undefined || code !== (jugement.verdict === "pret" ? 0 : 1)) return { a, etat: "illisible", obtenu: `${rendu.lance}\n${rendu.erreurs}${rendu.sortie}\n→ exit code ${code}` };
-  return { a, etat: "jugee", jugement, obtenu: `${rendu.lance}\n${rendu.erreurs}${jugement.brut}\n→ exit code ${code}` };
+  if (judgment === undefined || code !== (judgment.verdict === "pret" ? 0 : 1)) return { a, etat: "illisible", obtenu: `${rendered.lance}\n${rendered.erreurs}${rendered.sortie}\n→ exit code ${code}` };
+  return { a, etat: "jugee", jugement: judgment, obtenu: `${rendered.lance}\n${rendered.erreurs}${judgment.brut}\n→ exit code ${code}` };
 }
 
-const sansBox = (nom: string) => `“${nom}” does not say where its station is: there is nothing to install there.`;
+const withoutBox = (name: string) => `“${name}” does not say where its station is: there is nothing to install there.`;
 
 // Ce que « Démarrer » écrit pour ce projet : rien. La station de cet ordinateur tourne en fond (#3630), aucun
 // service n'y est à démarrer.
-export function commandeDeDemarrage(_projet: Projet): { refus: string } {
+export function commandOfStartup(_project: Project): { refus: string } {
   return { refus: "nothing is written: this computer's station runs in the background, started at login or by the app — there is no service to start" };
 }
 
@@ -380,25 +380,25 @@ export function commandeDeDemarrage(_projet: Projet): { refus: string } {
 // vérification dit manquer — chacun absent quand la box ne l'a jamais rendu sous sa forme.
 // `verification` : le verdict tel que l'écran Verify le pose (phrase, manques, « à savoir », sortie
 // brute) — la bande d'alertes le reprend, sans le redire autrement.
-export type Controle = { a: string; stations?: StationsLues; manques?: Manque[]; renouvellement?: RenouvellementEnEchec; verification?: Montree };
+export type Control = { a: string; stations?: StationsRead; manques?: Missing[]; renouvellement?: RenewalEnFailure; verification?: Shown };
 
 // Ce que le chef enregistre d'une station déclarée, depuis l'onglet Stations (#1510) : son plafond de cooks, ses capacités
 // — ou son retrait. Chaque geste ne change qu'elle (runtime/src/une-station.ts).
-export type StationVoulue = { cooks: number; fournit: string[] } | { retiree: true };
+export type StationWanted = { cooks: number; fournit: string[] } | { retiree: true };
 // Ce qu'il en advient, en une ligne : `detail`, ce que la box a rendu d'un refus — pour le survol.
-export type StationChangee = { fait: string } | { refus: string; detail?: string };
+export type StationChanged = { fait: string } | { refus: string; detail?: string };
 
 // Un nom de capacité, tel que le runtime le lit (runtime/src/capacites.ts, `CAPACITE`) : rien qu'un shell lirait autrement.
-const CAPACITE = /^[\p{L}\p{N}][\p{L}\p{N}_-]*$/u;
+const CAPACITY = /^[\p{L}\p{N}][\p{L}\p{N}_-]*$/u;
 // Un nom de station (runtime/src/stations-declarees.ts, `NOM_DE_STATION`).
-const NOM_DE_STATION = /^[\p{Ll}\p{N}][\p{Ll}\p{N}-]*\/[\p{Ll}\p{N}][\p{Ll}\p{N}-]*$/u;
+const NAME_OF_STATION = /^[\p{Ll}\p{N}][\p{Ll}\p{N}-]*\/[\p{Ll}\p{N}][\p{Ll}\p{N}-]*$/u;
 
 // --- Ce que la vue pose.
 
 // Un manque, tel que l'écran le pose : en mots simples, qui agit, et — si c'est le chef — le
 // bouton qui fait le geste, ou la commande exacte, à copier. `dit` : la flèche de la vérification,
 // telle quelle, quand la box ne donne ni l'un ni l'autre.
-export type LigneDeManque = {
+export type LineOfMissing = {
   texte: string;
   acteur: "chef" | "brigade";
   qui: string;
@@ -410,37 +410,37 @@ export type LigneDeManque = {
 // `detail`, ce que l'app a obtenu — la sortie brute, intacte —, replié. Sans verdict lisible, ce
 // que la box a rendu, et ce qui l'explique. Sans verdict du tout, c'est l'échec de la veille,
 // que la vue sait déjà rendre.
-export type Montree =
+export type Shown =
   | { etat: "en-cours"; titre: string }
-  | { etat: "pret" | "pas-pret" | "plantee"; a: string; titre: string; manques: LigneDeManque[]; panne: string | null; aSavoir: ASavoir[]; detail: string }
+  | { etat: "pret" | "pas-pret" | "plantee"; a: string; titre: string; manques: LineOfMissing[]; panne: string | null; aSavoir: ASavoir[]; detail: string }
   | { etat: "illisible"; a: string; titre: string; suite: string[]; detail: string }
-  | { etat: "sans-verdict"; a: string; titre: string; echec: Echec };
+  | { etat: "sans-verdict"; a: string; titre: string; echec: Failure };
 
 // Ce qu'une lecture de la box a donné, quand ce n'est pas ce qui était demandé.
 //   `echec`     la commande n'a pas rendu sa réponse — la veille sait dire le cas
 //   `illisible` elle a répondu, et ce n'est pas la forme que l'app connaît : un runtime plus ancien, sans elle
-export type Rate = { etat: "echec"; a: string; titre: string; echec: Echec } | { etat: "illisible"; a: string; titre: string; obtenu: string; lignes: string[] };
+export type Rate = { etat: "echec"; a: string; titre: string; echec: Failure } | { etat: "illisible"; a: string; titre: string; obtenu: string; lignes: string[] };
 
 // Ce qui est demandé à la box pour l'étape courante, et ce qu'elle en a rendu.
 export type Detail =
   | { etat: "en-cours"; titre: string }
   | Rate
-  | { etat: "lu"; id: "stations"; lu: StationsLues }
-  | { etat: "lu"; id: "protection"; lu: ProtectionLue }
-  | { etat: "lu"; id: "decisions"; lu: CouranteLue; passable: boolean };
+  | { etat: "lu"; id: "stations"; lu: StationsRead }
+  | { etat: "lu"; id: "protection"; lu: ProtectionRead }
+  | { etat: "lu"; id: "decisions"; lu: CurrentRead; passable: boolean };
 
 // Une étape telle que l'écran la montre. `manques` : ce que la dernière vérification dit
 // qu'il faut reprendre ici. `lignes` : ce que l'app dit de son geste, pour l'étape courante.
 // `detail` : ce que la box dit de l'étape courante, quand elle a un geste à choisir — ou des
 // décisions qui restent, que le démarrage ne réclame pas, tant que l'installation n'est pas finie.
-export type EtapeVue = EtapeLue & { rang: number; courante: boolean; manques: Manque[]; lignes: string[]; detail?: Detail };
+export type StepVue = StepRead & { rang: number; courante: boolean; manques: Missing[]; lignes: string[]; detail?: Detail };
 
 // Ce que l'app ne fera pas à la place du chef : dit d'emblée. `geste` : la commande, mot pour
 // mot, quand il y en a une ; `texte` : ce qui manque, ou pourquoi c'est à lui.
-export type Annonce = { titre: string; texte: string; geste: string | null };
+export type Announcement = { titre: string; texte: string; geste: string | null };
 
 // Ce qu'a donné la dernière action de l'écran : ce que la box en a dit, tel quel.
-export type Fait = { a: string; titre: string; ok: boolean; obtenu: string };
+export type Done = { a: string; titre: string; ok: boolean; obtenu: string };
 
 // L'installation d'un projet, prête à poser : la vue n'y décide rien.
 // `deplie` : le chef l'a entamée, ou elle est en cours — elle s'ouvre d'elle-même.
@@ -452,33 +452,33 @@ export type Guide = {
   deplie: boolean;
   titre: string;
   lecture: { etat: "en-cours"; titre: string } | { etat: "lue"; a: string } | Rate;
-  etapes: EtapeVue[];
+  etapes: StepVue[];
   courante: string | null;
-  annonces: { etat: "en-cours" | "lues" | "pas-lues"; liste: Annonce[] };
-  verification?: Montree;
+  annonces: { etat: "en-cours" | "lues" | "pas-lues"; liste: Announcement[] };
+  verification?: Shown;
   action?: string;
-  fait?: Fait;
+  fait?: Done;
   demarrage: { commande: string } | { refus: string };
   // L'installation n'est plus à montrer : la box l'a dite terminée (et l'app s'en souvient, même
   // si une lecture échoue ensuite), ou rien n'a jamais dit qu'elle ne l'était pas. L'espace du
   // projet est alors le rail, et rien de l'écran d'installation.
   termine: boolean;
   // Installée, ce que son dernier contrôle a lu : la bande d'alertes en tire ce qui est perdu.
-  controle?: Controle;
+  controle?: Control;
 };
 
 // Ce qu'un appel à la box a donné : la commande a répondu de son code (0, 1 ou 2 — les
 // siens), ou rien n'est venu d'elle.
-type Joue = { a: string; code: number; sortie: string; obtenu: string } | { a: string; echec: Echec };
+type Plays = { a: string; code: number; sortie: string; obtenu: string } | { a: string; echec: Failure };
 
 type Tenu = {
   // Là où l'installation a été lue : cet ordinateur (`ICI`).
   lieu: string;
   suivi: boolean;
   lecture: Guide["lecture"];
-  etapes?: EtapesLues;
+  etapes?: StepsRead;
   detail?: Detail;
-  verification?: Jugee;
+  verification?: Judged;
   // La vérification en route : une seule à la fois, qu'on attend plutôt que de la doubler.
   verifiant?: Promise<void>;
   // La vérification d'ouverture est partie, une fois : on ne la relance pas à chaque regard.
@@ -487,44 +487,44 @@ type Tenu = {
   // Une lecture qui échoue ensuite n'en défait rien.
   fini?: boolean;
   action?: string;
-  fait?: Fait;
+  fait?: Done;
   // Le dernier contrôle de l'installation terminée, et celui qui est en route : un seul à la fois.
-  controle?: Controle;
+  controle?: Control;
   controlant?: Promise<void>;
 };
 
-export type Services = ReturnType<typeof tenirServices>;
+export type Services = ReturnType<typeof holdServices>;
 
 // Le lieu d'une installation lue sur cet ordinateur : aucun hôte ne s'écrit avec un blanc.
-const ICI = "this computer";
+const HERE = "this computer";
 // Un projet, avec là où sa cuisine tourne : c'est là que ses commandes partent.
-type Avec = Projet & { cuisine: Cuisine };
+type With = Project & { cuisine: Kitchen };
 
-const OCCUPE = "Another installation action is running: it answers by itself, then this one can go.";
+const BUSY = "Another installation action is running: it answers by itself, then this one can go.";
 
 // Le libellé du bouton qui lève un manque du chef depuis l'app. Les stations et les décisions se
 // choisissent : le bouton mène à leur étape, où le choix se fait.
-function libelleDAction(action: Action, etapes: EtapeVue[]): string {
+function wordingOfAction(action: Action, steps: StepVue[]): string {
   if (action === "init") return `Run ${INIT} in the second`;
   if (action === "protection") return "Protect the integration branch";
-  const etape = etapes.find(({ id }) => id === action);
-  return etape === undefined ? `Go to the ${action} step` : `Go to step ${etape.rang}. ${etape.titre}`;
+  const step = steps.find(({ id }) => id === action);
+  return step === undefined ? `Go to the ${action} step` : `Go to step ${step.rang}. ${step.titre}`;
 }
 
 // Un manque du verdict, tel que l'écran le pose : qui agit, et ce qui lui est donné pour le faire.
-function ligneDeManque(manque: ManqueJuge, etapes: EtapeVue[]): LigneDeManque {
-  if (manque.acteur === "brigade") return { texte: manque.texte, acteur: "brigade", qui: "brigade, on its own — nothing for you to do", geste: null };
-  const geste =
-    manque.action !== null
-      ? { action: manque.action, libelle: libelleDAction(manque.action, etapes) }
-      : manque.commande !== null
-        ? { commande: manque.commande }
-        : manque.geste !== null
-          ? { dit: manque.geste }
+function lineOfMissing(lack: MissingJudge, steps: StepVue[]): LineOfMissing {
+  if (lack.acteur === "brigade") return { texte: lack.texte, acteur: "brigade", qui: "brigade, on its own — nothing for you to do", geste: null };
+  const gesture =
+    lack.action !== null
+      ? { action: lack.action, libelle: wordingOfAction(lack.action, steps) }
+      : lack.commande !== null
+        ? { commande: lack.commande }
+        : lack.geste !== null
+          ? { dit: lack.geste }
           : null;
-  return { texte: manque.texte, acteur: "chef", qui: "you", geste };
+  return { texte: lack.texte, acteur: "chef", qui: "you", geste: gesture };
 }
-const LIGNES: Readonly<Record<string, (projet: Projet, ici: boolean) => string[]>> = {
+const LINES: Readonly<Record<string, (project: Project, here: boolean) => string[]>> = {
   ajout: () => ["The app marks this step done as soon as the station answers for the project: the add is what made it exist there."],
   init: () => [
     `\`${INIT}\` is a Claude Code session, not a command: the app opens it in this space's second, in the project's folder — the conversation is yours.`,
@@ -545,350 +545,350 @@ const LIGNES: Readonly<Record<string, (projet: Projet, ici: boolean) => string[]
 // leur est donné : la box, par le passage du projet, et les deux terminaux — le second, où
 // s'ouvre la session d'init, et un shell, où s'écrit le démarrage. `surGuide` reçoit chaque
 // installation qui change. `cuisine` : là où celle d'un projet tourne, demandé à chaque geste —
-// sa box, ou cet ordinateur, où ses commandes partent (poste/cuisine-ici.ts). Absent,
+// sa box, ou cet ordinateur, où ses commandes partent (workstation/kitchen-here.ts). Absent,
 // c'est sa box.
-export function tenirServices(options: {
+export function holdServices(options: {
   delaiMs: number;
-  lancer(lu: ProjetLu, commande: string): Promise<RenduDeBox>;
-  cuisine: (projet: Projet) => Cuisine | undefined;
-  session(projet: Projet, commande: string): Terminal;
-  shell(projet: Projet, ecrit: string): Terminal;
+  lancer(readOne: ProjectRead, command: string): Promise<RenderedOfBox>;
+  cuisine: (project: Project) => Kitchen | undefined;
+  session(project: Project, command: string): Terminal;
+  shell(project: Project, written: string): Terminal;
   surGuide(guide: Guide): void;
   // L'écart minimal entre deux contrôles d'un projet installé, sauf s'il est demandé exprès :
   // la vérification joint l'origine et GitHub, et tient le passage du projet le temps de le faire.
   controleMs?: number;
 }) {
-  const tenus = new Map<string, Tenu>();
-  const cuisineDe = options.cuisine;
+  const heldOnes = new Map<string, Tenu>();
+  const kitchenOf = options.cuisine;
   // Le projet, avec là où sa cuisine tourne à cet instant — rien, si elle n'est nulle part.
-  const avecSaCuisine = (projet: Projet): Avec | undefined => {
-    const cuisine = cuisineDe(projet);
-    return cuisine === undefined ? undefined : { ...projet, cuisine };
+  const withItsKitchen = (project: Project): With | undefined => {
+    const kitchen = kitchenOf(project);
+    return kitchen === undefined ? undefined : { ...project, cuisine: kitchen };
   };
 
   // L'installation d'un projet là où sa cuisine tourne aujourd'hui : ce qui a été lu ailleurs ne vaut rien ici.
-  function tenir({ nom, cuisine }: Avec): Tenu {
-    const lieu = ICI;
-    const tenu = tenus.get(nom);
-    if (tenu !== undefined && tenu.lieu === lieu) return tenu;
-    const neuf: Tenu = { lieu, suivi: false, lecture: { etat: "en-cours", titre: "reading the installation steps on the station…" }, annoncee: false };
-    tenus.set(nom, neuf);
-    return neuf;
+  function hold({ nom: name, cuisine: kitchen }: With): Tenu {
+    const place = HERE;
+    const tenu = heldOnes.get(name);
+    if (tenu !== undefined && tenu.lieu === place) return tenu;
+    const fresh: Tenu = { lieu: place, suivi: false, lecture: { etat: "en-cours", titre: "reading the installation steps on the station…" }, annoncee: false };
+    heldOnes.set(name, fresh);
+    return fresh;
   }
 
-  const ouLire = ({ nom, cuisine }: Avec): ProjetLu => ({ nom, cuisine });
+  const orRead = ({ nom: name, cuisine: kitchen }: With): ProjectRead => ({ nom: name, cuisine: kitchen });
 
-  async function jouer(projet: Avec, commande: string): Promise<Joue> {
-    const rendu = await options.lancer(ouLire(projet), commande);
+  async function play(project: With, command: string): Promise<Plays> {
+    const rendered = await options.lancer(orRead(project), command);
     const a = new Date().toISOString();
-    const { erreur } = rendu;
-    const code = erreur === null ? 0 : erreur.killed !== true && (erreur.code === 1 || erreur.code === 2) ? erreur.code : undefined;
-    if (code === undefined) return { a, echec: echecDe({ ...rendu, erreur: erreur as NonNullable<typeof erreur> }, options.delaiMs) };
-    return { a, code, sortie: rendu.sortie, obtenu: `${rendu.lance}\n${rendu.erreurs}${rendu.sortie}\n→ exit code ${code}` };
+    const { erreur: error } = rendered;
+    const code = error === null ? 0 : error.killed !== true && (error.code === 1 || error.code === 2) ? error.code : undefined;
+    if (code === undefined) return { a, echec: failureOf({ ...rendered, erreur: error as NonNullable<typeof error> }, options.delaiMs) };
+    return { a, code, sortie: rendered.sortie, obtenu: `${rendered.lance}\n${rendered.erreurs}${rendered.sortie}\n→ exit code ${code}` };
   }
 
   // Ce qu'une lecture rend quand ce n'est pas la forme attendue.
-  function rate(joue: Joue, commande: string): Rate {
-    if ("echec" in joue) return { etat: "echec", a: joue.a, titre: titreDEchec(joue.echec, `REACHED, BUT \`${commande}\` DID NOT ANSWER`), echec: joue.echec };
+  function rate(plays: Plays, command: string): Rate {
+    if ("echec" in plays) return { etat: "echec", a: plays.a, titre: titleOfFailure(plays.echec, `REACHED, BUT \`${command}\` DID NOT ANSWER`), echec: plays.echec };
     return {
       etat: "illisible",
-      a: joue.a,
-      titre: `THE STATION DID NOT RETURN WHAT \`${commande}\` RETURNS`,
-      obtenu: joue.obtenu,
+      a: plays.a,
+      titre: `THE STATION DID NOT RETURN WHAT \`${command}\` RETURNS`,
+      obtenu: plays.obtenu,
       lignes: [
         `What it returned is above, as is. The expected case: the runtime serving this project on the station predates this step — update it (${DOC}, « Mettre brigade à jour »).`,
       ],
     };
   }
 
-  const vivant = (nom: string, tenu: Tenu) => tenus.get(nom) === tenu;
-  function pousser(projet: Projet, tenu: Tenu): void {
-    if (vivant(projet.nom, tenu)) options.surGuide(vue(projet, tenu));
+  const alive = (name: string, tenu: Tenu) => heldOnes.get(name) === tenu;
+  function push(project: Project, tenu: Tenu): void {
+    if (alive(project.nom, tenu)) options.surGuide(vue(project, tenu));
   }
 
   // Les étapes, relues ; puis ce que l'étape courante demande, et — l'écran ouvert sur une
   // installation pas finie — la vérification d'ouverture, une fois.
-  async function relire(projet: Avec, tenu: Tenu, ajoutNote = false): Promise<void> {
-    const joue = await jouer(projet, COMMANDES.etapes);
-    const lues = "echec" in joue || joue.code !== 0 ? undefined : lireEtapes(joue.sortie);
-    if (lues === undefined) {
-      tenu.lecture = rate(joue, COMMANDES.etapes);
+  async function reread(project: With, tenu: Tenu, additionNote = false): Promise<void> {
+    const plays = await play(project, COMMANDS.etapes);
+    const readEntries = "echec" in plays || plays.code !== 0 ? undefined : readSteps(plays.sortie);
+    if (readEntries === undefined) {
+      tenu.lecture = rate(plays, COMMANDS.etapes);
       tenu.etapes = undefined;
       tenu.detail = undefined;
-      return pousser(projet, tenu);
+      return push(project, tenu);
     }
-    tenu.lecture = { etat: "lue", a: joue.a };
-    tenu.etapes = lues;
-    tenu.fini = lues.courante === null;
-    pousser(projet, tenu);
+    tenu.lecture = { etat: "lue", a: plays.a };
+    tenu.etapes = readEntries;
+    tenu.fini = readEntries.courante === null;
+    push(project, tenu);
     // Installée : le contrôle part à côté, sans retenir ce qui a relu les étapes.
-    if (lues.courante === null) void controler(projet, tenu);
-    if (!deplie(tenu)) return;
+    if (readEntries.courante === null) void check(project, tenu);
+    if (!unfolded(tenu)) return;
     // La box vient de répondre pour ce projet, par son nom : il existe sur elle.
-    if (!ajoutNote && lues.etapes.some(({ id, etat }) => id === "ajout" && etat !== "done")) {
-      const notee = await jouer(projet, "installation etapes ajout faite");
-      if (!("echec" in notee) && notee.code === 0) return relire(projet, tenu, true);
+    if (!additionNote && readEntries.etapes.some(({ id, etat: state }) => id === "ajout" && state !== "done")) {
+      const noted = await play(project, "installation etapes ajout faite");
+      if (!("echec" in noted) && noted.code === 0) return reread(project, tenu, true);
     }
-    await lireDetail(projet, tenu);
-    if (!tenu.annoncee && lues.courante !== null) {
+    await readDetail(project, tenu);
+    if (!tenu.annoncee && readEntries.courante !== null) {
       tenu.annoncee = true;
-      await verifierPour(projet, tenu);
+      await checkFor(project, tenu);
     }
   }
 
   // L'étape dont la box dit de quoi choisir : la courante, quand elle a un geste à choisir —
   // et, la courante étant le démarrage, les décisions : celles que le démarrage ne réclame
   // pas restent présentées, une à une, jusqu'à la fin de l'installation.
-  function cible(tenu: Tenu): "stations" | "protection" | "decisions" | undefined {
-    const courante = tenu.etapes?.courante;
-    if (courante === "stations" || courante === "protection" || courante === "decisions") return courante;
-    return courante === "demarrage" ? "decisions" : undefined;
+  function target(tenu: Tenu): "stations" | "protection" | "decisions" | undefined {
+    const current = tenu.etapes?.courante;
+    if (current === "stations" || current === "protection" || current === "decisions") return current;
+    return current === "demarrage" ? "decisions" : undefined;
   }
 
   // Ce que la box dit de l'étape qui a un geste à choisir.
-  async function lireDetail(projet: Avec, tenu: Tenu): Promise<void> {
-    const id = cible(tenu);
+  async function readDetail(project: With, tenu: Tenu): Promise<void> {
+    const id = target(tenu);
     if (id === undefined) {
       tenu.detail = undefined;
       return;
     }
-    const commande = COMMANDES[id];
-    tenu.detail = { etat: "en-cours", titre: `reading \`${commande}\` on the station…` };
-    pousser(projet, tenu);
-    const joue = await jouer(projet, commande);
-    const sortie = "echec" in joue || joue.code !== 0 ? undefined : joue.sortie;
+    const command = COMMANDS[id];
+    tenu.detail = { etat: "en-cours", titre: `reading \`${command}\` on the station…` };
+    push(project, tenu);
+    const plays = await play(project, command);
+    const output = "echec" in plays || plays.code !== 0 ? undefined : plays.sortie;
     if (id === "stations") {
-      const lu = sortie === undefined ? undefined : lireStations(sortie);
-      tenu.detail = lu === undefined ? rate(joue, commande) : { etat: "lu", id, lu };
+      const readOne = output === undefined ? undefined : readStations(output);
+      tenu.detail = readOne === undefined ? rate(plays, command) : { etat: "lu", id, lu: readOne };
     } else if (id === "protection") {
-      const lu = sortie === undefined ? undefined : lireProtection(sortie);
-      tenu.detail = lu === undefined ? rate(joue, commande) : { etat: "lu", id, lu };
+      const readOne = output === undefined ? undefined : readProtection(output);
+      tenu.detail = readOne === undefined ? rate(plays, command) : { etat: "lu", id, lu: readOne };
     } else {
-      const lu = sortie === undefined ? undefined : lireCourante(sortie);
+      const readOne = output === undefined ? undefined : readCurrent(output);
       // L'étape se passe quand le démarrage ne réclame plus rien — la décision courante n'est pas
       // réclamée : celles qui restent se posent, ou se passent.
-      const faite = tenu.etapes?.etapes.find((etape) => etape.id === id)?.etat === "done";
-      tenu.detail = lu === undefined ? rate(joue, commande) : { etat: "lu", id, lu, passable: !faite && (lu.courante === null || !lu.courante.reclamee) };
+      const doneOne = tenu.etapes?.etapes.find((step) => step.id === id)?.etat === "done";
+      tenu.detail = readOne === undefined ? rate(plays, command) : { etat: "lu", id, lu: readOne, passable: !doneOne && (readOne.courante === null || !readOne.courante.reclamee) };
     }
-    pousser(projet, tenu);
+    push(project, tenu);
   }
 
   // `installation --json`, lancée ; l'étape « verification » notée d'après ce qu'elle dit de la
   // box : faite si rien n'y manque, en attente du chef sinon. Plantée, elle n'a rien constaté :
   // rien n'est noté.
-  function verifierPour(projet: Avec, tenu: Tenu): Promise<void> {
+  function checkFor(project: With, tenu: Tenu): Promise<void> {
     if (tenu.verifiant !== undefined) return tenu.verifiant;
     tenu.verification = undefined;
     tenu.verifiant = (async () => {
-      const jugee = jugementDe(await options.lancer(ouLire(projet), JUGEMENT), options.delaiMs, projet.cuisine);
-      tenu.verification = jugee;
+      const judged = judgmentOf(await options.lancer(orRead(project), JUDGMENT), options.delaiMs, project.cuisine);
+      tenu.verification = judged;
       tenu.verifiant = undefined;
-      pousser(projet, tenu);
-      if (jugee.etat !== "jugee" || jugee.jugement.verdict === "plantee") return;
-      const surLaBox = manquesDuJugement(jugee.jugement).some(({ etape }) => etape !== null && SUR_LA_BOX.includes(etape));
-      const voulu = surLaBox ? "waiting" : "done";
-      if (tenu.etapes?.etapes.find(({ id }) => id === "verification")?.etat === voulu) return;
-      const notee = await jouer(projet, `installation etapes verification ${voulu === "done" ? "faite" : "en-attente"}`);
-      if (!("echec" in notee) && notee.code === 0) await relire(projet, tenu);
+      push(project, tenu);
+      if (judged.etat !== "jugee" || judged.jugement.verdict === "plantee") return;
+      const onTheBox = gapsOfJudgment(judged.jugement).some(({ etape: step }) => step !== null && ON_THE_BOX.includes(step));
+      const wanted = onTheBox ? "waiting" : "done";
+      if (tenu.etapes?.etapes.find(({ id }) => id === "verification")?.etat === wanted) return;
+      const noted = await play(project, `installation etapes verification ${wanted === "done" ? "faite" : "en-attente"}`);
+      if (!("echec" in noted) && noted.code === 0) await reread(project, tenu);
     })();
-    pousser(projet, tenu);
+    push(project, tenu);
     return tenu.verifiant;
   }
 
   // Le contrôle d'un projet installé : ses stations, puis la vérification entière — rien n'est
   // noté au journal. Une lecture qui ne rend pas sa forme laisse ce que la précédente avait dit.
-  function controler(projet: Avec, tenu: Tenu, expres = false): Promise<void> {
+  function check(project: With, tenu: Tenu, expres = false): Promise<void> {
     if (tenu.controlant !== undefined) return tenu.controlant;
-    const dernier = tenu.controle === undefined ? undefined : Date.parse(tenu.controle.a);
-    if (!expres && dernier !== undefined && Date.now() - dernier < (options.controleMs ?? 0)) return Promise.resolve();
+    const last = tenu.controle === undefined ? undefined : Date.parse(tenu.controle.a);
+    if (!expres && last !== undefined && Date.now() - last < (options.controleMs ?? 0)) return Promise.resolve();
     tenu.controlant = (async () => {
       try {
-        const joue = await jouer(projet, COMMANDES.stations);
-        const stations = "echec" in joue || joue.code !== 0 ? undefined : lireStations(joue.sortie);
-        const jugee = jugementDe(await options.lancer(ouLire(projet), JUGEMENT), options.delaiMs, projet.cuisine);
-        const lu = jugee.etat === "jugee" && jugee.jugement.verdict !== "plantee" ? jugee.jugement : undefined;
-        const manques = lu === undefined ? undefined : manquesDuJugement(lu);
-        const avant = tenu.controle;
-        const lues = stations ?? avant?.stations;
-        const dits = manques ?? avant?.manques;
+        const plays = await play(project, COMMANDS.stations);
+        const stations = "echec" in plays || plays.code !== 0 ? undefined : readStations(plays.sortie);
+        const judged = judgmentOf(await options.lancer(orRead(project), JUDGMENT), options.delaiMs, project.cuisine);
+        const readOne = judged.etat === "jugee" && judged.jugement.verdict !== "plantee" ? judged.jugement : undefined;
+        const gaps = readOne === undefined ? undefined : gapsOfJudgment(readOne);
+        const before = tenu.controle;
+        const readEntries = stations ?? before?.stations;
+        const saidOnes = gaps ?? before?.manques;
         // Une vérification lue qui ne dit plus d'échec lève l'alerte ; une lecture ratée laisse l'ancienne.
-        const renouvellement = lu === undefined ? avant?.renouvellement : renouvellementDe(lu.aSavoir.map(({ texte }) => `  note      ${texte}`).join("\n"));
+        const renewal = readOne === undefined ? before?.renouvellement : renewalOf(readOne.aSavoir.map(({ texte: text }) => `  note      ${text}`).join("\n"));
         // Ce que l'écran Verify poserait : la bande d'alertes dit le même verdict, les mêmes manques.
-        const etapes = (tenu.etapes?.etapes ?? []).map((etape, rang) => ({ ...etape, rang: rang + 1 })) as EtapeVue[];
-        const verification = jugee.etat === "sans-verdict" ? avant?.verification : montrer(jugee, etapes);
+        const steps = (tenu.etapes?.etapes ?? []).map((step, rank) => ({ ...step, rang: rank + 1 })) as StepVue[];
+        const verification = judged.etat === "sans-verdict" ? before?.verification : show(judged, steps);
         tenu.controle = {
           a: new Date().toISOString(),
-          ...(lues === undefined ? {} : { stations: lues }),
-          ...(dits === undefined ? {} : { manques: dits }),
-          ...(renouvellement === undefined ? {} : { renouvellement }),
+          ...(readEntries === undefined ? {} : { stations: readEntries }),
+          ...(saidOnes === undefined ? {} : { manques: saidOnes }),
+          ...(renewal === undefined ? {} : { renouvellement: renewal }),
           ...(verification === undefined ? {} : { verification }),
         };
       } finally {
         tenu.controlant = undefined;
       }
-      pousser(projet, tenu);
+      push(project, tenu);
     })();
     return tenu.controlant;
   }
 
   // Les stations du projet, relues seules après qu'une a changé : la vue les montre sans attendre le contrôle
   // suivant, ni la vérification entière qu'il joue. Un contrôle en route finit d'abord — il les a lues avant.
-  async function relireLesStations(projet: Avec, tenu: Tenu): Promise<void> {
+  async function rereadTheStations(project: With, tenu: Tenu): Promise<void> {
     await tenu.controlant;
-    const joue = await jouer(projet, COMMANDES.stations);
-    const lues = "echec" in joue || joue.code !== 0 ? undefined : lireStations(joue.sortie);
-    if (lues !== undefined && tenu.controle !== undefined) tenu.controle = { ...tenu.controle, stations: lues };
-    pousser(projet, tenu);
+    const plays = await play(project, COMMANDS.stations);
+    const readEntries = "echec" in plays || plays.code !== 0 ? undefined : readStations(plays.sortie);
+    if (readEntries !== undefined && tenu.controle !== undefined) tenu.controle = { ...tenu.controle, stations: readEntries };
+    push(project, tenu);
   }
 
-  const deplie = (tenu: Tenu) => tenu.suivi || (tenu.etapes !== undefined && tenu.etapes.courante !== null && tenu.etapes.etapes.some(({ etat }) => etat !== "todo"));
+  const unfolded = (tenu: Tenu) => tenu.suivi || (tenu.etapes !== undefined && tenu.etapes.courante !== null && tenu.etapes.etapes.some(({ etat: state }) => state !== "todo"));
 
-  function vue(projet: Projet, tenu: Tenu): Guide {
-    const lues = tenu.etapes;
-    const jugee = tenu.verification;
-    const manques = jugee?.etat === "jugee" ? manquesDuJugement(jugee.jugement) : [];
-    const etapes: EtapeVue[] = (lues?.etapes ?? []).map((etape, rang) => {
-      const courante = etape.id === lues?.courante;
+  function vue(project: Project, tenu: Tenu): Guide {
+    const readEntries = tenu.etapes;
+    const judged = tenu.verification;
+    const gaps = judged?.etat === "jugee" ? gapsOfJudgment(judged.jugement) : [];
+    const steps: StepVue[] = (readEntries?.etapes ?? []).map((step, rank) => {
+      const current = step.id === readEntries?.courante;
       return {
-        ...etape,
-        rang: rang + 1,
-        courante,
-        manques: manques.filter((manque) => manque.etape === etape.id),
-        lignes: courante ? (LIGNES[etape.id]?.(projet, tenu.lieu === ICI) ?? []) : [],
-        ...(etape.id === cible(tenu) && tenu.detail !== undefined ? { detail: tenu.detail } : {}),
+        ...step,
+        rang: rank + 1,
+        courante: current,
+        manques: gaps.filter((lack) => lack.etape === step.id),
+        lignes: current ? (LINES[step.id]?.(project, tenu.lieu === HERE) ?? []) : [],
+        ...(step.id === target(tenu) && tenu.detail !== undefined ? { detail: tenu.detail } : {}),
       };
     });
-    const faites = etapes.filter(({ etat }) => etat === "done").length;
-    const courante = etapes.find((etape) => etape.courante);
-    const demarrage = commandeDeDemarrage(projet);
-    const titre =
+    const done = steps.filter(({ etat: state }) => state === "done").length;
+    const current = steps.find((step) => step.courante);
+    const startup = commandOfStartup(project);
+    const title =
       tenu.lecture.etat === "en-cours"
         ? `Installation — ${tenu.lecture.titre}`
         : tenu.lecture.etat !== "lue"
           ? "Installation — the station did not return its steps"
-          : courante === undefined
-            ? `Installation — finished: the ${etapes.length} steps are done`
-            : `Installation — ${faites} of ${etapes.length} steps done · now: ${courante.rang}. ${courante.titre}`;
+          : current === undefined
+            ? `Installation — finished: the ${steps.length} steps are done`
+            : `Installation — ${done} of ${steps.length} steps done · now: ${current.rang}. ${current.titre}`;
     // Sans parole de la box (lecture en échec) sur un projet dont on n'a jamais vu l'installation
     // inachevée ni entamé les gestes, rien ne dit qu'elle l'est : l'écran ne s'affiche pas.
-    const termine = tenu.fini === true || (tenu.fini === undefined && !tenu.suivi && tenu.lecture.etat !== "en-cours" && tenu.lecture.etat !== "lue");
+    const finished = tenu.fini === true || (tenu.fini === undefined && !tenu.suivi && tenu.lecture.etat !== "en-cours" && tenu.lecture.etat !== "lue");
     return {
-      projet: projet.nom,
-      termine,
-      deplie: deplie(tenu),
-      titre,
+      projet: project.nom,
+      termine: finished,
+      deplie: unfolded(tenu),
+      titre: title,
       lecture: tenu.lecture,
-      etapes,
-      courante: lues?.courante ?? null,
-      annonces: annonces(projet, tenu, etapes, manques),
+      etapes: steps,
+      courante: readEntries?.courante ?? null,
+      annonces: announcements(project, tenu, steps, gaps),
       ...(tenu.verifiant !== undefined
         ? { verification: { etat: "en-cours", titre: `verification running… \`${VERIFICATION}\` reaches the repository's origin and GitHub: a few seconds, two minutes at most` } }
-        : jugee === undefined
+        : judged === undefined
           ? {}
-          : { verification: montrer(jugee, etapes) }),
+          : { verification: show(judged, steps) }),
       ...(tenu.action === undefined ? {} : { action: tenu.action }),
       ...(tenu.fait === undefined ? {} : { fait: tenu.fait }),
-      demarrage,
+      demarrage: startup,
       ...(tenu.fini === true && tenu.controle !== undefined ? { controle: tenu.controle } : {}),
     };
   }
 
   // Ce que le chef aura à faire lui-même, dit avant qu'il le rencontre : le geste de chaque
   // étape qui en a un, ce que la vérification dit manquer à la box, et le démarrage du service.
-  function annonces(_projet: Projet, tenu: Tenu, etapes: EtapeVue[], manques: Manque[]): Guide["annonces"] {
+  function announcements(_project: Project, tenu: Tenu, steps: StepVue[], gaps: Missing[]): Guide["annonces"] {
     if (tenu.etapes === undefined || tenu.etapes.courante === null) return { etat: "lues", liste: [] };
-    const liste: Annonce[] = [];
-    for (const etape of etapes) if (etape.geste !== null && etape.etat !== "done") liste.push({ titre: `${etape.rang}. ${etape.titre}`, texte: etape.geste, geste: null });
-    for (const manque of manques) {
-      if (manque.etape !== null && SUR_LA_BOX.includes(manque.etape)) liste.push({ titre: "On the station, by someone with `sudo` there", texte: manque.texte, geste: manque.geste });
+    const list: Announcement[] = [];
+    for (const step of steps) if (step.geste !== null && step.etat !== "done") list.push({ titre: `${step.rang}. ${step.titre}`, texte: step.geste, geste: null });
+    for (const lack of gaps) {
+      if (lack.etape !== null && ON_THE_BOX.includes(lack.etape)) list.push({ titre: "On the station, by someone with `sudo` there", texte: lack.texte, geste: lack.geste });
     }
-    const jugee = tenu.verification;
-    const etat = tenu.verifiant !== undefined || !tenu.annoncee ? "en-cours" : jugee?.etat === "jugee" && jugee.jugement.verdict !== "plantee" ? "lues" : "pas-lues";
-    return { etat, liste };
+    const judged = tenu.verification;
+    const state = tenu.verifiant !== undefined || !tenu.annoncee ? "en-cours" : judged?.etat === "jugee" && judged.jugement.verdict !== "plantee" ? "lues" : "pas-lues";
+    return { etat: state, liste: list };
   }
 
   // Ce que l'écran pose d'une vérification : le verdict en une phrase, une ligne par manque avec
   // qui agit, les lignes « à savoir » à part, et la sortie brute, repliée. Pas de mode d'emploi :
   // ce que la box a rendu est dit en mots simples, ou n'est pas dit.
-  function montrer(jugee: Jugee, etapes: EtapeVue[]): Montree {
-    const { a } = jugee;
-    if (jugee.etat === "sans-verdict") {
-      const { erreur, atteinte, cas } = jugee;
-      return { etat: "sans-verdict", a, titre: titreDEchec({ erreur, atteinte, cas }, `REACHED, BUT \`${JUGEMENT}\` DID NOT RETURN ITS VERDICT`), echec: { erreur, atteinte, cas } };
+  function show(judged: Judged, steps: StepVue[]): Shown {
+    const { a } = judged;
+    if (judged.etat === "sans-verdict") {
+      const { erreur: error, atteinte: reached, cas: theCase } = judged;
+      return { etat: "sans-verdict", a, titre: titleOfFailure({ erreur: error, atteinte: reached, cas: theCase }, `REACHED, BUT \`${JUDGMENT}\` DID NOT RETURN ITS VERDICT`), echec: { erreur: error, atteinte: reached, cas: theCase } };
     }
-    if (jugee.etat === "illisible") {
+    if (judged.etat === "illisible") {
       return {
         etat: "illisible",
         a,
-        titre: `The station did not return the verdict of \`${JUGEMENT}\`: the app cannot say whether the project is ready.`,
-        detail: jugee.obtenu,
+        titre: `The station did not return the verdict of \`${JUDGMENT}\`: the app cannot say whether the project is ready.`,
+        detail: judged.obtenu,
         suite: [
           `The expected case: the runtime serving this project on the station predates this verdict — update it (${DOC}, « Mettre brigade à jour »).`,
           `Or your account on the station is locked into a forced command, which replaces the one the app sends — ${DOC}, « Ajouter un humain ».`,
         ],
       };
     }
-    const { jugement, obtenu } = jugee;
-    const commun = { a, titre: jugement.phrase, detail: obtenu };
-    if (jugement.verdict === "plantee") {
-      const { connue } = jugement.panne;
-      return { etat: "plantee", ...commun, manques: [], panne: connue === null ? null : `#${connue.issue} — ${connue.texte}`, aSavoir: [] };
+    const { jugement: judgment, obtenu: obtained } = judged;
+    const common = { a, titre: judgment.phrase, detail: obtained };
+    if (judgment.verdict === "plantee") {
+      const { connue: known } = judgment.panne;
+      return { etat: "plantee", ...common, manques: [], panne: known === null ? null : `#${known.issue} — ${known.texte}`, aSavoir: [] };
     }
-    const manques = jugement.verdict === "pas-pret" ? jugement.manques.map((manque) => ligneDeManque(manque, etapes)) : [];
-    return { etat: jugement.verdict, ...commun, manques, panne: null, aSavoir: jugement.aSavoir };
+    const gaps = judgment.verdict === "pas-pret" ? judgment.manques.map((lack) => lineOfMissing(lack, steps)) : [];
+    return { etat: judgment.verdict, ...common, manques: gaps, panne: null, aSavoir: judgment.aSavoir };
   }
 
   // Ce qui réclame un terminal : la raison, pour un projet qui n'en a pas.
-  const sansTerminal = (projet: Projet) => (cuisineDe(projet) === undefined ? sansBox(projet.nom) : projet.refus === undefined ? undefined : `“${projet.nom}” does not open: ${projet.refus}`);
+  const withoutTerminal = (project: Project) => (kitchenOf(project) === undefined ? withoutBox(project.nom) : project.refus === undefined ? undefined : `“${project.nom}” does not open: ${project.refus}`);
 
   // Une action de l'écran sur la box : une à la fois par projet. Ce que la box en dit est
   // gardé tel quel, puis tout est relu — c'est elle qui dit où en est l'installation.
-  async function agir(projet: Projet, quoi: string, faire: (projet: Avec, tenu: Tenu) => Promise<Fait | { refus: string }>): Promise<{ refus: string } | undefined> {
-    const avec = avecSaCuisine(projet);
-    if (avec === undefined) return { refus: sansBox(projet.nom) };
-    const tenu = tenir(avec);
-    if (tenu.action !== undefined || tenu.verifiant !== undefined) return { refus: OCCUPE };
+  async function act(project: Project, what: string, faire: (project: With, tenu: Tenu) => Promise<Done | { refus: string }>): Promise<{ refus: string } | undefined> {
+    const withIt = withItsKitchen(project);
+    if (withIt === undefined) return { refus: withoutBox(project.nom) };
+    const tenu = hold(withIt);
+    if (tenu.action !== undefined || tenu.verifiant !== undefined) return { refus: BUSY };
     tenu.suivi = true;
-    tenu.action = quoi;
-    pousser(projet, tenu);
+    tenu.action = what;
+    push(project, tenu);
     try {
-      const fait = await faire(avec, tenu);
-      if ("refus" in fait) return fait;
-      tenu.fait = fait;
-      await relire(avec, tenu);
+      const done = await faire(withIt, tenu);
+      if ("refus" in done) return done;
+      tenu.fait = done;
+      await reread(withIt, tenu);
       return undefined;
     } finally {
       tenu.action = undefined;
-      pousser(projet, tenu);
+      push(project, tenu);
     }
   }
 
   // Une commande du runtime qui écrit, et ce qu'elle en a dit.
-  async function ecrire(projet: Avec, commande: string, titres: { ok: string; non: string }): Promise<Fait> {
-    const joue = await jouer(projet, commande);
-    if ("echec" in joue) return { a: joue.a, ok: false, titre: `${titres.non} — ${titreDEchec(joue.echec, `REACHED, BUT \`${commande}\` DID NOT ANSWER`)}`, obtenu: joue.echec.erreur };
-    return { a: joue.a, ok: joue.code === 0, titre: joue.code === 0 ? titres.ok : titres.non, obtenu: joue.obtenu };
+  async function write(project: With, command: string, titles: { ok: string; non: string }): Promise<Done> {
+    const plays = await play(project, command);
+    if ("echec" in plays) return { a: plays.a, ok: false, titre: `${titles.non} — ${titleOfFailure(plays.echec, `REACHED, BUT \`${command}\` DID NOT ANSWER`)}`, obtenu: plays.echec.erreur };
+    return { a: plays.a, ok: plays.code === 0, titre: plays.code === 0 ? titles.ok : titles.non, obtenu: plays.obtenu };
   }
 
   // Le détail lu de cette étape — rien, si ce n'est pas elle qui a un geste à choisir, ou si la box ne l'a pas rendu.
   function detail<I extends "stations" | "protection" | "decisions">(tenu: Tenu, id: I): Extract<Detail, { id: I }> | undefined {
-    const lu = tenu.detail;
-    return cible(tenu) === id && lu?.etat === "lu" && lu.id === id ? (lu as Extract<Detail, { id: I }>) : undefined;
+    const readOne = tenu.detail;
+    return target(tenu) === id && readOne?.etat === "lu" && readOne.id === id ? (readOne as Extract<Detail, { id: I }>) : undefined;
   }
 
   // Une valeur que l'app porte à la box : de quoi n'être qu'un mot pour son shell.
-  const VALEUR = /^[A-Za-z0-9._-]{1,64}$/;
+  const VALUE = /^[A-Za-z0-9._-]{1,64}$/;
 
   // L'installation d'un projet, relue sur sa box — rien, pour un projet sans box. Ouverte,
   // ou en cours, ce que son étape courante demande est lu aussi, et la vérification
   // d'ouverture part une fois : ce qui sera au chef est annoncé sans qu'il ait rien pressé.
-  async function guide(projet: Projet): Promise<Guide | undefined> {
-    const avec = avecSaCuisine(projet);
-    if (avec === undefined) return undefined;
-    const tenu = tenir(avec);
-    pousser(projet, tenu);
-    await relire(avec, tenu);
-    return vue(projet, tenu);
+  async function guide(project: Project): Promise<Guide | undefined> {
+    const withIt = withItsKitchen(project);
+    if (withIt === undefined) return undefined;
+    const tenu = hold(withIt);
+    push(project, tenu);
+    await reread(withIt, tenu);
+    return vue(project, tenu);
   }
 
   return {
@@ -899,88 +899,88 @@ export function tenirServices(options: {
     // Une installation pas finie n'en est pas touchée : rien n'y est lu de plus, rien noté.
     // `expres` : demandé par le chef, l'écart minimal ne le retient pas.
     // Rend le contrôle tel qu'il en sort — rien, pour un projet sans box ou pas installé.
-    async controler(projet: Projet, expres = false): Promise<Controle | undefined> {
-      const avec = avecSaCuisine(projet);
-      if (avec === undefined) return undefined;
-      const tenu = tenir(avec);
+    async controler(project: Project, expres = false): Promise<Control | undefined> {
+      const withIt = withItsKitchen(project);
+      if (withIt === undefined) return undefined;
+      const tenu = hold(withIt);
       if (tenu.fini !== true) {
         // Terminée depuis la dernière lecture — ailleurs que dans l'app : l'écran l'apprend aussi.
-        const joue = await jouer(avec, COMMANDES.etapes);
-        const lues = "echec" in joue || joue.code !== 0 ? undefined : lireEtapes(joue.sortie);
-        if (lues?.courante !== null || !vivant(projet.nom, tenu)) return undefined;
-        tenu.lecture = { etat: "lue", a: joue.a };
-        tenu.etapes = lues;
+        const plays = await play(withIt, COMMANDS.etapes);
+        const readEntries = "echec" in plays || plays.code !== 0 ? undefined : readSteps(plays.sortie);
+        if (readEntries?.courante !== null || !alive(project.nom, tenu)) return undefined;
+        tenu.lecture = { etat: "lue", a: plays.a };
+        tenu.etapes = readEntries;
         tenu.fini = true;
         tenu.detail = undefined;
-        pousser(projet, tenu);
+        push(project, tenu);
       }
-      if (!vivant(projet.nom, tenu)) return undefined;
-      await controler(avec, tenu, expres);
+      if (!alive(project.nom, tenu)) return undefined;
+      await check(withIt, tenu, expres);
       return tenu.controle;
     },
 
     // Le chef ouvre l'écran replié, ou le projet vient d'être ajouté par l'écran d'ajout.
-    deplier(projet: Projet): Promise<Guide | undefined> {
-      const avec = avecSaCuisine(projet);
-      if (avec !== undefined) tenir(avec).suivi = true;
-      return guide(projet);
+    deplier(project: Project): Promise<Guide | undefined> {
+      const withIt = withItsKitchen(project);
+      if (withIt !== undefined) hold(withIt).suivi = true;
+      return guide(project);
     },
 
     // Le projet vient d'être ajouté par l'écran : son installation s'ouvre d'elle-même dans son espace.
-    suivre(projet: Projet): void {
-      const avec = avecSaCuisine(projet);
-      if (avec !== undefined) tenir(avec).suivi = true;
+    suivre(project: Project): void {
+      const withIt = withItsKitchen(project);
+      if (withIt !== undefined) hold(withIt).suivi = true;
     },
 
     // La session `/brigade:init`, dans le second du projet. Rien n'en est déduit : qu'elle ait
     // abouti, et que son résultat soit mergé, c'est le chef qui le dit.
-    amorcer(projet: Projet): Terminal | { refus: string } {
-      const refus = sansTerminal(projet);
-      const avec = avecSaCuisine(projet);
-      if (refus !== undefined || avec === undefined) return { refus: refus ?? sansBox(projet.nom) };
-      tenir(avec).suivi = true;
-      return options.session(projet, INIT);
+    amorcer(project: Project): Terminal | { refus: string } {
+      const refusal = withoutTerminal(project);
+      const withIt = withItsKitchen(project);
+      if (refusal !== undefined || withIt === undefined) return { refus: refusal ?? withoutBox(project.nom) };
+      hold(withIt).suivi = true;
+      return options.session(project, INIT);
     },
 
     // Le chef dit le résultat de l'init mergé — ou s'en dédit : la box le note, ou le remet à faire.
-    direMerge(projet: Projet, merge: boolean) {
-      return agir(projet, merge ? "recording the merge of the init…" : "putting the init back to do…", (avec) =>
-        ecrire(avec, `installation etapes init ${merge ? "faite" : "a-faire"}`, merge ? { ok: `The merge of \`${INIT}\` is recorded on the station`, non: "The station did not record the merge" } : { ok: "The init is back to do", non: "The station did not put the init back to do" }),
+    direMerge(project: Project, merge: boolean) {
+      return act(project, merge ? "recording the merge of the init…" : "putting the init back to do…", (withIt) =>
+        write(withIt, `installation etapes init ${merge ? "faite" : "a-faire"}`, merge ? { ok: `The merge of \`${INIT}\` is recorded on the station`, non: "The station did not record the merge" } : { ok: "The init is back to do", non: "The station did not put the init back to do" }),
       );
     },
 
     // Lance `installation`, et rend l'installation telle qu'elle en sort : son verdict, et
     // l'étape « verification » notée d'après lui. Une vérification en route ne se double pas.
-    async verifier(projet: Projet): Promise<{ refus: string } | undefined> {
-      const avec = avecSaCuisine(projet);
-      if (avec === undefined) return { refus: sansBox(projet.nom) };
-      const tenu = tenir(avec);
-      if (tenu.action !== undefined) return { refus: OCCUPE };
+    async verifier(project: Project): Promise<{ refus: string } | undefined> {
+      const withIt = withItsKitchen(project);
+      if (withIt === undefined) return { refus: withoutBox(project.nom) };
+      const tenu = hold(withIt);
+      if (tenu.action !== undefined) return { refus: BUSY };
       tenu.suivi = true;
       tenu.annoncee = true;
-      await verifierPour(avec, tenu);
+      await checkFor(withIt, tenu);
       return undefined;
     },
 
     // Déclare les stations choisies parmi celles que la box fournit, chacune à son plafond de
     // cooks. `choix` : ce que la vue a recueilli — rien n'y est cru sur parole.
-    declarerStations(projet: Projet, choix: unknown) {
-      return agir(projet, "declaring the stations…", async (avec, tenu) => {
-        const lu = detail(tenu, "stations")?.lu;
-        if (lu === undefined) return { refus: "Nothing was declared: its main station has not said which stations it provides — read the steps again." };
-        const voulues = Array.isArray(choix) ? (choix as unknown[]) : [];
-        const entrees: string[] = [];
-        for (const voulue of voulues) {
-          const { nom, cooks } = (voulue ?? {}) as Lu;
-          const proposee = lu.proposees.find((station) => station.nom === nom);
-          if (proposee === undefined) return { refus: `Nothing was declared: “${String(nom)}” is not a station its main station provides.` };
-          if (typeof cooks !== "number" || !Number.isInteger(cooks) || cooks < 1 || cooks > 99) return { refus: `Nothing was declared: how many cooks “${proposee.nom}” runs at once has no default — a whole number, 1 or more.` };
-          entrees.push(`${proposee.nom}:${cooks}:${proposee.fournit.join("+")}`);
+    declarerStations(project: Project, choice: unknown) {
+      return act(project, "declaring the stations…", async (withIt, tenu) => {
+        const readOne = detail(tenu, "stations")?.lu;
+        if (readOne === undefined) return { refus: "Nothing was declared: its main station has not said which stations it provides — read the steps again." };
+        const wanted = Array.isArray(choice) ? (choice as unknown[]) : [];
+        const entries: string[] = [];
+        for (const wantedOne of wanted) {
+          const { nom: name, cooks } = (wantedOne ?? {}) as Read;
+          const proposed = readOne.proposees.find((station) => station.nom === name);
+          if (proposed === undefined) return { refus: `Nothing was declared: “${String(name)}” is not a station its main station provides.` };
+          if (typeof cooks !== "number" || !Number.isInteger(cooks) || cooks < 1 || cooks > 99) return { refus: `Nothing was declared: how many cooks “${proposed.nom}” runs at once has no default — a whole number, 1 or more.` };
+          entries.push(`${proposed.nom}:${cooks}:${proposed.fournit.join("+")}`);
         }
-        if (entrees.length === 0) return { refus: "Nothing was declared: choose at least one station — without one, no cook leaves." };
-        const declaration = entrees.join(",");
+        if (entries.length === 0) return { refus: "Nothing was declared: choose at least one station — without one, no cook leaves." };
+        const declaration = entries.join(",");
         if (!/^[A-Za-z0-9/:+,._-]+$/.test(declaration)) return { refus: "Nothing was declared: its main station provides a station whose name the app does not carry safely." };
-        return ecrire(avec, `installation stations ${declaration}`, { ok: "Stations declared", non: "Its main station refused the stations" });
+        return write(withIt, `installation stations ${declaration}`, { ok: "Stations declared", non: "Its main station refused the stations" });
       });
     },
 
@@ -988,91 +988,91 @@ export function tenirServices(options: {
     // ou son retrait — par les commandes du runtime qui ne touchent qu'elle (`installation stations set`, `remove`) ;
     // les autres restent telles que la station les a écrites. `voulu` : ce que la vue a recueilli — rien n'y
     // est cru sur parole. Puis les stations sont relues, et la vue les reçoit par `surGuide`.
-    async changerUneStation(projet: Projet, nom: unknown, voulu: unknown): Promise<StationChangee> {
-      const avec = avecSaCuisine(projet);
-      if (avec === undefined) return { refus: sansBox(projet.nom) };
-      const tenu = tenir(avec);
-      const station = typeof nom === "string" && NOM_DE_STATION.test(nom) ? tenu.controle?.stations?.declarees.find((lue) => lue.nom === nom) : undefined;
-      if (station === undefined) return { refus: `Nothing was changed: “${String(nom)}” is not a station the project declares.` };
-      if (tenu.action !== undefined || tenu.verifiant !== undefined) return { refus: OCCUPE };
-      const lu = (voulu ?? {}) as Lu;
-      const ecrites: { commande: string; titre: string }[] = [];
-      if (lu.retiree === true) {
-        ecrites.push({ commande: `installation stations remove ${station.nom}`, titre: `Its main station did not remove ${station.nom}` });
+    async changerUneStation(project: Project, name: unknown, wanted: unknown): Promise<StationChanged> {
+      const withIt = withItsKitchen(project);
+      if (withIt === undefined) return { refus: withoutBox(project.nom) };
+      const tenu = hold(withIt);
+      const station = typeof name === "string" && NAME_OF_STATION.test(name) ? tenu.controle?.stations?.declarees.find((readEntry) => readEntry.nom === name) : undefined;
+      if (station === undefined) return { refus: `Nothing was changed: “${String(name)}” is not a station the project declares.` };
+      if (tenu.action !== undefined || tenu.verifiant !== undefined) return { refus: BUSY };
+      const readOne = (wanted ?? {}) as Read;
+      const writtenEntries: { commande: string; titre: string }[] = [];
+      if (readOne.retiree === true) {
+        writtenEntries.push({ commande: `installation stations remove ${station.nom}`, titre: `Its main station did not remove ${station.nom}` });
       } else {
-        const { cooks, fournit } = lu;
+        const { cooks, fournit: provides } = readOne;
         if (typeof cooks !== "number" || !Number.isInteger(cooks) || cooks < 1 || cooks > 99) return { refus: `Nothing was saved: how many cooks ${station.nom} runs at once is a whole number, from 1 to 99.` };
-        const lues = Array.isArray(fournit) ? (fournit as unknown[]).map((capacite) => (typeof capacite === "string" ? capacite.trim().normalize("NFC") : "")) : [];
-        if (lues.length === 0) return { refus: `Nothing was saved: ${station.nom} provides at least one capability — tick one.` };
-        const illisible = lues.find((capacite) => !CAPACITE.test(capacite));
-        if (illisible !== undefined) return { refus: `Nothing was saved: “${illisible}” is not a capability — letters, digits and dashes.` };
-        const capacites = [...new Set(lues)];
-        if (cooks !== station.cooks || capacites.join("+") !== station.fournit.join("+")) {
-          const ecrite = capacites.join("+");
-          ecrites.push({ commande: `installation stations set ${station.nom} ${cooks} ${/^[A-Za-z0-9+_-]+$/.test(ecrite) ? ecrite : `'${ecrite}'`}`, titre: `Its main station refused the change to ${station.nom}` });
+        const readEntries = Array.isArray(provides) ? (provides as unknown[]).map((capacity) => (typeof capacity === "string" ? capacity.trim().normalize("NFC") : "")) : [];
+        if (readEntries.length === 0) return { refus: `Nothing was saved: ${station.nom} provides at least one capability — tick one.` };
+        const unreadable = readEntries.find((capacity) => !CAPACITY.test(capacity));
+        if (unreadable !== undefined) return { refus: `Nothing was saved: “${unreadable}” is not a capability — letters, digits and dashes.` };
+        const capacities = [...new Set(readEntries)];
+        if (cooks !== station.cooks || capacities.join("+") !== station.fournit.join("+")) {
+          const writtenOne = capacities.join("+");
+          writtenEntries.push({ commande: `installation stations set ${station.nom} ${cooks} ${/^[A-Za-z0-9+_-]+$/.test(writtenOne) ? writtenOne : `'${writtenOne}'`}`, titre: `Its main station refused the change to ${station.nom}` });
         }
       }
-      if (ecrites.length === 0) return { fait: `${station.nom}: nothing changed` };
+      if (writtenEntries.length === 0) return { fait: `${station.nom}: nothing changed` };
       tenu.action = `changing ${station.nom}…`;
-      pousser(projet, tenu);
+      push(project, tenu);
       try {
-        for (const { commande, titre } of ecrites) {
-          const fait = await ecrire(avec, commande, { ok: "", non: titre });
-          if (!fait.ok) return { refus: fait.titre, detail: fait.obtenu };
+        for (const { commande: command, titre: title } of writtenEntries) {
+          const done = await write(withIt, command, { ok: "", non: title });
+          if (!done.ok) return { refus: done.titre, detail: done.obtenu };
         }
       } finally {
         tenu.action = undefined;
-        pousser(projet, tenu);
+        push(project, tenu);
       }
-      await relireLesStations(avec, tenu);
-      if (lu.retiree === true) return { fait: `${station.nom} removed — the other stations are unchanged` };
+      await rereadTheStations(withIt, tenu);
+      if (readOne.retiree === true) return { fait: `${station.nom} removed — the other stations are unchanged` };
       return { fait: `${station.nom} saved; the other stations are unchanged` };
     },
 
     // Protège la branche d'intégration sur GitHub, par le compte de `gh` de la box.
-    proteger(projet: Projet) {
-      return agir(projet, "protecting the integration branch…", (avec) => ecrire(avec, "installation protection poser", { ok: "Integration branch protected", non: "The integration branch is not protected" }));
+    proteger(project: Project) {
+      return act(project, "protecting the integration branch…", (withIt) => write(withIt, "installation protection poser", { ok: "Integration branch protected", non: "The integration branch is not protected" }));
     },
 
     // Répond à la décision courante — deux valeurs quand elle se répond avec une autre.
-    repondre(projet: Projet, valeurs: unknown) {
-      return agir(projet, "recording your answer…", async (avec, tenu) => {
-        const courante = detail(tenu, "decisions")?.lu.courante;
-        if (courante === undefined || courante === null) return { refus: "Nothing was answered: the station has no decision waiting — read the steps again." };
-        const attendues = courante.avec === null ? 1 : 2;
-        const lues = Array.isArray(valeurs) ? (valeurs as unknown[]).map((valeur) => (typeof valeur === "string" ? valeur.trim() : "")) : [];
-        if (lues.length !== attendues || lues.some((valeur) => valeur === "")) return { refus: `Nothing was answered: ${courante.nom} takes ${attendues === 1 ? "one value" : `two values — its own, and ${courante.avec?.nom}'s`}.` };
-        const refusee = lues.find((valeur) => !VALEUR.test(valeur));
-        if (refusee !== undefined) return { refus: `Nothing was answered: “${refusee}” is not a value the station reads — letters, digits, dots and hyphens.` };
-        return ecrire(avec, `installation decisions courante ${lues.join(" ")}`, { ok: `${courante.nom} recorded`, non: `The station refused the answer to ${courante.nom}` });
+    repondre(project: Project, values: unknown) {
+      return act(project, "recording your answer…", async (withIt, tenu) => {
+        const current = detail(tenu, "decisions")?.lu.courante;
+        if (current === undefined || current === null) return { refus: "Nothing was answered: the station has no decision waiting — read the steps again." };
+        const expected = current.avec === null ? 1 : 2;
+        const readEntries = Array.isArray(values) ? (values as unknown[]).map((value) => (typeof value === "string" ? value.trim() : "")) : [];
+        if (readEntries.length !== expected || readEntries.some((value) => value === "")) return { refus: `Nothing was answered: ${current.nom} takes ${expected === 1 ? "one value" : `two values — its own, and ${current.avec?.nom}'s`}.` };
+        const refused = readEntries.find((value) => !VALUE.test(value));
+        if (refused !== undefined) return { refus: `Nothing was answered: “${refused}” is not a value the station reads — letters, digits, dots and hyphens.` };
+        return write(withIt, `installation decisions courante ${readEntries.join(" ")}`, { ok: `${current.nom} recorded`, non: `The station refused the answer to ${current.nom}` });
       });
     },
 
     // Les décisions qui restent, le démarrage ne les réclamant pas : l'étape est notée faite, elles restent à poser plus tard.
-    passerDecisions(projet: Projet) {
-      return agir(projet, "moving past the optional decisions…", async (avec, tenu) => {
-        const lu = detail(tenu, "decisions");
-        if (lu === undefined || tenu.etapes?.courante !== "decisions") return { refus: "Nothing to skip: the decisions step is not the current one." };
-        if (!lu.passable) return { refus: "Not skipped: the start still requires a decision — answer it first." };
-        return ecrire(avec, "installation etapes decisions faite", { ok: "Decisions step done — the remaining ones are optional", non: "The station did not mark the decisions step done" });
+    passerDecisions(project: Project) {
+      return act(project, "moving past the optional decisions…", async (withIt, tenu) => {
+        const readOne = detail(tenu, "decisions");
+        if (readOne === undefined || tenu.etapes?.courante !== "decisions") return { refus: "Nothing to skip: the decisions step is not the current one." };
+        if (!readOne.passable) return { refus: "Not skipped: the start still requires a decision — answer it first." };
+        return write(withIt, "installation etapes decisions faite", { ok: "Decisions step done — the remaining ones are optional", non: "The station did not mark the decisions step done" });
       });
     },
 
     // « Démarrer » : la station de cet ordinateur tourne en fond (#3630), aucun service n'y est à démarrer.
-    demarrer(projet: Projet): Promise<Terminal | { refus: string }> {
-      return Promise.resolve(commandeDeDemarrage(projet));
+    demarrer(project: Project): Promise<Terminal | { refus: string }> {
+      return Promise.resolve(commandOfStartup(project));
     },
 
     // Le dernier contrôle lu d'un projet installé, sans rien relancer : « + shell » y prend les
     // stations que la box déclare. Rien, tant qu'aucun n'a été lu.
-    controleDe(nom: string): Controle | undefined {
-      const tenu = tenus.get(nom);
+    controleDe(name: string): Control | undefined {
+      const tenu = heldOnes.get(name);
       return tenu?.fini === true ? tenu.controle : undefined;
     },
 
     // Le projet a quitté la liste : rien n'est gardé de son installation.
-    oublier(nom: string): void {
-      tenus.delete(nom);
+    oublier(name: string): void {
+      heldOnes.delete(name);
     },
   };
 }

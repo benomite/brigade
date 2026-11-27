@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { vueDesPostMortems } from "../../../app/src/projets/post-mortems.ts";
+import { vueOfPostMortems } from "../../../app/src/projects/post-mortems.ts";
 import { lirePostMortems } from "../../src/post-mortems/post-mortems.ts";
 import { A, cuisine } from "./cuisine.ts";
 
@@ -23,5 +23,5 @@ test("no red and no report writes nothing; a red with no report still reads 'sys
   assert.equal(lus[0]?.vuEnPremier, "system");
   assert.equal(lus[0]?.duree, "35 min");
   assert.equal(lus[0]?.corrige, "not recorded — no merge and no supervisor repair was seen while main was red", "no merge and no repair seen: the screen says that case");
-  assert.equal(vueDesPostMortems(c.publies(), new Date(A("11:35"))).vusParLeChef, 0);
+  assert.equal(vueOfPostMortems(c.publies(), new Date(A("11:35"))).vusParLeChef, 0);
 });

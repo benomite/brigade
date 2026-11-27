@@ -1,8 +1,8 @@
 // L'histoire d'un seul ticket pour la vidéo de démonstration (ticket 2875, épique 1546) : #21 « L'export du journal »,
 // sur un seul projet, « parade ». Chaque étape de sa vie est un rendu de la box, mot pour mot : sur le rail, pris par un
 // cook, une question de produit pour le chef, repris par le cook, servi. Les écrans `demo-*.ts` ne font que les ouvrir.
-import type { Activite, Faits } from "../../../app/src/faits.ts";
-import type { Terminal } from "../../../app/src/terminaux.ts";
+import type { Activity, Facts } from "../../../app/src/facts.ts";
+import type { Terminal } from "../../../app/src/terminals.ts";
 import { configuration, cuisine, demarrage, type Donnees, type Etape, MAINTENANT, type Rendu } from "./commun.ts";
 import { PROJETS, RENDUS } from "./cuisine-figee.ts";
 
@@ -30,11 +30,11 @@ const ligne = (etat: string) => `  #21  ${etat}  ${TITRE}`;
 const status = (rail: string, lignes: string[], attend: string[] = [], cooks = "none running") =>
   ["project    parade", "kitchen    open", "", ...attend, rail, ...lignes, "", `cooks      ${cooks}`, ""].join("\n");
 
-const faits = (surcharge: Partial<Faits>, compteurs: Partial<Faits["compteurs"]>): Faits =>
-  ({ ...BASE.facts, compteurs: { rail: 0, auTravail: 0, aLaPass: 0, attend: 0, livres24h: 0, ...compteurs }, rail: [], cooks: [], attend: [], livres: [], ...surcharge }) as Faits;
+const faits = (surcharge: Partial<Facts>, compteurs: Partial<Facts["compteurs"]>): Facts =>
+  ({ ...BASE.facts, compteurs: { rail: 0, auTravail: 0, aLaPass: 0, attend: 0, livres24h: 0, ...compteurs }, rail: [], cooks: [], attend: [], livres: [], ...surcharge }) as Facts;
 
 const evenement = (type: string, at: string) => ({ seq: 100, at, type, ticket: 21 });
-const carte = (etat: string, activite: Activite | null = null) => ({ ticket: 21, etat, titre: TITRE, url: ISSUE, activite, attente: null });
+const carte = (etat: string, activite: Activity | null = null) => ({ ticket: 21, etat, titre: TITRE, url: ISSUE, activite, attente: null });
 const depuis = "2026-10-13T10:02:11.000Z";
 
 // Sur le rail, une minute après son arrivée.
@@ -58,7 +58,7 @@ export const REPRIS: Rendu = {
 export const QUESTION: Rendu = {
   ...BASE,
   facts: faits(
-    { rail: [carte("en attente")], dernierEvenement: evenement("ticket.queued", "2026-10-13T09:04:12.000Z"), attend: [{ ticket: 21, titre: TITRE, url: ISSUE, decision: { quoi: "carte", motif: "product", cause: PRODUIT.question, pr: null }, carte: PRODUIT }] } as Partial<Faits>,
+    { rail: [carte("en attente")], dernierEvenement: evenement("ticket.queued", "2026-10-13T09:04:12.000Z"), attend: [{ ticket: 21, titre: TITRE, url: ISSUE, decision: { quoi: "carte", motif: "product", cause: PRODUIT.question, pr: null }, carte: PRODUIT }] } as Partial<Facts>,
     { rail: 1, attend: 1 },
   ),
   status: status(
@@ -69,13 +69,13 @@ export const QUESTION: Rendu = {
 };
 
 // Rien encore sur le rail : le ticket n'existe pas, le second le propose.
-export const VIDE: Rendu = { ...BASE, facts: faits({ dernierEvenement: null } as Partial<Faits>, {}), status: status("rail       empty", []) };
+export const VIDE: Rendu = { ...BASE, facts: faits({ dernierEvenement: null } as Partial<Facts>, {}), status: status("rail       empty", []) };
 
 // Servi : mergé par la pass, une demi-heure plus tard.
 export const SERVI: Rendu = {
   ...BASE,
   facts: faits(
-    { dernierEvenement: evenement("merge.done", "2026-10-13T10:03:58.000Z"), livres: [{ ticket: 21, titre: TITRE, url: ISSUE, livre: "2026-10-13T10:03:58.000Z", station: "box/claude", pr: PR, relecture: { resume: "Le journal s'exporte par projet, dans un fichier à lui.", constats: [] } }] } as Partial<Faits>,
+    { dernierEvenement: evenement("merge.done", "2026-10-13T10:03:58.000Z"), livres: [{ ticket: 21, titre: TITRE, url: ISSUE, livre: "2026-10-13T10:03:58.000Z", station: "box/claude", pr: PR, relecture: { resume: "Le journal s'exporte par projet, dans un fichier à lui.", constats: [] } }] } as Partial<Facts>,
     { livres24h: 1 },
   ),
   status: status("rail       empty", []),
