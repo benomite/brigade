@@ -35,7 +35,7 @@ export const todoDeNCartes = (nombre: number, dit: string): Ecran => ({
             ticket: 100 + i,
             titre: `Design review: the ${ECRANS[i % ECRANS.length]} after the layout change${i % 3 === 1 ? ", with the longer title a real ticket carries" : ""}`,
             url: issue(100 + i),
-            chef: { sorte: "product-question", texte: QUESTIONS[i % QUESTIONS.length] },
+            chef: { sorte: "product-question", texte: QUESTIONS[i % QUESTIONS.length] as string },
           })),
         },
         status: STATUS,

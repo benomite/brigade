@@ -1,5 +1,4 @@
-// La question que le manager pose au chef sur une épique avant de la découper (runtime/src/decoupage.ts, cas « asked » :
-// `<!-- brigade:manager -->` et `<!-- brigade:question -->` en tête, « Manager — epic not split: a question. », la question,
+// La question que le manager pose au chef sur une épique avant de la découper (`<!-- brigade:manager -->` et `<!-- brigade:question -->` en tête, « Manager — epic not split: a question. », la question,
 // puis « Answer here, or edit the epic »), lue des commentaires de l'issue. Tant qu'aucune réponse ne la suit, l'épique attend
 // le chef : sa carte est dans TODO, avec la question et ses choix en boutons (`A) …`, `B) …`), et le champ libre.
 //

@@ -1,8 +1,7 @@
 // Le moteur d'une livraison (#3747) : lu dans `facts`, dit sur sa fiche, et son prix sur la page des coûts.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { understand, type Card, type Facts } from "../../../src/facts.ts";
-import { setExpensive } from "../../../src/vue/cost/expensive.js";
+import { understand, type Facts } from "../../../src/facts.ts";
 import { setEngine, priceSays, WITHOUT_ENGINE } from "../../../src/vue/delivery-engine/display.js";
 import { engineRead } from "../../../src/vue/delivery-engine/engine.ts";
 import { Fake } from "../../helpers/false-vue.ts";
@@ -56,19 +55,3 @@ describe("la fiche d'une livraison", () => {
   });
 });
 
-describe("la page des coûts", () => {
-  const cook = (ticket: number, tokens: string) => `  2026-10-13T09:48:02.000Z  #${ticket}  r-${ticket}  sonnet / medium  fini  31 tours · ${tokens} tokens · 9,2 min`;
-  const station = ["station  box/claude", "derniers cooks        ", cook(1, "900 000"), cook(2, "800 000"), cook(3, "700 000"), cook(4, "600 000"), "consommé  rien"].join("\n");
-  const readings = new Map([["parade", { projet: "parade", demande: 0, a: "2026-10-17T10:00:00.000Z", sorties: [{ commande: "station", texte: station }] }]]);
-  const engines: Record<number, Card["moteur"]> = { 1: { engine: "claude-api-key", costUsd: 3.27 }, 2: { engine: "codex" }, 3: { engine: "claude-subscription" } };
-  const price = (withIt: boolean) => setExpensive(doc, [{ nom: "parade" }], readings, () => "t", () => {}, undefined, new Date("2026-10-17T10:00:00.000Z"), withIt ? (_p, t) => engines[t] : undefined)
-    .dessous("button").map((b: Fake) => b.dessous("span").filter((s: Fake) => s.className === "prix").map((s: Fake) => s.textContent));
-
-  test("la livraison sur clé d'API porte son prix ; les autres moteurs et les tickets sans moteur n'ont aucun chiffre", () => {
-    assert.deepEqual(price(true), [["$3.27"], [""], [""], [""]]);
-  });
-
-  test("sans livraison à prix, aucune colonne de prix n'est posée", () => {
-    assert.deepEqual(price(false), [[], [], [], []]);
-  });
-});

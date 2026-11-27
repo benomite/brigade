@@ -1,11 +1,11 @@
-// The kanban of a project on the new kitchen (app/src/board/kitchen-board.ts, #4482): read from the GitHub labels alone,
-// through the rail reading itself (lecture.ts), against a fake GitHub that answers by path — nothing goes to the network.
+// The kanban of a project (app/src/board/kitchen-board.ts, #4482, #4507): read from the GitHub labels alone, through the
+// rail reading itself (read.ts), against a fake GitHub that answers by path — nothing goes to the network.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { boardOf, columnOf, kitchenBoardRead, onTheNewKitchen, triesOf, type KitchenBoard } from "../../src/board/kitchen-board.ts";
+import { boardOf, columnOf, kitchenBoardRead, triesOf, type KitchenBoard } from "../../src/board/kitchen-board.ts";
 import type { CallGitHub, AnswerGitHub } from "../../src/board/client.ts";
-import { readTheBoardOfRepository, type BoardRead } from "../../src/board/read.ts";
 import type { MemoryOfReads } from "../../src/board/rail-github.ts";
+import { readTheBoardOfRepository, type BoardRead } from "../../src/board/read.ts";
 
 const REPOSITORY = "chef/neuve";
 const NOW = new Date("2026-11-26T12:00:00.000Z");
@@ -46,22 +46,18 @@ const TIMELINES: Record<number, object[]> = {
   6: [labeled("taken", 7), labeled("taken", 6)],
 };
 
-function github(options: { kitchen?: boolean } = {}): { appeler: CallGitHub; paths: string[] } {
+function github(): { appeler: CallGitHub; paths: string[] } {
   const paths: string[] = [];
   return {
     paths,
     appeler: async (path) => {
       paths.push(path);
-      if (path === `/repos/${REPOSITORY}/contents/.brigade/kitchen.json`) return options.kitchen === false ? { status: 404, data: { message: "Not Found" } } : ok({ type: "file", content: Buffer.from('{"risk": []}').toString("base64") });
-      if (path.startsWith(`/repos/${REPOSITORY}/issues?state=open`)) return ok(path.includes("labels=fire") ? OPEN.filter(({ labels }) => labels.some(({ name }) => name === "fire")) : OPEN);
+      if (path.startsWith(`/repos/${REPOSITORY}/issues?state=open`)) return ok(OPEN);
       if (path.startsWith(`/repos/${REPOSITORY}/pulls?state=open`)) return ok(OPEN_PRS);
       if (path.startsWith(`/repos/${REPOSITORY}/pulls?state=closed`)) return ok(CLOSED_PRS);
       if (path === `/repos/${REPOSITORY}`) return ok({ default_branch: "main", permissions: { push: true } });
-      // What only the old rail reads.
-      if (path.includes("/check-runs")) return ok({ check_runs: [] });
       if (/\/pulls\/\d+$/.test(path)) return ok({ additions: 12, deletions: 3 });
       if (/\/issues\/\d+\/timeline/.test(path)) return ok(TIMELINES[Number(/issues\/(\d+)\//.exec(path)?.[1])] ?? []);
-      if (/\/issues\/\d+\/(comments|events)/.test(path)) return ok([]);
       return { status: 404, data: { message: "Not Found" } };
     },
   };
@@ -70,10 +66,9 @@ function github(options: { kitchen?: boolean } = {}): { appeler: CallGitHub; pat
 const ticketsByColumn = (board: KitchenBoard) => Object.fromEntries(board.columns.map(({ key, cards }) => [key, cards.map(({ ticket }) => ticket)]));
 const cardOf = (board: KitchenBoard, ticket: number) => board.columns.flatMap(({ cards }) => cards).find((card) => card.ticket === ticket) ?? assert.fail(`no card #${ticket}`);
 
-test("a project on the new kitchen: one issue in each of the six columns, from its labels alone", async () => {
-  let signs = 0;
+test("a project: one issue in each of the six columns, from its labels alone", async () => {
   const { appeler: call } = github();
-  const readOne = (await readTheBoardOfRepository({ depot: REPOSITORY, appeler: call, maintenant: () => NOW, signes: async () => (signs++, { lus: [] }) })) as BoardRead;
+  const readOne = (await readTheBoardOfRepository({ depot: REPOSITORY, appeler: call, maintenant: () => NOW })) as BoardRead;
   assert.equal(readOne.lu, true);
   const board = readOne.faits.kitchenBoard as KitchenBoard;
   assert.deepEqual(board.columns.map(({ title }) => title), ["Backlog", "Ready", "Cooking", "Pass", "Parked", "Served"]);
@@ -89,17 +84,17 @@ test("a project on the new kitchen: one issue in each of the six columns, from i
   assert.deepEqual(readOne.cuisine.rubriques.find(({ titre: title }) => title === "rail")?.lignes, ["1 ready · 1 cooking · 1 in pass · 1 parked"]);
   // The chef's TODO reads its `parked:chef` issues from the same list (#4474); there is no "before the rail".
   assert.deepEqual(readOne.parqueesPourLeChef?.map(({ ticket }) => ticket), [5]);
-  assert.equal(readOne.avantLeRail, undefined);
-  assert.equal(signs, 0, "no station's sign of life is read");
+  assert.equal("avantLeRail" in readOne, false);
 });
 
-test("nothing of the old runtime is read for a project on the new kitchen: no claim, no event, no check run, no station", async () => {
+// Every project is on the new kitchen (#4507): none is asked for `.brigade/kitchen.json` first, and none is read as the old
+// rail — no `fire` list, no claim, no event, no check run, no station.
+test("nothing of the old runtime is read: no claim, no event, no check run, no station", async () => {
   const { appeler: call, paths } = github();
   await readTheBoardOfRepository({ depot: REPOSITORY, appeler: call, maintenant: () => NOW });
   const read = paths.map((path) => path.replace(/[?&](per_page|page)=\d+/g, ""));
   assert.deepEqual([...new Set(read)].sort(), [
     `/repos/${REPOSITORY}`,
-    `/repos/${REPOSITORY}/contents/.brigade/kitchen.json`,
     `/repos/${REPOSITORY}/issues/2/timeline`,
     `/repos/${REPOSITORY}/issues/3/timeline`,
     `/repos/${REPOSITORY}/issues/4/timeline`,
@@ -111,33 +106,6 @@ test("nothing of the old runtime is read for a project on the new kitchen: no cl
     `/repos/${REPOSITORY}/pulls?state=closed&sort=updated&direction=desc`,
     `/repos/${REPOSITORY}/pulls?state=open`,
   ]);
-});
-
-test("a project without `.brigade/kitchen.json` keeps the rail of the old runtime, with no board", async () => {
-  const { appeler: call, paths } = github({ kitchen: false });
-  const readOne = await readTheBoardOfRepository({ depot: REPOSITORY, appeler: call, maintenant: () => NOW });
-  assert.ok(readOne.lu, readOne.lu ? "" : readOne.raison);
-  assert.equal(readOne.faits.kitchenBoard, undefined);
-  assert.ok(paths.some((path) => path.includes("labels=fire")), "the old rail is read");
-});
-
-test("whether a project is on the new kitchen is asked again only after ten minutes: a 404 carries no ETag", async () => {
-  const memory: MemoryOfReads = new Map();
-  let asked = 0;
-  const call: CallGitHub = async () => (asked++, { status: 404, data: {} });
-  const now = NOW.getTime();
-  assert.equal(await onTheNewKitchen({ depot: REPOSITORY, appeler: call, memoire: memory, now }), false);
-  assert.equal(await onTheNewKitchen({ depot: REPOSITORY, appeler: call, memoire: memory, now: now + 9 * 60_000 }), false);
-  assert.equal(asked, 1);
-  assert.equal(await onTheNewKitchen({ depot: REPOSITORY, appeler: call, memoire: memory, now: now + 10 * 60_000 }), false);
-  assert.equal(asked, 2);
-  // A 200 that is not the file — a list, a file whose content is not a JSON object — is no.
-  for (const data of [[], { type: "dir" }, { type: "file", content: Buffer.from("risk: runtime/").toString("base64") }]) {
-    assert.equal(await onTheNewKitchen({ depot: REPOSITORY, appeler: async () => ({ status: 200, data }), now }), false, JSON.stringify(data));
-  }
-  // A refusal that is not a 404 says nothing, and is not kept.
-  const refused: CallGitHub = async () => (asked++, { status: 500, data: {} });
-  assert.equal(await onTheNewKitchen({ depot: REPOSITORY, appeler: refused, memoire: new Map(), now }), false);
 });
 
 test("the column of an issue: parked first, whatever else it carries, then the furthest step", () => {

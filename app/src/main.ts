@@ -21,8 +21,7 @@ import { POWER_UP, count } from "./power-up.ts";
 import { COMMAND as COMMAND_UPSTREAM, holdUpstream } from "./upstream.ts";
 import { putAside } from "./awaiting.ts";
 import { forTheBar } from "./bar.ts";
-import { launchHere, launchThe, openStandby, type Read } from "./box.ts";
-import { startTheStationOfProject } from "./tray-background/read.ts";
+import { launchThe, openStandby, type Read } from "./box.ts";
 import { situationOf } from "./story.ts";
 import { LinksRead } from "./links-read.ts";
 import { comment, askAtSecond, noteOfTheQuestion } from "./discussion.ts";
@@ -37,7 +36,6 @@ import { writeTheHumans, readTheHumans } from "./humans-of-project.ts";
 import { readTheAgents } from "./team-of-the-box.ts";
 import { writeInTheProject, readInTheProject } from "./vue/card-project/card-project-folder.ts";
 import { plugTheWordAtCook } from "./vue/word-at-cook/word-at-cook-box.ts";
-import { readTheRecap, markTheRecap } from "./vue/recap/recap-box.ts";
 import { writeTheStations, readTheStations } from "./stations-contributors.ts";
 import { choice, whole, PALETTE } from "./colors.ts";
 import { blockOfOrdinary } from "./ordinary.ts";
@@ -71,7 +69,6 @@ import { changeTheKnowledge, readTheKnowledgeOfProject } from "./vue/know-how/kn
 import { answerOnGithub } from "./board-actions/answer-github.ts";
 import { validateOnGithub } from "./vue/validation-design/validation-design-github.ts";
 import { readTheAutonomyOfRepository, holdTheAutonomy } from "./vue/autonomy/autonomy-github.ts";
-import { changeTheDay, readTheDay, readTheResumes, publishTheResume, type ResumeWeekly, type ResumesOfProject } from "./vue/resume-weekly/resume-kitchen.ts";
 import { repositoryOfTheOrigin, readClone } from "./addition.ts";
 import { readTheAccountGitHub, holdConnectionGitHub, signInToGitHub } from "./connection-github.ts";
 import { pathOf, locationsOf, readPathOfShell } from "./locations.ts";
@@ -238,10 +235,10 @@ const terminals = openTerminals({
 // se lit pas dit pourquoi.
 const callGitHub = clientGitHub({ jeton: tokenOfGh({ gh: process.env.BRIGADE_GH_BIN || "gh", delaiMs: 10_000 }), envoyer: byFetch() });
 const repositoryOfProject = async (project: Project) => project.depot ?? (await repositoryOfTheOrigin(process.env.BRIGADE_GIT_BIN || "git", project.dossier)) ?? project.nom;
-// Le rail — ses tickets au label `fire`, leur état tiré de leurs labels, de leur PR et de la base, la station qui les
-// tient (vue/rail/github.ts) —, TODO — ce qui attend le chef, la lecture même que le second relaie à son ouverture
-// (board/wait-of-chef.ts, #2460) — et ce qui est avant le rail : relus à chaque lecture (au plus une fois par
-// minute, ou aussitôt après un geste, qui oublie la lecture), par des lectures conditionnelles dont un 304 ne coûte rien.
+// Le kanban — chaque issue dans la colonne que ses labels disent (board/kitchen-board.ts) — et TODO — ce qui attend le
+// chef, la lecture même que le second relaie à son ouverture (board/wait-of-chef.ts, #2460) : relus à chaque lecture (au
+// plus une fois par minute, ou aussitôt après un geste, qui oublie la lecture), par des lectures conditionnelles dont un
+// 304 ne coûte rien.
 const memoriesOfRail = new Map<string, MemoryOfReads>();
 const memoryOfRail = (repository: string): MemoryOfReads => memoriesOfRail.get(repository) ?? memoriesOfRail.set(repository, new Map()).get(repository)!;
 // Le compte GitHub de cet ordinateur, pour les cartes de TODO qui l'attendent (#2761, vue/cards-assigned/) : celles
@@ -1253,17 +1250,6 @@ ipcMain.handle("checkRepoSetup", () => READY);
 ipcMain.handle("runRepoSetup", () => READY);
 // Le bloc de la station de l'accueil (ticket 2640) : installer celle de cet ordinateur (workstation/installer.ts).
 ipcMain.handle("installerLaStation", () => installerTheStation(stationLocale, () => stations.relire()));
-// « Start this computer's station », sur l'alerte d'un projet dont la station est arrêtée (#3637) : le geste `demarrage` de
-// l'icône de fond (tray-background/read.ts), pour ce projet — `station start <station>` sur la station de cet ordinateur.
-ipcMain.handle("demarrerLaStationIci", async (_, name: unknown) => {
-  const aims = knownOne(name);
-  if (aims === undefined) return gone(name);
-  if (role.role !== "station") return { refus: "this computer is a workstation, not a station: there is no station here to start" };
-  const locale = { node: locations.node, runtime: locations.runtime, racine: rootOfTheStation, env: process.env };
-  const rendered = await startTheStationOfProject({ nom: aims.nom, faits: facts.dernier(aims.nom)?.faits }, (project, command) => launchHere(locale, project, command, 30_000), 30_000);
-  void stations.relire();
-  return rendered;
-});
 // Le « log in » d'une ouverture que Claude Code retient (#4057) : le login de cette machine, celui de la panne de sa station.
 ipcMain.handle("seConnecterAClaude", () => loginHere());
 // La page où taper le code se rouvre depuis l'écran.
@@ -1441,27 +1427,6 @@ ipcMain.handle("retirerUnHumain", (_, name: unknown, login: unknown) => writeOne
 ipcMain.handle("lireUnFichierDuProjet", (_, name: unknown, path: unknown) => readInTheProject(knownOne(name), path));
 ipcMain.handle("ecrireUnFichierDuProjet", (_, name: unknown, path: unknown, text: unknown) => writeInTheProject(knownOne(name), path, text));
 plugTheWordAtCook(ipcMain, kitchenOfProject, launchOnTheKitchen); // le mot au cook (#4048, vue/word-at-cook/word-at-cook-box.ts)
-// Le récapitulatif de chaque projet, sur l'accueil (#3581, vue/recap/recap-box.ts) : lu par `recap` là où sa cuisine tourne,
-// et son marqueur avancé par elle quand la vue l'a montré. Seule l'adresse d'une PR qu'une lecture a rendue s'ouvre.
-const linksOfRecaps = new Set<string>();
-ipcMain.handle("lireLeRecap", async (_, name: unknown) => {
-  const { vise: aims, lu: readOne } = kitchenOfProject(name);
-  if (aims === undefined) return { sans: `${String(name)} is no longer in the projects file` };
-  const readEntry = await readTheRecap(aims.nom, readOne, await repositoryOfProject(aims), launchOnTheKitchen);
-  if ("recap" in readEntry) for (const { prUrl } of readEntry.recap.served) linksOfRecaps.add(prUrl);
-  return readEntry;
-});
-ipcMain.handle("marquerLeRecap", async (_, name: unknown, until: unknown) => {
-  const { vise: aims, lu: readOne } = kitchenOfProject(name);
-  return aims === undefined ? gone(name) : markTheRecap(aims.nom, readOne, await repositoryOfProject(aims), until, launchOnTheKitchen);
-});
-ipcMain.handle("ouvrirLaPRDuRecap", (_, url: unknown) => {
-  if (typeof url !== "string" || !linksOfRecaps.has(url)) return false;
-  return shell.openExternal(url).then(
-    () => true,
-    () => false,
-  );
-});
 // Les stations contributrices du projet, sous Settings (#2936) : lues par `contributor-stations` là où sa cuisine tourne, et
 // refusées ou réacceptées par elle (stations-contributors.ts).
 ipcMain.handle("listerLesStationsContributrices", (_, name: unknown) => {
@@ -1474,50 +1439,6 @@ const changeOneStation = (name: unknown, action: { refuse: unknown } | { accept:
 };
 ipcMain.handle("refuserUneStationContributrice", (_, name: unknown, station: unknown) => changeOneStation(name, { refuse: station }));
 ipcMain.handle("accepterUneStationContributrice", (_, name: unknown, station: unknown) => changeOneStation(name, { accept: station }));
-// Les résumés hebdomadaires de la cuisine d'un projet (#3263, vue/resume-weekly/resume-kitchen.ts) : le jour du
-// résumé lu dans `projet.json` sur sa branche d'intégration, et changé par une pull request, par le jeton du `gh` de ce
-// poste ; les résumés lus par `report --week` là où sa cuisine tourne, par son passage, et publiés comme les notes d'une
-// version par `release-notes`. Seul un résumé que la dernière lecture a rendu se publie, et seule l'adresse d'un ticket
-// ou d'une release qu'elles ont rendue s'ouvre depuis l'écran.
-const resumesRead = new Map<string, ResumeWeekly[]>();
-const linksOfResumes = new Set<string>();
-ipcMain.handle("lireLesResumesHebdomadaires", async (_, name: unknown): Promise<ResumesOfProject> => {
-  const { vise: aims, lu: readOne } = kitchenOfProject(name);
-  if (aims === undefined) {
-    const without = { sans: `${String(name)} is no longer in the projects file` };
-    return { projet: String(name), jour: without, resumes: without };
-  }
-  const day = await readTheDay({ depot: await repositoryOfProject(aims), branche: branchOfProject(aims), client: clientOfLabels });
-  const resumes = "sans" in day ? { sans: "weekly summaries unavailable: the summary day was not read", detail: day.detail ?? day.sans } : await readTheResumes({ projet: aims.nom, lu: readOne, jour: day.jour, lancer: launchOnTheKitchen, maintenant: new Date() });
-  if ("resumes" in resumes) {
-    resumesRead.set(aims.nom, resumes.resumes);
-    for (const { themes, waiting } of resumes.resumes) for (const { ticketUrl } of [...themes.flatMap(({ lines }) => lines), ...waiting]) linksOfResumes.add(ticketUrl);
-  }
-  return { projet: aims.nom, jour: day, resumes };
-});
-ipcMain.handle("changerLeJourDuResume", async (_, name: unknown, day: unknown) => {
-  const aims = knownOne(name);
-  if (aims === undefined) return gone(name);
-  const rendered = await changeTheDay({ depot: await repositoryOfProject(aims), branche: branchOfProject(aims), jour: day, client: clientOfLabels });
-  if ("pr" in rendered) proposalsOfSetting.add(rendered.pr);
-  return rendered;
-});
-ipcMain.handle("publierLeResumeHebdomadaire", async (_, name: unknown, weekStart: unknown, tag: unknown) => {
-  const { vise: aims, lu: readOne } = kitchenOfProject(name);
-  if (aims === undefined) return gone(name);
-  const resume = resumesRead.get(aims.nom)?.find((guard) => guard.weekStart === weekStart);
-  if (resume === undefined) return { refus: "nothing was published: this summary is no longer read — open the page again" };
-  const rendered = await publishTheResume({ projet: aims.nom, lu: readOne, resume, tag, lancer: (readOne, command) => launchThe({ delaiMs: 60_000 }, readOne, command) });
-  if ("url" in rendered) linksOfResumes.add(rendered.url);
-  return rendered;
-});
-ipcMain.handle("ouvrirTicketDuResume", (_, url: unknown) => {
-  if (typeof url !== "string" || !linksOfResumes.has(url)) return false;
-  return shell.openExternal(url).then(
-    () => true,
-    () => false,
-  );
-});
 ipcMain.handle("ouvrirLaProposition", (_, url: unknown) => {
   if (typeof url !== "string" || !proposalsOfSetting.has(url)) return false;
   return shell.openExternal(url).then(
@@ -1618,12 +1539,10 @@ ipcMain.handle("ouvrirLectureSeule", (_, name: unknown, page: unknown) => {
 ipcMain.on("regarder", (_, name: unknown, request: number) => (see = () => look(projects().filter((candidate) => candidate.nom === name), ["status"], request, true))());
 // L'onglet de contenu affiché, et lui seul : sa commande, sur la box de son projet.
 // Aucun — un terminal, « Tous les projets » — ou un nom qui n'est pas celui d'un onglet : plus rien n'est lu pour lui.
-// La page des coûts de l'app (#1022), elle, n'a pas de projet : elle lit `station` sur la box de chaque
-// projet qu'elle sert encore — ses chiffres sont tous projets confondus (vue/cost/head.js).
 ipcMain.on("onglet", (_, name: unknown, id: unknown, request: number) => {
   const commands = commandsOf(id);
   tabRead = { id, demande: request };
-  const readOnes = projectsRead(id, name, shownEntry().projets);
+  const readOnes = projectsRead(name, shownEntry().projets);
   standbyOfTab.regarder(commands.length === 0 ? [] : readOnes, commands, request);
 });
 // « Tous les projets » : le `status` de chacun — ce qui bloque un projet, depuis quand ses décisions
@@ -1665,9 +1584,6 @@ ipcMain.handle("ouvrirIssue", (_, name: unknown, ticket: unknown) => {
     () => false,
   );
 });
-// Les checks du dépôt d'un projet, d'une alerte du rail qui en nomme un (#4238) : la page que la dernière lecture permet de
-// trouver (facts.ts). Rend si elle a été ouverte.
-ipcMain.handle("ouvrirLesChecks", (_, name: unknown) => facts.ouvrirLesChecks(name, (address) => shell.openExternal(address)));
 // Un ticket de Livré s'ouvre aussi sur sa PR mergée : l'adresse est celle que la box a donnée
 // pour lui (facts.ts). Rend si elle a été ouverte.
 ipcMain.handle("ouvrirPr", (_, name: unknown, ticket: unknown) => {

@@ -14,7 +14,7 @@
 import { chownSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join } from "node:path";
 import { AUTRES_HOTES, compterLesRefus, ouvrirPorte, type OptionsPorte, type Porte } from "../porte.ts";
-import { listeDuJournal, refusAuJournal } from "../porte-journal.ts";
+import { KITCHEN_ALLOWLIST, listeDuJournal, refusAuJournal } from "../porte-journal.ts";
 import { projectsOfTheKitchen } from "../kitchen/projects.ts";
 import { REGLES_DE_BASE } from "../reseau.ts";
 import { ConfigInvalide } from "../runtime.ts";
@@ -157,7 +157,7 @@ export async function tenirPortes(options: OptionsPortes): Promise<PortesTenues>
       const dit = (ligne: string) => dire(auNomDe(nom, ligne));
       const etat = join(racine, ETATS, nom);
       try {
-        const porte = await ouvrirSur(nom, avant.projets[nom] ?? null, listeDuJournal(etat, { avertir: dit }), refusAuJournal(etat, nom, { dire: dit }), dit);
+        const porte = await ouvrirSur(nom, avant.projets[nom] ?? null, listeDuJournal(etat, { avertir: dit, published: join(racine, "kitchen", nom, KITCHEN_ALLOWLIST) }), refusAuJournal(etat, nom, { dire: dit }), dit);
         ouvertes.set(nom, porte);
         dits.delete(nom);
         change = true;

@@ -1,24 +1,14 @@
-// Ce que la lecture du rail tire de GitHub (#2059, épique #2053 ; vue/rail/github.ts) : l'état de chaque ticket du rail
-// est celui que `etatDuTicket` tire de l'issue (ses labels), de sa PR et du statut de la base
-// (runtime/src/github-etat/etats.ts) — ni boîte, ni relais, ni journal de station. Deux lecteurs qui voient les mêmes
-// labels et la même PR disent le même état. Ce module en donne les mots, le ticket qu'une PR livre, l'état de la base,
-// et les lectures conditionnelles (`If-None-Match`) : un 304 ne coûte rien au quota, la réponse gardée est reprise.
-import { etatDeLaBase, type EtatDeLaBase, type EtatDuTicket } from "../../../runtime/src/github-etat/etats.ts";
+// Ce que les lectures de GitHub partagent (board/read.ts, vue/autonomy/) : le ticket qu'une PR livre, et les lectures
+// conditionnelles (`If-None-Match`) — un 304 ne coûte rien au quota, la réponse gardée est reprise.
 import type { CallGitHub } from "./client.ts";
 
-// Les mots du rail (facts.ts, `TONS_DE_TICKET`) ; `base rouge` est celui d'un ticket en pass dont la base est rouge.
-export const WORD_OF_THE_STATE: Readonly<Record<EtatDuTicket, string>> = { taken: "pris", pass: "en pass", parked: "WAITING", "base-red": "base rouge" };
-
-type Raw = Record<string, unknown>;
-
-// Le ticket qu'une PR livre : son nom de branche `cook/<n>-…`, ou un `Closes #n` de son corps — la règle même du
-// récapitulatif du runtime (#3581), qui lit les tickets servis sur les mêmes PR que la colonne Served.
-export { ticketDeLaPR as ticketOfThePR } from "../../../runtime/src/recap/servis.ts";
-
-// Les checks d'un commit, d'après les *check runs* de GitHub. Une conclusion vide : le check court encore.
-export function stateOfTheBaseGithub(runs: readonly Raw[]): EtatDeLaBase | null {
-  const red = new Set(["failure", "timed_out", "cancelled", "action_required", "startup_failure"]);
-  return etatDeLaBase(runs.map((run): { outcome: "green" | "red" | "pending" } => ({ outcome: typeof run.conclusion !== "string" ? "pending" : red.has(run.conclusion) ? "red" : "green" })));
+// Le ticket qu'une PR livre : sa branche de cook `cook/<n>-…`, sinon le `Closes #n` de son corps — ce que la nouvelle
+// cuisine écrit en ouvrant sa PR (runtime/src/kitchen/github.ts, `branchOf`, `openPr`). Null s'il n'en nomme aucun.
+export function ticketOfThePR(head: string, body: string): number | null {
+  const branch = /^cook\/(\d+)(?:-|$)/.exec(head)?.[1];
+  const closes = /\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(\d+)/i.exec(body)?.[1];
+  const number = Number(branch ?? closes);
+  return Number.isSafeInteger(number) && number > 0 ? number : null;
 }
 
 // Ce que GitHub a rendu à chaque chemin, avec son ETag : une relecture le redemande (`If-None-Match`), et un 304 ne

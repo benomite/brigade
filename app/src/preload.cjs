@@ -117,10 +117,6 @@ const bridge = {
   lireUnFichierDuProjet: (project, path) => ipcRenderer.invoke("lireUnFichierDuProjet", project, path),
   ecrireUnFichierDuProjet: (project, path, text) => ipcRenderer.invoke("ecrireUnFichierDuProjet", project, path, text),
   envoyerUnMot: (project, entry) => ipcRenderer.invoke("envoyerUnMot", project, entry), // le mot au cook (ticket 4048, mot-au-cook/)
-  // Le récapitulatif de chaque projet, sur l'accueil (ticket 3581) : lu, dit montré, et la PR d'un ticket servi ouverte (recap/recap-box.ts).
-  lireLeRecap: (project) => ipcRenderer.invoke("lireLeRecap", project),
-  marquerLeRecap: (project, until) => ipcRenderer.invoke("marquerLeRecap", project, until),
-  ouvrirLaPRDuRecap: (url) => ipcRenderer.invoke("ouvrirLaPRDuRecap", url),
   // Les stations contributrices du projet, sous Settings (ticket 2936) : lues, refusées ou réacceptées (stations-contributors.ts).
   listerLesStationsContributrices: (project) => ipcRenderer.invoke("listerLesStationsContributrices", project),
   refuserUneStationContributrice: (project, station) => ipcRenderer.invoke("refuserUneStationContributrice", project, station),
@@ -135,10 +131,6 @@ const bridge = {
   savoirDuProjet: (project) => ipcRenderer.invoke("savoirDuProjet", project),
   changerLeSavoir: (project, change) => ipcRenderer.invoke("changerLeSavoir", project, change),
   ouvrirLaProposition: (url) => ipcRenderer.invoke("ouvrirLaProposition", url),
-  lireLesResumesHebdomadaires: (project) => ipcRenderer.invoke("lireLesResumesHebdomadaires", project),
-  changerLeJourDuResume: (project, day) => ipcRenderer.invoke("changerLeJourDuResume", project, day),
-  publierLeResumeHebdomadaire: (project, weekStart, tag) => ipcRenderer.invoke("publierLeResumeHebdomadaire", project, weekStart, tag),
-  ouvrirTicketDuResume: (url) => ipcRenderer.invoke("ouvrirTicketDuResume", url),
   retirerLaStation: (id) => ipcRenderer.invoke("retirerLaStation", id),
   // Les GitHub Apps de la station de cet ordinateur (ticket 2317) : ce qu'elle en a, et en ranger une — jamais la clé en retour.
   appsDeLaStation: () => ipcRenderer.invoke("appsDeLaStation"),
@@ -156,8 +148,6 @@ const bridge = {
   outilsManquants: (tools) => ipcRenderer.invoke("outilsManquants", tools),
   // Installe la station de cet ordinateur, depuis le bloc de l'accueil (ticket 2640).
   installerLaStation: () => ipcRenderer.invoke("installerLaStation"),
-  // Démarre la station de cet ordinateur, depuis l'alerte d'un projet dont elle est arrêtée (ticket 3637).
-  demarrerLaStationIci: (project) => ipcRenderer.invoke("demarrerLaStationIci", project),
   // Le compte GitHub de cet ordinateur, que dit l'étape du compte du parcours d'ajout (ticket 2475).
   compteGitHub: () => ipcRenderer.invoke("compteGitHub"),
   ouvrirLaPage: (url) => ipcRenderer.invoke("ouvrirLaPage", url),
@@ -171,8 +161,6 @@ const bridge = {
   // son gist.
   stationsDuCompte: () => ipcRenderer.invoke("stationsDuCompte"),
   choisirLesProjets: (id, repositories) => ipcRenderer.invoke("choisirLesProjets", id, repositories),
-  // Le rail d'un projet sans box ni station ici, tel que sa station le publie sur GitHub (ticket 1435).
-  railDuProjet: (name) => ipcRenderer.invoke("railDuProjet", name),
   compter: (project) => ipcRenderer.invoke("compter", project),
   repondreCarte: (project, ticket, answer) => ipcRenderer.invoke("repondreCarte", project, ticket, answer),
   gesteDeValidation: (project, ticket, action) => ipcRenderer.invoke("gesteDeValidation", project, ticket, action),
@@ -183,7 +171,6 @@ const bridge = {
   onglet: (project, id, request) => ipcRenderer.send("onglet", project, id, request),
   faits: (request) => ipcRenderer.send("faits", request),
   ouvrirIssue: (project, ticket) => ipcRenderer.invoke("ouvrirIssue", project, ticket),
-  ouvrirLesChecks: (project) => ipcRenderer.invoke("ouvrirLesChecks", project),
   ouvrirPr: (project, ticket) => ipcRenderer.invoke("ouvrirPr", project, ticket),
   ouvrirPrDuCook: (project, ticket) => ipcRenderer.invoke("ouvrirPrDuCook", project, ticket),
   ecrire: (id, data) => ipcRenderer.send("ecrire", id, data),

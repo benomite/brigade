@@ -1,32 +1,22 @@
-// Ce que la lecture du rail tire de GitHub (#2059, app/src/board/rail-github.ts) : les mots des états, le ticket
-// qu'une PR livre, l'état de la base d'après ses checks, et les lectures conditionnelles — un 304 ne coûte rien et rend
-// la réponse gardée. Le rail entier, joué sur un faux GitHub, est dans test/vue/rail/github.test.ts.
+// Ce que les lectures de GitHub partagent (#2059, app/src/board/rail-github.ts) : le ticket qu'une PR livre, et les
+// lectures conditionnelles — un 304 ne coûte rien et rend la réponse gardée. Le kanban entier, joué sur un faux GitHub,
+// est dans test/board/kitchen-board.test.ts.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { TONES_OF_TICKET } from "../../src/facts.ts";
 import type { CallGitHub, AnswerGitHub } from "../../src/board/client.ts";
-import { stateOfTheBaseGithub, readConditional, WORD_OF_THE_STATE, ticketOfThePR, type MemoryOfReads } from "../../src/board/rail-github.ts";
+import { readConditional, ticketOfThePR, type MemoryOfReads } from "../../src/board/rail-github.ts";
 
 const ok = (data: unknown, etag?: string): AnswerGitHub => ({ status: 200, data, ...(etag === undefined ? {} : { etag }) });
 
-describe("ce que GitHub dit d'un ticket du rail", () => {
-  test("chaque état de GitHub a son mot du rail, que la vue sait colorer", () => {
-    assert.deepEqual(WORD_OF_THE_STATE, { taken: "pris", pass: "en pass", parked: "WAITING", "base-red": "base rouge" });
-    for (const word of Object.values(WORD_OF_THE_STATE)) assert.ok(TONES_OF_TICKET.has(word), word);
-  });
-
+describe("le ticket qu'une PR livre", () => {
   test("une PR livre le ticket de sa branche ou de son « Closes »", () => {
     assert.equal(ticketOfThePR("cook/2059-1268b49d", ""), 2059);
+    // La branche et le corps que la cuisine écrit en ouvrant sa PR (runtime/src/kitchen/github.ts, `branchOf`, `openPr`).
+    assert.equal(ticketOfThePR("cook/4507-github", "Closes #4507"), 4507);
     assert.equal(ticketOfThePR("feature", "Closes #12"), 12);
+    assert.equal(ticketOfThePR("feature", "Fixes #13"), 13);
     assert.equal(ticketOfThePR("feature", "rien"), null);
-  });
-
-  test("la base : rouge dès qu'un check l'est, en cours dès qu'un court, verte sinon — inconnue sans aucun check", () => {
-    assert.equal(stateOfTheBaseGithub([{ conclusion: "success" }, { conclusion: "skipped" }]), "green");
-    assert.equal(stateOfTheBaseGithub([{ conclusion: "success" }, { conclusion: "failure" }]), "red");
-    assert.equal(stateOfTheBaseGithub([{ conclusion: "timed_out" }]), "red");
-    assert.equal(stateOfTheBaseGithub([{ conclusion: "success" }, { conclusion: null }]), "pending");
-    assert.equal(stateOfTheBaseGithub([]), null);
+    assert.equal(ticketOfThePR("cook/0-github", ""), null);
   });
 });
 

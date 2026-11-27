@@ -35,7 +35,7 @@ describe("le bloc Projects de l'accueil", () => {
     ]);
     assert.deepEqual(lines(block).map((l) => l.ariaLabel?.split(" — ").at(-1)), ["parade-box, this computer", "parade-box", WITHOUT_STATION, "this computer"], "les stations restent dites, dans le nom de la ligne");
     // `stuck` : le rail bloqué (ticket 3358, test/rail-bloque/accueil.test.ts) ; `paused` : la pause de quota GitHub du compte
-    // (ticket 3482, test/vue/pause-quota/).
+    // (ticket 3482).
     assert.deepEqual(Object.values(STATES).map(({ dit: said }) => said), ["cooking", "waiting for the chef", "held", "stuck", "paused", "idle", "held: breaker open"]);
   });
 

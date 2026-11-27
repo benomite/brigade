@@ -2,16 +2,10 @@
 // téléphone écrit sur l'API de GitHub ce qu'elle écrit (`validerSurGithub`). Chaque geste est joué deux fois, sur deux
 // copies du même faux GitHub, où le runtime a posé la carte comme la pass la pose (`retenirLeDesign`) : par la vraie
 // commande du runtime (`principal`, comme le desktop la joue), puis par le téléphone, sur l'API ; ce que chaque GitHub en
-// garde est comparé — la PR mergée ou non, les commentaires, les labels, la carte fermée ou non. Puis le pont de l'APK, tel
-// que la construction le pose (www/android/pont.js), lit la carte sur ce faux GitHub, ses captures, et y joue les deux
-// gestes. Aucun runtime ne tourne, aucun `gh` n'est lancé.
+// garde est comparé — la PR mergée ou non, les commentaires, les labels, la carte fermée ou non. Aucun runtime ne tourne,
+// aucun `gh` n'est lancé.
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { after, describe, test } from "node:test";
-import { pathToFileURL } from "node:url";
-import vm from "node:vm";
+import { describe, test } from "node:test";
 import { DE_CONFIANCE as OF_TRUST_OF_RUNTIME } from "../../../runtime/src/alimenter.ts";
 import { Sortie } from "../../../runtime/src/appel.ts";
 import { brancheDuTicket as branchOfRuntime } from "../../../runtime/src/brigade-github.ts";
@@ -20,7 +14,6 @@ import { CHEF_TODO } from "../../../runtime/src/github-seul/carte-todo/carte-tod
 import { MARQUE_DE_RENVOI as SEND_BACK_OF_RUNTIME } from "../../../runtime/src/qualite-github.ts";
 import { principal } from "../../../runtime/src/validation-design/commande.ts";
 import { retenirLeDesign } from "../../../runtime/src/validation-design/validation-design.ts";
-import { demarrageDuPont, poserLaVue } from "../../packaging/android.ts";
 import { readCaptureOnTHEApi } from "../../src/captures.ts";
 import { cardOfChefOfTodo } from "../../src/card-todo.ts";
 import { writingByCapacitor, openTheActionsGitHub, type RequestNative, type AnswerNative } from "../../src/actions-github-phone.ts";
@@ -42,7 +35,6 @@ import {
   type RenderedOfValidation,
   type ValidationDesign,
 } from "../../src/vue/validation-design/validation-design-github.ts";
-import { repos } from "../helpers/false-vue.ts";
 
 const REPOSITORY = "chef/parade";
 const PROJECT = "parade";
@@ -408,86 +400,5 @@ describe("les gestes du téléphone et ses captures", () => {
     assert.deepEqual(todo.captures?.ecrans, []);
     assert.equal(todo.captures?.incomplete?.ligne, WITHOUT_CAPTURE);
     assert.match(todo.captures?.incomplete?.detail ?? "", /docs\/captures\/58\/ on the project's repository at `3f9c2a1`/);
-  });
-});
-
-// Le téléphone tel que l'APK le porte : la vue et le pont posés par la construction (packaging/android.ts, `poserLaVue`),
-// le pont joué comme dans la WebView, connecté à GitHub (le jeton du coffre) ; le HTTP natif de Capacitor est ce faux
-// GitHub, où le gist d'une station dit les projets du chef.
-const SET = mkdtempSync(join(tmpdir(), "validation-design-apk-"));
-after(() => rmSync(SET, { recursive: true, force: true }));
-let setOne: Promise<string> | undefined;
-const theVueSet = () =>
-  (setOne ??= demarrageDuPont().then((startup) => {
-    poserLaVue(startup, join(SET, "www"));
-    return join(SET, "www");
-  }));
-const PROJECTS_OF_GIST = JSON.stringify({ brigade: "projets", format: 1, projets: [{ nom: PROJECT, depot: REPOSITORY, base: "main", principale: true, cooks: 2, manager: { modele: "opus", effort: "high" }, reviewer: { modele: "opus", effort: "high" }, ouvertLe: null, demandeLe: null }] });
-async function until(done: () => boolean): Promise<void> {
-  for (let tour = 0; tour < 500 && !done(); tour++) await repos();
-  assert.ok(done(), "the fact never came");
-}
-
-async function bridgeOfLAPK(world: World) {
-  const native: string[] = [];
-  const storage = new Map([["brigade.github", "chef"]]);
-  const window: Record<string, unknown> = {
-    location: { href: pathToFileURL(join(await theVueSet(), "src", "vue", "index.html")).href },
-    localStorage: { getItem: (key: string) => storage.get(key) ?? null, setItem: (key: string, value: string) => void storage.set(key, value), removeItem: (key: string) => void storage.delete(key) },
-    setTimeout: () => 0,
-    clearTimeout: () => undefined,
-    Capacitor: {
-      nativePromise: async (plugin: string, method: string, options: Record<string, unknown>) => {
-        const past = JSON.parse(JSON.stringify(options)) as { url: string; method: string; headers: Record<string, string>; data?: unknown; id?: number };
-        native.push(`${plugin}.${method}${plugin === "Pont" && method === "retirer" ? ` ${past.id}` : ""}`);
-        if (plugin === "Coffre" && method === "lire") return { valeur: TOKEN };
-        // La notification de la carte, montrée par le sondage d'Android.
-        if (plugin === "Pont") return method === "gardees" ? { valeur: JSON.stringify({ [`${REPOSITORY}#${CARD}`]: { id: 7, projet: PROJECT, depot: REPOSITORY, ticket: CARD, question: "Does the screen of #58 look right?" } }) } : {};
-        if (plugin !== "CapacitorHttp" || method !== "request") return assert.fail(`unexpected call: ${plugin}.${method}`);
-        assert.equal(past.headers.Authorization, `Bearer ${TOKEN}`);
-        // La trace de ce téléphone, déjà posée (#3303, phone-connected.ts) : la lecture n'écrit rien d'autre que le geste.
-        if (past.url.startsWith(`${API}/gists?`)) return { status: 200, data: /[?&]page=1(&|$)/.test(past.url) ? [{ id: "g1", files: { "brigade-projets.json": { filename: "brigade-projets.json" } } }, { id: "t1", files: { "brigade-telephone.json": { filename: "brigade-telephone.json" } } }] : [], headers: {} };
-        if (past.url === `${API}/gists/g1`) return { status: 200, data: { id: "g1", files: { "brigade-projets.json": { filename: "brigade-projets.json", content: PROJECTS_OF_GIST } } }, headers: {} };
-        if (past.url === `${API}/repos/${REPOSITORY}`) return { status: 200, data: { full_name: REPOSITORY, owner: { login: "chef" }, permissions: { push: true } }, headers: {} };
-        if (past.url === `${API}/user`) return { status: 200, data: { login: "chef" }, headers: {} };
-        return { ...world.api(past.method, past.url.slice(API.length), past.data), headers: { "content-type": "application/json; charset=utf-8" } };
-      },
-    },
-  };
-  vm.runInNewContext(readFileSync(join(await theVueSet(), "android", "pont.js"), "utf8"), { window, URL }, { importModuleDynamically: vm.constants.USE_MAIN_CONTEXT_DEFAULT_LOADER });
-  const bridge = window.brigade as Record<string, (...args: unknown[]) => Promise<unknown>>;
-  const drawings: Array<{ projet?: string; tableau?: { rail?: { attendLu?: string } } }> = [];
-  bridge.surFaits!((receivedOne: unknown) => void drawings.push(JSON.parse(JSON.stringify(receivedOne))));
-  let projects: unknown;
-  bridge.surConfiguration!((configuration: unknown) => void (projects = configuration));
-  await bridge.demarrage!();
-  void bridge.faits!(1);
-  void bridge.tous!(2);
-  await until(() => projects !== undefined);
-  void bridge.faits!(3);
-  void bridge.tous!(4);
-  await until(() => drawings.some(({ projet: project, tableau: board }) => project === PROJECT && board?.rail?.attendLu !== undefined));
-  return { pont: bridge, natifs: native };
-}
-
-describe("par le pont de l'APK, sans station ni runtime", () => {
-  test("la carte se lit, ses captures aussi ; « Validate » merge la PR, ferme la carte et retire sa notification", async () => {
-    const world = await cardOfTrial();
-    const { pont: bridge, natifs: native } = await bridgeOfLAPK(world);
-    assert.deepEqual(await bridge.lireCapture!(PROJECT, CARD, "rail", "apres"), { image: `data:image/png;base64,${PNG}` });
-    const rendered = JSON.parse(JSON.stringify(await bridge.gesteDeValidation!(PROJECT, CARD, { geste: "valider" })));
-    assert.deepEqual(rendered, { fait: `${REPOSITORY}: the delivery of #${TICKET} (PR ${PR}) validated: merged, card #${CARD} closed — ticket #${TICKET} is served` });
-    assert.deepEqual(world.merges, [[PR, SHA]]);
-    assert.equal(world.issues.get(CARD)?.labels.has(LABEL_OF_CHEF), false);
-    await until(() => native.includes("Pont.retirer 7"));
-  });
-
-  test("« Send back to the kitchen » : le commentaire part sur le ticket, la carte se ferme", async () => {
-    const world = await cardOfTrial();
-    const { pont: bridge } = await bridgeOfLAPK(world);
-    const rendered = JSON.parse(JSON.stringify(await bridge.gesteDeValidation!(PROJECT, CARD, { geste: "renvoyer", commentaire: "Keep the label on one line." })));
-    assert.match(rendered.fait, /sent back: #58 goes back to a cook with your comment, card #58 closed/);
-    assert.ok(world.issues.get(TICKET)?.comments.some(({ body }) => body.includes("Keep the label on one line.")));
-    assert.equal(world.issues.get(CARD)?.labels.has(LABEL_OF_CHEF), false);
   });
 });
