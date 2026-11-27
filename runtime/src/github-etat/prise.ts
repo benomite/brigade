@@ -1,5 +1,5 @@
-// La prise d'un ticket quand GitHub est le seul état de la cuisine (spec
-// `docs/superpowers/specs/2026-11-02-github-only-state.md`) : une station prend
+// La prise d'un ticket quand GitHub est le seul état de la cuisine (épique
+// #2053) : une station prend
 // un ticket en postant un commentaire de prise sur son issue. Le plus ancien
 // commentaire de prise l'emporte — l'instant que GitHub lui donne, puis son id
 // quand deux tombent dans la même seconde —, et toute station qui relit l'issue

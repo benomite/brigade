@@ -118,7 +118,7 @@ function sources(t: TestContext) {
   write(join(pty, "prebuilds", "darwin-arm64", "pty.node"));
   write(join(pty, "prebuilds", "win32-arm64", "pty.node"));
   const runtime = join(root, "runtime");
-  write(join(runtime, "src", "station", "main.ts"), "// la station");
+  write(join(runtime, "src", "kitchen", "main.ts"), "// la station");
   write(join(runtime, "package.json"), JSON.stringify({ name: "brigade-runtime", version: "0.0.0", type: "module", engines: { node: ">=26" } }));
   const node = join(root, "node.exe");
   write(node, inHeadPe(0x8664));
@@ -195,7 +195,7 @@ test("assembler : Electron renommé, l'app, ses dépendances de production, le r
   for (const source of ["build", "src", "binding.gyp"]) assert.equal(existsSync(join(pty, source)), false, `${source} n'est pas porté`);
   assert.equal(existsSync(join(pty, "lib", "index.js")), true);
 
-  assert.equal(readFileSync(join(resources, "runtime", "src", "station", "main.ts"), "utf8"), "// la station");
+  assert.equal(readFileSync(join(resources, "runtime", "src", "kitchen", "main.ts"), "utf8"), "// la station");
   // Les commandes du plugin de l'app (src/plugin-app.ts) : `dev.md` et `ask.md` de `commands/`, et rien d'autre.
   assert.deepEqual(readdirSync(join(resources, "plugin", "commands")).sort(), ["ask.md", "dev.md"]);
   assert.equal(readFileSync(join(resources, "plugin", "commands", "ask.md"), "utf8"), readFileSync(join(APP, "..", "commands", "ask.md"), "utf8"));

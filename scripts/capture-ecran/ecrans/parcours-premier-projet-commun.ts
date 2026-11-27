@@ -2,13 +2,15 @@
 // d'un clic — le compte peut y écrire. Sa lecture arrivée, sa page s'ouvre sur la question, à la place du rail : qui le
 // cuit, puis sa mise en place s'il le faut, puis prêt. Le second de « cantine » est à droite ; le titre que `claude`
 // donne à son terminal dit s'il tourne.
-import { TITRE as TITRE_DE_LA_PR_DE_SETUP } from "../../../runtime/src/second-init/pr-de-setup.ts";
 import type { Project } from "../../../app/src/config.ts";
 import type { Terminal } from "../../../app/src/terminals.ts";
 import { configuration, cuisine, demarrage, type Ecran, type Etape, MAINTENANT } from "./commun.ts";
 import { PROJETS, RENDUS } from "./cuisine-figee.ts";
 import { COMPTE } from "./premier-lancement-commun.ts";
 
+// Le titre de l'issue qui attend le merge de la PR de mise en place, mot pour mot celui que la vue reconnaît
+// (`TITLE_OF_THE_CARD_OF_SETUP`, app/src/vue/journey-first-project/journey-first-project.js).
+const TITRE_DE_LA_PR_DE_SETUP = "Merge the setup pull request";
 const CANTINE: Project = { ...(PROJETS.find(({ nom }) => nom === "cantine") ?? PROJETS[0]!), depot: "chef/cantine", base: "main" };
 const SECOND: Terminal = { id: 1, projet: "cantine", genre: "second", titre: "second · claude", note: "", arrete: false };
 // Ce que le second affiche : `claude` qui lit le dépôt, le titre de son terminal au travail (« ◐ »). Pas un vrai.

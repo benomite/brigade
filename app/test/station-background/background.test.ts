@@ -46,7 +46,7 @@ const alive = (pid: number) => {
 function oneComputer(t: TestContext, station = STATION) {
   const machine = repertoireTemporaire(t);
   const runtime = join(machine, "runtime");
-  mkdirSync(join(runtime, "src", "station"), { recursive: true });
+  mkdirSync(join(runtime, "src", "kitchen"), { recursive: true });
   writeFileSync(join(runtime, "package.json"), `${JSON.stringify({ name: "brigade-runtime", version: "1.0.0" })}\n`);
   writeFileSync(join(runtime, PRINCIPAL), station);
   const root = join(machine, "station");

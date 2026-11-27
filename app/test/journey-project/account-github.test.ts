@@ -1,14 +1,13 @@
 // Le compte GitHub de cet ordinateur, lu par le process principal pour l'étape du compte (#2475,
-// connection-github.ts) : la question que le runtime pose déjà à un `gh` (`gh api user --jq .login`), son échec lu par
-// le runtime (`echecDeGh`). Un login, aucun compte — l'étape à faire, pas une panne —, ou pourquoi il ne se lit pas.
+// connection-github.ts) : la question posée à un `gh` (`gh api user --jq .login`), son échec lu par l'app
+// (`failureOfGh`). Un login, aucun compte — l'étape à faire, pas une panne —, ou pourquoi il ne se lit pas.
 // Contre un faux `gh` qui répond comme le vrai.
 import assert from "node:assert/strict";
 import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
-import { echecDeGh } from "../../../runtime/src/appairage/stations-du-chef.ts";
-import { readTheAccountGitHub } from "../../src/connection-github.ts";
+import { failureOfGh, readTheAccountGitHub } from "../../src/connection-github.ts";
 import { WITHOUT_POSIX } from "../helpers/posix.ts";
 
 const directory = (t: TestContext) => {
@@ -28,7 +27,7 @@ function oneFakeGh(t: TestContext, { sortie: output = "", erreurs: errors = "", 
   return { gh, appel: () => readFileSync(join(folder, "appel"), "utf8").trim() };
 }
 
-const read = (gh: string) => readTheAccountGitHub({ gh, env: process.env, echecDeGh });
+const read = (gh: string) => readTheAccountGitHub({ gh, env: process.env, echecDeGh: failureOfGh });
 
 test("connecté : le login que `gh api user` rend, sans rien demander au terminal", { skip: WITHOUT_POSIX }, async (t) => {
   const fake = oneFakeGh(t, { sortie: "octo-chef\n" });

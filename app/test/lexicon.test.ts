@@ -15,7 +15,7 @@ function files(folder: string): string[] {
 const sources = files(VUE).filter((path) => path.endsWith(".js") && !path.endsWith("lexicon.js"));
 const pages = files(VUE).filter((path) => path.endsWith(".html"));
 
-// Chaque ligne du tableau « Same thing said with different words » (docs/design/inventaire/README.md) : les mots que le lexique remplace.
+// Chaque ligne du tableau « Same thing said with different words » (l'inventaire des écrans de #2899) : les mots que le lexique remplace.
 // `sauf` : une chaîne qui n'est pas dite à l'écran (une valeur comparée, un état de donnée).
 type Rule = { chose: string; remplace: RegExp; mot: string; sauf?: (string: String) => boolean };
 const COMPARISON = /(===|!==|case|state:)\s*$/;

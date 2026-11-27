@@ -6,7 +6,7 @@
 // et leurs sessions `claude` sont des process de l'app, pas de la station : rien ne les touche.
 //
 // - **Les versions sont dans les données de l'app.** Une version X de la station est un dossier de
-//   runtime, `<versions>/<X>/` (son `src/station/main.ts`, son `package.json`), posé là par la mise
+//   runtime, `<versions>/<X>/` (son `src/kitchen/main.ts`, son `package.json`), posé là par la mise
 //   à jour de la station. L'app n'écrit jamais dans son propre paquet, et ne lance que ce qui est
 //   sous ce dossier : la demande ne porte qu'un numéro de version, pas un chemin.
 // - **La demande est un fichier.** La station écrit `<BRIGADE_STATION_DIR>/redemarrage`

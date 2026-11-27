@@ -1,14 +1,12 @@
 // Une station que la limite de GitHub retient (#2443), dans l'app : la fenêtre du 5 novembre rejouée. parade-box écrit son
 // signe de vie à 14:04:25, GitHub la limite de 14:06 à 14:37, et son enregistrement le dit au moment où ses appels
-// s'arrêtent (`heldBy`, runtime/src/enregistrement-station/enregistrer.ts). À 14:23, le chef ouvre l'app : la station est
-// lue par le lecteur même du runtime (`stationDuGist`), et l'app la dit « held by GitHub's limit until 14:37 » — jamais
+// s'arrêtent (`heldBy`). À 14:23, le chef ouvre l'app : la station est lue disponible, retenue jusqu'à 14:37
+// (`heldUntil`, stations-of-account.ts), et l'app la dit « held by GitHub's limit until 14:37 » — jamais
 // « offline » —, sur sa ligne de l'accueil, sur sa page, et sur l'onglet Stations de chacun de ses projets, qu'elle garde.
 // L'heure est celle du chef : ce test la pose en UTC, celle du ticket.
 process.env.TZ = "UTC";
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import * as contract from "../../../runtime/src/enregistrement-station/contrat.ts";
-import { stationDuGist } from "../../../runtime/src/enregistrement-station/stations-du-compte.ts";
 import { cookingOf } from "../../src/cooking.ts";
 import type { StationRecorded } from "../../src/stations-of-account.ts";
 import { stationsOfGithub } from "../../src/vue/cooks/taken.ts";
@@ -23,25 +21,25 @@ const a = (hhmmss: string) => Date.parse(`2026-11-05T${hhmmss}Z`);
 const REPOSITORIES = ["benomite/brigade", "benomite/parade", "benomite/site", "benomite/notes"];
 const NOTHING: ActionsOfAccount = { ouvrirLaStation() {}, relire() {}, seConnecter() {}, ouvrirLaPage() {}, copier() {} };
 
-// Le gist de parade-box à 14:23 : son enregistrement écrit à 14:06, quand GitHub l'a limitée, et la sélection que le chef
-// vient de lui réécrire. `retenue` faux : l'enregistrement d'avant ce ticket, qui n'en disait rien.
-function readA(instant: number, retainedOne = true): StationRecorded {
-  const recording = {
-    brigade: "station-registration",
-    format: 1,
+// parade-box telle que son gist la dit pendant la fenêtre : son enregistrement écrit à 14:06, quand GitHub l'a limitée, et
+// la sélection que le chef vient de lui réécrire. Retenue, elle est disponible jusqu'à la fin de la limite. `retenue` faux :
+// l'enregistrement d'avant ce ticket, qui n'en disait rien — deux signes de vie manqués, elle ne l'est plus.
+function readA(retainedOne = true): StationRecorded {
+  return {
+    id: "g-parade-box",
     name: "parade-box",
     platform: "linux",
     machine: "Linux 6.1.0",
     version: "1.4.0",
+    account: "benomite",
+    available: retainedOne,
+    ...(retainedOne ? { heldUntil: "2026-11-05T14:37:00.000Z", heldBy: { limit: "secondary-writes", since: "2026-11-05T14:06:00.000Z", until: "2026-11-05T14:37:00.000Z" } } : {}),
     registeredAt: "2026-11-01T08:00:00.000Z",
     lastSeen: "2026-11-05T14:06:00.000Z",
-    refreshMs: contract.RAFRAICHI_MS,
     stoppedAt: null,
-    ...(retainedOne ? { heldBy: { limit: "secondary-writes", since: "2026-11-05T14:06:00.000Z", until: "2026-11-05T14:37:00.000Z" } } : {}),
+    refreshMs: 120_000,
+    selection: REPOSITORIES,
   };
-  const selection = { brigade: "station-selection", format: 1, repositories: REPOSITORIES, updatedAt: "2026-11-05T14:23:00.000Z" };
-  const station = stationDuGist("g-parade-box", { [contract.FICHIER_ENREGISTREMENT]: JSON.stringify(recording), [contract.FICHIER_SELECTION]: JSON.stringify(selection) }, "benomite", instant);
-  return "illisible" in station ? assert.fail(station.illisible) : station;
 }
 
 // Les cartes de l'onglet Stations d'un projet (#3195), telles que la vue les pose d'après les signes de vie du compte.
@@ -57,9 +55,7 @@ function cooksOf(repository: string, station: StationRecorded, instant: number) 
 
 test("a limit window replayed in the app: at 14:23 the station is held by GitHub's limit until 14:37, never offline, and each of its projects keeps it", () => {
   for (const instant of [a("14:11:00"), a("14:23:00"), a("14:36:59")]) {
-    const station = readA(instant);
-    assert.equal(station.available, true);
-    assert.equal(station.heldUntil, "2026-11-05T14:37:00.000Z");
+    const station = readA();
 
     // Sa ligne de l'accueil : la limite, puis les projets qu'elle sert.
     const line = lineOfTheRecorded(doc, station, NOTHING) as Fake;
@@ -80,8 +76,7 @@ test("a limit window replayed in the app: at 14:23 the station is held by GitHub
 });
 
 test("the same window read from a registration that did not say its limit — before this ticket: offline at 14:23", () => {
-  const station = readA(a("14:23:00"), false);
-  assert.equal(station.available, false);
+  const station = readA(false);
   assert.match((lineOfTheRecorded(doc, station, NOTHING) as Fake).textContent, /offline · benomite\/brigade/);
   const [line] = cooksOf("benomite/parade", station, a("14:23:00"));
   assert.equal(line?.dataset.etat, "hors-ligne");

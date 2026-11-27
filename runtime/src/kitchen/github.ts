@@ -9,6 +9,8 @@ export type Gh = (args: string[], input?: string) => Promise<string>;
 export const ghCli = (bin: string, env: NodeJS.ProcessEnv): Gh => (args, input) =>
   new Promise((resolve, reject) => {
     const child = execFile(bin, args, { env, maxBuffer: 64 * 1024 * 1024 }, (error, stdout, stderr) => (error ? reject(new Error(`gh ${args.slice(0, 3).join(" ")}: ${stderr.trim() || error.message}`)) : resolve(stdout)));
+    // A `gh` that exits before reading its input fails through the callback, never the kitchen (EPIPE).
+    child.stdin?.on("error", () => {});
     child.stdin?.end(input ?? "");
   });
 
