@@ -5,7 +5,7 @@
 //                                    tel que GitHub le tient. La mise en place
 //                                    écrit la section des bindings dans un
 //                                    worktree jetable et la livre par une PR
-//                                    (`app/src/plugin/init.sh`) : la copie
+//                                    (`app/src/setup/init.sh`) : la copie
 //                                    locale du chef ne l'a qu'une fois tirée.
 //                                    Le constat (`depot-prepare/preparation.ts`,
 //                                    `checkRepoSetup`) la lit là quand la copie

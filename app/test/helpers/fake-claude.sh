@@ -4,7 +4,7 @@
 #   `.fil`) ; sinon il sort en 1, comme le vrai (« No conversation found to
 #   continue », relevé sur claude 2.1.286) ;
 # - sans option, il ouvre une session neuve, qui laisse un fil derrière elle ;
-#   ouverte sur une commande (`claude /brigade:init`), elle dit l'avoir reçue ;
+#   ouverte sur un premier message (`claude <message>`), elle dit l'avoir reçu ;
 # - `--append-system-prompt-file` : il dit la première ligne du fichier, qu'il
 #   lit comme le vrai, et `--settings` est pris avec sa valeur, sans rien dire.
 # Puis il lit son entrée : `!taille` dit la taille de son terminal, `/exit` sort.

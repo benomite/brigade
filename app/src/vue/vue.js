@@ -93,7 +93,6 @@ import { setEngine, WITHOUT_ENGINE } from "./delivery-engine/display.js";
 import { holdTheFiguresOfAutonomy } from "./autonomy/figures.js";
 import { holdTheTeam } from "./autonomy/team.js";
 import { holdTheAgents } from "./agents/agents.js";
-import { dayOf, setTheCardOfDigest, setTheLog, holdTheCardOfMorning } from "./log/log.js";
 import { capacityOfNeed, capacityChoice, comeBack, ONLY, stationAOpen } from "./stations-declared.js";
 import { SAYS_TEMPORARY, TEMPORARY } from "./learning.js";
 import { keepTheKeyboard } from "./keep-the-keyboard.js";
@@ -664,8 +663,6 @@ const agentsOfProject = holdTheAgents(document);
 // L'offre du téléphone (ticket 3303, offre-telephone/) : sous le délai du premier projet du chef, une fois son premier
 // ticket servi, si aucun téléphone n'est déjà connecté au compte GitHub ; acceptée, le lien de l'app Android ; déclinée
 // ou suivie, gardée rangée dans le stockage de la vue.
-// La carte du digest de la veille (ticket 4274, journal/) : en tête du rail à la première ouverture du projet dans le jour.
-const cardOfMorning = holdTheCardOfMorning(storageOfTheVue());
 const offerOfPhone = element("offre-telephone");
 const offer = holdTheOffer({
   stockage: storageOfTheVue(),
@@ -5055,10 +5052,7 @@ function setTheRail(project) {
   const age = held.publieLe === undefined ? undefined : ageOfRail(held.publieLe, held.a);
   // Sans ligne d'état ni bandeau, la rangée des colonnes la porte : l'âge n'est jamais perdu, jamais une ligne de plus.
   if (age !== undefined) for (const carrier of [status[0], grid]) if (carrier !== undefined && !carrier.title) carrier.title = age;
-  // Le journal du jour, au-dessus des colonnes, et la carte du digest de la veille en tête, au premier matin (ticket 4274).
-  const { journal: log, digest } = held.tableau;
-  const ofMorning = digest !== undefined && cardOfMorning.aMontrer(project.nom, dayOf(new Date())) ? [setTheCardOfDigest(document, digest)] : [];
-  set(...ofMorning, bandOfTop, ...status, ...(log === undefined ? [] : [setTheLog(document, log)]), grid, ...underTheColumns, ...(outside.length === 0 ? [] : [block("h3", "outside the columns — their state is none of the six, and nothing says they await you"), slips(outside, undefined, false, true)]));
+  set(bandOfTop, ...status, grid, ...underTheColumns, ...(outside.length === 0 ? [] : [block("h3", "outside the columns — their state is none of the six, and nothing says they await you"), slips(outside, undefined, false, true)]));
   renderTheKeyboard(resumption);
   placeTheRow(project, grid, scrolls);
   if (sameRail) rail.scrollTop = topOfRail;

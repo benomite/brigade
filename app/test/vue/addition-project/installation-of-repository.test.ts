@@ -79,7 +79,7 @@ describe("la vérification du dépôt choisi", () => {
       assert.equal(block.phrase(), `chef/site is not set up for brigade: ${lack}.`);
       assert.deepEqual(block.boutons().map((button) => button.textContent), [PREPARE_LABEL]);
       assert.equal(block.suites(), 0);
-      assert.equal(block.racine.textContent.includes("/brigade:init"), false);
+      assert.equal(block.racine.textContent.includes("/brigade:"), false);
       assert.equal(block.racine.textContent.includes("init"), false);
     }
   });
@@ -196,7 +196,7 @@ describe("l'étape « projet » vérifie le dépôt choisi avant de l'ajouter", 
     await vue.choisir();
     assert.equal(vue.bloc()?.dataset.etat, "a-installer");
     assert.deepEqual(vue.ajoutes, []);
-    assert.equal(vue.racine.textContent.includes("/brigade:init"), false);
+    assert.equal(vue.racine.textContent.includes("/brigade:"), false);
     const button = vue.bloc()!.dessous("button").find((oneOf) => oneOf.textContent === PREPARE_LABEL)!;
     await Promise.all(button.declencher("click"));
     await repos();

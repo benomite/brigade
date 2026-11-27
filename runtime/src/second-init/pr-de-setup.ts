@@ -5,7 +5,7 @@
 //
 // Rien n'est refait ici de ce qui existe :
 //   - la PR est celle qu'ouvre le script de la mise en place du dépôt, celui
-//     de l'app (`app/src/plugin/init.sh`) : ses fichiers, dans un worktree jetable sur
+//     de l'app (`app/src/setup/init.sh`) : ses fichiers, dans un worktree jetable sur
 //     `brigade/init`, puis la PR — sa dernière ligne dit `pr <url>`, ou
 //     `unchanged` quand la branche d'intégration porte déjà tout ;
 //   - la carte est celle des cartes du chef sur GitHub
@@ -21,7 +21,7 @@
 // second qui les dit, dans la langue du chef.
 //
 // La commande, que la mise en place du dépôt lance depuis le dossier du projet,
-// dans la session que l'app ouvre dans le second (`app/src/plugin/init.md`) :
+// dans la session que l'app ouvre dans le second (`app/src/setup/instructions.md`) :
 //
 //   node runtime/src/second-init/pr-de-setup.ts <script de la mise en place> [<ses arguments>…]
 //

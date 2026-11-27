@@ -152,7 +152,7 @@ describe("les gestes d'un projet qui cuit sur cet ordinateur partent ici", () =>
         delaiMs: 60_000,
         lancer: (readOne, command) => launchThe({ delaiMs: 60_000 }, readOne, command),
         cuisine: () => trial.ici,
-        session: () => SECOND,
+        setup: () => SECOND,
         shell: () => SECOND,
         surGuide: (guide) => void guides.push(guide),
       });

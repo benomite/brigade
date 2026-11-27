@@ -7,7 +7,7 @@ import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { COMMANDS, COMMANDS_OF_THE_APP, ID, MARKETPLACE, SPACE, setTheMarketplace } from "../src/plugin-app.ts";
+import { COMMANDS, ID, MARKETPLACE, SPACE, setTheMarketplace } from "../src/plugin-app.ts";
 
 const ROOT = join(import.meta.dirname, "..", "..");
 const read = (path: string) => readFileSync(join(ROOT, path), "utf8");
@@ -45,7 +45,7 @@ test("beside the app's plugin, nothing collides: other marketplace, other id, an
   const shared = plugin.commands.map((path: string) => path.replace("./commands/", "")).filter((name: string) => ofTheApp.includes(name));
   assert.deepEqual(shared, ["ask.md"]);
   for (const name of shared) {
-    assert.ok((COMMANDS as readonly string[]).includes(name) && !(COMMANDS_OF_THE_APP as readonly string[]).includes(name), name);
+    assert.ok((COMMANDS as readonly string[]).includes(name), name);
     assert.equal(readFileSync(join(folder, "commands", name), "utf8"), read(`commands/${name}`));
   }
 });
