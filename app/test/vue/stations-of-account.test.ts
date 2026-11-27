@@ -22,7 +22,7 @@ import { BANNER } from "../../src/facts.ts";
 import { CONFIRMED, DIRECT } from "../../src/actions.ts";
 import { TABS, HEADINGS } from "../../src/tabs.ts";
 import { EFFORTS, MODELS } from "../../src/projects/projects.ts";
-import { choiceOfProjects, REFUSAL_GITHUB, type StationRecorded, type StationsOfAccount } from "../../src/stations-of-account.ts";
+import { REFUSAL_GITHUB, type StationRecorded, type StationsOfAccount } from "../../src/stations-of-account.ts";
 import type { StationVue, SeenOfStations } from "../../src/stations/stations.ts";
 import {
   NO,
