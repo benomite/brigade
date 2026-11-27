@@ -1,12 +1,11 @@
 // L'app : une fenêtre, et le process qui tient les terminaux, la veille des
 // box et le suivi du fichier des projets.
 import { appendFile, readFile } from "node:fs/promises";
-import { homedir, userInfo } from "node:os";
+import { homedir, hostname, userInfo } from "node:os";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { menuOfTheApp } from "./help-community.ts";
 import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, Notification, protocol, shell, type MenuItemConstructorOptions } from "electron";
-import { answerAtAgents, SCHEMA_OF_AGENTS, SCHEMA_PREFERRED } from "./agents-of-the-box.ts";
 import { setTheIconOfDock } from "./icon-of-dock.ts";
 import { holdMenuBar, type Entry } from "./menu-bar.ts";
 import { createTheIcon, ICON_OF_THE_BAR } from "./tray/icon.ts";
@@ -97,6 +96,7 @@ import { registerTheStationOfBackground } from "./station-background/registratio
 import { openPty } from "./pty.ts";
 import { claudeOf, connectionOfTheSession, openOfAStation } from "./first-launch.ts";
 import { openTheLocalCopy, sessionOfClaude } from "./local-copy.ts";
+import { probesOfTheRuntime, serveHere } from "./serve-here.ts";
 import { opinionOfMacOS, passTheFirstLaunch, holdTheOpinionOfBackground } from "./first-launch/index.ts";
 import { readQuestion, reply as answerQuestion, titleOf, type Read as QuestionRead } from "./question.ts";
 import { readCapture } from "./captures.ts";
@@ -1231,7 +1231,24 @@ const NOT_DONE = { refus: "nothing was done: stations are no longer paired", det
 ipcMain.handle("stationsDuChef", () => ({ state: "listed", stations: [], unreadable: [], reason: NOT_PAIRED }));
 ipcMain.handle("stationsDuCompte", () => ({ state: "listed", stations: [], unreadable: [], reason: NOT_PAIRED }));
 ipcMain.handle("choisirLesProjets", () => NOT_DONE);
-ipcMain.handle("servirUnProjet", () => ({ refus: "nothing was written: a project is served by its line in the kitchen/projects file of this computer's station, with its clone" }));
+// « This computer » sur un projet (#4568) : sa ligne entre dans le fichier des projets de la cuisine de cet ordinateur
+// (serve-here.ts), que la station relit seule. Le retirer ne se fait pas d'ici.
+ipcMain.handle("servirUnProjet", async (_, repository: unknown, served: unknown) => {
+  if (role.role !== "station") return { refus: "this device has no kitchen to serve a project" };
+  if (served !== true) return { refus: "a project is given back to the box from its own Stations tab, not from this computer's list" };
+  const repo = typeof repository === "string" ? repository.trim() : "";
+  const known = projects().find((project) => project.depot?.toLowerCase() === repo.toLowerCase());
+  const probes = await probesOfTheRuntime(locations.runtime, claudeHere);
+  const git = process.env.BRIGADE_GIT_BIN || "git";
+  return serveHere({
+    stationDir: rootOfTheStation,
+    repository: repo,
+    project: known === undefined ? undefined : { nom: known.nom, dossier: known.dossier, ...(known.base === undefined ? {} : { base: known.base }) },
+    probes,
+    openCopy: ({ root, ...options }) => openTheLocalCopy({ ...options, gh: ghHere, git, env: { ...process.env, BRIGADE_PROJECTS_DIR: root } }),
+    readBase: async (folder) => (await readClone(git, folder)).base ?? undefined,
+  });
+});
 ipcMain.handle("appsDeLaStation", () => undefined);
 ipcMain.handle("rangerUneApp", () => ({ refus: "this computer's kitchen keeps no GitHub App" }));
 ipcMain.handle("defautsDeStation", () => ({ refus: "this computer could not be read", detail: NOT_PAIRED }));
@@ -1392,18 +1409,15 @@ ipcMain.handle("proposerUnReglage", async (_, name: unknown, choice: unknown) =>
   if ("pr" in rendered) proposalsOfSetting.add(rendered.pr);
   return rendered;
 });
+// Les agents au travail que lit l'onglet Agents (ticket 4569) : le kanban de GitHub (`taken`, `in-pass`) et ce que la cuisine
+// écrit sur sa station, sans rien demander à l'ancien runtime (team-of-the-box.ts).
+ipcMain.handle("agentsAtWork", (_, name: unknown) => {
+  const { vise: aims, lu: readOne } = kitchenOfProject(name);
+  if (aims === undefined) throw new Error(`${String(name)} is no longer in the projects file`);
+  return readTheAgents({ station: hostname(), readOne, launch: launchOnTheKitchen, board: () => boards.lire(aims), now: Date.now });
+});
 // Les humains du projet, sous Settings (#2930) : lus par `humans` là où sa cuisine tourne, et chaque changement — ajouté,
 // changé ou retiré — écrit par une PR, que le runtime attend comme celle d'un réglage (humans-of-project.ts).
-// L'équipe du projet que lit la vue (tickets 4029 et 4327) : les enregistrements que `facts` publie, lus là où sa cuisine tourne.
-ipcMain.handle("lireLesAgents", (_, name: unknown) => readTheAgents(kitchenOfProject(name).lu, launchOnTheKitchen));
-// L'API des agents que lit l'onglet Agents (ticket 4224) : la vue la demande par `fetch` sur `brigade-agents:`, et chaque
-// demande est une commande `agents` ou `agent-settings` lancée là où la cuisine du projet nommé tourne (agents-of-the-box.ts).
-protocol.registerSchemesAsPrivileged([SCHEMA_PREFERRED]);
-const serveTheAgents = () =>
-  protocol.handle(SCHEMA_OF_AGENTS, async (request) => {
-    const { statut: status, corps: body } = await answerAtAgents({ methode: request.method, url: request.url, corps: await request.text() }, kitchenOfProject, launchOnTheKitchen);
-    return new Response(JSON.stringify(body), { status: status, headers: { "content-type": "application/json" } });
-  });
 ipcMain.handle("listerLesHumains", (_, name: unknown) => {
   const { vise: aims, lu: readOne } = kitchenOfProject(name);
   return aims === undefined ? { sans: `${String(name)} is no longer in the projects file` } : readTheHumans(aims.nom, readOne, launchOnTheKitchen);
@@ -1652,7 +1666,6 @@ if (platform === "win32") app.setAppUserModelId(process.execPath);
 void app.whenReady().then(() => {
   // L'installeur attend que l'app soit fermée pour la remplacer.
   if (installedAtLaunch) return app.quit();
-  serveTheAgents();
   // Mac installé : le .app porte son icône. Sous `npm start`, on pose celle de brigade à la main.
   // Windows : l'exécutable garde l'icône d'Electron, la fenêtre reçoit donc toujours la sienne — le
   // `Brigade.ico` posé à côté de l'exécutable une fois installée.

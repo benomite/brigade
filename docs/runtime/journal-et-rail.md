@@ -143,7 +143,8 @@ written, and states its price (`— cost: …`; refused: standard error, code 1)
 
 ### A ticket's priority is its `prio:` label
 
-The box has no command for it: change the issue's `prio:<n>` label on GitHub; the box
+The box has no command for it: change the issue's `prio:<n>` label on GitHub, or from the ticket's
+sheet in the app (`app/src/priority.ts`, `docs/app.md`, "Changing a ticket's priority"); the box
 reads it at its next poll.
 
 ### Answering a TODO card

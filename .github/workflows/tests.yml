@@ -2,6 +2,12 @@
 # changement touche — ceux que la station qui cuisine a joués avant de livrer (#2565) —, et sur `main`
 # après un merge, la suite entière (le diff y est vide). La pass attend ces checks avant de merger. Le dépôt est public : les runners de GitHub n'y coûtent rien.
 #
+# #4607 : une PR ne lance que le CI que son diff demande. Le job `plan` lit le diff (`tests-touches.mjs`) et
+# donne à `tests` et à `types` leur matrice : une zone dont aucun test n'est touché n'a aucune part, une
+# zone dont aucun fichier n'a changé n'a pas de contrôle de types, et le nombre de parts suit le nombre de
+# fichiers à jouer, plafonné (3 pour le runtime, 2 pour l'app : au plus 8 jobs par PR, `plan` et `gates`
+# compris). Sur `main`, tout se joue, en 16 + 3 parts. Windows ne joue que sur `main` (runtime-windows.yml).
+#
 # Chaque check rend son verdict en moins de 60 s après le démarrage de son job (#2086) : la suite est
 # coupée en parts qui courent en parallèle, une part rouge arrête les autres (`fail-fast`), les
 # dépendances viennent du cache de npm, et `timeout-minutes: 3` plafonne un job qui pend. Les checks :
@@ -30,15 +36,64 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Ce que le diff demande (#4607) : les matrices de `tests` et de `types`. Sur `main`, tout.
+  plan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    outputs:
+      tests: ${{ steps.plan.outputs.tests }}
+      types: ${{ steps.plan.outputs.types }}
+    steps:
+      # Deux commits suffisent : sur une PR, le premier parent du commit de merge est la base.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
+      - name: Plan
+        id: plan
+        env:
+          EVENEMENT: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENEMENT" != pull_request ]; then
+            echo 'tests={"include":[{"zone":"runtime","of":16,"part":1},{"zone":"runtime","of":16,"part":2},{"zone":"runtime","of":16,"part":3},{"zone":"runtime","of":16,"part":4},{"zone":"runtime","of":16,"part":5},{"zone":"runtime","of":16,"part":6},{"zone":"runtime","of":16,"part":7},{"zone":"runtime","of":16,"part":8},{"zone":"runtime","of":16,"part":9},{"zone":"runtime","of":16,"part":10},{"zone":"runtime","of":16,"part":11},{"zone":"runtime","of":16,"part":12},{"zone":"runtime","of":16,"part":13},{"zone":"runtime","of":16,"part":14},{"zone":"runtime","of":16,"part":15},{"zone":"runtime","of":16,"part":16},{"zone":"app","of":3,"part":1},{"zone":"app","of":3,"part":2},{"zone":"app","of":3,"part":3}]}' >> "$GITHUB_OUTPUT"
+            echo 'types={"include":[{"zone":"runtime"},{"zone":"app"}]}' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          changes="$(git diff --name-only HEAD^1 HEAD)"
+          sel="$(printf '%s\n' "$changes" | node .claude/brigade/tests-touches.mjs --souche HEAD^1)" \
+            || { echo "tests-touches.mjs a échoué : sélection des tests impossible" >&2; exit 1; }
+          node --input-type=module -e '
+            const [sel, changes] = process.argv.slice(1).map((s) => s.split("\n"));
+            const cap = { runtime: 3, app: 2 };
+            const tests = [], types = [];
+            // Un diff tout en docs/ ne lance aucune part : les tests qui relisent une page se jouent sur `main`.
+            const docs = changes.filter(Boolean).every((c) => c.startsWith("docs/"));
+            for (const zone of docs ? [] : ["runtime", "app"]) {
+              const regle = sel.find((l) => l.startsWith(zone + " "))?.slice(zone.length + 1);
+              if (regle === undefined) throw new Error("tests-touches.mjs ne dit rien de la zone " + zone);
+              const max = cap[zone];
+              const n = regle === "rien" ? 0 : regle.startsWith("fichiers ") ? regle.slice(9).split(" ").filter(Boolean).length : Infinity;
+              const parts = Math.min(max, Math.ceil(n / 50));
+              for (let part = 1; part <= parts; part++) tests.push({ zone, part, of: parts });
+              const dossiers = zone === "runtime" ? ["runtime/", "scripts/"] : ["app/"];
+              if (changes.some((c) => dossiers.some((d) => c.startsWith(d)))) types.push({ zone });
+            }
+            const sortie = (nom, include) => console.log(nom + "=" + JSON.stringify({ include }));
+            sortie("tests", tests); sortie("types", types);
+          ' "$sel" "$changes" >> "$GITHUB_OUTPUT"
+          cat "$GITHUB_OUTPUT"
   # Les gates sans leurs suites : sans `package.json`, une zone n'a « aucun test à jouer » (ce n'est
   # pas un échec) et ses types ne partent pas. Les suites se jouent dans `tests`, les types dans `types`.
   # Ce contournement est fragile : il suppose que `gates.sh` traite une zone sans `package.json` comme
   # absente. Si `gates.sh` change, la suppression ci-dessous est à revoir.
   # `gates` est le seul verdict : la pass le connaît comme vert sur `main` et n'excuse pas son rouge.
   # Il attend `tests` et `types` (`always()` : même quand l'un échoue ou est annulé par `fail-fast`)
-  # et est rouge si l'un d'eux n'est pas `success`.
+  # et est rouge si l'un d'eux n'est ni `success` ni `skipped` (aucune part : rien à jouer, #4607).
   gates:
-    needs: [tests, types]
+    needs: [plan, tests, types]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 3
@@ -52,8 +107,9 @@ jobs:
           node-version: 26
       - name: Verdict de tests et de types
         run: |
-          test "${{ needs.tests.result }}" = success || { echo "tests : ${{ needs.tests.result }}" >&2; exit 1; }
-          test "${{ needs.types.result }}" = success || { echo "types : ${{ needs.types.result }}" >&2; exit 1; }
+          test "${{ needs.plan.result }}" = success || { echo "plan : ${{ needs.plan.result }}" >&2; exit 1; }
+          case "${{ needs.tests.result }}" in success|skipped) ;; *) false ;; esac || { echo "tests : ${{ needs.tests.result }}" >&2; exit 1; }
+          case "${{ needs.types.result }}" in success|skipped) ;; *) false ;; esac || { echo "types : ${{ needs.types.result }}" >&2; exit 1; }
       - name: Gates (suites et types joués par les autres jobs)
         run: |
           rm runtime/package.json app/package.json
@@ -61,11 +117,12 @@ jobs:
 
   types:
     name: types (${{ matrix.zone }})
+    needs: plan
+    if: ${{ fromJSON(needs.plan.outputs.types).include[0] != null }}
     runs-on: ubuntu-latest
     timeout-minutes: 3
     strategy:
-      matrix:
-        zone: [runtime, app]
+      matrix: ${{ fromJSON(needs.plan.outputs.types) }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -81,32 +138,15 @@ jobs:
 
   tests:
     name: tests ${{ matrix.zone }} (${{ matrix.part }}/${{ matrix.of }})
+    needs: plan
+    if: ${{ fromJSON(needs.plan.outputs.tests).include[0] != null }}
     runs-on: ubuntu-latest
-    timeout-minutes: 3
+    # Sur une PR, peu de parts et plus de fichiers chacune (#4607) : le plafond de 3 min est celui de `main`.
+    timeout-minutes: 15
     strategy:
       # Une part rouge arrête les autres : le verdict ne se fait pas attendre.
       fail-fast: true
-      matrix:
-        include:
-          - { zone: runtime, part: 1, of: 16 }
-          - { zone: runtime, part: 2, of: 16 }
-          - { zone: runtime, part: 3, of: 16 }
-          - { zone: runtime, part: 4, of: 16 }
-          - { zone: runtime, part: 5, of: 16 }
-          - { zone: runtime, part: 6, of: 16 }
-          - { zone: runtime, part: 7, of: 16 }
-          - { zone: runtime, part: 8, of: 16 }
-          - { zone: runtime, part: 9, of: 16 }
-          - { zone: runtime, part: 10, of: 16 }
-          - { zone: runtime, part: 11, of: 16 }
-          - { zone: runtime, part: 12, of: 16 }
-          - { zone: runtime, part: 13, of: 16 }
-          - { zone: runtime, part: 14, of: 16 }
-          - { zone: runtime, part: 15, of: 16 }
-          - { zone: runtime, part: 16, of: 16 }
-          - { zone: app, part: 1, of: 3 }
-          - { zone: app, part: 2, of: 3 }
-          - { zone: app, part: 3, of: 3 }
+      matrix: ${{ fromJSON(needs.plan.outputs.tests) }}
     steps:
       # Deux commits suffisent : sur une PR, le premier parent du commit de merge est la base.
       - uses: actions/checkout@v4
