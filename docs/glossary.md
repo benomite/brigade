@@ -33,7 +33,7 @@ Related terms built on « cuisine »:
 | `garde-fous` | `guardrails` | The caps, the chef's `stop` and the breaker of a project |
 | `plafond` | `cap` | A limit (tokens, duration, cooks…) |
 | `disjoncteur` | `breaker` | Stops the kitchen after repeated failures; `OUVERT` → `OPEN`, `fermé` → `closed` |
-| `journal` | `log` | The project's append-only record of events (the app tab is already `Log`) |
+| `journal` | `log` | The project's append-only record of events |
 | `installation` | `installation` | The check that a project is ready to be served, and its setup/uninstall |
 | `sauvegarde` | `backup` | A dated copy of the project's log |
 | `fermeture` | `closing` | The closer's pass over the project: measure drift, then prune and simplify |
@@ -45,7 +45,6 @@ Related terms built on « cuisine »:
 | `Attend les autres` | `Awaiting others` | The folded section under the columns, outside them: the cards that await another human of the project, still opened and answered by anyone (#2985, #3071, #3458) |
 | `attend` (ligne de la fiche) | `awaiting` | The same word, same translation: a ticket that waits for another ticket, in its card (`attend : #12` → `awaiting: #12`) |
 | `en attente` | `queued` | A ticket on the rail not yet taken |
-| `tests écrits` | `tests written` | The rail step between `queued` and `taken`: the manager has committed one acceptance test per criterion as the first commit of the ticket's branch (label `tests-written`, #3725) |
 | `pris` / `en cuisine` / `Au travail` | `taken` / `Taken` | A cook holds the ticket (see §1) |
 | `en pass` / `Pass` | `in pass` / `Pass` | The ticket is being judged |
 | `servi` / `Livré` | `served` / `Served` | The ticket is merged and served |
@@ -71,7 +70,6 @@ Related terms built on « cuisine »:
 | `bon` | `slip` | One card of the rail |
 | `découpage` | `split` | Cutting an epic into tickets |
 | `épique` | `epic` | A ticket that groups tickets |
-| — | `Backlog band` | Gone (#4354): the order book that stood above the rail (epic #3459), one tag per open need. The Backlog column alone shows the backlog |
 | — | `idea` | A label for an idea in reserve, not a request: it is never on the rail, and the manager never reads it — no `decision`, `fire`, `model:` or `effort:`, no comment, no TODO card (#3536) |
 | `calibrage` | `calibration` | Model and effort given to a role |
 | `tours` / `jetons` | `turns` / `tokens` | A cook's measured use |
@@ -115,15 +113,13 @@ Run as `brigade <project> <command>` on the box (`npm --prefix runtime run <comm
 | — | `send-word` | A word: one line of text the chef sends to the cook of a `taken` ticket (#4047). It is posted on the issue and reaches the cook at the end of its current turn | `<owner>/<repo>#<ticket> <word…>` — new, with no old name |
 | — | `know-how` | The project's know-how: the lessons its cooks receive, each with the ticket it came from (#4241) | `edit <id> <text…>`, `remove <id>` — new, with no old name |
 | `switch` | `switch` | The project switch, one for the whole project (#1406) | new, with no old name |
-| `pass` | `pass` | The pass and its verdicts | — |
 | `mesures` | `measures` | The measures behind drift | — |
 | `fermeture` | `closing` | The closing pass | — |
 | `sauvegarder` | `backup` | Take a backup | — |
 | `restaurer` | `restore` | Restore a backup into a fresh state directory | — |
-| `tirer` | `pull` | A remote station asks the box for work | `annoncer` → `announce`; `reclamer` → `claim`; `renouveler` → `renew`; `rendre` → `return`; `--preuve` → `--proof`; `--tours` → `--turns`; `--jetons` → `--tokens`; `--fin` → `--end`; `--raison` → `--reason` |
 | `cloison` | `partition` | Show the partition | — |
 | `arbitre` | `arbiter` | The arbiter's weights | `poids` → `weight`; `retirer` → `remove` |
-| `porte` / `tenir-porte` | `door` / `hold-door` | The remote station's door | — |
+| `porte` | `door` | The remote station's door | — |
 
 ## 4. The lines of `status`
 
@@ -138,8 +134,6 @@ Run as `brigade <project> <command>` on the box (`npm --prefix runtime run <comm
 | `rail` | `rail` |
 | `cooks` | `cooks` |
 | `consommé` | `consumed` |
-| `serveurs` | `servers` |
-| `service` | `service` |
 | `worktrees` | `worktrees` |
 | `dérive` | `drift` |
 | `derniers événements` | `latest events` |
@@ -147,7 +141,6 @@ Run as `brigade <project> <command>` on the box (`npm --prefix runtime run <comm
 | `aucun en cours` | `none running` |
 | `ouverte` / `retenue` / `arrêtée` / `éteinte` | `open` / `held` / `stopped` / `off` |
 | `ALLUMÉ` / `ÉTEINT` | `ON` / `OFF` |
-| `ACTIF` / `BIENTÔT ÉTEINT` / `ÉTEINT SEUL` | `ACTIVE` / `EXPIRING SOON` / `LAPSED` |
 | `ROUGE depuis …` | `RED since …` |
 | the first line, projet until the runtime writes it in English | `project` |
 | `github` (`GitHub limite les appels, reprise vers HH:MM`) | `github` (`GitHub is rate-limiting calls, back around HH:MM`) |
@@ -158,11 +151,6 @@ Run as `brigade <project> <command>` on the box (`npm --prefix runtime run <comm
 | `… — depuis …` | `… — since …` |
 | `depuis …, cuisiné par …` | `since …, cooked by …` |
 | `j` (durations) | `d` (Days in a duration: `2 j` → `2 d`) |
-| `serveurs` / `à lancer` | `servers` / `to launch` |
-| `démarre` / `écoute` … `depuis` | `starting` / `listening` … `since` |
-| `tenu depuis` | `held since` |
-| `écran : …` / `à regarder : …` | `screen: …` / `to look at: …` |
-| `déclaré par le cook` / `écran déduit des fichiers touchés, pas déclaré par le cook` | `declared by the cook` / `screen deduced from the touched files, not declared by the cook` |
 | `sans fin au journal` | `with no end in the log` |
 
 The app reads each form in both languages, whole; a line mixing the two in one form is read as neither.
@@ -182,16 +170,13 @@ The app reads each form in both languages, whole; a line mixing the two in one f
 | `rail` / `au travail` / `à la pass` / `t'attend` / `livrés 24 h` | `rail` / `taken` / `at pass` / `awaiting you` / `served 24 h` |
 | `Ce qui empêche de tourner` | `What stops it running` |
 | `projet éteint` | `project off` |
-| `renoncer à la demande` | `withdraw the request` |
 | `reprendre la cuisine` | `resume the kitchen` |
 | `arrêter la cuisine` | `stop the kitchen` |
 | `allumer` / `éteindre` | `on` / `off` |
-| `accorder` / `révoquer` | `enable` / `revoke` |
 | `Retirer de l'app` | `Remove from the app` |
-| `Rail` / `Cooks` / `Settings` / `log` | unchanged |
-| `Coût` | `Cost` |
+| `Rail` / `Cooks` / `Settings` | unchanged |
 | `Paramètres` | `Settings` |
-| `Les pages` / `Les terminaux` | `Pages` / `Terminals` |
+| `Les terminaux` | `Terminals` |
 | `le second et les shells` | `the second and the shells` |
 
 ## 6. Left as it is

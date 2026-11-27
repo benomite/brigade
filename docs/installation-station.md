@@ -80,7 +80,7 @@ The command goes on to connect the station to your Claude Max subscription — w
 connection, the only time it asks you for anything, and it does not come back:
 
 ```
-brigade : la connexion Max du compte brigade — le seul moment où elle te demande quelque chose
+brigade : la connexion Max du compte brigade
 connexion Max — `claude setup-token` va te donner un lien : ouvre-le, connecte-toi avec ton compte Claude Max, puis recopie ici le code qu'il affiche. Il ne se fait qu'une fois
 …
 connexion Max faite : le jeton est rangé, lisible du seul compte de la station, avec sa date de création à côté — la station n'a plus à se reconnecter
@@ -280,17 +280,3 @@ their work, as on a server —, and does not redo a connection already made. If 
 why: fix it, and rerun the same command. A station built by hand installs from its archive:
 `powershell -ExecutionPolicy Bypass -File installer-station.ps1 .\brigade-station-windows.zip`.
 
-## 7. What comes next — not yet in this guide
-
-From the app, `Add a server` already does both for a server signed in to the app's GitHub account:
-the server appears in its panel once it checks in, and one click gives it the project (see the top of
-this guide).
-
-Two steps then bring the station to you. They are not yet written here: this
-guide will gain them as they arrive.
-
-1. **Pairing with the app** — the server shows a code, you type it in the app, and the station
-   appears on its home: "en ligne · version X · aucun projet". The app will also show there the
-   state of its update, and the button that freezes its version.
-2. **Adding a project** — from the app: the GitHub repo, its stations, its primary. Without a
-   terminal.
