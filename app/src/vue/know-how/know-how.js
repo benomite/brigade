@@ -53,14 +53,14 @@ function bySection(entries) {
   return [...groups].sort(([a], [b]) => rank(a) - rank(b));
 }
 
-// What the last change of an entry says under it: on its way, the pull request opened, or the refusal.
-/** @param {Fabrique} doc @param {State | undefined} state @param {(url: string) => void} open */
 // What names an entry in the states: its line in `.brigade/know-how.md`, or its file and line in a per-ticket file.
 /** @param {{ line: number, file?: string }} entry @returns {number | string} */
 const keyOf = (entry) => (entry.file === undefined || entry.file === ".brigade/know-how.md" ? entry.line : `${entry.file}:${entry.line}`);
 /** @param {Entry} entry */
 const fileOf = (entry) => (entry.file === undefined || entry.file === ".brigade/know-how.md" ? {} : { file: entry.file });
 
+// What the last change of an entry says under it: on its way, the pull request opened, or the refusal.
+/** @param {Fabrique} doc @param {State | undefined} state @param {(url: string) => void} open */
 function saysOfTheEntry(doc, state, open) {
   if (state?.enCours !== undefined) return saysOfSetting(doc, { enCours: IN_PROGRESS });
   const said = state?.dit;
