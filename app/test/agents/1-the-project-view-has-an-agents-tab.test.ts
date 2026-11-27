@@ -26,7 +26,7 @@ const startup = () => ({
 });
 
 // The bridge's `agentsAtWork`, which the main process answers from GitHub and the station (team-of-the-box.ts): what it says.
-const reading = (agents: unknown[] = [{ agent: "cook", ticket: 41, since: "2026-10-01T00:00:00.000Z", station: "box" }]) => ({ agents, stations: [] });
+const reading = (agents: unknown[] = [{ agent: "cook", ticket: 41, since: "2026-10-01T00:00:00.000Z", station: "box" }]) => ({ agents });
 
 async function open(answers: Partial<Answers> = {}): Promise<Played> {
   const vue = await playTheVue({ demarrage: startup, espace: () => [], machines: () => [{ id: "poste", titre: "this computer" }], ...answers } as never);

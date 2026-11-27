@@ -45,7 +45,7 @@ tool launches beside it:
 | the scripts of `runtime/package.json` but `start`, `test` and `typecheck` | `station/geste.ts`, which runs the file its command's script names |
 
 The commands behind the gesture are the ones the app launches, and only those: `setting`, `humans`,
-`contributor-stations`, `switch`, `manager`, `send-word`, `guardrails`, `agents`, and
+`contributor-stations`, `switch`, `manager`, `send-word`, `guardrails`, and
 `help`, which lists them (`commandes.ts`). `app/test/geste-serves-every-command.test.ts` collects what the app
 launches and runs each one through the real `geste.ts`: a command dropped while the app still launches it fails there.
 
