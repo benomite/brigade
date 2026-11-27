@@ -51,3 +51,4 @@
 - `app/test/no-old-runtime.test.ts` refuses any `runtime/src/` path in app/src (imports, comments, `ofRuntime(...)` in main.ts) outside `kitchen/` and the files the kitchen imports directly — not transitively: through `porte-journal.ts` → `reseau.ts` → `runtime.ts`, the closure is the whole old runtime (#4513)
 - The Know-how tab shows `holdTheKnowledge` (app/src/vue/know-how/know-how.js) under the `rail` element; its `reposer` must redraw the rail, not Settings, and skip a field being typed in (#4570)
 - A test that writes a temp path into a `#!/bin/sh` fake agent must pass it with forward slashes and quoted: on Windows `C:\Users\…` loses its backslashes in sh and the file is never written (#4566)
+- Un redessin du rail venu du dehors (minuterie, lectures) ne doit jamais reposer un champ où le chef tape : seuls les gestes propres du bloc le font (#4570)

@@ -4807,7 +4807,7 @@ function setTheRail(project) {
   if (tab === KNOW_HOW) {
     setCooking(project);
     const tape = /** @type {HTMLElement | null} */ (document.activeElement);
-    if (keepKnowHowField && tape?.tagName === "INPUT" && rail.contains(tape)) return;
+    if (!gestureOfKnowHow && tape?.tagName === "INPUT" && rail.contains(tape)) return;
     rail.replaceChildren(knowledgeOfProject(project).poser());
     return;
   }
@@ -6508,18 +6508,19 @@ const autonomyOfProjects = new Map();
 // Le savoir-faire du projet (know-how/, ticket 4239), sous son onglet (ticket 4570) : lu sur GitHub par le process principal.
 /** @type {Map<string, ReturnType<typeof holdTheKnowledge>>} */
 const knowledgeOfProjects = new Map();
-// Le bloc se repose là où il est montré : sous son onglet — sauf sous un champ où le chef écrit, `garder` —, ou nulle part.
+// Le bloc se repose là où il est montré : sous son onglet — sauf sous un champ où le chef écrit, `garder`, ce que tout redessin du dehors fait aussi —, ou nulle part.
 /** @param {Project} project @param {boolean} [keep] */
 function restTheKnowHow(project, keep = false) {
   if (current?.nom !== project.nom || active() !== undefined || tabOf(project) !== KNOW_HOW) return;
-  keepKnowHowField = keep;
+  gestureOfKnowHow = !keep;
   try {
     setRail(project);
   } finally {
-    keepKnowHowField = false;
+    gestureOfKnowHow = false;
   }
 }
-let keepKnowHowField = false;
+// Seuls les gestes du bloc (éditer, annuler, proposer) reposent le champ ; tout autre setRail (minuterie, survol, lectures) le laisse.
+let gestureOfKnowHow = false;
 /** @param {Project} project */
 function knowledgeOfProject(project) {
   const held = knowledgeOfProjects.get(project.nom) ?? holdTheKnowledge(document, { lire: () => brigade.savoirDuProjet(project.nom), changer: (change) => brigade.changerLeSavoir(project.nom, change), ouvrir: (url) => void brigade.ouvrirLaProposition(url), reposer: (keep) => restTheKnowHow(project, keep) });

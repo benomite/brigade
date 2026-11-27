@@ -9,7 +9,7 @@ import { forTheBar } from "../../../src/bar.ts";
 import { EXAMPLE } from "../../../src/config.ts";
 import { PALETTE } from "../../../src/colors.ts";
 import { KITCHEN_ACTIONS } from "../../../src/kitchen.ts";
-import { BANNER } from "../../../src/facts.ts";
+import { BANNER, holdFacts, type Facts } from "../../../src/facts.ts";
 import { CONFIRMED, DIRECT } from "../../../src/actions.ts";
 import { TABS, HEADINGS } from "../../../src/tabs.ts";
 import { EFFORTS, MODELS } from "../../../src/projects/projects.ts";
@@ -355,6 +355,13 @@ async function play(reading: ReadOfKnowledge): Promise<{ vue: Played; envoyes: u
   await openTab(vue, "Know-how");
   return { vue, envoyes: sent };
 }
+// A reading of the rail arriving from outside (the 15 s timer, a hover, a read): it redraws the rail.
+const FACTS_OF_RAIL = holdFacts(() => new Map()).recevoir({
+  projet: "parade",
+  demande: 0,
+  a: "2026-11-27T10:00:00.000Z",
+  sorties: [{ commande: "facts", texte: JSON.stringify({ etat: "ouverte", lu: "2026-11-27T10:00:00.000Z", dernierTick: "2026-11-27T10:00:00.000Z", compteurs: { rail: 0, auTravail: 0, aLaPass: 0, attend: 0, livres24h: 0 }, dernierEvenement: null, rail: [], cooks: [], attend: [] } satisfies Facts) }],
+});
 const blockOf = (vue: Played) => vue.element("rail").dessous("section").find(({ dataset }) => dataset.bloc === "know-how") ?? assert.fail("no know-how block in the Know-how tab");
 
 describe("the know-how, in the view", () => {
@@ -392,5 +399,32 @@ describe("the know-how, in the view", () => {
     await repos();
     assert.deepEqual(sent[1], ["parade", { kind: "edit", line: 7, text: "Never run the pass on a dirty worktree", avant: "Never run the pass with a dirty tree" }]);
     assert.deepEqual(blockOf(vue).dessous("button").filter(({ textContent }) => /^(save|saving…)$/i.test(textContent)), []);
+  });
+
+  test("a redraw of the rail from outside leaves the field being typed in where it is; the block's own gestures still redraw it", async () => {
+    const { vue } = await play(READING);
+    buttonOf(entry(blockOf(vue), 7), "Edit").click();
+    const field = fieldOf(entry(blockOf(vue), 7));
+    field.value = "Never run the pass on a dirty worktree";
+    field.declencher("input");
+    const active = document as unknown as { activeElement: unknown };
+    const outside = async () => {
+      vue.dire("surFaits", { ...FACTS_OF_RAIL, demande: vue.appels.filter(({ geste }) => geste === "faits" || geste === "relireBox").at(-1)?.args[0] as number });
+      await repos();
+    };
+    active.activeElement = undefined;
+    await outside();
+    assert.notEqual(fieldOf(entry(blockOf(vue), 7)), field, "control: with no field in hand, an outside redraw does replace the block");
+    const again = fieldOf(entry(blockOf(vue), 7));
+    active.activeElement = again;
+    try {
+      await outside();
+      assert.equal(fieldOf(entry(blockOf(vue), 7)), again, "the field the chef is typing in stays in the rail");
+      assert.equal(blockOf(vue).dessous("input").length, 1);
+      again.declencher("keydown", { key: "Escape" } as object);
+      assert.equal(entry(blockOf(vue), 7).dessous("input").length, 0, "its own gesture redraws it");
+    } finally {
+      active.activeElement = undefined;
+    }
   });
 });
