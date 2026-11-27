@@ -1,6 +1,5 @@
-// Connecter cet ordinateur à GitHub, d'un bouton (#1434) : le geste est celui que le runtime nomme
-// quand il ne peut pas lire les stations du chef, ou cloner un projet, faute de compte
-// (`connexionGitHub`, runtime/src/appairage/stations-du-chef.ts) — `gh auth login --web`, par le
+// Connecter cet ordinateur à GitHub, d'un bouton (#1434) : le geste est celui qu'il faut quand les stations du
+// chef ne se lisent pas, ou qu'un projet ne se clone pas, faute de compte — `gh auth login --web`, par le
 // `gh` de l'ordinateur, et rien d'autre ne parle à GitHub. L'app le lance sans terminal : `gh` dit
 // un code à usage unique et la page où le taper. L'app ouvre cette page dans le navigateur — ou
 // laisse `gh` l'ouvrir quand il attend Entrée pour le faire —, et la vue montre le code. La
@@ -126,12 +125,13 @@ export function holdConnectionGitHub(options: ConnectionOptions): () => Promise<
 }
 
 // Le compte GitHub que ce `gh` tient (#2475, épique #2473) : le premier lancement et « Add a project » le disent, « Connected to
-// GitHub as … », sans que le chef ait rien à taper. La question est celle que le runtime pose déjà au `gh` d'une station
-// (`gh api user --jq .login`, runtime/src/projets/echec-du-clone.ts) ; son échec se lit par le runtime (`echecDeGh`,
-// runtime/src/appairage/stations-du-chef.ts) — un `gh` sans compte n'est pas une panne, c'est l'étape à faire.
+// GitHub as … », sans que le chef ait rien à taper. La question est `gh api user --jq .login` ; son échec se lit par le
+// jugement d'un `gh` en échec que le process principal passe (`echecDeGh`) — un `gh` sans compte n'est pas une panne, c'est
+// l'étape à faire.
 export type AccountGitHub = { login: string } | { nonConnecte: true } | { refus: string; detail?: string; lien?: string };
 
-type FailureOfGh = typeof import("../../runtime/src/appairage/stations-du-chef.ts").echecDeGh;
+// Ce qu'un `gh` en échec veut dire : le compte à connecter, ou pourquoi GitHub ne se lit pas.
+type FailureOfGh = (gh: string, delayMs: number, error: { code?: string | number | null; message: string }, errors: string) => { state: "sign-in-required" } | { state: "unavailable"; cause: string; detail?: string; link?: string };
 export type OptionsOfAccount = { gh: string; env: Record<string, string | undefined>; echecDeGh: FailureOfGh; delaiMs?: number };
 
 const DELAY_OF_ACCOUNT_MS = 30_000;

@@ -57,7 +57,7 @@ import { statusRead } from "../engine/engines.js";
 export const ONE_MINUTE_MS = 60_000;
 
 // Le nom sous lequel une station prend les tickets d'un projet : `<machine>/claude`, la machine tirée du nom qu'elle publie
-// (runtime/src/stations-github/stations.ts, `stationDe`, que la vue redit sans l'importer : un test les compare).
+// (`stationOf` de vue/cooks/taken.ts, que la vue redit sans l'importer).
 /** @param {string} name */
 export const nameOfTaking = (name) => `${name.toLowerCase().replace(/[^\p{Ll}\p{N}-]+/gu, "-").replace(/^-+|-+$/g, "") || "station"}/claude`;
 

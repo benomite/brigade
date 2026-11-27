@@ -1,13 +1,9 @@
 // Les cooks d'un projet sur GitHub seul (ticket 2220, épique 2209), tels que l'onglet Cooks les montre : qui tient chaque
-// ticket se lit des commentaires de prise de son issue, comme la station qui prend le ticket le lit
-// (runtime/src/github-etat/prise.ts, `tenant`) — ni boîte, ni journal. Le plus ancien commentaire de prise l'emporte ; un
+// ticket se lit des commentaires de prise de son issue, comme la station qui prend le ticket le lit — ni boîte, ni journal. Le plus ancien commentaire de prise l'emporte ; un
 // commentaire de lâcher, ou le retrait du label `taken` ou `fire`, annule toutes les prises postées avant lui. Seul qui a
 // la main sur le dépôt prend un ticket : un commentaire d'un autre ne compte pas.
-//
-// Ce module redit la règle du runtime sans l'importer : prise.ts tire avec lui le rail du runtime, que l'app ne charge pas.
-// Un test les joue toutes deux sur les mêmes commentaires (test/vue/cooks/taken.test.ts).
-import { stationsSurGithub, type SigneDeVie } from "../../../../runtime/src/stations-github/stations.ts";
 import type { Cook } from "../../facts.ts";
+import { available, heldUntil, type HeldByGitHub } from "../../station-freshness.ts";
 import type { FactsStation } from "../../ordinary.ts";
 
 const OF_TRUST = ["OWNER", "MEMBER", "COLLABORATOR"];
@@ -16,6 +12,11 @@ const BRAND_OF_TAKING = /^<!-- brigade:prise station=([A-Za-z0-9._/-]+) -->/;
 const BRAND_OF_RELEASE = /^<!-- brigade:lache station=([A-Za-z0-9._/-]+) -->/;
 
 type Raw = Record<string, unknown>;
+
+// Ce que l'enregistrement d'une station dit d'elle, lu dans son gist.
+export type SignOfLife = { name: string; lastSeen: string; stoppedAt: string | null; refreshMs: number; selection: readonly string[] | null; heldBy?: HeldByGitHub | null };
+// Le nom sous lequel une station enregistrée prend les tickets : `<machine>/claude`, la machine tirée du nom qu'elle publie.
+const stationOf = (name: string) => `${name.toLowerCase().replace(/[^\p{Ll}\p{N}-]+/gu, "-").replace(/^-+|-+$/g, "") || "station"}/claude`;
 
 // La prise qui tient un ticket : la station, et l'heure de son commentaire.
 export type Taking = { station: string; le: string };
@@ -57,23 +58,38 @@ export function takenOfTheIssue(comments: readonly Raw[]): string[] {
 }
 
 // Les stations du projet sur l'onglet Cooks (ticket 2358) : chacune telle que GitHub la dit — les tickets qu'elle tient, et
-// son dernier signe de vie dans son gist (runtime/src/stations-github/stations.ts) —, la box comme un ordinateur, par la
-// même règle. Aucune n'est distante d'une autre, ni principale : toutes prennent, cuisent, jugent et mergent. Son mot est
-// `cooking` (elle tient un ticket), `idle` (fraîche, sans ticket) ou `silent` (tue) ; `presente`, son signe de vie
+// son dernier signe de vie dans son gist —, la box comme un ordinateur, par la même règle. Une station du projet est l'une de
+// celles à qui l'app a choisi son dépôt, ou une station qui tient un de ses tickets ; deux enregistrements de la même
+// machine : le plus frais l'emporte. Aucune n'est distante d'une autre, ni principale : toutes prennent, cuisent, jugent et
+// mergent. Son mot est `cooking` (elle tient un ticket), `idle` (fraîche, sans ticket) ou `silent` (tue) ; `presente`, son signe de vie
 // frais, absent quand aucun ne se lit pour elle ; `vueLe`, ce dernier signe de vie. Ce que GitHub ne dit pas d'elle —
 // son plafond, son bac à sable, ses tickets ordinaires — reste nul.
-export function stationsOfGithub(cooks: readonly (Cook & { le: string })[], signs: readonly SigneDeVie[] | null, repository: string, now: number): FactsStation[] {
-  return stationsSurGithub({ depot: repository, prises: cooks, signes: signs, maintenant: now }).map(({ station, etat: state, atteinte: reached, cooks: itsOwn, signeDeVie: signOfLife, retenue: retainedOne }) => ({
-    station,
-    distante: false,
-    plafond: null,
-    ordinaires: false,
-    bacASable: null,
-    prendOrdinaires: false,
-    cuisson: state,
-    cooks: itsOwn.map(({ ticket, titre: title }) => ({ ticket, titre: title, station })),
-    ...(reached === null ? {} : { presente: reached }),
-    ...(retainedOne === undefined ? {} : { retenue: retainedOne }),
-    vueLe: signOfLife,
-  }));
+export function stationsOfGithub(cooks: readonly (Cook & { le: string })[], signs: readonly SignOfLife[] | null, repository: string, now: number): FactsStation[] {
+  const byStation = new Map<string, SignOfLife>();
+  for (const sign of signs ?? []) {
+    const held = byStation.get(stationOf(sign.name));
+    if (held === undefined || Date.parse(sign.lastSeen) > Date.parse(held.lastSeen)) byStation.set(stationOf(sign.name), sign);
+  }
+  const holds = new Map<string, (Cook & { le: string })[]>();
+  for (const taking of [...cooks].sort((a, b) => Date.parse(a.le) - Date.parse(b.le) || a.ticket - b.ticket)) holds.set(taking.station, [...(holds.get(taking.station) ?? []), taking]);
+  const chosen = [...byStation].filter(([, { selection }]) => selection?.some((one) => one.toLowerCase() === repository.toLowerCase()) === true).map(([station]) => station);
+  return [...new Set([...chosen, ...holds.keys()])].sort((a, b) => a.localeCompare(b)).map((station) => {
+    const sign = byStation.get(station);
+    const itsOwn = holds.get(station) ?? [];
+    const reached = sign === undefined ? null : available(sign, now);
+    const retainedOne = sign === undefined ? null : heldUntil(sign, now);
+    return {
+      station,
+      distante: false,
+      plafond: null,
+      ordinaires: false,
+      bacASable: null,
+      prendOrdinaires: false,
+      cuisson: itsOwn.length > 0 ? "cooking" : reached === true ? "idle" : "silent",
+      cooks: itsOwn.map(({ ticket, titre: title }) => ({ ticket, titre: title, station })),
+      ...(reached === null ? {} : { presente: reached }),
+      ...(retainedOne === null ? {} : { retenue: retainedOne }),
+      vueLe: sign?.lastSeen ?? null,
+    };
+  });
 }
