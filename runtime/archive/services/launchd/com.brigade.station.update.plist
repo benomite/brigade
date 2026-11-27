@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- The update of the station, as root (it alone installs a version): one pass every ten minutes.
+     Delivered by the brigade-station archive and replaced by install.sh at each update: do not edit. -->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.brigade.station.update</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/opt/brigade-station/current/node/bin/node</string>
+    <string>src/mise-a-jour/main.ts</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>/opt/brigade-station/current/runtime</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>BRIGADE_STATION_DIR</key>
+    <string>/Library/Application Support/brigade</string>
+    <key>BRIGADE_MISE_A_JOUR_DIR</key>
+    <string>/Library/Application Support/brigade-station</string>
+  </dict>
+  <key>StartInterval</key>
+  <integer>600</integer>
+  <key>StandardOutPath</key>
+  <string>/Library/Application Support/brigade/log/update.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Library/Application Support/brigade/log/update.log</string>
+</dict>
+</plist>

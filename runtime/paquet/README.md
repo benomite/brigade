@@ -115,15 +115,12 @@ La commande du guide prend la dernière release GitHub du dépôt : elle y tél�
 `installer-station.sh` (`runtime/deploy/`, la seule entrée de l'installation d'une station, sous
 Linux comme sous macOS), qui y télécharge à son tour `brigade-station_<arch>.deb` sous Linux, ou
 l'archive `brigade-station-<version>-darwin-arm64.tar.gz` sous macOS (`construire.ts` l'écrit à côté du `.deb`, avec `brigade-station-<version>-linux-x64.tar.gz` : `runtime/`, `node/`, `bin/brigade`, `install.sh`, `services/`).
-Sous Windows, sa jumelle `installer-station.ps1` (`runtime/deploy/windows/`) y télécharge le même
-répertoire, zippé : `brigade-station-windows.zip`. Publier une version, c'est joindre ces fichiers
+Publier une version, c'est joindre ces fichiers
 à une release — le `.deb` sous ce nom sans version, un par architecture :
 
 ```sh
 cp runtime/paquet/construit/brigade-station_<version>_amd64.deb /tmp/brigade-station_amd64.deb
-dpkg-deb -x /tmp/brigade-station_amd64.deb /tmp/deb
-(cd /tmp/deb/usr/lib/brigade-station && zip -qr /tmp/brigade-station-windows.zip runtime)
-gh release create station-<version> runtime/deploy/installer-station.sh runtime/deploy/windows/installer-station.ps1 /tmp/brigade-station_amd64.deb runtime/paquet/construit/brigade-station-<version>-linux-x64.tar.gz runtime/paquet/construit/brigade-station-<version>-darwin-arm64.tar.gz /tmp/brigade-station-windows.zip
+gh release create station-<version> runtime/deploy/installer-station.sh /tmp/brigade-station_amd64.deb runtime/paquet/construit/brigade-station-<version>-linux-x64.tar.gz runtime/paquet/construit/brigade-station-<version>-darwin-arm64.tar.gz
 ```
 
 Ce geste n'est pas à faire à la main : `.github/workflows/publier-station.yml` le fait à chaque
