@@ -781,4 +781,7 @@ export const NAMES: Record<string, string> = {
   "app/test/notifications-todo.test.ts#sonde": "prober",
   "app/test/parcours-projet-bout-en-bout.test.ts#AUCUNE": "NOT_ONE",
   "app/test/vue/carte-todo.test.ts#ENVOI": "SENDING",
+  en: "within",
+  faire: "doIt",
+  "app/test/acceptation-4482/kitchen-board.test.ts#carte": "cardItem",
 };
