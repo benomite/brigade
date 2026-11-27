@@ -24,6 +24,10 @@ const VUE = join(ROOT, "app/src/vue");
 const MOCKUPS = join(ROOT, "docs/maquettes/app");
 const read = (file: string) => readFileSync(join(VUE, file), "utf8");
 const withoutComments = (css: string) => css.replace(/\/\*[\s\S]*?\*\//g, "");
+// Comments of a .js/.ts/.html file: a string is skipped whole, so a `//` inside "https://…" opens no comment.
+const withoutCodeComments = (code: string) =>
+  code.replace(/("(?:\\[\s\S]|[^"\\\n])*"|'(?:\\[\s\S]|[^'\\\n])*'|`(?:\\[\s\S]|[^`\\])*`)|\/\*[\s\S]*?\*\/|\/\/[^\n]*|<!--[\s\S]*?-->/g, (_, text?: string) => text ?? "");
+const withoutAnyComments = (file: string, text: string) => (file.endsWith(".css") ? withoutComments(text) : withoutCodeComments(text));
 
 // Les fichiers de la vue qui se lisent — tout sauf les polices, qui sont des binaires, et leurs licences.
 const files = (readdirSync(VUE, { recursive: true }) as string[]).filter((file) => /\.(css|js|html|ts)$/.test(file)).sort();
@@ -57,10 +61,17 @@ describe("la palette : un seul jeu de variables, écrit à un seul endroit", () 
   test("tokens.css est le seul fichier de la vue où une couleur s'écrit", () => {
     assert.ok(files.includes("tokens.css") && files.includes("vue.css") && files.includes("vue.js") && files.includes("index.html"), files.join(", "));
     for (const file of files.filter((named) => named !== "tokens.css")) {
-      const text = file.endsWith(".css") ? withoutComments(read(file)) : read(file);
-      assert.deepEqual(text.match(COLOR) ?? [], [], `${file} écrit une couleur en dur`);
+      assert.deepEqual(withoutAnyComments(file, read(file)).match(COLOR) ?? [], [], `${file} écrit une couleur en dur`);
     }
     assert.doesNotMatch(read("index.html"), /\bstyle=|<style\b/, "index.html porte un style à lui");
+  });
+
+  test("un numéro de ticket (#4743, tout en hexadécimal) dans un commentaire n'est pas une couleur, dans le code si", () => {
+    const commented = "// ticket #4743\n/* ticket #4743 */\nconst url = \"https://x.fr/a\"; // #4743\n";
+    assert.deepEqual(withoutAnyComments("vue.js", commented).match(COLOR) ?? [], []);
+    assert.deepEqual(withoutAnyComments("index.html", "<!-- ticket #4743 --><p></p>").match(COLOR) ?? [], []);
+    assert.deepEqual(withoutAnyComments("vue.js", "const c = '#4743'; // #4743").match(COLOR), ["#4743"]);
+    assert.deepEqual(withoutAnyComments("vue.js", "const u = 'http://x'; const c = '#abc';").match(COLOR), ["#abc"]);
   });
 
   test("dans vue.css, une propriété de couleur ne nomme qu'une variable — jamais un nom de couleur", () => {
