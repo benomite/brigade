@@ -133,7 +133,7 @@ export function lineParked(doc, parked) {
 // Les gestes qui tranchent une carte du TODO d'un clic, chacun par son nom (vue.js les joue) : répondre d'un choix, valider
 // un écran, reprendre une carte de WAITING ou dire arrivé ce qu'elle attendait.
 /** @typedef {"repondre" | "valider" | "attente-reprendre" | "attente-arrivee"} KindOfAction */
-/** @typedef {{ texte: string, recommande: boolean, sorte: KindOfAction, reponse?: import("../../card-todo.ts").Answer }} ActionOfTodo */
+/** @typedef {{ texte: string, recommande: boolean, sorte: KindOfAction, reponse?: import("../../card-todo.ts").Answer, ouvre?: true }} ActionOfTodo */
 /**
  * Ce que le TODO sait de la vue pour trancher ses cartes : où en est la réponse d'une carte (`etat`), les gestes de WAITING
  * et leurs libellés (`attente`), et de quoi jouer un geste (`jouer`).
@@ -158,6 +158,8 @@ export function actionsOfTodo(card, actions) {
   // Un écran à valider : son bouton, quand sa carte dit la PR qu'il tranche — sinon aucun, comme sur sa carte.
   if (isOneValidation(todo)) return "pr" in (todo.validation ?? {}) ? [{ texte: VALIDATE, recommande: true, sorte: "valider" }] : [];
   if (!["repos", "refus"].includes(seenOfTheCard(todo, actions.etat(card.ticket, todo)).vu)) return [];
+  // Une carte qui ne se répond qu'en mots (`parked:chef`, #4593) : son bouton ouvre sa carte, où le chef écrit sa réponse.
+  if (todo.choix.length === 0 && todo.repondre !== undefined) return [{ texte: todo.repondre, recommande: true, sorte: "repondre", ouvre: true }];
   const recommended = recommendationOf(todo)?.rang;
   return todo.choix.map(({ texte: text }, rank) => ({ texte: text, recommande: rank + 1 === recommended, sorte: "repondre", reponse: { question: todo.question, choix: rank + 1 } }));
 }
@@ -183,7 +185,7 @@ export function setTheTodo(doc, { cartes: cards, ouvrir: open, gestes: actions, 
       choices: ({ ticket }) => of(ticket).siens,
       answer: (ticket, text) => {
         const action = of(ticket).siens.find((itsOwn) => itsOwn.texte === text);
-        if (action !== undefined) actions?.jouer(ticket, action.sorte, action.reponse);
+        if (action !== undefined && action.ouvre !== true) actions?.jouer(ticket, action.sorte, action.reponse);
       },
       ...(actions === undefined ? { readOnly: READ_ONLY } : { control, opened }),
       open: (ticket) => open(of(ticket).carte),
