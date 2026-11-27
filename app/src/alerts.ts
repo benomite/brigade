@@ -2,7 +2,7 @@
 // question — est-ce que ça peut tourner ? — sur quatre états, ceux des quatre pannes
 // silencieuses du 2026-10-13 (docs/superpowers/specs/2026-10-13-app-poste-de-travail-design.md) :
 // le manager, la cuisine — la version en service n'en est plus une : le paquet de la
-// station la met en place lui-même (docs/bascule.md).
+// station la met en place lui-même.
 // **Une alerte est une chose à faire, jamais une chose à savoir** : chaque ligne dit ce
 // qui ne va pas, le geste qui le lève et ce que ce geste coûte. Ce qui va bien ne prend
 // pas de place — la bande vide, c'est que les quatre ont été lus, et vont bien. Et ce qui

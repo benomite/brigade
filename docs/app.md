@@ -4261,7 +4261,7 @@ cache (`~/Library/Caches/electron`) weighs 129 MB, once.
   `facts` does not carry it, and the app reads of the output of `status` only the edge of the
   `awaiting` block and the number at the head of its lines.
 - Update the runtime: the box moves to the station once, through its package, which then updates
-  itself ([`bascule.md`](bascule.md)) — the app has no action for it.
+  itself — the app has no action for it.
 - Answer from the card anything other than a manager question, or remove a label in your place: an
   issue that carries `question` or `decision` is settled on GitHub, or with the second.
 - Say that a runtime is no longer beating: it shows the gap between its last tick and the read,
