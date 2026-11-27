@@ -22,7 +22,7 @@ import { basename, join } from "node:path";
 import { current } from "./agent-settings/index.ts";
 import { direZoneTenue, lecteurDeLaBase, type PRDeLaPorte, type RaisonDuSaut, vivante, ZONE_HELD } from "./claim-gate.ts";
 import { retirerLesRestesDuCook } from "./station/restes-du-cook.ts";
-import { retirerLesWorktreesDesTicketsFermes } from "./station/worktrees-fermes.ts";
+import { removeWorktreesOfClosedTickets } from "./station/closed-worktrees.ts";
 import { horsDesBesoins } from "./besoin/besoin.ts";
 import { horsDesTickets } from "./issue-de-la-cuisine.ts";
 import { fiche, type Fiche } from "./fiche.ts";
@@ -544,7 +544,7 @@ export const BALAYAGE_DES_PR_MS = 10 * 60_000;
 // Le délai entre deux balayages des cartes de validation sans objet (#3390).
 export const BALAYAGE_DES_CARTES_MS = 60_000;
 // Le délai entre deux balayages des worktrees dont le ticket est fermé (#4658).
-export const BALAYAGE_DES_WORKTREES_MS = 10 * 60_000;
+export const WORKTREE_SWEEP_INTERVAL_MS = 10 * 60_000;
 export const RELANCE_DES_GATES_MS = 30 * 60_000;
 
 // Combien de fois une livraison repart au cook avant de sortir de la cuisine.
@@ -829,15 +829,15 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
   };
 
   // Le worktree d'un ticket fermé ou mergé n'a plus de raison d'être, quelle que soit la
-  // voie de la fermeture (#4658). Au plus une fois par BALAYAGE_DES_WORKTREES_MS ; un
+  // voie de la fermeture (#4658). Au plus une fois par WORKTREE_SWEEP_INTERVAL_MS ; un
   // ticket en cuisine, ouvert ou illisible garde le sien.
   let dernierBalayageDesWorktrees = Number.NEGATIVE_INFINITY;
-  const retirerLesWorktreesFermes = async () => {
+  const retirerLesClosedWorktrees = async () => {
     const { repertoireEtat, retirerWorktree } = options;
-    if (repertoireEtat === undefined || retirerWorktree === undefined || github.issue === undefined || instant() - dernierBalayageDesWorktrees < BALAYAGE_DES_WORKTREES_MS) return;
+    if (repertoireEtat === undefined || retirerWorktree === undefined || github.issue === undefined || instant() - dernierBalayageDesWorktrees < WORKTREE_SWEEP_INTERVAL_MS) return;
     dernierBalayageDesWorktrees = instant();
     const lire = github.issue.bind(github);
-    await retirerLesWorktreesDesTicketsFermes({ dossier: join(repertoireEtat, "worktrees"), ferme: async (numero) => (await lire(numero).catch(() => null))?.state === "closed", enCuisine: (numero) => enVol.has(numero), retirer: retirerWorktree, avertir });
+    await removeWorktreesOfClosedTickets({ dossier: join(repertoireEtat, "worktrees"), ferme: async (numero) => (await lire(numero).catch(() => null))?.state === "closed", enCuisine: (numero) => enVol.has(numero), retirer: retirerWorktree, avertir });
   };
 
   // Une carte de validation dont le ticket est fermé ou la PR mergée ou fermée
@@ -1995,7 +1995,7 @@ export function stationGitHub(options: OptionsDeStation): StationGitHub {
     };
 
     await fermerLesCartesCaduquesDuTour().catch((echec) => avertir(`brigade : the validation cards without an object could not be swept on ${nom} — ${message(echec)}`));
-    await retirerLesWorktreesFermes().catch((echec) => avertir(`brigade : the worktrees of closed tickets could not be swept on ${nom} — ${message(echec)}`));
+    await retirerLesClosedWorktrees().catch((echec) => avertir(`brigade : the worktrees of closed tickets could not be swept on ${nom} — ${message(echec)}`));
 
     for (const ticket of tickets) {
       const enPass = ticket.labels.includes(LABEL_IN_PASS);

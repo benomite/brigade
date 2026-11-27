@@ -3,16 +3,16 @@ import assert from "node:assert/strict";
 import { existsSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { retirerLesWorktreesDesTicketsFermes, ticketDuWorktree } from "../src/station/worktrees-fermes.ts";
+import { removeWorktreesOfClosedTickets, ticketOfWorktree } from "../src/station/closed-worktrees.ts";
 import { repertoireTemporaire } from "./outils.ts";
 
 test("le ticket d'un worktree se lit de son nom, une PR externe n'en a pas (#4658)", () => {
-  assert.equal(ticketDuWorktree("4658-github"), 4658);
-  assert.equal(ticketDuWorktree("gates-12-github"), 12);
-  assert.equal(ticketDuWorktree("attente-longue-7-github"), 7);
-  assert.equal(ticketDuWorktree("review-pr-9-github"), null);
-  assert.equal(ticketDuWorktree("gates-pr-9-github"), null);
-  assert.equal(ticketDuWorktree("essais"), null);
+  assert.equal(ticketOfWorktree("4658-github"), 4658);
+  assert.equal(ticketOfWorktree("gates-12-github"), 12);
+  assert.equal(ticketOfWorktree("attente-longue-7-github"), 7);
+  assert.equal(ticketOfWorktree("review-pr-9-github"), null);
+  assert.equal(ticketOfWorktree("gates-pr-9-github"), null);
+  assert.equal(ticketOfWorktree("essais"), null);
 });
 
 test("worktrees/ ne garde que les worktrees des tickets ouverts (#4658)", async (t) => {
@@ -22,7 +22,7 @@ test("worktrees/ ne garde que les worktrees des tickets ouverts (#4658)", async 
   const fermes = new Set([2, 3, 4]);
   const retires: string[] = [];
   const dits: string[] = [];
-  const faits = await retirerLesWorktreesDesTicketsFermes({
+  const faits = await removeWorktreesOfClosedTickets({
     dossier,
     ferme: async (ticket) => {
       if (ticket === 4) throw new Error("GitHub illisible");
@@ -44,7 +44,7 @@ test("worktrees/ ne garde que les worktrees des tickets ouverts (#4658)", async 
 });
 
 test("un dossier de worktrees absent n'est pas une erreur (#4658)", async (t) => {
-  const faits = await retirerLesWorktreesDesTicketsFermes({ dossier: join(repertoireTemporaire(t), "absent"), ferme: async () => true, enCuisine: () => false, retirer: () => {} });
+  const faits = await removeWorktreesOfClosedTickets({ dossier: join(repertoireTemporaire(t), "absent"), ferme: async () => true, enCuisine: () => false, retirer: () => {} });
   assert.deepEqual(faits, []);
   assert.ok(!existsSync(join(repertoireTemporaire(t), "absent")));
 });

@@ -7,13 +7,13 @@ import { join } from "node:path";
 
 // `<n>-github`, ou `<geste>-<n>-github` (`gates-`, `review-`, `reprise-`…). Les
 // worktrees de PR externes (`…-pr-<n>-github`) ne sont pas ceux d'un ticket.
-export function ticketDuWorktree(nom: string): number | null {
+export function ticketOfWorktree(nom: string): number | null {
   if (/-pr-\d+-github$/.test(nom)) return null;
   const numero = /^(?:[a-z][a-z-]*-)?(\d+)-github$/.exec(nom)?.[1];
   return numero === undefined ? null : Number(numero);
 }
 
-export type WorktreesFermes = {
+export type ClosedWorktrees = {
   dossier: string;
   // Vrai si le ticket est lu fermé ; faux ou illisible : il compte pour ouvert.
   ferme: (ticket: number) => Promise<boolean>;
@@ -24,7 +24,7 @@ export type WorktreesFermes = {
 };
 
 // Les worktrees retirés. Ne lève jamais : un échec est dit, le suivant est tenté.
-export async function retirerLesWorktreesDesTicketsFermes({ dossier, ferme, enCuisine, retirer, avertir = (m) => console.error(m) }: WorktreesFermes): Promise<string[]> {
+export async function removeWorktreesOfClosedTickets({ dossier, ferme, enCuisine, retirer, avertir = (m) => console.error(m) }: ClosedWorktrees): Promise<string[]> {
   let noms: string[];
   try {
     noms = readdirSync(dossier);
@@ -33,7 +33,7 @@ export async function retirerLesWorktreesDesTicketsFermes({ dossier, ferme, enCu
   }
   const retires: string[] = [];
   for (const nom of noms) {
-    const ticket = ticketDuWorktree(nom);
+    const ticket = ticketOfWorktree(nom);
     if (ticket === null || enCuisine(ticket)) continue;
     const chemin = join(dossier, nom);
     try {
