@@ -18,7 +18,7 @@ import { READ_OF, NOT_REACHED, NOT_STILL } from "../lexicon.js";
 /** @typedef {import("./know-how-github.ts").ReadOfKnowledge} Reading */
 /** @typedef {import("./know-how-github.ts").ChangeOfKnowledge} Change */
 /** @typedef {import("./know-how-github.ts").RenderedOfKnowledge} Rendered */
-/** @typedef {import("./entries.ts").KnowHowEntry} Entry */
+/** @typedef {import("./know-how-github.ts").KnowledgeEntry} Entry */
 // What the screen holds of one entry, by its line: the text being typed (an edit open), the change on its way, what the
 // last one returned.
 /** @typedef {{ edition?: string, enCours?: "edit" | "remove", dit?: { pr: string, numero: number, kind: "edit" | "remove" } | { refus: string, detail?: string } }} State */
@@ -55,6 +55,12 @@ function bySection(entries) {
 
 // What the last change of an entry says under it: on its way, the pull request opened, or the refusal.
 /** @param {Fabrique} doc @param {State | undefined} state @param {(url: string) => void} open */
+// What names an entry in the states: its line in `.brigade/know-how.md`, or its file and line in a per-ticket file.
+/** @param {{ line: number, file?: string }} entry @returns {number | string} */
+const keyOf = (entry) => (entry.file === undefined || entry.file === ".brigade/know-how.md" ? entry.line : `${entry.file}:${entry.line}`);
+/** @param {Entry} entry */
+const fileOf = (entry) => (entry.file === undefined || entry.file === ".brigade/know-how.md" ? {} : { file: entry.file });
+
 function saysOfTheEntry(doc, state, open) {
   if (state?.enCours !== undefined) return saysOfSetting(doc, { enCours: IN_PROGRESS });
   const said = state?.dit;
@@ -71,6 +77,7 @@ function setTheEntry(doc, entry, state, { editer: edit, taper: type, annuler: ca
   const item = created(doc, "li");
   item.className = "entree-du-savoir";
   item.dataset.ligne = String(entry.line);
+  if (entry.file !== undefined) item.dataset.fichier = entry.file;
   const busy = state?.enCours !== undefined;
   const ticket = created(doc, "span", entry.ticket === null ? WITHOUT_TICKET : `#${entry.ticket}`);
   ticket.className = entry.ticket === null ? "ticket sans" : "ticket mono";
@@ -90,7 +97,7 @@ function setTheEntry(doc, entry, state, { editer: edit, taper: type, annuler: ca
     field.addEventListener("change", () => {
       const text = field.value.trim();
       if (text === "" || text === entry.text) cancel(entry);
-      else change({ kind: "edit", line: entry.line, text: text, avant: entry.text });
+      else change({ kind: "edit", line: entry.line, ...fileOf(entry), text: text, avant: entry.text });
     });
     field.addEventListener("keydown", (/** @type {KeyboardEvent} */ event) => {
       if (event.key === "Escape") cancel(entry);
@@ -104,7 +111,7 @@ function setTheEntry(doc, entry, state, { editer: edit, taper: type, annuler: ca
       doc,
       "Remove",
       () => {
-        if (!busy) change({ kind: "remove", line: entry.line, avant: entry.text });
+        if (!busy) change({ kind: "remove", line: entry.line, ...fileOf(entry), avant: entry.text });
       },
       { sorte: "discret" },
     );
@@ -126,7 +133,7 @@ function setTheEntry(doc, entry, state, { editer: edit, taper: type, annuler: ca
 // section of the file.
 /**
  * @param {Fabrique} doc
- * @param {{ lecture?: Reading, etats?: ReadonlyMap<number, State>, editer?: (entry: Entry) => void, taper?: (entry: Entry, text: string) => void, annuler?: (entry: Entry) => void, changer?: (changeEntry: Change) => void, ouvrir?: (url: string) => void }} [options]
+ * @param {{ lecture?: Reading, etats?: ReadonlyMap<number | string, State>, editer?: (entry: Entry) => void, taper?: (entry: Entry, text: string) => void, annuler?: (entry: Entry) => void, changer?: (changeEntry: Change) => void, ouvrir?: (url: string) => void }} [options]
  */
 function setBlockKnowledge(doc, { lecture: reading, etats: states = new Map(), editer: edit = () => {}, taper: type = () => {}, annuler: cancel = () => {}, changer: change = () => {}, ouvrir: open = () => {} } = {}) {
   const block = created(doc, "section");
@@ -157,7 +164,7 @@ function setBlockKnowledge(doc, { lecture: reading, etats: states = new Map(), e
     account.className = "compte";
     head.append(account);
     const list = created(doc, "ul");
-    list.append(...entries.map((entry) => setTheEntry(doc, entry, states.get(entry.line), { editer: edit, taper: type, annuler: cancel, changer: change, ouvrir: open })));
+    list.append(...entries.map((entry) => setTheEntry(doc, entry, states.get(keyOf(entry)), { editer: edit, taper: type, annuler: cancel, changer: change, ouvrir: open })));
     part.append(head, list);
     block.append(part);
   }
@@ -200,8 +207,8 @@ export function holdTheKnowledge(doc, { lire: read, changer: change, ouvrir: ope
 
   /** @param {Change} changeEntry */
   const propose = async (changeEntry) => {
-    if (states.get(changeEntry.line)?.enCours !== undefined) return;
-    states.set(changeEntry.line, { ...states.get(changeEntry.line), enCours: changeEntry.kind, dit: undefined });
+    if (states.get(keyOf(changeEntry))?.enCours !== undefined) return;
+    states.set(keyOf(changeEntry), { ...states.get(keyOf(changeEntry)), enCours: changeEntry.kind, dit: undefined });
     rest();
     /** @type {Rendered} */
     let rendered;
@@ -210,8 +217,8 @@ export function holdTheKnowledge(doc, { lire: read, changer: change, ouvrir: ope
     } catch (error) {
       rendered = { refus: "nothing was proposed: nothing was sent", detail: error instanceof Error ? error.message : String(error) };
     }
-    if ("pr" in rendered) states.set(changeEntry.line, { dit: { pr: rendered.pr, numero: rendered.numero, kind: rendered.kind } });
-    else states.set(changeEntry.line, { ...states.get(changeEntry.line), enCours: undefined, dit: rendered });
+    if ("pr" in rendered) states.set(keyOf(changeEntry), { dit: { pr: rendered.pr, numero: rendered.numero, kind: rendered.kind } });
+    else states.set(keyOf(changeEntry), { ...states.get(keyOf(changeEntry)), enCours: undefined, dit: rendered });
     rest();
   };
 
@@ -222,12 +229,12 @@ export function holdTheKnowledge(doc, { lire: read, changer: change, ouvrir: ope
         ...(reading === undefined ? {} : { lecture: reading }),
         etats: states,
         editer: (entry) => {
-          states.set(entry.line, { edition: entry.text });
+          states.set(keyOf(entry), { edition: entry.text });
           rest();
         },
-        taper: (entry, text) => void states.set(entry.line, { ...states.get(entry.line), edition: text }),
+        taper: (entry, text) => void states.set(keyOf(entry), { ...states.get(keyOf(entry)), edition: text }),
         annuler: (entry) => {
-          states.delete(entry.line);
+          states.delete(keyOf(entry));
           rest();
         },
         changer: (changeEntry) => void propose(changeEntry),
