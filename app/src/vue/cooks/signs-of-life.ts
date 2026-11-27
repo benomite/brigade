@@ -7,8 +7,12 @@
 // Une lecture qui échoue garde la dernière qui a réussi : ses signes de vie vieillissent d'eux-mêmes, et une station
 // qui s'est tue depuis se dit tue. Sans aucune lecture réussie, la raison de l'échec, en une phrase.
 import type { StationsDuCompte } from "../../../../runtime/src/enregistrement-station/stations-du-compte.ts";
-import type { SignsOfLife } from "../rail/github.ts";
-import { quotaGithubRead } from "../pause-quota/pause-quota.ts";
+import type { SigneDeVie } from "../../../../runtime/src/stations-github/stations.ts";
+import { quotaGithubRead, type QuotaGithub } from "../pause-quota/pause-quota.ts";
+
+// Les signes de vie des stations du compte, tels que le process principal les a lus — ou pourquoi ils ne l'ont pas été,
+// en une phrase. `quotaGithub` : son état de quota GitHub, quand elle le publie (ticket 3482, vue/pause-quota/) ; `id`, son gist.
+export type SignsOfLife = { lus: (SigneDeVie & { id?: string; quotaGithub?: QuotaGithub })[] } | { illisible: string };
 
 // Le pas où une station réécrit son signe de vie.
 export const NOT_OF_SIGNS_MS = 120_000;

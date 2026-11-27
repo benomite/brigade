@@ -9,14 +9,14 @@
 // Les cartes entrent dans `faits.attend` avec leur `chef` — la sorte et le texte —, que l'app pose dans la forme de toute
 // carte de TODO (#2434, card-todo.ts, `carteDuChefDeTodo`) : la question, un bouton par choix, un champ libre. Le
 // commentaire marqué porte ses choix, un par ligne après la question : `- [<geste>] <libellé>`, le geste parmi ceux de la
-// forme unique (runtime/src/carte-todo/forme.ts) — `formeDuChef`. Un commentaire sans choix se lit comme avant ; sa réponse
+// forme unique — `formeDuChef`. Un commentaire sans choix se lit comme avant ; sa réponse
 // libre joue `resume`. La réponse part du `gh` du chef (board-actions/answer-github.ts).
 import type { ReviewSensitive } from "../vue/card-sensitive/card-sensitive-github.ts";
 import type { ValidationDesign } from "../vue/validation-design/validation-design-github.ts";
 
 export const LABEL_OF_CHEF = "chef-todo";
-// Le marqueur peut porter, après la sorte, des attributs `nom=valeur` : la validation demandée sur le ticket (#3615,
-// runtime/src/validation-sur-ticket/) y nomme sa PR, son ticket et sa tête.
+// Le marqueur peut porter, après la sorte, des attributs `nom=valeur` : la validation demandée sur le ticket (#3615) y nomme
+// sa PR, son ticket et sa tête.
 const BRAND = /^\s*<!--\s*brigade:todo\s+kind=([A-Za-z0-9_-]+)(?:\s+[a-z]+=[^\s>]+)*\s*-->\s*([\s\S]*)$/;
 // Une carte du chef pose une question, ou n'est pas dans TODO (#2455) : sans commentaire marqué, ou sans texte, elle n'est
 // pas montrée, et le second en est prévenu (wait-of-chef.ts).
@@ -32,7 +32,7 @@ const BRAND = /^\s*<!--\s*brigade:todo\s+kind=([A-Za-z0-9_-]+)(?:\s+[a-z]+=[^\s>
 export type Recommended = { texte: string; pourquoi: string };
 export type CardOfChef = { sorte: string; texte: string; design?: ValidationDesign; sensible?: ReviewSensitive; recommandee?: Recommended | null };
 
-// Les gestes qu'un choix de la carte joue : ceux de la forme unique (runtime/src/carte-todo/forme.ts, `GESTES`), `rail`, et
+// Les gestes qu'un choix de la carte joue : ceux de la forme unique, `rail`, et
 // `wait`, la mise en WAITING qu'une carte du manager propose quand sa question attend un tiers (#3434).
 export const ACTIONS_OF_CHEF = ["resume", "merge", "drop", "close", "rail", "wait"] as const;
 export type ActionOfChef = (typeof ACTIONS_OF_CHEF)[number];

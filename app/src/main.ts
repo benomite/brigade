@@ -53,9 +53,7 @@ import { clientGitHub, byFetch, postByFetch } from "./board/client.ts";
 import { withWhatAwaitingTheChef } from "./board/wait-of-chef.ts";
 import { playTheWait } from "./vue/wait/wait-github.ts";
 import { readConditional, type MemoryOfReads } from "./board/rail-github.ts";
-import { holdTheSignsOfLife } from "./vue/cooks/signs-of-life.ts";
-import { withThePresenceLocale, withTheStationLocale } from "./vue/pause-quota/pause-quota.ts";
-import type { SignsOfLife } from "./vue/rail/github.ts";
+import { withThePresenceLocale } from "./vue/pause-quota/pause-quota.ts";
 import { shareOfCardsAssigned, holdTheLogin } from "./vue/cards-assigned/cards-assigned.ts";
 import { tokenOfGh } from "./board/token-gh.ts";
 import { readingUnderBudget, holdTheBudgetGitHub } from "./budget-github.ts";
@@ -269,29 +267,16 @@ const terminals = openTerminals({
 // se lit pas dit pourquoi.
 const callGitHub = clientGitHub({ jeton: tokenOfGh({ gh: process.env.BRIGADE_GH_BIN || "gh", delaiMs: 10_000 }), envoyer: byFetch() });
 const repositoryOfProject = async (project: Project) => project.depot ?? (await repositoryOfTheOrigin(process.env.BRIGADE_GIT_BIN || "git", project.dossier)) ?? project.nom;
-// Le rail — ses tickets au label `fire`, leur état tiré de leurs labels, de leur PR et de la base, la station qui les
-// tient (vue/rail/github.ts) —, TODO — ce qui attend le chef, la lecture même que le second relaie à son ouverture
-// (board/wait-of-chef.ts, #2460) — et ce qui est avant le rail : relus à chaque lecture (au plus une fois par
-// minute, ou aussitôt après un geste, qui oublie la lecture), par des lectures conditionnelles dont un 304 ne coûte rien.
+// Le kanban — chaque issue dans la colonne que ses labels disent (board/kitchen-board.ts) — et TODO — ce qui attend le
+// chef, la lecture même que le second relaie à son ouverture (board/wait-of-chef.ts, #2460) : relus à chaque lecture (au
+// plus une fois par minute, ou aussitôt après un geste, qui oublie la lecture), par des lectures conditionnelles dont un
+// 304 ne coûte rien.
 const memoriesOfRail = new Map<string, MemoryOfReads>();
 const memoryOfRail = (repository: string): MemoryOfReads => memoriesOfRail.get(repository) ?? memoriesOfRail.set(repository, new Map()).get(repository)!;
-// Ses stations, sur l'onglet Stations, se disent de leurs prises et du signe de vie que chacune réécrit dans son gist
-// (#2358, vue/cooks/signs-of-life.ts) : relu au pas où les stations l'écrivent, deux minutes, par la lecture des stations
-// du compte que la vue fait déjà.
-const signsOfLife = holdTheSignsOfLife({
-  lire: async () => {
-    const { lireLesStationsDuCompte: readTheStationsOfAccount } = await ofRuntime<typeof import("../../runtime/src/enregistrement-station/stations-du-compte.ts")>("enregistrement-station", "stations-of-account.ts");
-    return readTheStationsOfAccount({ gh: ghHere, env: process.env });
-  },
-});
 // La station de cet ordinateur, que l'app voit tourner, n'est pas tue, même quand le quota GitHub du compte l'empêche
 // d'écrire son signe de vie (ticket 3482, vue/pause-quota/) : son gist, nul quand elle ne tourne pas ici. Pendant que sa mise
 // à jour la redémarre (#3637), elle n'est pas tue non plus : son process est entre deux versions, son signe de vie en retard.
 const gistWhoRunsHere = (): string | null => (stationLocale?.tourne() === true || stationLocale?.redemarrage() != null ? gistLocal(rootOfTheStation) : null);
-const signsSeen = async (): Promise<SignsOfLife> => {
-  const signs = await signsOfLife.signes();
-  return "lus" in signs ? { lus: withTheStationLocale(signs.lus, gistWhoRunsHere(), Date.now()) } : signs;
-};
 // Le compte GitHub de cet ordinateur, pour les cartes de TODO qui l'attendent (#2761, vue/cards-assigned/) : celles
 // qui attendent un autre humain se replient sous « Awaiting others » (#2985).
 const accountConnected = holdTheLogin(async () => {
@@ -310,7 +295,7 @@ const readTheBoard = async (project: Project): Promise<ReadOfBoardOfRepository> 
     depot: repository,
     dernier: () => boards.dernier(project.nom),
     lire: async () => {
-      const readOne = await readTheBoardOfRepository({ depot: repository, appeler: callUnderBudget, memoire: memoryOfRail(repository), signes: signsSeen });
+      const readOne = await readTheBoardOfRepository({ depot: repository, appeler: callUnderBudget, memoire: memoryOfRail(repository) });
       const call = readConditional(callUnderBudget, memoryOfRail(repository));
       return withWhatAwaitingTheChef(readOne, call, shareOfCardsAssigned({ appeler: call, depot: repository, login: accountConnected.login }));
     },
@@ -1380,7 +1365,6 @@ ipcMain.handle("stationsDuChef", async (): Promise<StationsOfChef> => {
 ipcMain.handle("stationsDuCompte", async (): Promise<StationsOfAccount> => {
   const { lireLesStationsDuCompte: readTheStationsOfAccount } = await ofRuntime<typeof import("../../runtime/src/enregistrement-station/stations-du-compte.ts")>("enregistrement-station", "stations-of-account.ts");
   const readOne = await readTheStationsOfAccount({ gh: ghHere, env: process.env });
-  signsOfLife.poser(readOne);
   if (readOne.state === "unavailable") return holdThePage(readOne);
   const github = githubOfStations({ gh: ghHere, delaiMs: 30_000 });
   // L'état de chacune est celui de son dernier signe de vie, son enregistrement ou sa présence appairée (#3187).

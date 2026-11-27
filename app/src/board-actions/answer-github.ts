@@ -7,18 +7,17 @@
 //   1. un commentaire est posté sur l'issue : `<!-- brigade:reponse gesture=<geste> -->`, puis le libellé du choix, ou le
 //      texte du chef — il reste dans l'issue, c'est là que le cook le lit ;
 //   2. le geste est joué :
-//      - `resume` (un choix, ou tout texte libre) : `served-elsewhere`, `chef-todo`, `parked` et les labels d'attente d'avant
-//        parked (`LABELS_D_AVANT_PARKED` de runtime/src/github-etat/etats.ts) retirés — le ticket reprend où il était (#4129) ;
+//      - `resume` (un choix, ou tout texte libre) : `served-elsewhere`, `chef-todo` et `parked` retirés — le ticket reprend
+//        où il était (#4129) ;
 //      - `merge` : la PR que la carte nomme est mergée — celle que le libellé du choix nomme (`#N`), sinon la PR ouverte
-//        du ticket — celle d'un libellé qui la dit par son ticket (`PR of #T`, ticket 3716) ; aucune, rien ne part.
-//        Les labels d'attente d'avant parked sont retirés aussi ;
+//        du ticket — celle d'un libellé qui la dit par son ticket (`PR of #T`, ticket 3716) ; aucune, rien ne part ;
 //      - `drop` : `fire` retiré — le ticket sort du rail, son issue reste ouverte ;
 //      - `close` : l'issue est fermée ;
 //      - `rail` : le label `prio:N` que le libellé du choix nomme (sinon `fire`) est posé — l'issue d'un inconnu entre sur le rail.
 //      - `wait` : l'issue est parquée pour un tiers (#3434, #4129) — le commentaire de parking, qui attend ce que le libellé
 //        `Wait for <qui>` nomme, la question de la carte pour ce qu'il attend, la date à sept jours, puis le label
-//        `parked` (vue/wait/wait-github.ts, `parquer`) ; les labels d'avant parked qui la parquaient pour le
-//        chef sont retirés : la question attend un tiers, plus le chef.
+//        `parked` (vue/wait/wait-github.ts, `parquer`) ; `chef-todo` est retiré : la question attend un tiers, plus le
+//        chef.
 //      Chaque geste retire aussi `chef-todo`, et `parked` sauf `wait` : répondue, la question n'attend plus le chef, et le
 //      ticket parqué pour lui reprend où il était (#4129).
 // La carte d'un ticket que la nouvelle cuisine parque pour le chef (`parked:chef`, #4474, board/parked-chef-github.ts) n'a
@@ -28,7 +27,6 @@
 import { cardReadOfChef, answerRead, type Rendered } from "../card-todo.ts";
 import type { MethodOfWriting } from "../priority.ts";
 import type { CallGitHub, AnswerGitHub } from "../board/client.ts";
-import { LABELS_D_AVANT_PARKED, LABELS_D_AVANT_PARKED_POUR_LE_CHEF } from "../../../runtime/src/github-etat/etats.ts";
 import { SERVED_ELSEWHERE } from "../board/set-aside-github.ts";
 import { LABEL_PARKED_CHEF, KIND_PARKED_CHEF } from "../board/parked-chef-github.ts";
 import { ticketOfThePR } from "../board/rail-github.ts";
@@ -49,16 +47,15 @@ const LABEL_FIRE = "fire";
 const PARKED = LABELS_OF_ACTIONS.cuisine;
 // Ce que chaque geste retire de l'issue, en plus de jouer ce qu'il joue.
 const REMOVED: Readonly<Record<ActionOfChef, readonly string[]>> = {
-  // Le ticket reprend où il était : la mise de côté est levée (#3369), et ce qui le parquait — sa carte, `parked`, ou un label
-  // d'attente d'avant parked (#4129).
-  resume: [SERVED_ELSEWHERE, LABEL_OF_CHEF, PARKED, ...LABELS_D_AVANT_PARKED],
+  // Le ticket reprend où il était : la mise de côté est levée (#3369), et ce qui le parquait — sa carte, ou `parked` (#4129).
+  resume: [SERVED_ELSEWHERE, LABEL_OF_CHEF, PARKED],
   // Mergée, la livraison n'attend plus personne.
-  merge: [LABEL_OF_CHEF, PARKED, ...LABELS_D_AVANT_PARKED],
+  merge: [LABEL_OF_CHEF, PARKED],
   drop: [LABEL_FIRE, LABEL_OF_CHEF, PARKED],
   close: [LABEL_OF_CHEF, PARKED],
   rail: [LABEL_OF_CHEF, PARKED],
   // Parquée pour un tiers, la question du manager l'attend, lui : elle n'attend plus le chef (#3434).
-  wait: [...LABELS_D_AVANT_PARKED_POUR_LE_CHEF, LABEL_OF_CHEF],
+  wait: [LABEL_OF_CHEF],
 };
 
 // Qui un choix « Wait for <qui> » attend — le libellé entier, s'il n'a pas cette forme.

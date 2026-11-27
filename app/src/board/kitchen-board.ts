@@ -1,24 +1,14 @@
-// The kanban of a project on the new kitchen (runtime/src/kitchen/, #4482): the kitchen keeps its whole state in GitHub
-// labels (docs/superpowers/specs/2026-11-26-agents-in-prompts.md), so the board is read from them alone — the open issues,
-// the open pull requests and those merged in the last 24 hours. Nothing of the old runtime is read: no claim comment, no
+// The kanban of a project (runtime/src/kitchen/, #4482, #4507): the kitchen keeps its whole state in GitHub labels
+// (docs/superpowers/specs/2026-11-26-agents-in-prompts.md), so the board is read from them alone — the open issues, the
+// open pull requests and those merged in the last 24 hours. Nothing of the old runtime is read: no claim comment, no
 // station gist, no `facts`, no merge order, no ticket sheet.
-//
-// A project is on the new kitchen when its default branch holds `.brigade/kitchen.json`, the file the kitchen reads its
-// risk zones from (runtime/src/kitchen/main.ts).
 import type { CallGitHub } from "./client.ts";
-import type { MemoryOfReads } from "./rail-github.ts";
-import { LABEL_PARKED_CHEF } from "./parked-chef-github.ts";
+import { ticketOfThePR } from "./rail-github.ts";
+import { LABELS } from "../../../runtime/src/kitchen/decide.ts";
 
-// The kitchen's labels (runtime/src/kitchen/decide.ts, `LABELS`), written here: the rail reading loads nothing of the runtime
-// but its GitHub states (test/board/read.test.ts).
-const FIRE = "fire";
-const TAKEN = "taken";
-const IN_PASS = "in-pass";
-const PARKED = "parked";
+const { ready: FIRE, taken: TAKEN, inPass: IN_PASS, parked: PARKED, parkedChef: LABEL_PARKED_CHEF } = LABELS;
 // The old process's waiting labels, which the kitchen still reads as parked (decide.ts, `LEGACY_PARKED`).
 const LEGACY_PARKED = ["waiting", "chef-todo", "blocked-on-human"];
-
-const KITCHEN_FILE = ".brigade/kitchen.json";
 
 export type BoardColumnKey = "backlog" | "ready" | "cooking" | "pass" | "parked" | "served";
 export type BoardCard = { ticket: number; title: string; url: string; tries: number; pr: { number: number; url: string } | null; forTheChef?: true };
@@ -56,14 +46,8 @@ export function columnOf(labels: readonly string[]): Exclude<BoardColumnKey, "se
   return "backlog";
 }
 
-// The ticket a pull request of the kitchen delivers: its branch `cook/<n>-github`, or the `Closes #n` of its body
-// (runtime/src/kitchen/github.ts, `branchOf`, `openPr`).
-function ticketOfPr(pr: Raw): number | null {
-  const branch = /^cook\/(\d+)-/.exec(text(object(pr.head)?.ref))?.[1];
-  const closes = /\b(?:closes|fixes|resolves)\s+#(\d+)/i.exec(text(pr.body))?.[1];
-  const found = branch ?? closes;
-  return found === undefined ? null : Number(found);
-}
+// The ticket a pull request of the kitchen delivers (rail-github.ts).
+const ticketOfPr = (pr: Raw): number | null => ticketOfThePR(text(object(pr.head)?.ref), text(pr.body));
 
 const priority = (labels: readonly string[]): number => {
   const found = labels.flatMap((label) => { const n = /^prio:(\d+)$/.exec(label)?.[1]; return n === undefined ? [] : [Number(n)]; });
@@ -152,31 +136,6 @@ export async function readKitchenBoard({ depot: repository, appeler: call, now }
     .filter((issue) => issue.pull_request === undefined && typeof issue.number === "number")
     .map((issue) => ({ ticket: issue.number as number, titre: text(issue.title), url: text(issue.html_url) || `https://github.com/${repository}/issues/${issue.number}`, creee: typeof issue.created_at === "string" ? issue.created_at : null, labels: labelsOf(issue) }));
   return { board: boardOf({ issues, openPrs, closedPrs, now }), open };
-}
-
-// Whether the project is on the new kitchen: its default branch holds `KITCHEN_FILE`, a file whose content is a JSON object —
-// what the kitchen parses. A 404 is no, and so is an answer that is not that file; any other refusal is no too, and is not
-// kept — the rail reading says it. The answer is kept `RECHECK_MS` in the readings' memory: a 404 carries no
-// ETag, and asking at every reading would cost one counted request a minute per project (budget-github.ts).
-const RECHECK_MS = 10 * 60_000;
-const isKitchenFile = (data: unknown): boolean => {
-  const file = object(data);
-  if (file?.type !== "file" || typeof file.content !== "string") return false;
-  try {
-    return object(JSON.parse(Buffer.from(file.content, "base64").toString("utf8"))) !== null;
-  } catch {
-    return false;
-  }
-};
-const KEPT = "brigade:new-kitchen";
-export async function onTheNewKitchen({ depot: repository, appeler: call, memoire: memory, now }: { depot: string; appeler: CallGitHub; memoire?: MemoryOfReads; now: number }): Promise<boolean> {
-  const kept = memory?.get(KEPT);
-  if (kept !== undefined && now - Number(kept.etag) < RECHECK_MS && typeof kept.data === "boolean") return kept.data;
-  const answer = await call(`/repos/${repository}/contents/${KITCHEN_FILE}`);
-  if (answer.status !== 200 && answer.status !== 404) return false;
-  const yes = answer.status === 200 && isKitchenFile(answer.data);
-  memory?.set(KEPT, { etag: String(now), data: yes });
-  return yes;
 }
 
 // `kitchenBoard`, from the root of `facts` (facts.ts, `comprendre`): nothing malformed sets it — the view then draws the

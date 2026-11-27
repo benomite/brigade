@@ -5204,8 +5204,7 @@ function setTheRail(project) {
   };
   // Le plan de la cuisine (cuisine/, ticket 4238) : backlog — le rail en tête, les prêts à part —, manager, cooks, pass, servi.
   // Chaque carte dans la colonne de son étape ; une carte parked reste dans celle où elle attend. Aucune colonne Waiting.
-  // Le rail du backlog est le haut du backlog que la lecture porte (ticket 4223) : les mêmes tickets, dans le même ordre.
-  const plan = planOfTheKitchen(columns, held.tableau.hautDuBacklog?.issues.map(({ number }) => number));
+  const plan = planOfTheKitchen(columns);
   // Ce qu'attendre un tiers veut dire (WAITING, ticket 3308) s'explique sous le titre de la première colonne où une carte est parked.
   const columnParked = plan.find(({ cartes: cards }) => cards.some(({ parque: parked }) => parked !== undefined))?.nom;
   const grid = document.createElement("div");

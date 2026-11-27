@@ -9,9 +9,6 @@
 //   - une issue au label `chef-todo` : la carte que son dernier commentaire marqué pose (board/todo-github.ts, #2217) ;
 //     une carte dont la question ne se lit pas (pas de commentaire marqué, ou sans texte) n'est pas une entrée : elle est
 //     dite au second, dans le bloc, avec pourquoi (`illisibles`) ;
-//   - une issue parquée pour le chef par un label d'attente d'avant parked (#4129, `LABELS_D_AVANT_PARKED_SANS_CARTE` de
-//     runtime/src/github-etat/etats.ts, seul module qui les nomme) : depuis la pose de son label, sa carte pose la question
-//     du manager, avec ses boutons (#3370, `carteDeLEcart`).
 //   - une issue que la nouvelle cuisine parque pour le chef (`parked:chef`, runtime/src/kitchen/, #4474) : sa carte pose le
 //     dernier commentaire de la cuisine qui dit pourquoi, et se répond par Answer (board/parked-chef-github.ts) ;
 //   - une épique ouverte (`epic`) dont la dernière parole du manager est une question avant de la découper, tant qu'aucune
@@ -27,7 +24,7 @@
 // qu'elles attendent, et le bloc dit pourquoi (`illisibles`).
 // Le bloc dit aussi chaque issue en WAITING dont l'attente se lit, une ligne chacune sous les entrées : ce qu'elle attend,
 // de qui, et sa relance (#3814) — sans être une entrée : elle ne demande rien au chef. Elle se lit de la marque que la station,
-// le second et l'app posent (runtime/src/attente-github/marque.ts, `corpsDuParking`).
+// le second et l'app posent (vue/wait/wait-github.ts, `parquer`).
 //
 // Chaque entrée dit sa question puis son geste, sur sa ligne du bloc, et porte ce que la carte de TODO en fait (`chef`,
 // `miseDeCote`) ; le bloc les range de la plus ancienne à la plus récente, et dit « nothing awaits the chef »
@@ -36,9 +33,8 @@ import type { ExpectedOfOthers, Third } from "../facts.ts";
 import type { Share } from "../vue/cards-assigned/cards-assigned.ts";
 import type { CallGitHub } from "./client.ts";
 import type { IssueParkedForTheChef, ReadOfBoardOfRepository, LineOfTheFile, BoardRead } from "./read.ts";
-import { LABEL_PARKED } from "../../../runtime/src/attente-github/marque.ts";
-import { LABELS_D_AVANT_PARKED_SANS_CARTE } from "../../../runtime/src/github-etat/etats.ts";
-import { cardOfTheGap, LABEL_OF_BOARD_OF_THE_KITCHEN, labelOfSetAside, setAsideOf, setAsideOn, recommendedOf, type SetAside } from "./set-aside-github.ts";
+import { LABELS } from "../../../runtime/src/kitchen/decide.ts";
+import { LABEL_OF_BOARD_OF_THE_KITCHEN, labelOfSetAside, setAsideOf, setAsideOn, recommendedOf, type SetAside } from "./set-aside-github.ts";
 import { blockAwaiting } from "./rail.ts";
 import type { RailBlockedRead } from "../vue/rail-blocked/rail-blocked.ts";
 import { cardOfTheQuestionOfEpic, EPIC_LABEL, questionOfEpicThe } from "./question-of-epic-github.ts";
@@ -48,25 +44,24 @@ import { thirdOfComments } from "../vue/wait/wait-github.ts";
 import { reviewOfBody, KIND_SENSITIVE } from "../vue/card-sensitive/card-sensitive-github.ts";
 import { KIND_OF_VALIDATION, validationOfBody } from "../vue/validation-design/validation-design-github.ts";
 
-const LABEL_FIRE = "fire";
+const { ready: LABEL_FIRE, parked: LABEL_PARKED } = LABELS;
 // Parqué (`parked`, #4129) : il attend quelqu'un d'autre que le chef — jamais une entrée, une carte du chef parquée pour un
 // autre comprise. Parqué pour le chef, il ne porte que `chef-todo` : une entrée.
 const awaitingOneOther = (labels: readonly string[]) => labels.includes(LABEL_PARKED);
-// Les auteurs dont le runtime croit une marque (runtime/src/alimenter.ts, `DE_CONFIANCE`).
+// Les auteurs dont une marque se croit : qui a la main sur le dépôt.
 const OF_TRUST = ["OWNER", "MEMBER", "COLLABORATOR"];
-// La marque d'un commentaire de parking (runtime/src/attente-github/marque.ts), ou `waiting`, d'avant #4129.
+// La marque d'un commentaire de parking (vue/wait/wait-github.ts), ou `waiting`, d'avant #4129.
 const BRAND_OF_PARKING = /^<!-- brigade:(?:parked|waiting) (\{.*?\}) -->/;
 const BY_PAGE = 100;
 const PAGES_AT_MOST = 10;
 // Une entrée : son ticket, depuis quand elle attend, sa ligne — sa question, puis son geste —, et ce que sa carte de TODO
-// en fait. `quoi` : d'où elle vient — une issue mise de côté, une carte `chef-todo`, une issue parquée pour le chef par un
-// label d'avant parked.
+// en fait. `quoi` : d'où elle vient — une issue mise de côté, ou une carte.
 export type WaitOfChef = {
   ticket: number;
   titre: string;
   url: string;
   depuis: string;
-  quoi: "mise-de-cote" | "carte" | "ecart";
+  quoi: "mise-de-cote" | "carte";
   ligne: string;
   chef?: CardOfChef;
   miseDeCote?: SetAside;
@@ -139,13 +134,11 @@ function lineOfTheCard({ sorte: kind, texte: said }: CardOfChef): string {
 // issues au label `parked` : le second, qui lit la file une fois par session, y voit chaque ticket parqué et sa
 // relance. `"du-rail"` s'en tient aux issues parquées des listes déjà lues — un ticket que la cuisine parque
 // garde `fire` —, pour l'app, qui relit chaque projet toutes les trente secondes sous son budget GitHub (budget-github.ts).
-// `epiquesAvantLeRail` : les épiques sans `fire` que la lecture du rail a dites (`avantLeRail`) — sans elles, seules les épiques
-// au label `fire` posent leur question.
 // `parqueesPourLeChef` : les issues `parked:chef` que la lecture du rail a tirées de sa liste des issues ouvertes (#4474) —
 // sans elles, la liste du label est lue.
 // `newKitchen` : le projet est sur la nouvelle cuisine (#4482) — seules ses issues `parked:chef` l'attendent : aucune liste des
 // labels du runtime d'avant n'est lue.
-export async function readWhatAwaitingTheChef(options: { depot: string; appeler: CallGitHub; maintenant?: () => Date; enWaiting?: boolean | "du-rail"; epiquesAvantLeRail?: readonly { ticket: number; titre: string }[]; parqueesPourLeChef?: readonly IssueParkedForTheChef[]; newKitchen?: boolean }): Promise<WaitRead> {
+export async function readWhatAwaitingTheChef(options: { depot: string; appeler: CallGitHub; maintenant?: () => Date; enWaiting?: boolean | "du-rail"; parqueesPourLeChef?: readonly IssueParkedForTheChef[]; newKitchen?: boolean }): Promise<WaitRead> {
   const { depot: repository, appeler: call } = options;
   const read = async (path: string): Promise<unknown> => {
     const answer = await call(path).catch((error: unknown) => {
@@ -165,7 +158,7 @@ export async function readWhatAwaitingTheChef(options: { depot: string; appeler:
     return allEntries;
   };
   // Les issues ouvertes qui portent `label` — la vérification tient même d'une réponse que GitHub n'aurait pas filtrée.
-  // Une PR de fork porte sa carte `chef-todo` elle-même (runtime/src/pr-externe/pr-externe.ts) : seule cette liste la garde.
+  // Une PR de fork porte sa carte `chef-todo` elle-même : seule cette liste la garde.
   const issuesAtLabel = async (label: string) =>
     (await pages(`/repos/${repository}/issues?state=open&labels=${label}&sort=created&direction=asc`)).filter((issue) => {
       const labels = labelsOf(issue);
@@ -191,13 +184,12 @@ export async function readWhatAwaitingTheChef(options: { depot: string; appeler:
     };
     // Les listes d'abord, puis ce que chaque issue en dit — chaque fois toutes à la fois : le `gh` du second paie chaque
     // lecture d'un processus, et son crochet a peu de temps.
-    const labelsOfGap = LABELS_D_AVANT_PARKED_SANS_CARTE;
     // Les issues `parked:chef` que la lecture du rail a déjà listées ne se relisent pas (le budget GitHub de l'app, budget-github.ts).
     const alreadyListed = options.parqueesPourLeChef?.map(({ ticket, titre: title, url, creee: created, labels }): Raw => ({ number: ticket, title: title, html_url: url, created_at: created, labels: labels.map((name) => ({ name })) }));
     const ofRuntimeOfBefore = (label: string) => (options.newKitchen === true ? Promise.resolve([]) : issuesAtLabel(label));
-    const lists = await Promise.all([ofRuntimeOfBefore(LABEL_FIRE), ofRuntimeOfBefore(LABEL_OF_CHEF), alreadyListed ?? issuesAtLabel(LABEL_PARKED_CHEF), ...labelsOfGap.map(ofRuntimeOfBefore)]);
+    const lists = await Promise.all([ofRuntimeOfBefore(LABEL_FIRE), ofRuntimeOfBefore(LABEL_OF_CHEF), alreadyListed ?? issuesAtLabel(LABEL_PARKED_CHEF)]);
     // Une issue en WAITING n'attend pas le chef : elle n'est l'entrée d'aucun label.
-    const [atFire, atChef, parkedForTheChef, ...ecartees] = lists.map((issues) => issues.filter((issue) => !queued(issue)));
+    const [atFire, atChef, parkedForTheChef] = lists.map((issues) => issues.filter((issue) => !queued(issue)));
     const putOfSide = await Promise.all(
       (atFire ?? []).flatMap((issue) => {
         const label = labelOfSetAside(labelsOf(issue));
@@ -205,12 +197,8 @@ export async function readWhatAwaitingTheChef(options: { depot: string; appeler:
       }),
     );
     const cards = await Promise.all((atChef ?? []).map((issue) => comments(issue.number as number).then((readOnes) => ({ issue, lus: readOnes }))));
-    // Les épiques : celles du rail, déjà lues avec `fire`, et celles que la lecture du rail dit avant lui — aucune lecture de plus
-    // (le budget GitHub de l'app, budget-github.ts).
-    const epics = [
-      ...(atFire ?? []).filter((issue) => labelsOf(issue).includes(EPIC_LABEL)),
-      ...(options.epiquesAvantLeRail ?? []).map(({ ticket, titre: title }): Raw => ({ number: ticket, title: title, labels: [{ name: EPIC_LABEL }] })),
-    ].filter((issue, rank, allEntries) => allEntries.findIndex(({ number }) => number === issue.number) === rank);
+    // Les épiques du rail, déjà lues avec `fire` : aucune lecture de plus (le budget GitHub de l'app, budget-github.ts).
+    const epics = (atFire ?? []).filter((issue) => labelsOf(issue).includes(EPIC_LABEL));
     const parked = await Promise.all((parkedForTheChef ?? []).map((issue) => comments(issue.number as number).then((readOnes) => ({ issue, lus: readOnes }))));
     const epicsRead = await Promise.all(epics.map((issue) => comments(issue.number as number).then((readOnes) => ({ issue, lus: readOnes }))));
     // Les tickets du rail mis de côté qui demandent quelque chose au chef : la question de produit qu'ils posent.
@@ -258,20 +246,6 @@ export async function readWhatAwaitingTheChef(options: { depot: string; appeler:
       if (saidOnes.has(issue.number as number)) continue;
       const chef = cardOfTheQuestionOfEpic(readOnes);
       if (chef !== null) set({ ...entry(issue), depuis: questionOfEpicThe(readOnes) ?? created(issue), quoi: "carte", ligne: lineOfTheCard(chef), chef });
-    }
-    // Les issues parquées pour le chef par un label d'avant parked, qui ne sont pas déjà dites : depuis la pose de leur label.
-    const poses = await Promise.all(
-      labelsOfGap.flatMap((label, rank) =>
-        (ecartees[rank] ?? [])
-          .filter((issue) => !saidOnes.has(issue.number as number) && !awaitingOneOther(labelsOf(issue)))
-          .map((issue) => Promise.all([pages(`/repos/${repository}/issues/${issue.number}/events`), comments(issue.number as number)]).then(([events, readOnes]) => ({ issue, label, evenements: events, lus: readOnes }))),
-      ),
-    );
-    // Sa carte pose la question du manager, avec ses boutons (#3370, set-aside-github.ts, `carteDeLEcart`).
-    for (const { issue, label, evenements: events, lus: readOnes } of poses) {
-      const pose = events.filter(({ event, label: which }) => event === "labeled" && object(which)?.name === label).at(-1);
-      const chef = cardOfTheGap(label, readOnes);
-      set({ ...entry(issue), depuis: date(pose?.created_at) ?? created(issue), quoi: "ecart", ligne: lineOfTheCard(chef), chef });
     }
     // La plus ancienne d'abord, comme le bloc de la box.
     const instant = (iso: string) => Date.parse(iso);
@@ -369,8 +343,7 @@ export function withTheWaitOfChef(readOne: BoardRead, { attentes: waits, illisib
 // et celles qui attendent un autre humain (vue/cards-assigned/, #2761, #2985).
 export async function withWhatAwaitingTheChef(readOne: ReadOfBoardOfRepository, call: CallGitHub, share?: (waits: WaitOfChef[]) => Promise<Share<WaitOfChef>>): Promise<ReadOfBoardOfRepository> {
   if (!readOne.lu) return readOne;
-  const epicsBeforeTheRail = (readOne.avantLeRail?.issues ?? []).filter(({ etat: state }) => state === "epique").map(({ ticket, titre: title }) => ({ ticket, titre: title }));
-  const wait = await readWhatAwaitingTheChef({ depot: readOne.depot, appeler: call, maintenant: () => new Date(readOne.luLe), enWaiting: "du-rail", epiquesAvantLeRail: epicsBeforeTheRail, ...(readOne.parqueesPourLeChef === undefined ? {} : { parqueesPourLeChef: readOne.parqueesPourLeChef }), ...(readOne.faits.kitchenBoard === undefined ? {} : { newKitchen: true }) });
+  const wait = await readWhatAwaitingTheChef({ depot: readOne.depot, appeler: call, maintenant: () => new Date(readOne.luLe), enWaiting: "du-rail", ...(readOne.parqueesPourLeChef === undefined ? {} : { parqueesPourLeChef: readOne.parqueesPourLeChef }), ...(readOne.faits.kitchenBoard === undefined ? {} : { newKitchen: true }) });
   if (!wait.lue) return { lu: false, depot: readOne.depot, luLe: readOne.luLe, raison: wait.raison, ...(wait.horsLigne === undefined ? {} : { horsLigne: true as const }) };
   if (share === undefined) return withTheWaitOfChef(readOne, wait);
   const { siennes: itsOwn, autres: others } = await share(wait.attentes);
