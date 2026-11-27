@@ -7,7 +7,8 @@ import { join } from "node:path";
 import { test } from "node:test";
 import type { Sondes } from "../../src/bac-a-sable/detection.ts";
 import type { Git } from "../../src/kitchen/kitchen.ts";
-import { launcherOf, projectHosts } from "../../src/kitchen/launch.ts";
+import { projectHosts } from "../../src/bac-a-sable/kitchen-sandbox.ts";
+import { launcherOf } from "../../src/kitchen/launch.ts";
 
 const root = mkdtempSync(join(tmpdir(), "kitchen-launch-"));
 const home = join(root, "home");

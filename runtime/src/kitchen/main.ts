@@ -7,11 +7,12 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { sondesDeLaMachine } from "../bac-a-sable/detection.ts";
+import { projectHosts } from "../bac-a-sable/kitchen-sandbox.ts";
 import { masquerLaConsole } from "../jeton-claude.ts";
 import { REGLES_DE_BASE, passerParLaPorte, type Regle } from "../reseau.ts";
 import { lirePortes } from "../station/portes.ts";
 import { ghCli } from "./github.ts";
-import { launcherOf, projectHosts } from "./launch.ts";
+import { launcherOf } from "./launch.ts";
 import { gitCli, openKitchen } from "./kitchen.ts";
 import { projectsFile, readProjects, type KitchenProject } from "./projects.ts";
 
@@ -92,7 +93,6 @@ if (import.meta.main) {
             refusals.set(project.name, opened.refused);
             continue;
           }
-          refusals.delete(project.name);
           kitchens.set(project.name, opened);
         }
         const served = kitchens.get(project.name) as Served;
