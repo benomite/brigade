@@ -1,4 +1,4 @@
-// Le superviseur du projet (spec 2026-11-20-kitchen-spinning, étape 4, #3911) : le manager du projet, devant deux
+// Le superviseur du projet (épique #3904, #3911) : le manager du projet, devant deux
 // choses que la cuisine ne referme pas seule.
 //
 // - Le disjoncteur ouvert. Le chef ne le referme plus : le superviseur rejoue le contrôle qui l'a ouvert — un run, qui
