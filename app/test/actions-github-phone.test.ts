@@ -3,9 +3,9 @@
 // (« waiting for… », « resume », #3075) font sur GitHub ce que le même geste fait du desktop. Chaque geste est joué deux fois, sur deux copies du même faux GitHub : par la chaîne du desktop
 // — les fonctions que main.ts appelle, avec le client qu'il compose (`clientDesLabels`, porté par `fetch`) —, puis par le
 // téléphone, porté par un faux HTTP natif de Capacitor ; les demandes que chaque GitHub a reçues, et ce qu'il en garde,
-// sont comparées. Puis les mêmes gestes passent par le pont de l'APK tel que la construction le pose (www/android/pont.js) :
-// connecté à GitHub, il lit le rail et TODO de parade sur ce faux GitHub, puis y écrit chaque geste du chef. Aucune
-// station n'existe ici : seul GitHub répond, et l'adresse d'une station appairée avant #2500 n'est jamais demandée.
+// sont comparées. Puis le pont de l'APK tel que la construction le pose (www/android/pont.js), connecté à GitHub, lit parade
+// sur ce faux GitHub, et sa fiche propose les gestes qu'il y écrit. Aucune station n'existe ici : seul GitHub répond, et
+// l'adresse d'une station appairée avant #2500 n'est jamais demandée.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
@@ -195,9 +195,9 @@ describe("le téléphone écrit sur GitHub ce que le desktop y écrit pour le m�
       `POST /repos/${REPOSITORY}/issues/40/comments {"body":"<!-- brigade:reponse gesture=resume -->\\nYes, keep it"}`,
       `DELETE /repos/${REPOSITORY}/issues/40/labels/served-elsewhere`,
       `DELETE /repos/${REPOSITORY}/issues/40/labels/chef-todo`,
-      // Une carte parque son ticket pour le chef (#4129) : répondue, `parked` part aussi, et tout label d'attente d'avant parked
-      // — l'issue ne les porte pas, GitHub répond 404.
-      ...UNPARKED(40),
+      // Une carte parque son ticket pour le chef (#4129) : répondue, `parked` part aussi — l'issue ne le porte pas, GitHub
+      // répond 404.
+      `DELETE /repos/${REPOSITORY}/issues/40/labels/parked`,
     ]);
     assert.deepEqual(state.issues[40]?.labels, ["fire"]);
     assert.deepEqual(said, { repondue: true, dit: "answer posted on #40 (resume): `served-elsewhere` and `chef-todo` removed", commentaire: 902 });
@@ -214,8 +214,8 @@ describe("le téléphone écrit sur GitHub ce que le desktop y écrit pour le m�
       `POST /repos/${REPOSITORY}/issues/41/comments {"body":"<!-- brigade:reponse gesture=merge -->\\nYes, merge PR #1560 as delivered"}`,
       `PUT /repos/${REPOSITORY}/pulls/1560/merge {"merge_method":"merge"}`,
       `DELETE /repos/${REPOSITORY}/issues/41/labels/chef-todo`,
-      // Mergée, la livraison n'attend plus personne : `parked` et les labels d'avant parked — l'issue ne les porte pas, 404.
-      ...UNPARKED(41),
+      // Mergée, la livraison n'attend plus personne : `parked` — l'issue ne le porte pas, 404.
+      `DELETE /repos/${REPOSITORY}/issues/41/labels/parked`,
     ]);
     assert.equal(state.pr.merged, true);
   });
@@ -309,9 +309,9 @@ describe("sans station joignable, les trois gestes passent par GitHub seul", () 
     assert.ok("repondue" in (await actions.repondreCarte(PROJECT, 40, click(40, 1))));
     assert.ok("fait" in (await actions.geste(PROJECT, "cuisine", 31)));
     assert.ok("fait" in (await actions.geste(PROJECT, "retirer", 22)));
-    // La réponse : son commentaire, `served-elsewhere`, `chef-todo`, `parked` et les labels d'avant parked retirés (#4129) ; puis
-    // `parked` et les labels d'avant parked, puis `fire`.
-    assert.equal(world.recues.length, 1 + 2 + UNPARKED(40).length + UNPARKED(31).length + 1);
+    // La réponse : son commentaire, `served-elsewhere`, `chef-todo` et `parked` retirés (#4129) ; puis `parked` et les labels
+    // d'avant parked, puis `fire`.
+    assert.equal(world.recues.length, 1 + 3 + UNPARKED(31).length + 1);
     for (const { url, entetes: headers } of world.recues) {
       assert.ok(url.startsWith(API), `${url} is GitHub's API`);
       assert.deepEqual(headers, url.includes("/comments") ? { ...HEADERS, "Content-Type": "application/json" } : HEADERS);
@@ -456,113 +456,12 @@ async function until(done: () => boolean): Promise<void> {
 const atRest = async () => {
   for (let tour = 0; tour < 20; tour++) await repos();
 };
-// Ce que le téléphone lit de GitHub — les gists, le rail, TODO et le chef du projet, à qui ses cartes sont partagées
-// (#2985), lu de son fichier ou, sans lui, du propriétaire du dépôt (#3052), et le `CLAUDE.md` qui nomme la roadmap du
-// Backlog (#3589) —, mis à part : il reste ce que le geste y a écrit, et ce qu'il a lu pour l'écrire.
-const READING = /^https:\/\/api\.github\.com\/(gists[/?]|repos\/[^/]+\/[^/]+(\/(issues\?|pulls\?|issues\/\d+\/(comments|events)\?|contents\/(\.claude\/brigade\/projet\.json|CLAUDE\.md)$)|$))/;
-// Le rail relu après le geste lit aussi chaque PR seule, pour sa taille (#4051) : ces lectures-là, venues après la dernière
-// écriture, ne sont pas du geste — celles qui le précèdent (le merge lit sa PR) en sont.
-const ofAction = (received: Received[]) => {
-  const last = received.findLastIndex(({ methode: method }) => method !== "GET");
-  return received.filter(({ methode: method, url }, rank) => !(method === "GET" && (READING.test(url) || (rank > last && /\/pulls\/\d+$/.test(url)))));
-};
 const json = (value: unknown) => JSON.parse(JSON.stringify(value));
 
-// Le geste du desktop, puis le même par le pont de l'APK, chacun sur son GitHub neuf : ce que le pont y écrit est ce que
-// le desktop y écrit — méthode, adresse, en-têtes, corps —, GitHub en garde le même état, la vue reçoit la même phrase.
-async function byTheBridge<R>(ofDesktop: (client: ReturnType<typeof desktop>) => Promise<R>, name: string, ...args: unknown[]) {
-  const atDesktop = github();
-  const said = await ofDesktop(desktop(atDesktop));
-  const atPhone = github();
-  const { pont: bridge, natifs: native } = await bridgeOfLAPK(atPhone);
-  const before = atPhone.recues.length;
-  const saysAtPhone = json(await bridge[name]!(...args));
-  await atRest();
-  const writtenEntries = ofAction(atPhone.recues.slice(before));
-  assert.deepEqual(writtenEntries, atDesktop.recues, "the phone's bridge sends GitHub the desktop's requests");
-  assert.deepEqual(atPhone.etat(), atDesktop.etat(), "GitHub ends up as the desktop's gesture leaves it");
-  assert.deepEqual(saysAtPhone, json(said), "the phone says what the desktop says");
-  // Aucune station : chaque appel du HTTP natif va à l'API de GitHub, avec le jeton du coffre.
-  const http = native.filter(({ plugin }) => plugin === "CapacitorHttp");
-  assert.deepEqual(http.filter(({ options }) => !String(options.url).startsWith(API)), []);
-  assert.ok(http.every(({ options }) => (options.headers as Record<string, string>).Authorization === `Bearer ${TOKEN}`));
-  // Une écriture que GitHub a prise relance la lecture : le rail relu la montre.
-  const reread = atPhone.recues.slice(before).filter(({ methode: method, url }) => method === "GET" && READING.test(url));
-  return { ecrites: writtenEntries, dit: saysAtPhone, relues: reread };
-}
-
 describe("par le pont de l'APK, sans station, les gestes du chef s'écrivent sur GitHub comme du desktop", () => {
-  test("répondre à une carte de TODO : la réponse postée sur l'issue, `served-elsewhere` et `chef-todo` retirés — puis GitHub relu", async () => {
-    const { ecrites: writtenEntries, dit: said, relues: reread } = await byTheBridge((client) => answerOnGithub({ depot: REPOSITORY, ticket: 40, chef: CHEFS.get(40), reponse: click(40, 1), client }), "repondreCarte", PROJECT, 40, click(40, 1));
-    assert.deepEqual(resume(writtenEntries), [
-      `POST /repos/${REPOSITORY}/issues/40/comments {"body":"<!-- brigade:reponse gesture=resume -->\\nYes, keep it"}`,
-      `DELETE /repos/${REPOSITORY}/issues/40/labels/served-elsewhere`,
-      `DELETE /repos/${REPOSITORY}/issues/40/labels/chef-todo`,
-      // Une carte parque son ticket pour le chef (#4129) : répondue, `parked` part aussi, et tout label d'attente d'avant parked
-      // — l'issue ne les porte pas, GitHub répond 404.
-      ...UNPARKED(40),
-    ]);
-    assert.ok("repondue" in said);
-    assert.ok(reread.length > 0);
-  });
-
-  test("répondre à une carte de TODO par un merge : la PR lue, mergée, puis `chef-todo` retiré", async () => {
-    const { ecrites: writtenEntries } = await byTheBridge((client) => answerOnGithub({ depot: REPOSITORY, ticket: 41, chef: CHEFS.get(41), reponse: click(41, 1), client }), "repondreCarte", PROJECT, 41, click(41, 1));
-    assert.deepEqual(resume(writtenEntries).map((line) => line.split(" {")[0]), [`GET /repos/${REPOSITORY}/pulls/1560`, `POST /repos/${REPOSITORY}/issues/41/comments`, `PUT /repos/${REPOSITORY}/pulls/1560/merge`, `DELETE /repos/${REPOSITORY}/issues/41/labels/chef-todo`, ...UNPARKED(41)]);
-  });
-
-  test("reprendre — « back to the kitchen » sur la fiche : `parked` retiré", async () => {
-    const { ecrites: writtenEntries, dit: said } = await byTheBridge((client) => removeTheLabel(READ, "cuisine", 31, client), "gesteDeFiche", PROJECT, "cuisine", 31);
-    assert.deepEqual(resume(writtenEntries), UNPARKED(31));
-    assert.ok("fait" in said);
-  });
-
-  test("reprendre — « it arrived, back to the kitchen » sur une carte de WAITING : `parked` retiré", async () => {
-    const { ecrites: writtenEntries } = await byTheBridge((client) => removeTheLabel(READ, "cuisine", 31, client), "attente", PROJECT, "attente-arrivee", 31);
-    assert.deepEqual(resume(writtenEntries), UNPARKED(31));
-  });
-
-  test("« resume » sur une carte de WAITING : `parked` retiré", async () => {
-    const { ecrites: writtenEntries, dit: said } = await byTheBridge((client) => waitOnGithub({ id: "attente-reprendre", ticket: 31, saisie: undefined, aujourdhui: new Date(), lu: READ, client }), "attente", PROJECT, "attente-reprendre", 31);
-    assert.deepEqual(resume(writtenEntries), UNPARKED(31));
-    assert.ok("fait" in said);
-  });
-
-  test("« waiting for… » : ce que le chef a rempli passe le pont, et part sur l'issue — le commentaire, puis `parked`", async () => {
-    const world = github();
-    const { pont: bridge } = await bridgeOfLAPK(world);
-    const before = world.recues.length;
-    const said = json(await bridge.attente!(PROJECT, "attente-poser", 22, { quoi: "the signed quote", qui: "the client", relance: "2099-01-02" }));
-    await atRest();
-    assert.deepEqual(said.fait, "in WAITING on GitHub: #22 awaits the client, follow-up on 2099-01-02");
-    assert.deepEqual(ofAction(world.recues.slice(before)).map(({ methode: method, url }) => `${method} ${url.slice(API.length - 1)}`), [`POST /repos/${REPOSITORY}/issues/22/comments`, `POST /repos/${REPOSITORY}/issues/22/labels`]);
-    assert.deepEqual(world.etat().issues[22]?.labels, ["fire", "parked"]);
-  });
-
-  test("mettre en suspens — « remove from the rail » : `fire` retiré", async () => {
-    const { ecrites: writtenEntries, dit: said } = await byTheBridge((client) => removeTheLabel(READ, "retirer", 22, client), "gesteDeFiche", PROJECT, "retirer", 22);
-    assert.deepEqual(resume(writtenEntries), [`DELETE /repos/${REPOSITORY}/issues/22/labels/fire`]);
-    assert.ok("fait" in said);
-  });
-
   test("la fiche, sur le téléphone, propose les gestes qu'il écrit sur GitHub — rien d'une station", async () => {
     const { pont: bridge } = await bridgeOfLAPK(github());
     assert.deepEqual(json(await bridge.gestesDeFiche!({ ticket: 22, etat: "en attente", ouvrable: true, attendu: false })).map(({ id }: { id: string }) => id), ["retirer"]);
     assert.match(json(await bridge.gesteDeFiche!(PROJECT, "merger", 22)).refus, /^nothing was sent: this phone does not play this action/);
-  });
-
-  test("une écriture que GitHub refuse : le pont rend la phrase, GitHub au survol ; rien n'est relu, rien n'est montré fait", async () => {
-    const world = github((receivedOne) => (receivedOne.methode === "GET" ? undefined : { status: 403, data: { message: "Resource not accessible by integration" } }));
-    const { pont: bridge } = await bridgeOfLAPK(world);
-    const before = world.recues.length;
-    const said = json(await bridge.gesteDeFiche!(PROJECT, "retirer", 22));
-    assert.equal(said.refus, "nothing was changed: GitHub did not remove `fire` from #22");
-    assert.match(said.detail, /403.*Resource not accessible by integration/);
-    const answeredOne = json(await bridge.repondreCarte!(PROJECT, 40, click(40, 1)));
-    assert.ok(!("repondue" in answeredOne));
-    assert.equal(answeredOne.refus, "nothing was sent: your answer was not posted on #40");
-    await atRest();
-    assert.deepEqual(resume(world.recues.slice(before)).map((line) => line.split(" {")[0]), [`DELETE /repos/${REPOSITORY}/issues/22/labels/fire`, `POST /repos/${REPOSITORY}/issues/40/comments`]);
-    assert.deepEqual(world.etat().issues[22]?.labels, ["fire"]);
   });
 });

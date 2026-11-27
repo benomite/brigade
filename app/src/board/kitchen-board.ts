@@ -14,8 +14,9 @@ export type BoardColumnKey = "backlog" | "ready" | "cooking" | "pass" | "parked"
 export type BoardCard = { ticket: number; title: string; url: string; tries: number; pr: { number: number; url: string } | null; forTheChef?: true };
 export type BoardColumn = { key: BoardColumnKey; title: string; cards: BoardCard[] };
 export type KitchenBoard = { columns: BoardColumn[] };
-// An open issue of the board, as the TODO of the chef reads it (wait-of-chef.ts, `parqueesPourLeChef`).
-export type OpenIssue = { ticket: number; titre: string; url: string; creee: string | null; labels: string[] };
+// An open issue of the board, as the TODO of the chef reads it (wait-of-chef.ts, `parqueesPourLeChef`): `assignes`, the
+// logins of its assignees, who it waits for instead of the chef (vue/cards-assigned/, #2761).
+export type OpenIssue = { ticket: number; titre: string; url: string; creee: string | null; labels: string[]; assignes?: string[] };
 
 const COLUMNS: readonly { key: BoardColumnKey; title: string }[] = [
   { key: "backlog", title: "Backlog" },
@@ -134,7 +135,10 @@ export async function readKitchenBoard({ depot: repository, appeler: call, now }
   const closedPrs = await pages(read, `/repos/${repository}/pulls?state=closed&sort=updated&direction=desc`, (last) => Date.parse(text(last.updated_at)) < now - DAY_MS);
   const open = issues
     .filter((issue) => issue.pull_request === undefined && typeof issue.number === "number")
-    .map((issue) => ({ ticket: issue.number as number, titre: text(issue.title), url: text(issue.html_url) || `https://github.com/${repository}/issues/${issue.number}`, creee: typeof issue.created_at === "string" ? issue.created_at : null, labels: labelsOf(issue) }));
+    .map((issue) => {
+      const assignes = list(issue.assignees).flatMap(({ login }) => (typeof login === "string" ? [login] : []));
+      return { ticket: issue.number as number, titre: text(issue.title), url: text(issue.html_url) || `https://github.com/${repository}/issues/${issue.number}`, creee: typeof issue.created_at === "string" ? issue.created_at : null, labels: labelsOf(issue), ...(assignes.length === 0 ? {} : { assignes }) };
+    });
   return { board: boardOf({ issues, openPrs, closedPrs, now }), open };
 }
 

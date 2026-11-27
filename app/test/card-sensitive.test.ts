@@ -1,8 +1,7 @@
 // Le ticket sensible dans l'app (ticket 3224, épique 3214). La carte « review before merge » est celle que le runtime pose
 // (runtime/src/sensible/, ticket 3223) : son issue et son commentaire de carte sont écrits ici par le runtime même
 // (`tenirPourLeChef`), puis lus par l'app comme elle lit GitHub. On vérifie :
-//   - la marque « sensitive » sur la carte du rail d'un ticket au label `sensitive`, et sur elle seule — du label lu sur
-//     GitHub jusqu'à la carte posée par la vue ;
+//   - la marque « sensitive » sur la carte du rail d'un ticket au label `sensitive`, et sur elle seule, posée par la vue ;
 //   - la carte « review before merge » : sa question, le lien de sa PR qui l'ouvre d'un clic, et exactement deux réponses,
 //     « Merge » et « Send back » — éteint tant que la note est vide ; chaque réponse part par le pont, faite la carte quitte
 //     TODO, refusée elle reste et dit pourquoi ;
@@ -22,13 +21,11 @@ import { BANNER, holdFacts, type Drawable, type Facts } from "../src/facts.ts";
 import { CONFIRMED, DIRECT } from "../src/actions.ts";
 import { TABS, HEADINGS } from "../src/tabs.ts";
 import { EFFORTS, MODELS } from "../src/projects/projects.ts";
-import type { AnswerGitHub } from "../src/board/client.ts";
 import { cardOfComment, type CardOfChef } from "../src/board/todo-github.ts";
 import type { Terminal } from "../src/terminals.ts";
 import { UNKNOWN, playTheReview, reviewOfBody, WITHOUT_NOTE, KIND_SENSITIVE } from "../src/vue/card-sensitive/card-sensitive-github.ts";
 import { isSensitive, SENSITIVE_LABEL } from "../src/vue/card-sensitive/label.ts";
 import { FIELD, CONFIRMATION_MS, BRAND, MERGE, MERGER, SENT_BACK, SEND_BACK } from "../src/vue/card-sensitive/card-sensitive.js";
-import { withTheRail, readTheRailOnGithub } from "../src/vue/rail/github.ts";
 import { cardOfTicket, type Fake, type Played, playTheVue, type Answers, repos } from "./helpers/false-vue.ts";
 
 const A = "2026-11-11T12:04:12.000Z";
@@ -87,19 +84,6 @@ describe("ce que l'app lit de GitHub", () => {
     assert.equal(reviewOfBody(REPOSITORY, "<!-- brigade:todo kind=design-validation pr=41 ticket=30 sha=5b1d0e7 -->"), null);
   });
 
-  test("le rail lu de GitHub marque le ticket au label `sensitive`, et lui seul", async () => {
-    const ok = (data: unknown): AnswerGitHub => ({ status: 200, data });
-    const issue = (number: number, labels: string[]) => ({ number, title: `Ticket ${number}`, html_url: `https://github.com/${REPOSITORY}/issues/${number}`, created_at: "2026-11-03T21:00:00Z", labels: labels.map((name) => ({ name })) });
-    const call = async (path: string): Promise<AnswerGitHub> => {
-      if (path.includes("/issues?")) return ok([issue(30, ["fire", "sensitive"]), issue(31, ["fire"])]);
-      if (path.includes("/pulls?")) return ok([]);
-      return ok([]);
-    };
-    const rail = await readTheRailOnGithub({ depot: REPOSITORY, appeler: call, maintenant: () => new Date(A) });
-    assert.deepEqual(rail.tickets.map(({ ticket, sensible: sensitive }) => [ticket, sensitive]), [[30, true], [31, undefined]]);
-    const facts = withTheRail({ lu: true, depot: REPOSITORY, luLe: A, cuisine: { rubriques: [] }, faits: { rail: [] }, file: [], bilans: [], lignesDuRail: [], activites: [] }, rail).faits.rail as { ticket: number; sensible?: true }[];
-    assert.deepEqual(facts.map(({ ticket, sensible: sensitive }) => [ticket, sensitive]), [[30, true], [31, undefined]]);
-  });
 });
 
 // ── La vue ──

@@ -185,7 +185,7 @@ export async function readWhatAwaitingTheChef(options: { depot: string; appeler:
     // Les listes d'abord, puis ce que chaque issue en dit — chaque fois toutes à la fois : le `gh` du second paie chaque
     // lecture d'un processus, et son crochet a peu de temps.
     // Les issues `parked:chef` que la lecture du rail a déjà listées ne se relisent pas (le budget GitHub de l'app, budget-github.ts).
-    const alreadyListed = options.parqueesPourLeChef?.map(({ ticket, titre: title, url, creee: created, labels }): Raw => ({ number: ticket, title: title, html_url: url, created_at: created, labels: labels.map((name) => ({ name })) }));
+    const alreadyListed = options.parqueesPourLeChef?.map(({ ticket, titre: title, url, creee: created, labels, assignes }): Raw => ({ number: ticket, title: title, html_url: url, created_at: created, labels: labels.map((name) => ({ name })), assignees: (assignes ?? []).map((login) => ({ login })) }));
     const ofRuntimeOfBefore = (label: string) => (options.newKitchen === true ? Promise.resolve([]) : issuesAtLabel(label));
     const lists = await Promise.all([ofRuntimeOfBefore(LABEL_FIRE), ofRuntimeOfBefore(LABEL_OF_CHEF), alreadyListed ?? issuesAtLabel(LABEL_PARKED_CHEF)]);
     // Une issue en WAITING n'attend pas le chef : elle n'est l'entrée d'aucun label.

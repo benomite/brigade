@@ -63,7 +63,7 @@ export type BoardRead = {
   // lit sans une lecture de plus (wait-of-chef.ts). Absent quand cette liste n'a pas été lue.
   parqueesPourLeChef?: IssueParkedForTheChef[];
 };
-export type IssueParkedForTheChef = { ticket: number; titre: string; url: string; creee: string | null; labels: string[] };
+export type IssueParkedForTheChef = { ticket: number; titre: string; url: string; creee: string | null; labels: string[]; assignes?: string[] };
 // Ce que `facts` porte d'un dépôt où le compte GitHub de l'app ne peut pas écrire (#3163) : la vue ouvre alors le projet en
 // lecture seule, sans aucun geste, et le dit en une ligne.
 export type ReadOnly = { depot: string };

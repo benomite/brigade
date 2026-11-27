@@ -12,7 +12,7 @@ const PARADE = RENDUS.parade as Rendu;
 
 const FAITS = {
   ...PARADE.facts,
-  attend: PARADE.facts.attend.map((ligne) => (ligne.ticket === 12 ? { ...ligne, decision: { quoi: "merge", motif: "review-required", cause: null, pr: "https://github.com/chef/parade/pull/31" } } : ligne)),
+  attend: (PARADE.facts.attend ?? []).map((ligne) => (ligne.ticket === 12 ? { ...ligne, decision: { quoi: "merge", motif: "review-required", cause: null, pr: "https://github.com/chef/parade/pull/31" } } : ligne)),
 } as Facts;
 const RENDU: Rendu = { ...PARADE, facts: FAITS };
 
