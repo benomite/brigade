@@ -97,7 +97,7 @@ import { registerTheStationOfBackground } from "./station-background/registratio
 import { openPty } from "./pty.ts";
 import { claudeOf, connectionOfTheSession, openOfAStation } from "./first-launch.ts";
 import { openTheLocalCopy, sessionOfClaude } from "./local-copy.ts";
-import { serveHere } from "./serve-here.ts";
+import { probesOfTheRuntime, serveHere } from "./serve-here.ts";
 import { opinionOfMacOS, passTheFirstLaunch, holdTheOpinionOfBackground } from "./first-launch/index.ts";
 import { readQuestion, reply as answerQuestion, titleOf, type Read as QuestionRead } from "./question.ts";
 import { readCapture } from "./captures.ts";
@@ -1239,16 +1239,13 @@ ipcMain.handle("servirUnProjet", async (_, repository: unknown, served: unknown)
   if (served !== true) return { refus: "a project is given back to the box from its own Stations tab, not from this computer's list" };
   const repo = typeof repository === "string" ? repository.trim() : "";
   const known = projects().find((project) => project.depot?.toLowerCase() === repo.toLowerCase());
-  const detection = await ofRuntime<typeof import("../../runtime/src/bac-a-sable/detection.ts")>("bac-a-sable", "detection.ts");
+  const probes = await probesOfTheRuntime(locations.runtime, claudeHere);
   const git = process.env.BRIGADE_GIT_BIN || "git";
   return serveHere({
     stationDir: rootOfTheStation,
     repository: repo,
     project: known === undefined ? undefined : { nom: known.nom, dossier: known.dossier, ...(known.base === undefined ? {} : { base: known.base }) },
-    probes: () => {
-      const probes = detection.sondesDeLaMachine(claudeHere);
-      return { platform: probes.plateforme, seatbelt: probes.existe(detection.SEATBELT), claude: probes.versionDeClaude(), minimum: detection.VERSION_MINIMALE, atLeast: detection.auMoins };
-    },
+    probes,
     openCopy: ({ root, ...options }) => openTheLocalCopy({ ...options, gh: ghHere, git, env: { ...process.env, BRIGADE_PROJECTS_DIR: root } }),
     readBase: async (folder) => (await readClone(git, folder)).base ?? undefined,
   });

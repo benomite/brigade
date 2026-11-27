@@ -4,12 +4,21 @@
 // it is a copy of the repository, else one made at `<station dir>/<name>/depot`. A refusal is one sentence naming its cause.
 import { appendFileSync, mkdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import type { LocalCopy } from "./first-launch.ts";
 
 export type ProjectToServe = { nom: string; dossier: string; base?: string };
 export type ReadOfServed = { depots: string[] } | { refus: string; detail?: string };
 // What the new kitchen's sandbox detection says of this machine (runtime/src/bac-a-sable/detection.ts), without its words.
 export type Probes = { platform: string; seatbelt: boolean; claude: string | null; minimum: string; atLeast(version: string, minimum: string): boolean };
+// The runtime's own detection, loaded from the runtime folder the app runs with (the kitchen's launch uses the same module).
+export async function probesOfTheRuntime(runtimeDir: string, claude: string): Promise<() => Probes> {
+  const detection = (await import(pathToFileURL(join(runtimeDir, "src", "bac-a-sable", "detection.ts")).href)) as typeof import("../../runtime/src/bac-a-sable/detection.ts");
+  return () => {
+    const probes = detection.sondesDeLaMachine(claude);
+    return { platform: probes.plateforme, seatbelt: probes.existe(detection.SEATBELT), claude: probes.versionDeClaude(), minimum: detection.VERSION_MINIMALE, atLeast: detection.auMoins };
+  };
+}
 export type Options = {
   stationDir: string;
   repository: string;
