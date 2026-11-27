@@ -4,7 +4,7 @@ Two tickets waiting, the head ticket arriving at the pass, in copper. Three SVG 
 
 - `brigade-logo-clair.svg` — the logo on a light background (the README on GitHub's light theme).
 - `brigade-logo-sombre.svg` — the logo on a dark background (the README on GitHub's dark theme).
-- `brigade-icone.svg` — the app icon: the glyph in white on a polished-copper rounded square (diagonal gradient, light spot, streak, dark rim). It is also the project's GitHub avatar, and the favicon of the future site (#1553): use the file as it is.
+- `brigade-icone.svg` — the app icon: the glyph in white on a polished-copper rounded square (diagonal gradient, light spot, streak, dark rim). It is also the project's GitHub avatar: use the file as it is. The site's favicon is its own copy, `site/logo.svg`.
 
 The icons of the apps are generated from these files by `app/packaging/icones.ts` and committed: `app/packaging/icones/` (Mac `.icns`, Windows `.ico`, a 1024 px PNG) and the Android mipmaps under `app/android/natif/app/src/main/res/`.
 
@@ -12,4 +12,4 @@ The Mac icon (`.icns`, and `Brigade-dock-1024.png` for the Dock under `npm start
 
 ## The "Cooked by Brigade" badge (#3255)
 
-`site/badge-cooked-by-brigade-clair.svg` and `site/badge-cooked-by-brigade-sombre.svg` are the badge for a README on a light and on a dark background: the logo mark above and the copper gradient, with the text "Cooked by Brigade". They sit in `site/` so that the site serves them at `https://benomite.github.io/brigade/badge-cooked-by-brigade-{clair,sombre}.svg`. `/brigade:init` offers the badge once (`--badge yes|no` of `app/src/plugin/init.sh`): `yes` puts a `<picture>` linked to the site as the first content of the project's README, and `.claude/brigade/badge` records the offer, so that setup never offers it again nor puts back a badge deleted by hand.
+`site/badge-cooked-by-brigade-clair.svg` and `site/badge-cooked-by-brigade-sombre.svg` are the badge for a README on a light and on a dark background: the logo mark above and the copper gradient, with the text "Cooked by Brigade". They sit in `site/` so that the site serves them at `https://benomite.github.io/brigade/badge-cooked-by-brigade-{clair,sombre}.svg`. The project's setup for Brigade, run by the app, offers the badge once (`--badge yes|no` of `app/src/plugin/init.sh`): `yes` puts a `<picture>` linked to the site as the first content of the project's README, and `.claude/brigade/badge` records the offer, so that setup never offers it again nor puts back a badge deleted by hand.

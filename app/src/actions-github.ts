@@ -23,6 +23,7 @@ export type Written = { fait: string; detail: string } | { refus: string; detail
 // `cuisine` : le ticket parqué reprend où il était (#4129, d'abord `waiting`).
 export const LABELS_OF_ACTIONS = { retirer: LABELS.ready, cuisine: LABELS.parked } as const;
 // Les labels d'attente d'avant parked que la cuisine lit encore comme parqués (runtime/src/kitchen/decide.ts).
+const LABEL_PARKED_CHEF = "parked:chef";
 const LABELS_BEFORE_PARKED: readonly string[] = ["waiting", "blocked-on-human"];
 export type ActionOnGithub = keyof typeof LABELS_OF_ACTIONS;
 export const onGithub = (id: unknown): id is ActionOnGithub => typeof id === "string" && Object.hasOwn(LABELS_OF_ACTIONS, id);
@@ -70,17 +71,20 @@ const REMOVALS: Record<ActionOnGithub, (repository: string, ticket: number, clie
 async function removeOfTheIssue(repository: string, ticket: number, id: ActionOnGithub, client: ClientOfThePriority): Promise<Written> {
   const label = LABELS_OF_ACTIONS[id];
   const issue = `https://github.com/${repository}/issues/${ticket}`;
-  for (const removed of id === "cuisine" ? [label, ...LABELS_BEFORE_PARKED] : [label]) {
+  const gone: string[] = [];
+  for (const removed of id === "cuisine" ? [label, LABEL_PARKED_CHEF, ...LABELS_BEFORE_PARKED] : [label]) {
     try {
       const answer = await client.ecrire("DELETE", `/repos/${repository}/issues/${ticket}/labels/${encodeURIComponent(removed)}`);
       if (answer.status !== 200 && answer.status !== 404) throw refusalOf(`the removal of \`${removed}\``, answer);
+      if (answer.status === 200) gone.push(removed);
     } catch (error) {
       // Un label d'avant que GitHub ne retire pas : `parked` l'est déjà, le ticket reste parqué par celui-là.
       const already = removed === label ? "nothing was changed:" : `\`${label}\` is removed, but`;
       return { refus: `${already} GitHub did not remove \`${removed}\` from #${ticket}`, detail: reason(error) };
     }
   }
-  const done = id === "retirer" ? `taken off the rail on GitHub: #${ticket} no longer carries \`fire\` — no station takes it` : `back to the kitchen on GitHub: #${ticket} no longer carries \`${label}\` — it resumes exactly where it was`;
+  const names = (gone.some((name) => name === label || name === LABEL_PARKED_CHEF) ? gone.filter((name) => name === label || name === LABEL_PARKED_CHEF) : [label]).map((name) => `\`${name}\``).join(" and ");
+  const done = id === "retirer" ? `taken off the rail on GitHub: #${ticket} no longer carries \`fire\` — no station takes it` : `back to the kitchen on GitHub: #${ticket} no longer carries ${names} — it resumes exactly where it was`;
   return { fait: done, detail: issue };
 }
 
