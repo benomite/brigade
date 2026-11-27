@@ -14,7 +14,7 @@ test("the supervisor's open gesture carries its labels, minus the locked ones (#
 
 test("a manager split opens its children fired, at the parent's priority (#4672)", async () => {
   const opened: Array<{ title: string; labels: string[] }> = [];
-  const act = { open: async (title: string, _body: string, labels: string[] = []) => (opened.push({ title, labels }), 9), labels: async () => {}, comment: async () => {} } as unknown as Gestures;
+  const act = { open: async (title: string, _body: string, labels: string[] = []) => (opened.push({ title, labels }), 9), labels: async () => {}, createBranch: async () => {}, comment: async () => {} } as unknown as Gestures;
   const issues = new Map([[5, { number: 5, title: "t", labels: ["fire", "prio:2"], trusted: true, dependsOn: [] }]]);
   await applyAgentActions([{ split: 5, tickets: [{ title: "a", body: "b" }, { title: "c", body: "d" }] }], { act, issues, log: () => {}, who: "manager" });
   assert.deepEqual(opened.map((one) => one.labels), [["fire", "prio:2"], ["fire", "prio:2"]]);
@@ -31,15 +31,17 @@ test("an epic whose children are all closed is closed; one with an open child st
   assert.deepEqual(closed, [10]);
 });
 
-test("a supervisor answer that splits an epic opens its children on the rail, fired (#4685)", async () => {
-  const opened: Array<{ title: string; body: string; labels: string[] }> = [];
-  const comments: string[] = [];
-  const act = { open: async (title: string, body: string, labels: string[] = []) => (opened.push({ title, body, labels }), 20 + opened.length), labels: async () => {}, comment: async (_n: number, body: string) => void comments.push(body) } as unknown as Gestures;
-  const issues = new Map([[7, { number: 7, title: "big", labels: ["epic", "prio:1"], trusted: true, dependsOn: [] }]]);
-  const answer = 'Epic #7 has no child.\n```json\n{"actions": [{"split": 7, "tickets": [{"title": "a", "body": "x"}, {"title": "b", "body": "y"}]}]}\n```';
-  const acted = await applyAgentActions(parseAgentActions(answer), { act, issues, log: () => {}, who: "supervisor" });
-  assert.deepEqual(opened.map((one) => one.labels), [["fire", "prio:1"], ["fire", "prio:1"]]);
-  assert.ok(opened.every((one) => one.body.endsWith("Epic: #7")));
-  assert.deepEqual(comments, ["Split by the manager into #21, #22."]);
-  assert.ok(acted.has(7));
+test("a manager split of an epic opens up to 30 children and creates epic/<n> from main once; the supervisor cannot split (#4700)", async () => {
+  const opened: string[] = [];
+  const branches: string[][] = [];
+  const act = { open: async (title: string) => (opened.push(title), 20 + opened.length), labels: async () => {}, comment: async () => {}, createBranch: async (name: string, from: string) => void branches.push([name, from]) } as unknown as Gestures;
+  const issues = new Map([[9, { number: 9, title: "big", labels: ["epic"], trusted: true, dependsOn: [] }]]);
+  const tickets = (n: number) => Array.from({ length: n }, (_, i) => ({ title: `t${i}`, body: "x" }));
+  await applyAgentActions([{ split: 9, tickets: tickets(12) }], { act, issues, log: () => {}, who: "manager" });
+  assert.equal(opened.length, 12);
+  assert.deepEqual(branches, [["epic/9", "main"]]);
+  await applyAgentActions([{ split: 9, tickets: tickets(31) }], { act, issues, log: () => {}, who: "manager" });
+  await applyAgentActions([{ split: 9, tickets: tickets(2) }], { act, issues, log: () => {}, who: "supervisor" });
+  assert.equal(opened.length, 12);
+  assert.equal(branches.length, 1);
 });
