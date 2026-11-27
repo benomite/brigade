@@ -61,7 +61,7 @@ export function paquetsDeLApp(version: string, signe: boolean): Paquet[] {
 export function paquetsDeLaStation(version = "<version>"): Paquet[] {
   return [
     { construit: "installer-station.sh", nom: "installer-station.sh", plateforme: "Linux", quoi: "Station, install script (Linux and macOS)", ouverture: OUVERTURE.Linux },
-    { construit: "brigade-station_amd64.deb", nom: "brigade-station-linux-amd64.deb", plateforme: "Linux", quoi: "Station, Debian/Ubuntu package (amd64)", ouverture: "No executable bit to set: install it with `sudo apt install ./brigade-station-linux-amd64.deb`." },
+    { construit: "brigade-station_amd64.deb", nom: "brigade-station-linux-amd64.deb", plateforme: "Linux", quoi: "Station, Debian/Ubuntu package (amd64): a one-way bridge to the archive", ouverture: "Only for a box that already runs the .deb: `sudo apt install ./brigade-station-linux-amd64.deb` moves it to the archive layout (/opt/brigade-station), keeps its state and secrets, then removes itself from dpkg. It never goes back: the station updates itself from the archive." },
     { construit: `brigade-station-${version}-linux-x64.tar.gz`, nom: `brigade-station-${version}-linux-x64.tar.gz`, plateforme: "Linux", quoi: "Station, archive (x64): runtime, node, services", ouverture: "Nothing to open: its `install.sh` sets it up." },
     { construit: `brigade-station-${version}-darwin-arm64.tar.gz`, nom: `brigade-station-${version}-darwin-arm64.tar.gz`, plateforme: "Mac", quoi: "Station, archive (Apple silicon): runtime, node, services", ouverture: "Nothing to open: its `install.sh` sets it up, under your account, without sudo." },
   ];

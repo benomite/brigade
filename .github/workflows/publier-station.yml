@@ -1,7 +1,7 @@
 # Publie la station : à chaque merge sur la branche d'intégration qui change ce que le paquet porte
 # (le runtime livré et `runtime/paquet/`), une release `station-<version>` avec
 # `installer-station.sh` (runtime/deploy/, la commande d'installation sous Linux et macOS),
-# `brigade-station_amd64.deb` et sa copie `brigade-station-linux-amd64.deb`,
+# `brigade-station_amd64.deb` (le pont à sens unique vers l'archive, #4741) et sa copie `brigade-station-linux-amd64.deb`,
 # `brigade-station-<version>-linux-x64.tar.gz` et `brigade-station-<version>-darwin-arm64.tar.gz`
 # (construites par `construire.ts` : runtime, node, services), avec des notes qui disent la plateforme. La version est celle que
 # `construire.ts` se donne sans `--version` : `0.<AAAAMMJJ>.<HHMMSS>+g<commit>`.
