@@ -141,6 +141,16 @@ try {
   cpSync(join(RUNTIME, "src"), join(runtime, "src"), { recursive: true });
   writeFileSync(join(runtime, "package.json"), `${JSON.stringify({ ...JSON.parse(readFileSync(join(RUNTIME, "package.json"), "utf8")), version }, null, 2)}\n`);
   chmodSync(join(runtime, "package.json"), 0o644);
+  // Ce que le runtime importe de l'app (app/src/vue/autonomy/compute.ts, #4505), à la place que ses chemins relatifs
+  // visent : `<installation>/app/src/…`. Sans lui, la station ne démarre pas.
+  const sources = (dossier: string): string[] =>
+    readdirSync(dossier, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? sources(join(dossier, e.name)) : e.name.endsWith(".ts") ? [join(dossier, e.name)] : []));
+  for (const source of sources(join(RUNTIME, "src"))) {
+    for (const [, chemin = ""] of readFileSync(source, "utf8").matchAll(/^(?:import|export) [^;]*? from "((?:\.\.\/)+app\/src\/[^"]+)"/gm)) {
+      const importe = resolve(source, "..", chemin);
+      poser(importe, dans(INSTALLATION.slice(1), importe.slice(RACINE.length + 1)), 0o644);
+    }
+  }
   // La consigne du second juge, lue dans la version du runtime qui tourne
   // (jamais dans la livraison jugée) : dans le dossier du runtime, que les
   // archives macOS et Windows portent aussi.

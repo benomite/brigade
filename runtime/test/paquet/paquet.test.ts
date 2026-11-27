@@ -126,6 +126,15 @@ describe("la construction du paquet", { skip: sansDpkgDeb }, () => {
     assert.equal(droits("/usr/lib/brigade-station/runtime/src/station/main.ts"), "-rw-r--r--");
   });
 
+  test("il porte ce que le runtime importe de l'app, à la place que ses chemins visent, et le runtime installé le charge (#4505)", async (t) => {
+    const arbre = repertoireTemporaire(t);
+    assert.equal(spawnSync("dpkg-deb", ["--extract", deb, arbre]).status, 0);
+    assert.equal(contenu().find((f) => f.chemin === "/usr/lib/brigade-station/app/src/vue/autonomy/compute.ts")?.droits, "-rw-r--r--");
+    const lu = spawnSync(process.execPath, ["--input-type=module", "-e", `await import(${JSON.stringify(join(arbre, "usr/lib/brigade-station/runtime/src/resume-hebdomadaire/cuisine.ts"))}); process.stdout.write("chargé");`], { encoding: "utf8" });
+    assert.equal(lu.status, 0, lu.stderr);
+    assert.equal(lu.stdout, "chargé");
+  });
+
   test("il porte la consigne du second juge, celle de ce commit, et le runtime installé la lit (#2571)", async (t) => {
     const arbre = repertoireTemporaire(t);
     assert.equal(spawnSync("dpkg-deb", ["--extract", deb, arbre]).status, 0);
