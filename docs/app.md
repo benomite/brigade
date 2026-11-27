@@ -857,27 +857,6 @@ supervisor) is listed too, with no time. The kitchen writes no station on GitHub
 The `closer` and `reviewer` are not listed: the kitchen runs neither. Captures (in git history): `docs/captures/4569/` (`onglet-agents-avant.png` — the tab saying `The agents not reached.` —,
 `onglet-agents-apres.png`, `onglet-agents-vide-apres.png`).
 
-### The logbook of the day and the morning digest card (#4274, epic #4025)
-
-Above the columns of the rail, **Today's logbook** reads the day (the UTC day of the last `facts` reading) from the
-agents' threads (spec `docs/superpowers/specs/2026-11-23-autonomy-trust-control.md`, T1): four groups, always all
-four — **Delivered**, **Broke**, **Fixed by the system**, **Not fixed**, with **The system's own mistakes** under Not
-fixed. Each entry is one gesture of a thread: its time, the agent, its line and its outcome, its reason on hover; an
-empty group says `nothing`. At the first opening of a project in a day (the day of the computer's clock), a card with
-**yesterday**'s digest sits at the top of the view, the number of outages seen first by the chef as its first line; it
-stays while the app stays open that day, and another opening that day does not show it. Both are readings: neither
-asks for a notification.
-
-Both come from `facts`, like the rest of the view: `fils` (one list of gestures per agent, each `at`, `line`,
-`reason`, `outcome`, `kind` — `delivered`, `broke`, `fixed`, `unfixed` or `mistake`) and `digest` (a text, one line
-per thing said), read by `app/src/log/threads.ts` and sorted by `app/src/projects/log-of-day.ts`. A runtime that
-does not give them shows neither. `fils` of another shape says `the agents' threads are not readable`; a gesture of
-another shape, or of an unknown kind, is counted in one line, never sorted; a `digest` that is not a text says
-`yesterday's digest is not readable`. The line about outages is the one that holds the words `seen first by the
-chef` (the constant `VUES_PAR_LE_CHEF` of `app/src/log/threads.ts`, the words the runtime's digest must write); a
-digest with no such line says so as its first line. The runtime does not send `fils` or `digest` yet: the logbook and
-the card show in production once the runtime ticket of epic #4025 sends them in this shape. Captures (in git history): `docs/captures/4274/` — `espace-projet-journal-avant.png`, `espace-projet-journal-apres.png`.
-
 ### The rail and its cooks, read from GitHub (#2220, #2061)
 
 A project's stations take, cook, review and merge its tickets on GitHub. So the Rail is drawn from
@@ -1041,7 +1020,7 @@ next reading (within a minute, or after a gesture).
 
 **A ticket the new kitchen parks for the chef (#4474).** The new kitchen parks a ticket for the chef with the label
 `parked:chef` and a comment that starts with `Parked for the chef` and says why: its cook wrote `PARK:`, the manager parked
-it, or it was refused too many times. Its Todo card shows that comment, the latest one from a repository author, as its
+it. A ticket refused too many times is not parked for the chef: after its third refusal the kitchen labels it `parked` (no `:chef`) with a comment `Parked for the supervisor: refused 3 times. Last reason: …`, and the supervisor decides (unparks it with a diagnosis for the cook, or opens a defect ticket and leaves it parked until that one is merged, #4600). Its Todo card shows that comment, the latest one from a repository author, as its
 question — nothing is read from the old runtime. The card has no choices: a field, **Answer**, which posts the chef's text
 as a comment on the issue (from the chef's `gh` account) and removes `parked:chef`, and nothing else — the ticket goes back
 on the rail where it was; and **Open on GitHub**, which opens the issue. The app finds these issues in the list of open
@@ -4264,7 +4243,7 @@ cache (`~/Library/Caches/electron`) weighs 129 MB, once.
   `facts` does not carry it, and the app reads of the output of `status` only the edge of the
   `awaiting` block and the number at the head of its lines.
 - Update the runtime: the box moves to the station once, through its package, which then updates
-  itself ([`bascule.md`](bascule.md)) — the app has no action for it.
+  itself — the app has no action for it.
 - Answer from the card anything other than a manager question, or remove a label in your place: an
   issue that carries `question` or `decision` is settled on GitHub, or with the second.
 - Say that a runtime is no longer beating: it shows the gap between its last tick and the read,
