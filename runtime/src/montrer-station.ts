@@ -1,0 +1,422 @@
+// La station vue et réglée par le chef, depuis son propre process :
+//   npm --prefix runtime run station                 ce qu'elle fournit, ce qui l'empêche de servir, et ses cooks —
+//                                                    chacun avec son calibrage et ce qu'il a consommé —,
+//                                                    puis ce que tous les lancements ont consommé ensemble : ce que le
+//                                                    chef paie ; enfin les décisions du chef, posées ou non
+//   npm --prefix runtime run station -- cooks <N>    règle le plafond de cooks simultanés ; 0 : pas de limite ;
+//                                                    `auto` : retire le réglage, le plafond par défaut revient —
+//                                                    celui des cœurs de la machine
+//   npm --prefix runtime run station -- stop <station>
+//                                                    arrête la cuisine du projet sur cette station, d'ici ou
+//                                                    distante : elle ne prend plus de ticket, ses cooks en
+//                                                    cours finissent ; `start <station>` la relance
+//   npm --prefix runtime run station -- <geste> <valeur>
+//                                                    pose une décision du chef (`decisions.ts`) — un geste par
+//                                                    décision, listés par `station -- help` : les stations, les deux
+//                                                    seuils de coût de la dérive, le calibrage du manager, du reviewer
+//                                                    et du closer, avec ses trois plafonds, et le plafond de calibrage
+//                                                    jusqu'où le manager monte un ticket rouge
+// Le réglage s'écrit dans le journal ; le runtime qui tourne le lit à sa
+// prochaine prise, dans la seconde. Baisser le plafond n'arrête aucun cook.
+// Une décision s'écrit au journal, au nom du chef, avec ce qu'elle remplace ;
+// le runtime la lit à sa lecture suivante, sans redémarrage, et n'arrête rien
+// de ce qui tourne. Une valeur qu'il ne lirait pas est refusée, et rien n'est
+// écrit. Aucune n'a de défaut, ni ne s'en voit proposer un — sauf le plafond
+// de calibrage, `opus` / `high` tant que le chef ne l'a pas posé.
+// Les anciens mots (`retirer`, `aide`) répondent encore, en disant le nouveau
+// (`commandes.ts`).
+import { existsSync } from "node:fs";
+import { enProcess, Sortie, type Appel } from "./appel.ts";
+import { enAnglais } from "./commandes.ts";
+import { EFFORTS, MODELES } from "./calibrage.ts";
+import { decisionsPosees, poserDecision, retirerDecision, type Decision } from "./decisions.ts";
+import { cheminJournal, ouvrirJournal, type Journal } from "./journal.ts";
+import { reglagesEnVigueur } from "./closing/condition.ts";
+import { direProvenancesEn, direReglagesEn } from "./closing/say.ts";
+import { COOKS_PAR_DEFAUT, RETRAITS_PAR_DEFAUT, TOKENS_PAR_DEFAUT } from "./closing/settings.ts";
+import { journalPasRejoue } from "./journal-pas-rejoue.ts";
+import { direConsommationEn, NOTE_CONSOMMATION_EN } from "./etat.ts";
+import { consommation, etatDesGardeFous } from "./projections/guardrails.ts";
+import { direPlafondDeCalibrageEn, PLAFOND_PAR_DEFAUT, plafondDuProjet } from "./reagir.ts";
+import { reglagesPourMontrer, variablesDuDepot } from "./reglages-projet/en-vigueur.ts";
+import { FICHIER } from "./reglages-projet/reglages.ts";
+import { BUDGET_BASE_DUREE_PAR_DEFAUT, BUDGET_BASE_PROCESSEUR_PAR_DEFAUT, BUDGET_DUREE_PAR_DEFAUT, BUDGET_PROCESSEUR_PAR_DEFAUT } from "./cout-des-gates.ts";
+import { direLeQuotaDeLaCarte } from "./repli/moteur-actif.ts";
+import { ConfigInvalide } from "./runtime.ts";
+import { FORME, GESTE_DE_STATION_A_CHAUD_EN } from "./stations-declarees.ts";
+import { direOrdinairesEn } from "./bac-a-sable/ordinaires.ts";
+import { sessionEnCours } from "./projections/sessions.ts";
+import {
+  arreteeDepuis,
+  cooksDeStation,
+  cooksEnCoursDeStation,
+  direConnexionTombeeEn,
+  direNombreDeCooksEn,
+  direPlafondEn,
+  direRetenueDeStationEn,
+  etatStation,
+  plafondDeCooks,
+  sansStationDepuis,
+  stationsAnnoncees,
+  type CookDeStation,
+  type EtatStation,
+} from "./projections/stations.ts";
+
+// Les décisions du chef, chacune par son geste : ce qu'elle décide, et ce
+// qu'elle attend. L'ordre est celui de l'aide et de l'affichage.
+const ou = (valeurs: readonly string[]) => `${valeurs.slice(0, -1).join(", ")} or ${valeurs.at(-1)}`;
+export const GESTES: Record<string, { decision: Decision; quoi: string; valeur: string; attendu: string }> = {
+  stations: { decision: "BRIGADE_STATIONS", quoi: "the project's stations", valeur: "<declaration>", attendu: `\`${FORME}\`, separated by commas` },
+  "seuil-ticket": { decision: "BRIGADE_DRIFT_TICKET_TOKENS", quoi: "drift cost threshold: tokens of the most expensive ticket", valeur: "<tokens>", attendu: "an integer greater than zero" },
+  "seuil-perdus": { decision: "BRIGADE_DRIFT_LOST_TOKENS", quoi: "drift cost threshold: lost tokens, launches that delivered nothing", valeur: "<tokens>", attendu: "an integer greater than zero" },
+  "budget-gates": { decision: "BRIGADE_GATES_BUDGET_SECONDS", quoi: `gates budget: wall-clock seconds of one gates run (${BUDGET_DUREE_PAR_DEFAUT} if unset)`, valeur: "<seconds>", attendu: "a number of seconds greater than zero" },
+  "budget-gates-cpu": { decision: "BRIGADE_GATES_BUDGET_CPU_SECONDS", quoi: `gates budget: CPU seconds of one gates run, workers included (${BUDGET_PROCESSEUR_PAR_DEFAUT} if unset)`, valeur: "<seconds>", attendu: "a number of seconds greater than zero" },
+  "budget-base": { decision: "BRIGADE_GATES_BASE_BUDGET_SECONDS", quoi: `base gates budget: wall-clock seconds of the full run on the base (${BUDGET_BASE_DUREE_PAR_DEFAUT} if unset)`, valeur: "<seconds>", attendu: "a number of seconds greater than zero" },
+  "budget-base-cpu": { decision: "BRIGADE_GATES_BASE_BUDGET_CPU_SECONDS", quoi: `base gates budget: CPU seconds of the full run on the base, workers included (${BUDGET_BASE_PROCESSEUR_PAR_DEFAUT} if unset)`, valeur: "<seconds>", attendu: "a number of seconds greater than zero" },
+  "manager-modele": { decision: "BRIGADE_MANAGER_MODEL", quoi: "the model of the manager's judgments", valeur: "<model>", attendu: ou(MODELES) },
+  "manager-effort": { decision: "BRIGADE_MANAGER_EFFORT", quoi: "the effort of the manager's judgments", valeur: "<effort>", attendu: ou(EFFORTS) },
+  "reviewer-modele": { decision: "BRIGADE_REVIEWER_MODEL", quoi: "the model of the reviewer's reviews", valeur: "<model>", attendu: ou(MODELES) },
+  "reviewer-effort": { decision: "BRIGADE_REVIEWER_EFFORT", quoi: "the effort of the reviewer's reviews", valeur: "<effort>", attendu: ou(EFFORTS) },
+  "closer-modele": { decision: "BRIGADE_CLOSING_MODEL", quoi: "the model of the closing pass (with closer-effort: without both, no pass writes)", valeur: "<model>", attendu: ou(MODELES) },
+  "closer-effort": { decision: "BRIGADE_CLOSING_EFFORT", quoi: "the effort of the closing pass", valeur: "<effort>", attendu: ou(EFFORTS) },
+  "closer-cooks": { decision: "BRIGADE_CLOSING_COOKS", quoi: "the pass starts when fewer cooks than this are in flight", valeur: "<cooks>", attendu: "an integer greater than zero" },
+  "closer-tokens": { decision: "BRIGADE_CLOSING_MAX_TOKENS", quoi: "token cap of a closing pass", valeur: "<tokens>", attendu: "an integer greater than zero" },
+  "closer-retraits": { decision: "BRIGADE_CLOSING_MAX_REMOVED_LINES", quoi: "cap on the lines a closing pass may remove", valeur: "<lines>", attendu: "an integer greater than zero" },
+  "ceiling-modele": { decision: "BRIGADE_CEILING_MODEL", quoi: `calibration ceiling: the highest model the manager raises a red ticket to (${PLAFOND_PAR_DEFAUT.model} if unset)`, valeur: "<model>", attendu: ou(MODELES) },
+  "ceiling-effort": { decision: "BRIGADE_CEILING_EFFORT", quoi: `calibration ceiling: the highest effort the manager raises a red ticket to (${PLAFOND_PAR_DEFAUT.effort} if unset)`, valeur: "<effort>", attendu: ou(EFFORTS) },
+};
+// Les décisions qui ont un défaut : non posées, c'est lui qui vaut.
+const DEFAUTS: Partial<Record<Decision, string>> = {
+  BRIGADE_CEILING_MODEL: PLAFOND_PAR_DEFAUT.model,
+  BRIGADE_CEILING_EFFORT: PLAFOND_PAR_DEFAUT.effort,
+  BRIGADE_GATES_BUDGET_SECONDS: String(BUDGET_DUREE_PAR_DEFAUT),
+  BRIGADE_GATES_BUDGET_CPU_SECONDS: String(BUDGET_PROCESSEUR_PAR_DEFAUT),
+  BRIGADE_GATES_BASE_BUDGET_SECONDS: String(BUDGET_BASE_DUREE_PAR_DEFAUT),
+  BRIGADE_GATES_BASE_BUDGET_CPU_SECONDS: String(BUDGET_BASE_PROCESSEUR_PAR_DEFAUT),
+  BRIGADE_CLOSING_COOKS: String(COOKS_PAR_DEFAUT),
+  BRIGADE_CLOSING_MAX_TOKENS: String(TOKENS_PAR_DEFAUT),
+  BRIGADE_CLOSING_MAX_REMOVED_LINES: String(RETRAITS_PAR_DEFAUT),
+};
+const AIDE = ["help", "--help"];
+const LU = "read by the runtime at its next read, without a restart; no running cook is stopped";
+
+const geste = (nom: string) => `${nom} ${GESTES[nom]?.valeur ?? ""}`;
+const USAGE = [
+  "usage: BRIGADE_STATE_DIR=<state directory> npm --prefix runtime run station -- [cooks <N> | cooks auto | stop <station> | start <station> | <geste> <valeur> | remove <geste> | help]",
+  `  ${"cooks <N>".padEnd(26)}the cap of simultaneous cooks of every station — a number, 0 for no limit`,
+  `  ${"cooks auto".padEnd(26)}withdraws your cap: each station comes back to its default — derived from its machine's cores, its declared cap if lower`,
+  `  ${"stop <station>".padEnd(26)}stops the project's cooking on that station, here or remote: it takes no more tickets, its running cooks finish`,
+  `  ${"start <station>".padEnd(26)}starts the project's cooking on that station again`,
+  ...Object.entries(GESTES).map(([nom, { quoi, attendu }]) => `  ${geste(nom).padEnd(26)}${quoi} — ${attendu}`),
+  `  ${"remove <geste>".padEnd(26)}withdraws a decision: it is no longer decided, and the runtime keeps to what it read`,
+  "A decision is written to the log in the chef's name: the runtime reads it at its next read, without a restart, and no cook is stopped.",
+].join("\n");
+const AUTEUR = "chef";
+const COOKS_MONTRES = 10;
+const HEURE_MS = 3_600_000;
+
+export function principal({ args: tapes, env, dire, redire }: Appel): void {
+  const args = enAnglais("station", tapes, redire);
+  function echouer(code: number, message: string): never {
+    redire(`brigade : ${message}`);
+    throw new Sortie(code);
+  }
+
+  const nombre = (valeur: number) => valeur.toLocaleString("en-US");
+  const arrondi = (valeur: number) => valeur.toLocaleString("en-US", { maximumFractionDigits: 1 });
+  const duree = (ms: number) => (ms >= 60_000 ? `${arrondi(ms / 60_000)} min` : `${arrondi(ms / 1000)} s`);
+  const pluriel = (combien: number, mot: string) => `${nombre(combien)} ${mot}${combien > 1 ? "s" : ""}`;
+  const ligne = (titre: string, valeur: string) => dire(`${titre.padEnd(22)}${valeur}`);
+
+  // La fin d'un cook telle que le chef la lit.
+  const FINS: Record<string, string> = {
+    done: "done",
+    ok: "done",
+    failed: "failed",
+    guard: "stopped by a guardrail",
+    stop: "stopped by “stop”",
+    "86": "86 (quota exhausted)",
+    neutral: "86 (quota exhausted)",
+    disconnected: "Max connection expired",
+    refused: "refused by the model",
+    interrupted: "interrupted (runtime stopped)",
+  };
+
+  const calibrage = (cook: CookDeStation) => `${cook.model ?? "?"} / ${cook.effort ?? "?"}`;
+
+  function decrire(cook: CookDeStation): string {
+    const consomme =
+      cook.turns === null ? null : [pluriel(cook.turns, "turn"), `${nombre(cook.tokens ?? 0)} tokens`, duree(cook.durationMs ?? 0)].join(" · ");
+    return [cook.endedAt, `#${cook.ticket}`, cook.run, calibrage(cook), FINS[cook.ending ?? ""] ?? cook.ending, consomme, cook.pr]
+      .filter((champ) => champ !== null)
+      .join("  ");
+  }
+
+  function decrirePlafond(etat: EtatStation): string {
+    const retour = etat.cap === null ? "" : ", `station -- cooks auto` to come back to the default";
+    return `${direPlafondEn(etat)} — \`station -- cooks <N>\` to change it, 0 for no limit${retour}`;
+  }
+
+  // Écrit le plafond du chef s'il change quelque chose, et dit ce qu'il en est.
+  // Vérifier et écrire tiennent dans une seule transaction. `maxCooks` nul :
+  // le chef retire son réglage.
+  function plafonner(journal: Journal, maxCooks: number | null): string {
+    const { base } = journal;
+    return base.transaction(() => {
+      const projet = base.lire<{ project: string }>("SELECT project FROM events ORDER BY seq DESC LIMIT 1")[0]?.project;
+      if (!projet) echouer(1, "empty log: the runtime has never started on this state directory");
+      const stations = stationsAnnoncees(base);
+      if (stations.length === 0) echouer(1, sansStationDepuis(base) === null ? "no station has announced itself: the runtime has not started with its own yet" : `the project declares no station: there is no cap to set — ${GESTE_DE_STATION_A_CHAUD_EN}`);
+      const absent = sessionEnCours(base) ? "" : " (no runtime is running: the setting will hold at its next start)";
+      return stations
+        .map((station) => {
+          const etat = etatStation(base, station);
+          if (etat && etat.cap === maxCooks) return `${station}: ${maxCooks === null ? "no cap set by you, already the default" : "cap already set"} — ${direPlafondEn(etat)}`;
+          // Ce qu'il remplaçait de lui-même : le défaut, lui, se lit dans la phrase.
+          const avant = etat && etat.cap !== null ? ` (was: ${direNombreDeCooksEn(plafondDeCooks(etat))}, set by you)` : "";
+          journal.ajouter({ project: projet, ticket: null, author: AUTEUR, type: "station.capped", payload: { station, maxCooks } });
+          const apres = etatStation(base, station);
+          return `${station}: simultaneous cooks, ${apres ? direPlafondEn(apres) : "unknown"}${avant} — no running cook is stopped, the station launches no more while it is above${absent}`;
+        })
+        .join("\n");
+    });
+  }
+
+  // Arrête ou relance la cuisine du projet sur une station — d'ici ou distante,
+  // le même geste. Arrêter n'arrête aucun cook : ceux qui tournent finissent,
+  // livrent ou rendent leur ticket au rail ; la station n'en prend plus. Vérifier
+  // et écrire tiennent dans une seule transaction.
+  function arreterOuLancer(journal: Journal, station: string, arreter: boolean): string {
+    const { base } = journal;
+    return base.transaction(() => {
+      const projet = projetDuJournal(journal);
+      const stations = stationsAnnoncees(base);
+      if (!stations.includes(station)) {
+        echouer(1, stations.length === 0 ? `unknown station: “${station}” — the project declares none: ${GESTE_DE_STATION_A_CHAUD_EN}` : `unknown station: “${station}” — the project's stations: ${stations.join(", ")}`);
+      }
+      const depuis = arreteeDepuis(base, station);
+      const cuisineArretee = etatDesGardeFous(base).stoppedAt !== null ? "; the whole kitchen is stopped too: `guardrails -- resume` to reopen it" : "";
+      if (arreter && depuis !== null) return `${station}: already stopped since ${depuis} — nothing is written`;
+      if (!arreter && depuis === null) return `${station}: already cooking — nothing is written${cuisineArretee}`;
+      journal.ajouter({ project: projet, ticket: null, author: AUTEUR, type: arreter ? "station.stopped" : "station.started", payload: { station } });
+      if (!arreter) return `${station}: cooking — it takes the project's tickets again at the runtime's next read${cuisineArretee}${sansRuntime(journal)}`;
+      const enCours = cooksEnCoursDeStation(base, station).length;
+      const finissent = enCours === 0 ? "no cook is running there" : `its ${pluriel(enCours, "running cook")} finish${enCours > 1 ? "" : "es"}: delivered, or the ticket goes back to the rail`;
+      return `${station}: stopped — it takes no more tickets of this project, ${finissent}; \`station -- start ${station}\` to start it again${sansRuntime(journal)}`;
+    });
+  }
+
+  const projetDuJournal = (journal: Journal): string =>
+    journal.base.lire<{ project: string }>("SELECT project FROM events ORDER BY seq DESC LIMIT 1")[0]?.project ??
+    (env.BRIGADE_PROJECT || undefined) ??
+    echouer(1, "empty log: the runtime has never started on this state directory");
+  const sansRuntime = (journal: Journal) => (sessionEnCours(journal.base) ? "" : " (no runtime is running: the decision will hold at its next start)");
+
+  // Pose la décision du chef si elle change quelque chose, et dit ce qu'il en
+  // est. Une valeur que le runtime ne lirait pas est refusée avec ce qui était
+  // attendu, et rien n'est écrit. Ce qu'elle remplace se lit dans le fait
+  // écrit, pris dans la même transaction que l'écriture.
+  function decider(journal: Journal, nom: string, valeur: string): string {
+    const { decision, attendu } = GESTES[nom] as (typeof GESTES)[string];
+    const projet = projetDuJournal(journal);
+    let fait;
+    try {
+      fait = poserDecision(journal, { projet, nom: decision, valeur, auteur: AUTEUR });
+    } catch (erreur) {
+      if (!(erreur instanceof ConfigInvalide)) throw erreur;
+      echouer(2, `${nom} refused, nothing is written — ${erreur.message}\nusage: \`station -- ${geste(nom)}\` — ${attendu}`);
+    }
+    if (fait?.type !== "decision.set") return `${nom}: already set — ${valeur.trim()}; nothing is written${remplaceeParLeDepot(decision)}${sourceDuPlafond(decision, true)}`;
+    const { value, previous } = fait.payload;
+    return `${nom}: ${value} (was: ${previous ?? "not set"}) — ${LU}${sansRuntime(journal)}${remplaceeParLeDepot(decision)}${sourceDuPlafond(decision, true)}`;
+  }
+
+  // Ce que le dépôt du projet fixe à la place des décisions de la box : le
+  // calibrage du manager et du reviewer, le plafond de calibrage, les
+  // réglages du closer.
+  const duDepot = (): Record<string, string> => {
+    const reglages = reglagesPourMontrer(env);
+    const plafond = reglages?.calibrationCeiling;
+    return { ...variablesDuDepot(reglages), ...(plafond === undefined ? {} : { BRIGADE_CEILING_MODEL: plafond.model, BRIGADE_CEILING_EFFORT: plafond.effort }) };
+  };
+  const remplaceeParLeDepot = (decision: string): string => {
+    const valeur = duDepot()[decision];
+    return valeur === undefined ? "" : `\nbut the project's repository sets it (${FICHIER}: ${valeur}): this decision is ignored while it does`;
+  };
+
+  // D'où vient la valeur en vigueur d'une dimension du plafond : les décisions
+  // du projet (son dépôt), sinon la box, sinon le défaut. Rien pour les autres
+  // décisions.
+  const sourceDuPlafond = (decision: string, surLaBox: boolean): string => {
+    if (decision !== "BRIGADE_CEILING_MODEL" && decision !== "BRIGADE_CEILING_EFFORT") return "";
+    return `\nsource: ${duDepot()[decision] !== undefined ? "project decisions" : surLaBox ? "box" : "default"}`;
+  };
+
+  // Retire la décision du chef : le journal n'en porte plus rien, et aucune
+  // variable d'environnement n'y supplée.
+  function retirer(journal: Journal, nom: string): string {
+    const { decision } = GESTES[nom] as (typeof GESTES)[string];
+    const fait = retirerDecision(journal, { projet: projetDuJournal(journal), nom: decision, auteur: AUTEUR });
+    if (fait?.type !== "decision.withdrawn") return `${nom}: not set, nothing is written`;
+    const defaut = DEFAUTS[decision];
+    if (defaut !== undefined) return `${nom}: withdrawn (was: ${fait.payload.previous}) — back to the default, ${defaut}: ${LU}${sansRuntime(journal)}${sourceDuPlafond(decision, false)}`;
+    return `${nom}: withdrawn (was: ${fait.payload.previous}) — it is no longer decided: the runtime keeps to what it read, no running cook is stopped; ${decision} is only read from the log${sansRuntime(journal)}`;
+  }
+
+  // Les décisions du chef, posées ou non : le journal en est le seul support.
+  function montrerDecisions(journal: Journal): void {
+    const posees = decisionsPosees(journal.base);
+    const reglages = reglagesPourMontrer(env);
+    const depot = duDepot();
+    ligne("chef's decisions", "`station -- <geste> <valeur>` to set one, `station -- help` for the settings");
+    for (const [nom, { decision }] of Object.entries(GESTES)) {
+      const posee = posees[decision];
+      const defaut = DEFAUTS[decision];
+      const duDepotPose = depot[decision];
+      if (duDepotPose !== undefined) {
+        dire(`  ${nom.padEnd(20)}${duDepotPose} — from the project's repository (${FICHIER})${posee === undefined ? "" : `; set on the box: ${posee}, ignored`}${sourceDuPlafond(decision, true).replace("\n", " — ")}`);
+        continue;
+      }
+      const source = sourceDuPlafond(decision, posee !== undefined).replace("\n", " — ");
+      dire(`  ${nom.padEnd(20)}${posee ?? (defaut === undefined ? `not set — ${decision} is only read from the log` : `not set — the default, ${defaut}`)}${source}`);
+    }
+    // Jusqu'où le manager monte un ticket rouge : porté par le dépôt, ou
+    // chaque dimension, posée ou par défaut.
+    const plafond = plafondDuProjet(posees, reglages);
+    ligne("calibration ceiling", `${direPlafondDeCalibrageEn(plafond)} — ${plafond.depot ? `a pull request on ${FICHIER} to change it` : "`station -- ceiling-modele <model>`, `station -- ceiling-effort <effort>` to change it"}`);
+    // Ce que la passe de fermeture vaut en ce moment, plafonds compris : tel
+    // que le runtime les a notés, défauts et dépôt compris, et d'où chacun
+    // vient.
+    const closer = reglagesEnVigueur(journal);
+    ligne("closer in force", closer === null ? "no runtime has noted it yet — not set, no pass writes" : direReglagesEn(closer));
+    if (closer !== null) ligne("", direProvenancesEn(closer.from));
+  }
+
+  function montrer(journal: Journal, station: string): void {
+    const { base } = journal;
+    const etat = etatStation(base, station);
+    if (!etat) return;
+    ligne("station", `${etat.station} — engine ${etat.engine}${etat.fallbackEngine === null ? "" : `, fallback engine ${etat.fallbackEngine}`}, provides: ${etat.provides.join(", ")}`);
+    ligne("simultaneous cooks", decrirePlafond(etat));
+    const arretee = arreteeDepuis(base, station);
+    ligne(
+      "cooking",
+      arretee === null
+        ? `on — \`station -- stop ${station}\` to stop the project's cooking here, its running cooks finish`
+        : `STOPPED by you since ${arretee} — it takes no more tickets of this project, its running cooks finish; \`station -- start ${station}\` to start it again`,
+    );
+    // Une station distante ne tourne pas sur cette machine : ce qui se lit
+    // d'elle, c'est si elle s'est manifestée.
+    if (etat.remote) {
+      ligne(
+        "presence",
+        etat.presentSince === null
+          ? `ABSENT — remote, it pulls its work, and ${etat.seenAt === null ? "has never shown itself" : `has not shown itself since ${etat.seenAt}`}; this is not a failure: the tickets only it can cook wait for its return, the others leave`
+          : `present since ${etat.presentSince} — remote, it pulls its work; last request on ${etat.seenAt ?? etat.presentSince}`,
+      );
+      ligne("ordinary tickets", direOrdinairesEn(etat));
+    }
+    ligne(
+      "Max connection",
+      etat.disconnectedAt === null
+        ? "taken as good"
+        : direConnexionTombeeEn(etat),
+    );
+    ligne(
+      "quota",
+      direLeQuotaDeLaCarte(etat),
+    );
+    ligne(
+      "cook start",
+      etat.unstartable == null
+        ? "cooks start"
+        : `NOT TAKING TICKETS since ${etat.unstartable.since} — ${etat.unstartable.run} ended with 0 turns and 0 tokens (${etat.unstartable.reason}): its cook could not start; it takes tickets again when it restarts, or as soon as a cook launched since produces a turn`,
+    );
+    ligne(
+      "withholding",
+      etat.heldAt === null || etat.heldReason === null
+        ? "none — every servable ticket leaves"
+        : `since ${etat.heldAt} — ${direRetenueDeStationEn(etat.heldReason)}: the servable tickets wait`,
+    );
+    // Rien à dire d'un arbitre qui répond, ou d'un projet qui n'en a pas.
+    if (etat.unarbitratedAt !== null) {
+      ligne("arbiter", `UNREACHABLE since ${etat.unarbitratedAt} (${etat.unarbitratedReason ?? "no answer"}) — degraded mode: one cook at a time, no arbitration, until it returns`);
+    }
+    // Tous ceux qui tournent, quel que soit leur nombre : c'est ce que le plafond borne.
+    const enCours = cooksEnCoursDeStation(base, station);
+    ligne("cooks running", enCours.length === 0 ? "none" : String(enCours.length));
+    for (const cook of enCours) dire(`  #${cook.ticket}  ${cook.run}  ${calibrage(cook)}  launched on ${cook.launchedAt}  ${cook.branch}`);
+    const finis = cooksDeStation(base, station, COOKS_MONTRES + enCours.length)
+      .filter((cook) => cook.endedAt !== null)
+      .slice(0, COOKS_MONTRES);
+    ligne("latest cooks", finis.length === 0 ? "none" : "");
+    for (const cook of finis) dire(`  ${decrire(cook)}`);
+  }
+
+  const repertoireEtat = env.BRIGADE_STATE_DIR;
+  if (!repertoireEtat) echouer(2, `BRIGADE_STATE_DIR is not set\n${USAGE}`);
+  const [commande, valeur] = args;
+  if (args.length === 1 && AIDE.includes(commande ?? "")) {
+    dire(USAGE);
+    return;
+  }
+  const plafond = commande === "cooks";
+  const decision = commande !== undefined && Object.hasOwn(GESTES, commande);
+  const retrait = commande === "remove";
+  const cuisson = commande === "stop" || commande === "start";
+  if (decision && args.length !== 2) echouer(2, `${commande} expects one value, and only one — \`station -- ${geste(commande)}\`: ${GESTES[commande]?.attendu}`);
+  if (retrait && (args.length !== 2 || !Object.hasOwn(GESTES, valeur ?? ""))) echouer(2, `remove expects a decision setting — ${Object.keys(GESTES).join(", ")}`);
+  if (cuisson && (args.length !== 2 || !valeur)) echouer(2, `${commande} expects one station, and only one, among those \`station\` lists — usage: \`station -- ${commande} <station>\``);
+  if (plafond ? args.length !== 2 || !/^(0|[1-9][0-9]{0,5}|auto)$/.test(valeur ?? "") : !decision && !retrait && !cuisson && args.length > 0) echouer(2, USAGE);
+  const regler = plafond || decision || retrait || cuisson;
+  // Un réglage ouvre le journal en écriture : sans ce contrôle, il en créerait
+  // un là où il n'y en a pas. Une décision est la seule à le faire : un projet
+  // neuf n'a pas démarré, et son runtime ne démarre qu'avec elles — le journal
+  // naît alors du geste, au nom du projet que l'unité lui donne.
+  if (!existsSync(cheminJournal(repertoireEtat)) && !(decision && env.BRIGADE_PROJECT)) echouer(1, `no log in ${repertoireEtat}`);
+
+  let journal;
+  try {
+    journal = ouvrirJournal(repertoireEtat, { lectureSeule: !regler });
+  } catch (erreur) {
+    echouer(1, erreur instanceof Error ? erreur.message : String(erreur));
+  }
+  try {
+    if (plafond) {
+      dire(`brigade : ${plafonner(journal, valeur === "auto" ? null : Number(valeur))}`);
+    } else if (decision) {
+      dire(`brigade : ${decider(journal, commande, valeur ?? "")}`);
+    } else if (retrait) {
+      dire(`brigade : ${retirer(journal, valeur ?? "")}`);
+    } else if (cuisson) {
+      dire(`brigade : ${arreterOuLancer(journal, valeur ?? "", commande === "stop")}`);
+    } else {
+      const stations = stationsAnnoncees(journal.base);
+      if (stations.length === 0) {
+        const sans = sansStationDepuis(journal.base);
+        dire(sans === null ? "no station has announced itself: the runtime has not started with its own yet" : `no station declared since ${sans} — no cook leaves, the tickets stay queued: ${GESTE_DE_STATION_A_CHAUD_EN}`);
+      }
+      for (const station of stations) montrer(journal, station);
+      // Tous les lancements du projet, relectures et jugements compris : c'est
+      // la fenêtre de 5 h que le chef compare à `/usage`.
+      if (stations.length > 0) {
+        const depuis = (heures: number) => new Date(Date.now() - heures * HEURE_MS).toISOString();
+        ligne("consumed", `in flight: ${direConsommationEn(consommation(journal.base))}`);
+        for (const heures of [5, 24]) ligne("", `${heures} h: ${direConsommationEn(consommation(journal.base, depuis(heures)))}`);
+        ligne("", NOTE_CONSOMMATION_EN);
+      }
+      montrerDecisions(journal);
+    }
+  } catch (erreur) {
+    // En lecture seule, rien ne crée les tables d'un journal écrit par un
+    // runtime d'avant la station, ni ne leur donne leur forme du jour.
+    if (journalPasRejoue(erreur)) {
+      echouer(1, "this log does not have the stations' state yet: restart the runtime, which recomputes it");
+    }
+    throw erreur;
+  } finally {
+    journal.fermer();
+  }
+}
+
+if (import.meta.main) await enProcess(principal);

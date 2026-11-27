@@ -24,7 +24,9 @@ test("le runtime n'embarque aucune bibliothèque : ni SDK d'Anthropic, ni client
 test("aucun code du runtime ne joint l'API d'Anthropic : son nom n'y sert qu'à la porte réseau, qui laisse passer `claude`", () => {
   assert.deepEqual(qui(/anthropic\.com/), ["reseau.ts"]);
   // claude.ai : la porte, et l'installeur officiel du binaire `claude`.
-  assert.deepEqual(qui(/https:\/\/claude\.ai/), ["connexion-max/connecter-cli.ts"]);
+  assert.deepEqual(qui(/https:\/\/claude\.ai/), ["connexion-max/connecter-cli.ts", "installation.ts"]);
+  // La vérification d'installation n'en écrit que la commande, dans le remède qu'elle dit au chef : elle ne joint rien.
+  assert.doesNotMatch(lues.find((lue) => lue.nom === "installation.ts")?.texte ?? "", /from\s+["']node:(http|https|net|tls|dgram)["']|\bfetch\s*\(/);
 });
 
 test("la connexion Max ne lance rien et ne joint rien : elle lit un fichier", () => {

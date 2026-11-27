@@ -1,0 +1,174 @@
+// Les commandes de la box sous leur nom anglais (`commandes.ts`, docs/glossary.md),
+// et les mots d'avant qui répondent encore jusqu'à la date que CHANGELOG.md annonce.
+// Les anciens noms de commande sont partis avec l'ancien runtime (#4499).
+//
+// Codes de sortie éprouvés ici :
+//   - un nom anglais lance sa commande : le code est le sien. Lancée sans son
+//     environnement (ni BRIGADE_STATE_DIR ni rien), chaque commande le refuse en
+//     2 — c'est ce refus, avec son usage, qui prouve qu'elle a été lancée ;
+//   - un ancien mot d'une commande (sous-commande ou option) est remplacé par le
+//     sien, dit sur la sortie d'erreur : là aussi, le code est celui de la
+//     commande — 2, lancée sans son environnement.
+//
+// Le script de chaque nom est `node src/<fichier>.ts` (premier test) : chaque
+// commande est lancée par ce fichier, sans `npm`, qui coûte un process de plus.
+// Un fichier qui ne se joue que lancé (`import.meta.main`) l'est toujours, chacun
+// par son nom anglais : c'est ce lancement qui prouve qu'`enProcess` le joue.
+// `npm` lui-même est éprouvé une fois : l'aide sous son nom.
+import assert from "node:assert/strict";
+import { spawn } from "node:child_process";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { describe, test } from "node:test";
+import { pathToFileURL } from "node:url";
+import { principal as aide } from "../src/aide.ts";
+import { Sortie, type Commande } from "../src/appel.ts";
+import { COMMANDES, direAncien, enAnglais, FIN_DES_ANCIENS_NOMS } from "../src/commandes.ts";
+import { sansMotFrancais } from "./aides/glossaire.ts";
+import { appeler, CACHE_DE_COMPILATION } from "./outils.ts";
+
+const RUNTIME = join(import.meta.dirname, "..");
+const scripts: Record<string, string> = JSON.parse(readFileSync(join(RUNTIME, "package.json"), "utf8")).scripts;
+const DU_DEV = ["test", "typecheck", "start"];
+const REFUS = 2;
+
+// Lancé sans rien de l'environnement d'un service : ni état, ni dépôt, ni arbitre
+// — le cache de compilation seul, qui n'en est pas.
+// Sous Windows, `npm` est un `npm.cmd`, que seul un shell lance, et un process
+// n'y démarre pas sans ce que Windows lui donne : son système, son répertoire
+// temporaire, et pour `npm` le répertoire de ses réglages.
+const SOUS_WINDOWS = process.platform === "win32";
+const DE_WINDOWS = SOUS_WINDOWS ? Object.fromEntries(["SystemRoot", "windir", "SystemDrive", "ComSpec", "PATHEXT", "TEMP", "TMP", "APPDATA", "LOCALAPPDATA", "USERPROFILE"].flatMap((nom) => (process.env[nom] === undefined ? [] : [[nom, process.env[nom] as string]]))) : {};
+const ENV_DE_BASE: Record<string, string> = { ...DE_WINDOWS, PATH: process.env.PATH ?? "", HOME: process.env.HOME ?? "/tmp", ...CACHE_DE_COMPILATION };
+type Fin = { code: number | null; sortie: string; erreur: string };
+function jouer(commande: string[], env: Record<string, string> = {}): Promise<Fin> {
+  return new Promise((resoudre, rejeter) => {
+    const programme = SOUS_WINDOWS && commande[0] === "npm" ? "npm.cmd" : (commande[0] ?? "");
+    const enfant = spawn(programme, commande.slice(1), { cwd: RUNTIME, shell: SOUS_WINDOWS && programme === "npm.cmd", env: { ...ENV_DE_BASE, ...env } });
+    let [sortie, erreur] = ["", ""];
+    enfant.stdout.on("data", (morceau) => (sortie += morceau));
+    enfant.stderr.on("data", (morceau) => (erreur += morceau));
+    enfant.on("error", rejeter);
+    enfant.on("close", (code) => resoudre({ code, sortie, erreur }));
+  });
+}
+const npm = (nom: string, args: string[] = []) => jouer(["npm", "--silent", "run", nom, ...(args.length > 0 ? ["--", ...args] : [])]);
+// Le fichier que lance le script d'un nom, et ce qu'il fait lancé comme `npm` le lance.
+const fichierDe = (nom: string) => /^node (src\/[\w-]+\.ts)$/.exec(scripts[nom] ?? "")?.[1] ?? "";
+const lancerFichier = (nom: string, args: string[] = []) => jouer([process.execPath, fichierDe(nom), ...args]);
+
+// Une commande dont le fichier ne la joue que lancé (`if (import.meta.main) await enProcess(…)`) s'importe sans se
+// jouer : sa `principal`, celle que `enProcess` joue, se joue dans le process du test, sans environnement. Ce que
+// `enProcess` en fait — la sortie d'erreur pour `redire`, le code de sortie pour `Sortie` — le refus de chaque
+// commande sous son nom, lancée, le prouve.
+const JOUEE_SEULEMENT_LANCEE = /^if \(import\.meta\.main\) await enProcess\(/m;
+async function principalDe(nom: string): Promise<Commande | undefined> {
+  const fichier = join(RUNTIME, fichierDe(nom));
+  if (!JOUEE_SEULEMENT_LANCEE.test(readFileSync(fichier, "utf8"))) return undefined;
+  return ((await import(pathToFileURL(fichier).href)) as { principal?: Commande }).principal;
+}
+async function jouerIci(principal: Commande, args: string[]): Promise<Fin> {
+  let [sortie, erreur] = ["", ""];
+  try {
+    await principal({ args, env: {}, dire: (ligne) => (sortie += `${ligne}\n`), redire: (ligne) => (erreur += `${ligne}\n`) });
+    return { code: 0, sortie, erreur };
+  } catch (fin) {
+    if (!(fin instanceof Sortie)) throw fin;
+    return { code: fin.code, sortie, erreur };
+  }
+}
+
+// Ce qui fait refuser chaque commande sans rien toucher : son environnement
+// manque, ou ses arguments ne se lisent pas. Et ce que son refus dit d'elle.
+const SANS_EFFET: Record<string, { args?: string[]; dit: RegExp }> = {
+  installation: { args: ["inconnue"], dit: /run installation -- \[labels/ },
+};
+const refusDe = (nom: string) => SANS_EFFET[nom] ?? { dit: new RegExp(`run ${nom}\\b`) };
+
+
+// Chaque ancien mot d'une commande, placé là où sa commande le lit.
+const placer = (rang: number, mot: string) => (mot.startsWith("--") ? ["inconnue", mot] : rang === 1 ? ["une-station", mot] : [mot]);
+const ESSAIS = COMMANDES.flatMap(({ nom, mots = {}, rang = 0 }) => Object.entries(mots).map(([ancien, nouveau]) => ({ nom, ancien, nouveau, args: placer(rang, ancien) })));
+
+// Chaque test lance ses commandes sans état ni dépôt, et n'écrit rien : ils se jouent de front.
+describe("les commandes du runtime", { concurrency: 4 }, () => {
+  test("chaque commande du runtime est dans la table, sous son nom anglais, une fois", () => {
+    const anglais = COMMANDES.map(({ nom }) => nom);
+    assert.deepEqual(Object.keys(scripts).filter((nom) => !DU_DEV.includes(nom)).sort(), [...anglais].sort());
+    for (const nom of anglais) assert.match(scripts[nom] ?? "", /^node src\/[\w-]+\.ts$/, nom);
+    assert.equal(new Set(anglais).size, anglais.length);
+    // Les anciens mots, dont chacun a son essai plus bas.
+    assert.ok(ESSAIS.length >= 5);
+  });
+
+  // Une commande, un test : chacun joue son fichier, et se juge à sa propre durée.
+  for (const { nom } of COMMANDES.filter(({ nom }) => nom !== "help")) {
+    test(`\`${nom}\` : taper son nom anglais lance la commande — son propre refus, son usage, et aucun ancien nom annoncé`, async () => {
+      const fin = await lancerFichier(nom, refusDe(nom).args);
+      assert.equal(fin.code, REFUS, `${nom} : ${fin.erreur}`);
+      assert.match(fin.sortie + fin.erreur, refusDe(nom).dit, nom);
+      assert.doesNotMatch(fin.erreur, /is now/, nom);
+      // Son refus : en anglais.
+      sansMotFrancais((fin.sortie + fin.erreur).trimEnd().split("\n"));
+    });
+  }
+
+  for (const { nom } of COMMANDES.filter(({ mots = {} }) => Object.keys(mots).length > 0)) {
+    test(`\`${nom}\` remplace ses anciens mots par les siens, et le dit : sa sous-commande au rang qu'elle lit, ses options où qu'elles soient`, async () => {
+      const principal = await principalDe(nom);
+      const lances = ESSAIS.filter((essai) => essai.nom === nom).map(async (essai) => ({ ...essai, fin: await (principal === undefined ? lancerFichier(nom, essai.args) : jouerIci(principal, essai.args)) }));
+      for (const { ancien, nouveau, fin } of await Promise.all(lances)) {
+        assert.equal(fin.erreur.split("\n")[0], direAncien(ancien, nouveau), `${nom} ${ancien}`);
+        assert.equal(fin.code, REFUS, `${nom} ${ancien} : ${fin.erreur}`);
+      }
+    });
+  }
+
+  test("les anciens mots sont remplacés un à un, dits une fois chacun ; les nouveaux, et tout le reste, passent tels quels et en silence", () => {
+    const dits: string[] = [];
+    assert.deepEqual(enAnglais("installation", ["desinstaller", "--confirmer=oui", "--confirmer", "desinstaller"], (ligne) => dits.push(ligne)), [
+      "uninstall",
+      "--confirm=oui",
+      "--confirm",
+      // Ce n'est pas le rang d'une sous-commande : une valeur, laissée telle quelle.
+      "desinstaller",
+    ]);
+    assert.deepEqual(dits, [direAncien("desinstaller", "uninstall"), direAncien("--confirmer", "--confirm")]);
+
+    const silence: string[] = [];
+    assert.deepEqual(enAnglais("installation", ["uninstall", "--confirm"], (ligne) => silence.push(ligne)), ["uninstall", "--confirm"]);
+    assert.deepEqual(enAnglais("rail", ["voir"], (ligne) => silence.push(ligne)), ["voir"]);
+    assert.deepEqual(silence, []);
+  });
+
+  test("l'aide ne nomme que les commandes sous leur nom anglais, chacune avec ce qu'elle fait, en anglais", async () => {
+    const appel = appeler(aide);
+    assert.equal(await appel.fin, 0);
+    const lignes = appel.sortie().trimEnd().split("\n");
+    assert.equal(lignes[0], "usage: brigade <project> <command> [arguments…]");
+    const listees = lignes.slice(lignes.indexOf("Commands:") + 1).map((ligne) => ligne.trim().split(/\s+/)[0]);
+    assert.deepEqual(listees, COMMANDES.map(({ nom }) => nom));
+    // Rien de français : ni accent, ni ancien mot d'une commande.
+    assert.doesNotMatch(appel.sortie(), /[àâçéèêëîïôûùüÿœæ«»]/i);
+    for (const ancien of COMMANDES.flatMap(({ mots = {} }) => Object.keys(mots))) assert.doesNotMatch(appel.sortie(), new RegExp(`(^|\\s)${ancien}([\\s,:]|$)`, "m"), ancien);
+
+    const enTrop = appeler(aide, ["status"]);
+    assert.equal(await enTrop.fin, 2);
+  });
+
+  test("`npm run help` rend l'aide, telle que la commande la dit", async () => {
+    const fin = await npm("help");
+    assert.equal(fin.code, 0);
+    const appel = appeler(aide);
+    await appel.fin;
+    assert.equal(fin.sortie, appel.sortie());
+  });
+
+  test("CHANGELOG.md annonce la fin des anciens mots : chacun, son nouveau mot, et le jour où il ne répond plus", () => {
+    const changelog = readFileSync(join(RUNTIME, "..", "CHANGELOG.md"), "utf8");
+    assert.match(changelog, new RegExp(`From ${FIN_DES_ANCIENS_NOMS}, the old names no longer answer`));
+    for (const { nom, mots = {} } of COMMANDES) {
+      for (const [ancien, nouveau] of Object.entries(mots)) assert.ok(changelog.includes(`| \`${nom}\` | \`${ancien}\` | \`${nouveau}\` | ${FIN_DES_ANCIENS_NOMS} |`), `${nom} ${ancien} → ${nouveau}`);
+    }
+  });
+});

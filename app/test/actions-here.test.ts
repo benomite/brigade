@@ -11,6 +11,7 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, wr
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
+import { verdictDeLaPanne } from "../../runtime/src/verdict.ts";
 import { confirmationOf } from "../src/confirmation.ts";
 import { ACTION, launchThe, openStandby, type Kitchen, type Reading, type Locale } from "../src/box.ts";
 import type { Project } from "../src/config.ts";
@@ -73,17 +74,6 @@ esac
   };
   return { racine: root, locale, ici: { locale } as Kitchen, lu: readOne, lances: launched, jouer: play, repondre: reply };
 }
-
-// Le verdict d'une vérification qui a planté, tel que `installation --json` l'écrivait
-// (`verdictDeLaPanne` de runtime/src/verdict.ts, supprimé avec l'ancien runtime, #4499).
-const CRASHED_VERDICT = {
-  verdict: "plantee",
-  phrase: "la vérification n'a pas pu aller au bout : c'est un problème de brigade, pas de ton projet — une panne pas encore connue, tu n'as rien à faire",
-  panne: { erreur: "the journal is unreadable", connue: null, acteur: "brigade", rienAFaire: true },
-  manques: [],
-  aSavoir: [],
-  brut: "brigade : the journal is unreadable\n",
-};
 
 // Un projet que la station de cet ordinateur sert.
 const PARADE: Project = { nom: "parade", dossier: "/tmp/parade" };
@@ -171,8 +161,8 @@ describe("les gestes d'un projet qui cuit sur cet ordinateur partent ici", () =>
       return verification ?? assert.fail("aucune vérification poussée");
     };
 
-    // Un verdict : la vérification a planté — tel que l'ancien runtime l'écrivait (`verdictDeLaPanne`).
-    trial.repondre(JSON.stringify(CRASHED_VERDICT), 1);
+    // Un verdict : la vérification a planté.
+    trial.repondre(JSON.stringify(verdictDeLaPanne(new Error("the journal is unreadable"))), 1);
     const here = await checks();
     assert.equal(here.etat, "plantee");
     // La veille et la vérification lancent le geste par son chemin entier, comme `lancerIci`.

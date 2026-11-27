@@ -8,43 +8,9 @@ import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSy
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
+import { ETIQUETTES } from "../../runtime/src/etiquettes.ts";
 import { launchReally, holdThePluginApp, type Launch } from "../src/plugin-app.ts";
 import { WITHOUT_POSIX } from "./helpers/posix.ts";
-
-// Le catalogue des labels d'un projet Brigade, tel que l'ancien runtime le tenait (runtime/src/etiquettes.ts,
-// supprimé avec lui, #4499) : un nom, une couleur, une description anglaise.
-const ETIQUETTES: ReadonlyArray<{ name: string; color: string; description: string }> = [
-  { name: "product", color: "0E8A16", description: "Issue born from the product owner" },
-  { name: "design", color: "D93F0B", description: "Interface work, reserved to the designer" },
-  { name: "triage", color: "FBCA04", description: "To be qualified" },
-  { name: "feature", color: "1D76DB", description: "New functionality" },
-  { name: "fix", color: "D73A4A", description: "Correction of a defect" },
-  { name: "tech", color: "5319E7", description: "Technical work, no functional impact" },
-  { name: "prio:0", color: "B60205", description: "Urgent: before everything else" },
-  { name: "prio:1", color: "000000", description: "To do first" },
-  { name: "prio:2", color: "555555", description: "Important, not blocking" },
-  { name: "prio:3", color: "AAAAAA", description: "Desirable, later" },
-  { name: "fire", color: "D93F0B", description: "To be served: the issue enters the rail" },
-  { name: "model:opus", color: "5319E7", description: "The cook of this ticket runs on opus" },
-  { name: "model:sonnet", color: "5319E7", description: "The cook of this ticket runs on sonnet" },
-  { name: "model:haiku", color: "5319E7", description: "The cook of this ticket runs on haiku" },
-  { name: "effort:low", color: "1D76DB", description: "The cook of this ticket runs at low effort" },
-  { name: "effort:medium", color: "1D76DB", description: "The cook of this ticket runs at medium effort" },
-  { name: "effort:high", color: "1D76DB", description: "The cook of this ticket runs at high effort" },
-  { name: "effort:xhigh", color: "1D76DB", description: "The cook of this ticket runs at xhigh effort" },
-  { name: "effort:max", color: "1D76DB", description: "The cook of this ticket runs at max effort" },
-  { name: "epic", color: "3E4B9E", description: "Groups other tickets: it is split, never cooked itself" },
-  { name: "served-elsewhere", color: "6E7781", description: "This box does not serve the ticket: another box serves it" },
-  { name: "taken", color: "0052CC", description: "A cook holds the ticket" },
-  { name: "in-pass", color: "0052CC", description: "The delivery of the ticket is being judged" },
-  { name: "parked", color: "C5DEF5", description: "Waits for someone: who, for what, until when (a date or a fact) — nothing takes it before" },
-  { name: "chef-todo", color: "B60205", description: "Parked for the chef: a card in the chef's to-do list waits on this ticket" },
-  { name: "idea", color: "C2E0C6", description: "An idea in reserve, not a request: the manager never reads it" },
-  { name: "horizon:1", color: "1D76DB", description: "Direction of the product: autonomy now" },
-  { name: "horizon:2", color: "1D76DB", description: "Direction of the product: humans as stations" },
-  { name: "horizon:3", color: "1D76DB", description: "Direction of the product: any project run on its own" },
-  { name: "kitchen-board", color: "BFD4F2", description: "The former board issue of the kitchen: never a card" },
-];
 
 const COMMANDS_OF_REPOSITORY = join(import.meta.dirname, "..", "..", "commands");
 const URL_OF_THE_PR = "https://github.com/benomite/calculus/pull/1";
@@ -115,7 +81,7 @@ test("un dépôt neuf ouvert par l'app se prépare par /brigade:init : les label
   const output = initialize("--test", "true", "--install", "true", "--zones", "`src/`");
 
   assert.equal(output.trim().split("\n").at(-1), `pr ${URL_OF_THE_PR}`);
-  // Tous les labels du catalogue, avec leur description anglaise.
+  // Tous les labels du catalogue du runtime, avec leur description anglaise.
   const creations = callsOfGh().filter((call) => call.startsWith("label create "));
   assert.deepEqual(creations.map((call) => /^label create (\S+) /.exec(call)?.[1]), ETIQUETTES.map(({ name }) => name));
   for (const { name, color, description } of ETIQUETTES) assert.ok(creations.includes(`label create ${name} --color ${color} --description ${description}`), name);
@@ -204,7 +170,7 @@ test("sans commande de test, /brigade:init n'écrit rien : une gate qui ne lance
   assert.equal(git("--git-dir", origin, "branch", "--list", "brigade/init"), "");
 });
 
-test("le catalogue que lit /brigade:init (labels.tsv) est celui de l'ancien runtime (etiquettes.ts), ligne pour ligne", () => {
+test("le catalogue que lit /brigade:init (labels.tsv) est celui du runtime (etiquettes.ts), ligne pour ligne", () => {
   const tsv = readFileSync(join(import.meta.dirname, "..", "src", "plugin", "labels.tsv"), "utf8");
   assert.equal(tsv, ETIQUETTES.map((e) => `${e.name}\t${e.color}\t${e.description}\n`).join(""));
 });

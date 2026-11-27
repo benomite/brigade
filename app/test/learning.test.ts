@@ -2,24 +2,18 @@
 // `apprentissage` de `facts`, la section telle que le module la pose — les leçons avec leur statut, leur date,
 // leurs tickets et leurs cooks, le lien d'une promue vers sa ligne du carnet ; les profils avec leur
 // domaine, leur carnet et leurs tickets ; une phrase, et aucune liste, quand il n'y a rien. La vue ne le pose plus (#2921, la page Cooks est supprimée). L'apprentissage
-// est écrit dans la forme qu'écrivait l'ancien runtime (`Apprentissage`, recopiée ici) : l'app lit ce que la box écrit.
+// est écrit dans la forme même du runtime (`Apprentissage`) : l'app lit ce que la box écrit.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { learningOf, learningRead, type Learning, type LessonRead, type Origin, type ProfileLearnedRead } from "../src/learning.ts";
+import type { Apprentissage as LearningOfRuntime } from "../../runtime/src/apprentissage/projet.ts";
+import { learningOf, learningRead, type Learning } from "../src/learning.ts";
 import { understand, board } from "../src/facts.ts";
-
-// La forme que `facts` écrivait (`Apprentissage`, runtime/src/apprentissage/projet.ts de l'ancien runtime, supprimé
-// avec lui, #4499) : les leçons telles que l'app les lit, et un carnet de profil dont chaque leçon dit son origine.
-type LearningOfRuntime = {
-  lecons: LessonRead[];
-  profils: Array<Omit<ProfileLearnedRead, "carnet"> & { carnet: Array<{ id: string; texte: string; etat: string; origine: Origin }> }>;
-};
 
 const A = "2026-10-19T10:00:00.000Z";
 const LINE = "https://github.com/chef/parade/blob/main/.claude/brigade/carnet.md#L5";
 
 // Une leçon provisoire, une promue avec l'adresse de sa ligne, une promue sans (la box ne connaît pas le
-// dépôt), et deux profils — dans la forme que `facts` écrit. Le
+// dépôt), et deux profils — dans la forme que `facts` écrit (runtime/src/apprentissage/projet.ts). Le
 // `progres` de chacun (#1057) : la part livrée du premier coup et les essais moyens, avant et après son entrée.
 const PROGRESS = { avant: { retenus: 10, premiers: 6, premierCoup: 0.6, essaisMoyens: 1.5 }, apres: { retenus: 4, premiers: 3, premierCoup: 0.75, essaisMoyens: 1.25 } };
 const FILLED: LearningOfRuntime = {

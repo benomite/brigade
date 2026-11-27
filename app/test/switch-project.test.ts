@@ -4,12 +4,17 @@
 // ouvertes. Éteint, la tête du rail est marquée à l'arrêt, d'une ligne courte, avec le bouton qui l'allume (#3454) ; la bande d'alertes
 // n'en fait plus de ligne, et la ligne brute de la box n'est plus qu'au survol de l'interrupteur.
 // L'état vient de la bande (alerts.ts), lu dans ce que `manager` écrit — le manager suit
-// l'interrupteur du projet, et sa ligne le dit : la sortie de la commande de l'ancien runtime, jouée sur
-// un vrai journal et recopiée telle quelle (runtime/src/manager-cli.ts, supprimé avec lui, #4499). La vue
-// est jouée telle qu'elle est, devant un faux document
+// l'interrupteur du projet, et sa ligne le dit : la commande du runtime, jouée ici sur un vrai
+// journal (runtime/src/manager-cli.ts). La vue est jouée telle qu'elle est, devant un faux document
 // (helpers/false-vue.ts).
 import assert from "node:assert/strict";
-import { describe, test } from "node:test";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { describe, test, type TestContext } from "node:test";
+import type { Fait } from "../../runtime/src/evenements.ts";
+import { ouvrirJournal } from "../../runtime/src/journal.ts";
+import { principal as manager } from "../../runtime/src/manager-cli.ts";
 import { MANAGER_OFF, holdBands, type Band } from "../src/alerts.ts";
 import { POWER_UP, WARNING, tell } from "../src/power-up.ts";
 import { forTheBar } from "../src/bar.ts";
@@ -29,13 +34,19 @@ const A = "2026-10-13T10:00:01.000Z";
 const PARADE: Project = { nom: "parade", dossier: "/tmp/parade" };
 const reading = (command: string, text: string): Reading => ({ projet: "parade", demande: 1, a: A, sorties: [{ commande: command, texte: text }] });
 
-// La sortie de `manager` sur un journal où le chef a allumé, ou éteint, le projet à 9 h 25 : telle que l'ancien runtime
-// l'écrivait.
-function outputOfManager(lit: boolean): string {
-  const switchLine = lit
-    ? "manager               ON since 2026-10-13T09:25:00.000Z (by chef) — the project switch is on: it judges the open issues, sets `fire` and the calibration"
-    : "manager               OFF since 2026-10-13T09:25:00.000Z (by chef) — the project switch is off: `brigade <projet> switch on` turns it on — no issue is judged, what it set stays set";
-  return [switchLine, "latest decisions      none", "set aside             none", "epics                 none", "reactions             none", "held gestures         none"].join("\n") + "\n";
+// `manager`, jouée sur un journal où le chef a allumé, ou éteint, le projet à 9 h 25 : sa sortie, telle quelle.
+function outputOfManager(t: TestContext, lit: boolean): string {
+  const directory = mkdtempSync(join(tmpdir(), "brigade-app-interrupteur-"));
+  const log = ouvrirJournal(directory, { maintenant: () => new Date("2026-10-13T09:25:00.000Z") });
+  t.after(() => {
+    log.fermer();
+    rmSync(directory, { recursive: true, force: true });
+  });
+  const done: Fait = { type: lit ? "project.switched-on" : "project.switched-off", payload: {} };
+  log.ajouter({ project: "parade", ticket: null, author: "chef", ...done });
+  const lines: string[] = [];
+  void manager({ args: [], env: { BRIGADE_STATE_DIR: directory }, dire: (line) => void lines.push(line), redire: (line) => assert.fail(line) });
+  return `${lines.join("\n")}\n`;
 }
 
 // La bande que le process principal dirait, `manager` lu — ou pas encore.
@@ -90,9 +101,9 @@ const confirmation = (vue: Played): Fake | undefined => vue.element("interrupteu
 const actionsGone = (vue: Played) => vue.appels.filter(({ geste: action }) => action === "geste").map(({ args }) => args);
 
 describe("la bande porte l'état de l'interrupteur du projet", () => {
-  test("allumé, éteint, pas encore lu : l'état tel qu'il vient d'être lu, la ligne du runtime mot pour mot — jamais « éteint » faute de lecture", () => {
-    assert.deepEqual(bandRead(outputOfManager(true)).manager, { allume: true, releve: "ON since 2026-10-13T09:25:00.000Z (by chef) — the project switch is on: it judges the open issues, sets `fire` and the calibration" });
-    const off = bandRead(outputOfManager(false));
+  test("allumé, éteint, pas encore lu : l'état tel qu'il vient d'être lu, la ligne du runtime mot pour mot — jamais « éteint » faute de lecture", (t) => {
+    assert.deepEqual(bandRead(outputOfManager(t, true)).manager, { allume: true, releve: "ON since 2026-10-13T09:25:00.000Z (by chef) — the project switch is on: it judges the open issues, sets `fire` and the calibration" });
+    const off = bandRead(outputOfManager(t, false));
     assert.deepEqual(off.manager, { allume: false, dit: MANAGER_OFF, releve: "OFF since 2026-10-13T09:25:00.000Z (by chef) — the project switch is off: `brigade <projet> switch on` turns it on — no issue is judged, what it set stays set" });
     // La ligne de la bande dit la même phrase : c'est elle qui fait le signal de la case, dans la barre.
     assert.deepEqual(off.alertes.map(({ sujet: subject, dit: said }) => [subject, said]), [["manager", "project off — nothing new is taken, split or merged"]]);
@@ -103,9 +114,9 @@ describe("la bande porte l'état de l'interrupteur du projet", () => {
 });
 
 describe("l'interrupteur, en tête de l'espace", () => {
-  test("éteint : « project off », la ligne de la box au survol, aucune ligne dans la bande, et la tête du rail à l'arrêt d'une ligne", async () => {
+  test("éteint : « project off », la ligne de la box au survol, aucune ligne dans la bande, et la tête du rail à l'arrêt d'une ligne", async (t) => {
     const vue = await open();
-    vue.dire("surAlertes", bandRead(outputOfManager(false)));
+    vue.dire("surAlertes", bandRead(outputOfManager(t, false)));
     await repos();
 
     assert.equal(vue.element("interrupteur-projet").hidden, false);
@@ -132,13 +143,13 @@ describe("l'interrupteur, en tête de l'espace", () => {
     assert.ok(rail.indexOf(head) < rail.findIndex(({ className }) => className === "colonnes"));
   });
 
-  test("allumé : « project on », et la tête du rail n'est plus marquée ; une bascule lue se voit aussitôt, sans attendre les faits", async () => {
+  test("allumé : « project on », et la tête du rail n'est plus marquée ; une bascule lue se voit aussitôt, sans attendre les faits", async (t) => {
     const vue = await open();
-    vue.dire("surAlertes", bandRead(outputOfManager(false)));
+    vue.dire("surAlertes", bandRead(outputOfManager(t, false)));
     await repos();
     assert.notEqual(headOfRail(vue), undefined);
 
-    vue.dire("surAlertes", bandRead(outputOfManager(true)));
+    vue.dire("surAlertes", bandRead(outputOfManager(t, true)));
     await repos();
     const lit = toggle(vue);
     assert.equal(lit.ariaChecked, "true");
@@ -164,9 +175,9 @@ describe("l'interrupteur, en tête de l'espace", () => {
     assert.deepEqual(vue.appels.filter(({ geste: action }) => action === "geste" || action === "confirmer"), []);
   });
 
-  test("allumé, un clic l'éteint : le geste part dans le second, sans confirmation", async () => {
+  test("allumé, un clic l'éteint : le geste part dans le second, sans confirmation", async (t) => {
     const vue = await open({ geste: () => undefined });
-    vue.dire("surAlertes", bandRead(outputOfManager(true)));
+    vue.dire("surAlertes", bandRead(outputOfManager(t, true)));
     await repos();
 
     toggle(vue).click();
@@ -175,10 +186,10 @@ describe("l'interrupteur, en tête de l'espace", () => {
     assert.deepEqual(vue.appels.filter(({ geste: action }) => action === "confirmer"), []);
   });
 
-  test("un geste que le second refuse : le centre le dit en une phrase avec « try again », qui rejoue le même geste — jamais un clic sans message", async () => {
+  test("un geste que le second refuse : le centre le dit en une phrase avec « try again », qui rejoue le même geste — jamais un clic sans message", async (t) => {
     let calls = 0;
     const vue = await open({ geste: () => (++calls === 1 ? { refus: "the second is busy — the command did not go, and nothing is written: `switch off`" } : undefined) });
-    vue.dire("surAlertes", bandRead(outputOfManager(true)));
+    vue.dire("surAlertes", bandRead(outputOfManager(t, true)));
     await repos();
 
     toggle(vue).click();
@@ -193,9 +204,9 @@ describe("l'interrupteur, en tête de l'espace", () => {
     assert.doesNotMatch(vue.element("note").textContent, /nothing was sent/);
   });
 
-  test("le message d'un geste raté ne suit pas le chef dans un autre espace : ouvrir un projet l'efface", async () => {
+  test("le message d'un geste raté ne suit pas le chef dans un autre espace : ouvrir un projet l'efface", async (t) => {
     const vue = await open({ geste: () => ({ refus: "the second is busy — nothing is written" }) });
-    vue.dire("surAlertes", bandRead(outputOfManager(true)));
+    vue.dire("surAlertes", bandRead(outputOfManager(t, true)));
     await repos();
     toggle(vue).click();
     await repos();
@@ -206,14 +217,14 @@ describe("l'interrupteur, en tête de l'espace", () => {
     assert.doesNotMatch(vue.element("note").textContent, /nothing was sent/);
   });
 
-  test("éteint, un clic ouvre la confirmation : une phrase dit ce qu'il va juger, avec le nombre réel d'issues ouvertes — rien ne part avant le « oui »", async () => {
+  test("éteint, un clic ouvre la confirmation : une phrase dit ce qu'il va juger, avec le nombre réel d'issues ouvertes — rien ne part avant le « oui »", async (t) => {
     const backlog = { ouvertes: 23, retenues: 0 };
     const vue = await open({
       confirmer: (_, id) => confirmationOf(id, PARADE, { sans: "pas lus" }, KITCHEN),
       compter: () => ({ projet: "parade", a: A, ...backlog, dit: tell(backlog) }),
       geste: () => undefined,
     });
-    vue.dire("surAlertes", bandRead(outputOfManager(false)));
+    vue.dire("surAlertes", bandRead(outputOfManager(t, false)));
     await repos();
 
     toggle(vue).click();

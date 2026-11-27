@@ -108,6 +108,8 @@ describe("la construction du paquet", { skip: sansDpkgDeb }, () => {
       "/usr/lib/brigade-station/node/bin/node",
       "/usr/lib/brigade-station/runtime/package.json",
       "/usr/lib/brigade-station/runtime/src/kitchen/main.ts",
+      // The gesture the app launches its station commands through (app/src/box.ts, `ACTION`).
+      "/usr/lib/brigade-station/runtime/src/station/geste.ts",
       "/usr/lib/brigade-station/runtime/agents/kitchen/cook.md",
       "/usr/lib/brigade-station/renouvellement",
       "/usr/lib/systemd/system/brigade-station.service",
@@ -124,7 +126,7 @@ describe("la construction du paquet", { skip: sansDpkgDeb }, () => {
     assert.equal(droits("/usr/lib/brigade-station/renouvellement"), "-rwxr-xr-x");
     assert.equal(droits("/usr/lib/brigade-station/runtime/src/kitchen/main.ts"), "-rw-r--r--");
     // The station is the kitchen: nothing of the old runtime's entry points.
-    assert.deepEqual(chemins.filter((c) => c.endsWith("/src/station/main.ts") || c.endsWith("/src/station/geste.ts") || c === "/usr/lib/brigade-station/brigade"), []);
+    assert.deepEqual(chemins.filter((c) => c.endsWith("/src/station/main.ts") || c === "/usr/lib/brigade-station/brigade"), []);
   });
 
   test("il porte la consigne du second juge, celle de ce commit, et le runtime installé la lit (#2571)", async (t) => {
