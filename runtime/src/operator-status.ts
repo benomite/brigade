@@ -45,7 +45,7 @@ const updateOf = (state: EtatMiseAJour | null): Status["update"] =>
   state === null
     ? null
     : {
-        installed: state.installed,
+        installed: state.installee,
         available: state.disponible,
         frozen: state.gelee,
         held: state.retenue,

@@ -28,7 +28,7 @@ test("the status file says version, start, projects, cooks, update, quota and re
   writeFileSync(join(run, "meta.json"), JSON.stringify({ kind: "cook", issue: 7, pr: null, started, worktree: null }));
   // This process stands for the cook's relay.
   writeFileSync(join(run, "relay.json"), JSON.stringify({ pid: process.pid, run: "cook-7" }));
-  ecrireEtatMiseAJour(updateDir, { installed: "1.2.0", disponible: "1.3.0", gelee: false, verifieeLe: "2026-11-27T10:00:00.000Z", verification: null, retenue: "version 1.3.0 failed before", ratees: [], derniere: { quoi: "passee", version: "1.2.0", depuis: "1.1.0", le: "2026-11-26T08:00:00.000Z" } });
+  ecrireEtatMiseAJour(updateDir, { installee: "1.2.0", disponible: "1.3.0", gelee: false, verifieeLe: "2026-11-27T10:00:00.000Z", verification: null, retenue: "version 1.3.0 failed before", ratees: [], derniere: { quoi: "passee", version: "1.2.0", depuis: "1.1.0", le: "2026-11-26T08:00:00.000Z" } });
   const gh = async (args: string[]) => {
     assert.deepEqual(args, ["api", "rate_limit"]);
     return JSON.stringify(RATE_LIMIT);
