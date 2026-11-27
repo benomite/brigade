@@ -31,8 +31,9 @@ const PRODUCT = {
     { texte: "One per project.", suite: "resume" },
     { texte: "A single export.", suite: "resume" },
   ],
-  captures: null,
 };
+// Sa carte du chef, telle que son issue la pose sur GitHub (board/todo-github.ts).
+const CHEF = { sorte: PRODUCT.type, texte: [PRODUCT.question, ...PRODUCT.choix.map(({ texte: text, suite }) => `- [${suite}] ${text}`)].join("\n") };
 // Le rail lu : #14 en cuisine, #21 qui attend le chef sur sa carte.
 const FACTS: Facts = {
   etat: "ouverte",
@@ -45,7 +46,7 @@ const FACTS: Facts = {
     { ticket: 21, etat: "en attente", titre: "L'export du journal", url: ISSUE(21), activite: null },
   ],
   cooks: [{ ticket: 14, titre: "Le journal en ajout seul", station: "box/claude" }],
-  attend: [{ ticket: 21, titre: "L'export du journal", url: ISSUE(21), decision: { quoi: "carte", motif: "product", cause: PRODUCT.question, pr: null }, carte: PRODUCT }],
+  attend: [{ ticket: 21, titre: "L'export du journal", url: ISSUE(21), chef: CHEF }],
 };
 // Le chef a tranché #21 ailleurs (sur GitHub, son téléphone) : la cuisine l'a pris.
 const SLICE: Facts = { ...FACTS, compteurs: { ...FACTS.compteurs, auTravail: 2, attend: 0 }, rail: [FACTS.rail[0]!, { ...FACTS.rail[1]!, etat: "pris" }], attend: [] };

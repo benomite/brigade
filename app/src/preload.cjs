@@ -33,9 +33,6 @@ const bridge = {
   demarrer: (project) => ipcRenderer.invoke("demarrer", project),
   retrait: (project) => ipcRenderer.invoke("retrait", project),
   retirerDeLApp: (project) => ipcRenderer.invoke("retirerDeLApp", project),
-  direJournal: (project, ticked) => ipcRenderer.invoke("direJournal", project, ticked),
-  planifier: (project) => ipcRenderer.invoke("planifier", project),
-  desinstaller: (project, confirmation) => ipcRenderer.invoke("desinstaller", project, confirmation),
   espace: (project) => ipcRenderer.invoke("espace", project),
   terminauxOuverts: () => ipcRenderer.invoke("terminauxOuverts"),
   machines: (project) => ipcRenderer.invoke("machines", project),
@@ -115,10 +112,7 @@ const bridge = {
   listerLesHumains: (project) => ipcRenderer.invoke("listerLesHumains", project),
   enregistrerUnHumain: (project, human) => ipcRenderer.invoke("enregistrerUnHumain", project, human),
   retirerUnHumain: (project, login) => ipcRenderer.invoke("retirerUnHumain", project, login),
-  // Les gestes retenus pour l'OK du chef (held/, ticket 4273) : lus, et approuvés un par un.
   lireLesAgents: (project) => ipcRenderer.invoke("lireLesAgents", project),
-  gestesRetenus: (project) => ipcRenderer.invoke("gestesRetenus", project),
-  approuverGeste: (project, id) => ipcRenderer.invoke("approuverGeste", project, id),
   // La fiche du projet, sous Settings (ticket 4240) : lue et écrite dans le dossier du projet (card-project/card-project-folder.ts).
   lireUnFichierDuProjet: (project, path) => ipcRenderer.invoke("lireUnFichierDuProjet", project, path),
   ecrireUnFichierDuProjet: (project, path, text) => ipcRenderer.invoke("ecrireUnFichierDuProjet", project, path, text),

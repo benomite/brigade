@@ -1,6 +1,5 @@
 // « report to brigade », côté vue (vue/report/action.js, ticket 1977) : sur chaque panne que l'app montre — une
-// station en panne, une carte mise de côté, une livraison que la pass n'a pas pu juger, une ligne d'erreur, la panne en
-// tête du rail —, un bouton à la suite ; nulle part ailleurs. Un clic passe la panne au process principal, joué ici par
+// station en panne, une carte mise de côté, une ligne d'erreur, la panne en tête du rail —, un bouton à la suite ; nulle part ailleurs. Un clic passe la panne au process principal, joué ici par
 // le vrai module (vue/report/opening.ts) : le navigateur reçoit l'adresse de l'issue préremplie, et rien d'autre.
 // La vue est jouée telle qu'elle est, devant un faux document et un faux pont (helpers/false-vue.ts).
 import assert from "node:assert/strict";
@@ -65,7 +64,7 @@ async function openParade(answers: Answers = {}, withIt: With = {}): Promise<Pla
 const report = (or: Fake) => or.dessous("button").filter(({ className }) => className === "signaler-a-brigade");
 
 // Le rail de parade, tel que la box l'écrit, passé par le process principal (facts.ts) : #14 au travail, #21 dans la
-// file, #22 mis de côté, #12 remonté parce que la pass n'a pas pu le juger, #30 remonté encore rouge.
+// file, #22 mis de côté, #12 et #30 qui attendent le chef dans Pass.
 const ISSUE = (ticket: number) => `https://github.com/benomite/parade/issues/${ticket}`;
 const FACTS: Facts = {
   etat: "ouverte",
@@ -83,8 +82,8 @@ const FACTS: Facts = {
   cooks: [{ ticket: 14, titre: "Le journal", station: "box/claude" }],
   attend: [
     { ticket: 22, titre: "Un ticket libre", url: ISSUE(22) },
-    { ticket: 12, titre: "Validation SIRET", url: ISSUE(12), decision: { quoi: "remontee", motif: "unjudged", cause: null, pr: "https://github.com/benomite/parade/pull/40" } },
-    { ticket: 30, titre: "La pass rouge", url: ISSUE(30), decision: { quoi: "remontee", motif: "still-red", cause: null, pr: "https://github.com/benomite/parade/pull/41" } },
+    { ticket: 12, titre: "Validation SIRET", url: ISSUE(12) },
+    { ticket: 30, titre: "La pass rouge", url: ISSUE(30) },
   ],
 };
 const receive = (vue: Played, facts: Facts) => {
@@ -94,14 +93,13 @@ const receive = (vue: Played, facts: Facts) => {
 const card = (vue: Played, ticket: number) => cardOfTicket(vue, ticket) ?? assert.fail(`pas de carte #${ticket}`);
 
 describe("les cartes du rail", () => {
-  test("une carte mise de côté et une livraison que la pass n'a pas pu juger portent « report to brigade » ; les autres, non", async () => {
+  test("une carte mise de côté porte « report to brigade » ; les autres, non", async () => {
     const vue = await openParade();
     receive(vue, FACTS);
     await repos();
     assert.equal(report(card(vue, 22)).length, 1);
-    assert.equal(report(card(vue, 12)).length, 1);
-    // Une livraison rouge est l'affaire du projet ; une carte en cuisine ou dans la file n'a pas failli.
-    for (const ticket of [30, 14, 21]) assert.deepEqual(report(card(vue, ticket)), [], `#${ticket}`);
+    // Une livraison qui attend le chef est l'affaire du projet ; une carte en cuisine ou dans la file n'a pas failli.
+    for (const ticket of [12, 30, 14, 21]) assert.deepEqual(report(card(vue, ticket)), [], `#${ticket}`);
     const [button] = report(card(vue, 22));
     assert.equal(button?.textContent, REPORT);
     assert.equal(button?.title, HOVER);
@@ -156,9 +154,9 @@ describe("les cartes du rail", () => {
     const vue = await openParade({ signaler: () => ({ refus: "the browser did not open: nothing was sent", detail: "no default browser" }) });
     receive(vue, FACTS);
     await repos();
-    (report(card(vue, 12))[0] ?? assert.fail("pas de bouton")).click();
+    (report(card(vue, 22))[0] ?? assert.fail("pas de bouton")).click();
     await repos();
-    const refusal = card(vue, 12).dessous("p").find(({ className }) => className === "indisponible") ?? assert.fail("pas de refus");
+    const refusal = card(vue, 22).dessous("p").find(({ className }) => className === "indisponible") ?? assert.fail("pas de refus");
     assert.equal(refusal.textContent, "the browser did not open: nothing was sent?");
     assert.equal(refusal.dessous("button").find(({ className }) => className === "aide")?.ariaLabel, "no default browser");
   });
