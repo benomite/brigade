@@ -1,9 +1,9 @@
 // The app's Agents tab for a project the new kitchen serves: its four agents,
 // what each runs now, and its last finished runs as its thread. Read from the
 // kitchen's run files (`runs.ts`): `runs/` for what runs, `done/` for what ended.
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
-import { listRuns, resultOf, type Kind, type RunMeta } from "./runs.ts";
+import { listRuns, readJson, resultOf, type Kind, type RunMeta } from "./runs.ts";
 
 const AGENTS: ReadonlyArray<{ id: Kind; name: string; role: string }> = [
   { id: "manager", name: "Manager", role: "Calibrates the next tickets of the backlog, splits the big ones, and parks for the chef only what is the chef's to decide." },
@@ -25,11 +25,8 @@ function done(kitchen: string): Done[] {
   const root = join(kitchen, "done");
   if (!existsSync(root)) return [];
   return readdirSync(root).flatMap((name) => {
-    try {
-      return [{ ...(JSON.parse(readFileSync(join(root, name, "meta.json"), "utf8")) as RunMeta), name, dir: join(root, name) }];
-    } catch {
-      return [];
-    }
+    const meta = readJson<RunMeta>(join(root, name, "meta.json"));
+    return meta === null ? [] : [{ ...meta, name, dir: join(root, name) }];
   });
 }
 

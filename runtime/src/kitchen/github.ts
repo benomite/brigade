@@ -9,10 +9,7 @@ export type Gh = (args: string[], input?: string) => Promise<string>;
 export function ghCli(bin: string, env: NodeJS.ProcessEnv): Gh {
   return (args, input) =>
     new Promise((resolve, reject) => {
-      const child = execFile(bin, args, { env, maxBuffer: 64 * 1024 * 1024 }, (error, stdout, stderr) => {
-        if (error) reject(new Error(`gh ${args.slice(0, 3).join(" ")}: ${stderr.trim() || error.message}`));
-        else resolve(stdout);
-      });
+      const child = execFile(bin, args, { env, maxBuffer: 64 * 1024 * 1024 }, (error, stdout, stderr) => (error ? reject(new Error(`gh ${args.slice(0, 3).join(" ")}: ${stderr.trim() || error.message}`)) : resolve(stdout)));
       child.stdin?.end(input ?? "");
     });
 }
