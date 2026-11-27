@@ -178,15 +178,15 @@ the step 1 command: it only redoes the Max connection — the link, the code.
 When a station version is published, the station moves to it on its own, like a browser — you
 have nothing to do. Every ten minutes, its updater (`brigade-station-mise-a-jour`, delivered
 by the package, the only part of the station that runs as root) looks at the published versions;
-if there is a newer one, it hands it to `apt`. The package puts in the new code and its units,
-then restarts the station. **The cooks in flight are not cut** (#4401): each runs under a relay that
+if there is a newer one, it downloads its archive, unpacks it into `/opt/brigade-station/<version>/`, runs
+that version's `install.sh` in update mode (it refreshes the units), switches `current` and restarts the station. **The cooks in flight are not cut** (#4401): each runs under a relay that
 outlives the station, which restarts without waiting for them; the station that comes back up follows
 them to their end and finishes their tickets — gates, push, PR.
 
 **There is no spacing between updates**: the updater installs a ready release at its next pass (every ten minutes), whatever the time since the last install. What guards a broken release stays: the new version is tried, and rolled back if the station does not come up on it (below).
 
 The new version is kept when the station says it has started on it and serves all the projects it
-served before. Otherwise, **it goes back on its own to the previous version**, whose package it
+served before. Otherwise, **it goes back on its own to the previous version** (`current` switches back, the station restarts), which it
 kept. A failed version is not retried; the next one will be. In both cases, each project's queue
 says so in one line, the same day:
 

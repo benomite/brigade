@@ -1,27 +1,46 @@
-// La machine, telle que la mise à jour la touche : dpkg pour la version
-// installée et le contenu d'un paquet, apt pour l'installer, systemd pour la
-// station. Rien d'autre n'est lancé, et toujours sans shell. C'est le seul
-// module de la mise à jour qui lance un programme du système.
+// La machine, telle que la mise à jour la touche : les versions posées sous
+// /opt/brigade-station/<version>/, le lien `current` qui désigne celle qui
+// tourne, et le gestionnaire de services — systemd sous Linux, launchd sous
+// macOS — qui relance la station. Rien d'autre n'est lancé, et toujours sans
+// shell. C'est le seul module de la mise à jour qui lance un programme du
+// système.
+import { existsSync, mkdirSync, readdirSync, readlinkSync, renameSync, rmSync, symlinkSync } from "node:fs";
+import { basename, join } from "node:path";
 import { spawnSync } from "../sans-invite.ts";
+import { VERSION } from "./versions.ts";
 
-export const PAQUET = "brigade-station";
 export const SERVICE = "brigade-station.service";
+export const ETIQUETTE_LAUNCHD = "brigade.station";
+export const OPT = "/opt/brigade-station";
+export const COURANTE = "current";
 
 // `actif` : l'ActiveState de systemd (`active`, `activating`, `failed`…).
-// `pid` : son MainPID, 0 sans process. `redemarrages` : ceux que systemd a
-// faits seul depuis le dernier démarrage demandé — la station est tombée.
+// `pid` : son MainPID, 0 sans process. `redemarrages` : ceux que le
+// gestionnaire a faits seul depuis le dernier démarrage demandé — la station
+// est tombée.
 export type EtatDuService = { actif: string; pid: number; redemarrages: number };
 
 export type Rendu = { ok: true } | { ok: false; motif: string };
 
+// Le gestionnaire de services de la machine, pour la seule station.
+export type Gestionnaire = {
+  redemarrer(): Rendu;
+  etat(): EtatDuService;
+};
+
 export type Systeme = {
-  // La version installée du paquet, nulle s'il ne l'est pas tout à fait.
+  // La version que `current` désigne, nulle sans lien ou s'il ne désigne rien de posé.
   installee(): string | null;
-  // Ce que dit le paquet d'un fichier : son nom et sa version.
-  lirePaquet(fichier: string): { paquet: string; version: string } | null;
-  // Installe un paquet, plus récent ou plus ancien. dpkg y joue le postinst
-  // du paquet, qui relance la station sur le nouveau code.
-  installer(fichier: string): Rendu;
+  // Les versions posées sous /opt/brigade-station.
+  posees(): string[];
+  // Pose une archive : la défait dans le répertoire de sa version, et joue
+  // l'`install.sh` de cette version en mode mise à jour, qui rafraîchit les
+  // unités ou les plists. Rien ne reste d'une pose qui échoue.
+  poser(archive: string, version: string): Rendu;
+  // Fait de `version` la version courante, puis relance la station.
+  basculer(version: string): Rendu;
+  // Retire une version posée.
+  retirer(version: string): void;
   service(): EtatDuService;
 };
 
@@ -42,29 +61,94 @@ function lancer(programme: string, args: string[], delaiMs = DELAI_MS, env: Node
   return { code: rendu.status, sortie: rendu.stdout ?? "", erreurs: rendu.stderr ?? "", echec: rendu.error ?? null };
 }
 
-export function systemeDeLaMachine(): Systeme {
+// Ce qu'un programme lancé a dit de son échec, ou rien s'il a réussi.
+function echec(nom: string, lu: ReturnType<typeof lancer>): string | null {
+  if (lu.echec !== null) return `${nom} n'a pas pu être lancé ou n'a pas rendu la main (${lu.echec.message})`;
+  if (lu.code === 0) return null;
+  const ligne = derniereLigne(lu.erreurs || lu.sortie);
+  return `${nom} a rendu ${lu.code}${ligne ? ` — « ${ligne} »` : ""}`;
+}
+
+export function gestionnaireSystemd(): Gestionnaire {
   return {
-    installee() {
-      const lu = lancer("dpkg-query", ["--show", "--showformat=${db:Status-Abbrev}${Version}", PAQUET]);
-      const [, etat, version] = /^(\S+)\s*(\S*)$/.exec(lu.sortie.trim()) ?? [];
-      return lu.code === 0 && etat === "ii" && version ? version : null;
+    redemarrer() {
+      const motif = echec("systemctl restart", lancer("systemctl", ["restart", SERVICE]));
+      return motif === null ? { ok: true } : { ok: false, motif };
     },
-    lirePaquet(fichier) {
-      const lu = lancer("dpkg-deb", ["--field", fichier, "Package", "Version"]);
-      if (lu.code !== 0) return null;
-      const champs = Object.fromEntries(lu.sortie.split("\n").map((ligne) => [ligne.split(":", 1)[0]?.trim(), ligne.slice(ligne.indexOf(":") + 1).trim()]));
-      return champs.Package && champs.Version ? { paquet: champs.Package, version: champs.Version } : null;
-    },
-    installer(fichier) {
-      const lu = lancer("apt-get", ["install", "-y", "-q", "--allow-downgrades", fichier], DELAI_INSTALLATION_MS, { ...process.env, DEBIAN_FRONTEND: "noninteractive" });
-      if (lu.echec !== null) return { ok: false, motif: `apt-get n'a pas pu être lancé ou n'a pas rendu la main (${lu.echec.message})` };
-      if (lu.code !== 0) return { ok: false, motif: `apt-get a rendu ${lu.code}${derniereLigne(lu.erreurs || lu.sortie) ? ` — « ${derniereLigne(lu.erreurs || lu.sortie)} »` : ""}` };
-      return { ok: true };
-    },
-    service() {
+    etat() {
       const lu = lancer("systemctl", ["show", SERVICE, "--property=ActiveState,MainPID,NRestarts"]);
       const proprietes = Object.fromEntries(lu.sortie.split("\n").map((ligne) => [ligne.split("=", 1)[0], ligne.slice(ligne.indexOf("=") + 1).trim()]));
       return { actif: proprietes.ActiveState || "inconnu", pid: Number(proprietes.MainPID) || 0, redemarrages: Number(proprietes.NRestarts) || 0 };
     },
+  };
+}
+
+export function gestionnaireLaunchd(): Gestionnaire {
+  const cible = `system/${ETIQUETTE_LAUNCHD}`;
+  return {
+    redemarrer() {
+      const motif = echec("launchctl kickstart", lancer("launchctl", ["kickstart", "-k", cible]));
+      return motif === null ? { ok: true } : { ok: false, motif };
+    },
+    etat() {
+      const lu = lancer("launchctl", ["print", cible]);
+      if (lu.code !== 0) return { actif: "failed", pid: 0, redemarrages: 0 };
+      const pid = Number(/^\s*pid = (\d+)$/m.exec(lu.sortie)?.[1] ?? 0);
+      return { actif: pid > 0 ? "active" : /^\s*state = (\S+)$/m.exec(lu.sortie)?.[1] ?? "inconnu", pid, redemarrages: 0 };
+    },
+  };
+}
+
+export function systemeDeLaMachine(options: { opt?: string; gestionnaire?: Gestionnaire } = {}): Systeme {
+  const opt = options.opt ?? OPT;
+  const gestionnaire = options.gestionnaire ?? (process.platform === "darwin" ? gestionnaireLaunchd() : gestionnaireSystemd());
+  const courante = join(opt, COURANTE);
+  const posees = () => (existsSync(opt) ? readdirSync(opt, { withFileTypes: true }).flatMap((entree) => (entree.isDirectory() && VERSION.test(entree.name) ? [entree.name] : [])) : []);
+  return {
+    installee() {
+      let cible: string;
+      try {
+        cible = basename(readlinkSync(courante));
+      } catch {
+        return null;
+      }
+      return posees().includes(cible) ? cible : null;
+    },
+    posees,
+    poser(archive, version) {
+      const cible = join(opt, version);
+      const enCours = `${cible}.part`;
+      rmSync(enCours, { recursive: true, force: true });
+      rmSync(cible, { recursive: true, force: true });
+      mkdirSync(enCours, { recursive: true, mode: 0o755 });
+      const defaite = echec("tar", lancer("tar", ["-xzf", archive, "-C", enCours, "--no-same-owner"], DELAI_INSTALLATION_MS));
+      if (defaite !== null) {
+        rmSync(enCours, { recursive: true, force: true });
+        return { ok: false, motif: `l'archive de ${version} ne se défait pas : ${defaite}` };
+      }
+      if (!existsSync(join(enCours, "install.sh"))) {
+        rmSync(enCours, { recursive: true, force: true });
+        return { ok: false, motif: `l'archive de ${version} ne porte pas d'install.sh` };
+      }
+      renameSync(enCours, cible);
+      const installe = echec("install.sh", lancer("sh", [join(cible, "install.sh"), "--update"], DELAI_INSTALLATION_MS, { ...process.env, BRIGADE_OPT: opt }));
+      if (installe !== null) {
+        rmSync(cible, { recursive: true, force: true });
+        return { ok: false, motif: `l'install.sh de ${version} a échoué : ${installe}` };
+      }
+      return { ok: true };
+    },
+    basculer(version) {
+      if (!posees().includes(version)) return { ok: false, motif: `la version ${version} n'est pas posée sous ${opt}` };
+      const lien = `${courante}.tmp`;
+      rmSync(lien, { force: true });
+      symlinkSync(version, lien);
+      renameSync(lien, courante);
+      return gestionnaire.redemarrer();
+    },
+    retirer(version) {
+      rmSync(join(opt, version), { recursive: true, force: true });
+    },
+    service: () => gestionnaire.etat(),
   };
 }

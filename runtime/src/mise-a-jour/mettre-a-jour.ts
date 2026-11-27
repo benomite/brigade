@@ -1,30 +1,34 @@
-// Un passage de la mise à jour de la station, comme son minuteur le lance :
-// elle lit les versions publiées et, s'il y en a une plus récente que celle
-// installée, elle l'installe — sauf si la version est gelée, ou si celle-ci a
-// déjà raté. Installer, c'est remettre le paquet à apt : dpkg pose le nouveau
-// code et les unités qu'il porte, puis son postinst recharge systemd et relance
-// la station. Seul le process de la station est relancé (`KillMode=process`) :
-// ses cooks, portés chacun par un relais, lui survivent, et la station relancée
-// les suit jusqu'à leur fin (#4401). L'installation n'attend donc rien d'eux.
+// Un passage de la mise à jour de la station, comme son minuteur le lance
+// (systemd, ou launchd par `StartInterval`) : elle lit les versions publiées
+// et, s'il y en a une plus récente que celle installée, elle l'installe — sauf
+// si la version est gelée, ou si celle-ci a déjà raté. Installer, c'est
+// télécharger l'archive de la version, la défaire sous
+// /opt/brigade-station/<version>/, jouer l'`install.sh` de cette version en
+// mode mise à jour (il rafraîchit les unités ou les plists), puis faire de la
+// version la courante (`current`) et relancer la station. Seul le process de
+// la station est relancé : ses cooks, portés chacun par un relais, lui
+// survivent, et la station relancée les suit jusqu'à leur fin (#4401).
+// L'installation n'attend donc rien d'eux.
 //
 // Une version est gardée quand la station relancée sur elle s'est dite en
-// service — sa version, sous le pid que systemd lui donne — et sert au moins
-// les projets que la version d'avant servait. Sinon elle n'a pas démarré : le
-// paquet de la version d'avant est réinstallé, la station revient dessus, et
-// l'issue le dit en une ligne. Une version ratée n'est pas réessayée ; la
-// suivante l'est.
+// service — sa version, sous le pid que le gestionnaire lui donne — et sert au
+// moins les projets que la version d'avant servait. Sinon elle n'a pas
+// démarré : `current` revient à la version d'avant, la station est relancée
+// dessus, et l'issue le dit en une ligne. Une version ratée n'est pas
+// réessayée ; la suivante l'est. Gardée, la version d'avant reste posée pour
+// le retour suivant ; les plus anciennes sont effacées.
 //
 // Ce que la mise à jour a donné est noté dans son répertoire (`etat.ts`) :
 // c'est ce que la station relaie au journal de chaque projet, et ce que la
 // file dit.
-import { existsSync, mkdirSync, readdirSync, rmSync } from "node:fs";
+import { mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { CONFIGURATION, lireFichierDeConfiguration } from "../station/configuration.ts";
 import { lireEnService } from "./en-service.ts";
-import { ecrireEtatMiseAJour, lireEtatMiseAJour, noterIssue, PAQUETS, type EtatMiseAJour, type Issue } from "./etat.ts";
+import { ARCHIVES, ecrireEtatMiseAJour, lireEtatMiseAJour, noterIssue, type EtatMiseAJour, type Issue } from "./etat.ts";
 import type { Publication, Publications } from "./publications.ts";
 import { lireReglages } from "./reglages.ts";
-import { PAQUET, type Systeme } from "./systeme.ts";
+import type { Systeme } from "./systeme.ts";
 import { comparerVersions } from "./versions.ts";
 
 export type OptionsMiseAJour = {
@@ -49,6 +53,58 @@ const PAS_MS = 250;
 const message = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
 const pause = (ms: number) => new Promise<void>((resoudre) => setTimeout(resoudre, ms));
 
+// Ce qu'un passage ferait, sans rien changer : la version installée, la plus
+// récente publiée, et soit la version qu'il installerait (`visee`), soit ce
+// qui l'en retient.
+export type Prevision = {
+  installee: string | null;
+  disponible: string | null;
+  gelee: boolean;
+  visee: Publication | null;
+  // Ce qui a empêché de lire les versions publiées, ou de partir d'une version installée.
+  verification: string | null;
+  // Pourquoi la version disponible n'est pas installée : gel, version déjà ratée.
+  retenue: string | null;
+  problemes: string[];
+};
+
+export async function prevoir(options: Pick<OptionsMiseAJour, "racine" | "dossier" | "systeme" | "publications">): Promise<Prevision> {
+  const { racine, dossier, systeme, publications } = options;
+  const ratees = new Set(lireEtatMiseAJour(dossier)?.ratees ?? []);
+  const reglages = lireReglages(racine);
+  const installee = systeme.installee();
+  const prevision: Prevision = { installee, disponible: lireEtatMiseAJour(dossier)?.disponible ?? null, gelee: reglages.gel, visee: null, verification: null, retenue: null, problemes: reglages.problemes };
+  if (installee === null) {
+    prevision.verification = "aucune version n'est installée (le lien current ne désigne rien de posé) : rien n'est mis à jour";
+    return prevision;
+  }
+  let liste: Publication[];
+  try {
+    liste = await publications.lister();
+  } catch (erreur) {
+    prevision.verification = `les versions publiées ne se lisent pas (${publications.nom}) : ${message(erreur)}`;
+    return prevision;
+  }
+  const plusRecente = liste.reduce<Publication | null>((meilleure, publication) => (meilleure === null || comparerVersions(publication.version, meilleure.version) > 0 ? publication : meilleure), null);
+  prevision.disponible = plusRecente?.version ?? null;
+  if (plusRecente === null || comparerVersions(plusRecente.version, installee) <= 0) return prevision;
+  const visee = plusRecente.version;
+  if (reglages.gel) prevision.retenue = `version gelée en ${installee} : ${visee} attend que le gel soit levé`;
+  else if (ratees.has(visee)) prevision.retenue = `${visee} n'a pas démarré à son essai : elle n'est pas réessayée, la version publiée après elle le sera — ${installee} reste en service`;
+  else prevision.visee = plusRecente;
+  return prevision;
+}
+
+// Ce que `update --check` dit : la version que le passage installerait, ou
+// pourquoi il n'en installerait aucune. Rien n'est changé, pas même l'état.
+export async function verifier(options: Pick<OptionsMiseAJour, "racine" | "dossier" | "systeme" | "publications">): Promise<string> {
+  const prevision = await prevoir(options);
+  if (prevision.verification !== null) return prevision.verification;
+  if (prevision.visee !== null) return `installerait la version ${prevision.visee.version} (installée : ${prevision.installee})`;
+  if (prevision.retenue !== null) return prevision.retenue;
+  return `à jour en ${prevision.installee}`;
+}
+
 // Ce qu'un passage a laissé : l'état exposé, et l'issue de la mise à jour
 // qu'il a faite — nulle s'il n'en a fait aucune.
 export type Passage = { etat: EtatMiseAJour; issue: Issue | null };
@@ -58,17 +114,16 @@ export async function passer(options: OptionsMiseAJour): Promise<Passage> {
   const maintenant = options.maintenant ?? (() => new Date());
   const gardeMs = options.gardeMs ?? GARDE_MS;
   const pasMs = options.pasMs ?? PAS_MS;
-  const paquets = join(dossier, PAQUETS);
-  const paquetDe = (version: string) => join(paquets, `${version}.deb`);
+  const archives = join(dossier, ARCHIVES);
 
   const avant = lireEtatMiseAJour(dossier);
   const ratees = new Set(avant?.ratees ?? []);
-  const reglages = lireReglages(racine);
-  for (const probleme of reglages.problemes) dire(`brigade : mise à jour — ${probleme}`);
+  const prevision = await prevoir({ racine, dossier, systeme, publications });
+  for (const probleme of prevision.problemes) dire(`brigade : mise à jour — ${probleme}`);
   const etat: EtatMiseAJour = {
-    installee: systeme.installee(),
-    disponible: avant?.disponible ?? null,
-    gelee: reglages.gel,
+    installee: prevision.installee,
+    disponible: prevision.disponible,
+    gelee: prevision.gelee,
     verifieeLe: maintenant().toISOString(),
     verification: null,
     retenue: null,
@@ -88,17 +143,17 @@ export async function passer(options: OptionsMiseAJour): Promise<Passage> {
   };
 
   // Attend que la station se dise en service en `version`, sous le pid que
-  // systemd lui donne, démarrée après `debut`, en servant encore les projets
-  // `servis` qui sont toujours configurés. Rend l'instant où elle a démarré,
-  // ou pourquoi elle ne l'a pas fait.
+  // le gestionnaire lui donne, démarrée après `debut`, en servant encore les
+  // projets `servis` qui sont toujours configurés. Rend l'instant où elle a
+  // démarré, ou pourquoi elle ne l'a pas fait.
   const attendreEnService = async (version: string, debut: number, servis: string[]): Promise<{ le: string } | { motif: string }> => {
     const fin = Date.now() + gardeMs;
     const relances = systeme.service().redemarrages;
     let attente = `la station ne s'est pas dite en service en ${version}`;
     for (;;) {
       const service = systeme.service();
-      if (service.actif === "failed") return { motif: `la station s'est arrêtée en échec en ${version} (systemd : failed)` };
-      if (service.redemarrages > relances) return { motif: `la station est tombée en ${version} : systemd l'a relancée ${service.redemarrages - relances} fois` };
+      if (service.actif === "failed") return { motif: `la station s'est arrêtée en échec en ${version} (service : failed)` };
+      if (service.redemarrages > relances) return { motif: `la station est tombée en ${version} : le service l'a relancée ${service.redemarrages - relances} fois` };
       const dite = lireEnService(racine);
       if (dite !== null && comparerVersions(dite.version, version) === 0 && dite.pid === service.pid && Date.parse(dite.depuis) >= debut - 1000) {
         const configures = new Set(lireFichierDeConfiguration(join(racine, CONFIGURATION)).projets.map((projet) => projet.nom));
@@ -106,31 +161,34 @@ export async function passer(options: OptionsMiseAJour): Promise<Passage> {
         if (perdus.length === 0) return { le: dite.depuis };
         attente = perdus.map((projet) => `le projet ${projet} n'est plus servi en ${version}${dite.refuses[projet] ? ` : ${dite.refuses[projet]}` : ""}`).join(" ; ");
       }
-      if (Date.now() >= fin) return { motif: `${attente} en ${Math.round(gardeMs / 1000)} s (systemd : ${service.actif})` };
+      if (Date.now() >= fin) return { motif: `${attente} en ${Math.round(gardeMs / 1000)} s (service : ${service.actif})` };
       await pause(pasMs);
     }
   };
 
-  // Installe un paquet, puis attend que la station s'y dise en service.
-  const installer = async (fichier: string, version: string, servis: string[]): Promise<{ le: string } | { motif: string }> => {
+  // Fait de `version` la version courante, relance la station, et attend
+  // qu'elle s'y dise en service.
+  const basculer = async (version: string, servis: string[]): Promise<{ le: string } | { motif: string }> => {
     const debut = Date.now();
-    const pose = systeme.installer(fichier);
-    if (!pose.ok) return { motif: `son installation a échoué : ${pose.motif}` };
+    const bascule = systeme.basculer(version);
+    if (!bascule.ok) return { motif: `le passage à ${version} a échoué : ${bascule.motif}` };
     return attendreEnService(version, debut, servis);
   };
 
-  // Conclut un essai : gardé, ou la version d'avant réinstallée.
-  const conclureEssai = async (visee: string, depuis: string, servis: string[], essai: { le: string } | { motif: string }): Promise<Issue> => {
+  // Conclut un essai : gardé, ou `current` remis sur la version d'avant.
+  // `basculee` : faux quand rien n'a été changé — la pose a échoué —, et qu'il
+  // n'y a donc rien à remettre.
+  const conclureEssai = async (visee: string, depuis: string, servis: string[], essai: { le: string } | { motif: string }, basculee = true): Promise<Issue> => {
     let issue: Issue;
     if ("le" in essai) {
       issue = { quoi: "passee", version: visee, depuis, le: essai.le };
-      // De côté : le paquet en service, et celui d'avant pour en revenir.
-      for (const nom of readdirSync(paquets)) if (![`${visee}.deb`, `${depuis}.deb`].includes(nom)) rmSync(join(paquets, nom), { force: true, recursive: true });
+      // De côté : la version en service, et celle d'avant pour en revenir.
+      for (const version of systeme.posees()) if (version !== visee && version !== depuis) systeme.retirer(version);
       dire(`brigade : mise à jour — passée en version ${visee}`);
     } else {
       ratees.add(visee);
       dire(`brigade : mise à jour — ${visee} n'a pas démarré (${essai.motif}) : retour à ${depuis}`);
-      const revenue = await installer(paquetDe(depuis), depuis, servis);
+      const revenue = basculee ? await basculer(depuis, servis) : await attendreEnService(depuis, 0, servis);
       issue = { quoi: "revenue", visee, restauree: depuis, motif: essai.motif, le: maintenant().toISOString(), retour: "le" in revenue ? null : revenue.motif };
       dire(`brigade : mise à jour — ${"le" in revenue ? `revenue en version ${depuis}` : `le retour à ${depuis} a échoué aussi : ${revenue.motif}`}`);
     }
@@ -141,7 +199,7 @@ export async function passer(options: OptionsMiseAJour): Promise<Passage> {
     return issue;
   };
 
-  mkdirSync(paquets, { recursive: true, mode: 0o755 });
+  mkdirSync(archives, { recursive: true, mode: 0o755 });
 
   // Un essai que le passage d'avant n'a pas conclu — la machine a redémarré,
   // la mise à jour a été tuée — se conclut d'abord : la station tourne-t-elle
@@ -149,77 +207,37 @@ export async function passer(options: OptionsMiseAJour): Promise<Passage> {
   if (etat.essai) {
     const { visee, depuis, servis } = etat.essai;
     dire(`brigade : mise à jour — l'essai de ${visee} n'a pas été conclu : la station est regardée`);
-    const installee = etat.installee;
+    const installee = prevision.installee;
     if (installee !== null && comparerVersions(installee, depuis) === 0) {
-      // Rien n'a été installé : il n'y a rien à conclure.
+      // Rien n'a été basculé : il n'y a rien à conclure.
       etat.essai = null;
     } else {
       const constat =
         installee !== null && comparerVersions(installee, visee) === 0
           ? await attendreEnService(visee, 0, servis)
-          : { motif: `l'installation de ${visee} a été interrompue (dpkg : ${installee ?? "le paquet n'est pas installé tout à fait"})` };
+          : { motif: `le passage à ${visee} a été interrompu (current : ${installee ?? "aucune version posée"})` };
       return conclure(await conclureEssai(visee, depuis, servis, constat));
     }
   }
 
-  const installee = etat.installee;
-  if (installee === null) {
-    etat.verification = `le paquet ${PAQUET} n'est pas installé tout à fait (dpkg) : rien n'est mis à jour`;
+  const { installee } = prevision;
+  if (prevision.verification !== null) {
+    etat.verification = prevision.verification;
     return conclure();
   }
+  if (installee === null || prevision.visee === null) {
+    if (prevision.retenue !== null) etat.retenue = prevision.retenue;
+    else dire(`brigade : mise à jour — à jour en ${installee}`);
+    return conclure();
+  }
+  const visee = prevision.visee.version;
+  const archive = join(archives, `${visee}.tar.gz`);
 
-  let liste: Publication[];
   try {
-    liste = await publications.lister();
+    await publications.telecharger(prevision.visee, archive);
   } catch (erreur) {
-    etat.verification = `les versions publiées ne se lisent pas (${publications.nom}) : ${message(erreur)}`;
-    return conclure();
-  }
-  const plusRecente = liste.reduce<Publication | null>((meilleure, publication) => (meilleure === null || comparerVersions(publication.version, meilleure.version) > 0 ? publication : meilleure), null);
-  etat.disponible = plusRecente?.version ?? null;
-  if (plusRecente === null || comparerVersions(plusRecente.version, installee) <= 0) {
-    dire(`brigade : mise à jour — à jour en ${installee}`);
-    return conclure();
-  }
-  const visee = plusRecente.version;
-  if (reglages.gel) {
-    etat.retenue = `version gelée en ${installee} : ${visee} attend que le gel soit levé`;
-    return conclure();
-  }
-  if (ratees.has(visee)) {
-    etat.retenue = `${visee} n'a pas démarré à son essai : elle n'est pas réessayée, la version publiée après elle le sera — ${installee} reste en service`;
-    return conclure();
-  }
-
-  // Un paquet vérifié, posé dans le répertoire de la mise à jour : celui qui
-  // y est déjà, ou celui de la publication.
-  const obtenir = async (version: string, publication: Publication | undefined): Promise<string> => {
-    const fichier = paquetDe(version);
-    const lu = existsSync(fichier) ? systeme.lirePaquet(fichier) : null;
-    if (lu?.paquet === PAQUET && comparerVersions(lu.version, version) === 0) return fichier;
-    if (publication === undefined) throw new Error(`aucune publication de ${version}, et aucun paquet de côté`);
-    await publications.telecharger(publication, fichier);
-    const telecharge = systeme.lirePaquet(fichier);
-    if (telecharge?.paquet !== PAQUET || comparerVersions(telecharge.version, version) !== 0) {
-      rmSync(fichier, { force: true });
-      throw new Error(`le paquet publié pour ${version} n'est pas celui de ${PAQUET} en ${version}${telecharge === null ? "" : ` (${telecharge.paquet} ${telecharge.version})`}`);
-    }
-    return fichier;
-  };
-
-  // Le chemin du retour d'abord : sans le paquet de la version installée,
-  // une nouvelle qui ne démarrerait pas ne laisserait rien en service.
-  try {
-    await obtenir(installee, liste.find((publication) => comparerVersions(publication.version, installee) === 0));
-  } catch (erreur) {
-    etat.retenue = `${visee} n'est pas installée : rien ne permettrait de revenir à ${installee} si elle ne démarrait pas — ${message(erreur)}`;
-    return conclure();
-  }
-  let nouveau: string;
-  try {
-    nouveau = await obtenir(visee, plusRecente);
-  } catch (erreur) {
-    etat.verification = `le paquet de ${visee} ne s'obtient pas : ${message(erreur)}`;
+    rmSync(archive, { force: true });
+    etat.verification = `l'archive de ${visee} ne s'obtient pas : ${message(erreur)}`;
     return conclure();
   }
 
@@ -231,6 +249,8 @@ export async function passer(options: OptionsMiseAJour): Promise<Passage> {
   etat.essai = { visee, depuis: installee, servis };
   ecrire();
   dire(`brigade : mise à jour — ${installee} → ${visee}`);
-  const essai = await installer(nouveau, visee, servis);
-  return conclure(await conclureEssai(visee, installee, servis, essai));
+  const pose = systeme.poser(archive, visee);
+  rmSync(archive, { force: true });
+  if (!pose.ok) return conclure(await conclureEssai(visee, installee, servis, { motif: `sa pose a échoué : ${pose.motif}` }, false));
+  return conclure(await conclureEssai(visee, installee, servis, await basculer(visee, servis)));
 }
