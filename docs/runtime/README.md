@@ -76,6 +76,11 @@ is its labels: `fire` (ready), `taken` (a cook works on it), `in-pass` (its pull
 chef's merge), `try:<n>` (the number of cooks that tried it, three at most), `prio:<n>`, and `idea`, `epic`, `human`
 (never taken). A ticket waits for the open tickets its body names with `Depends on #N`. Only tickets from the
 repository's writers, or labelled `accepted` by one, are taken.
+The kitchen also reads each `epic`'s split state (a `Split by the manager into` comment) and the `epic/<n>` branches of
+the repository; a pull request headed `epic/<n>` belongs to epic `<n>` (#4697). With no uncalibrated ticket and a short rail, the manager is called on the top `epic` not yet split (never on a
+split one) and splits it whole: up to 30 children, opened `fire` at the epic's priority, and the branch `epic/<n>` created from
+`main` before they open (#4700). The supervisor no longer splits epics. The design is in
+`docs/superpowers/specs/2026-11-27-epic-branches-design.md`, its plan in `docs/superpowers/plans/2026-11-27-epic-branches.md`.
 
 ## Where it runs
 

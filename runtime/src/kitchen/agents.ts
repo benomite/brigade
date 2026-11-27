@@ -3,6 +3,7 @@
 // input and applies the few gestures an agent may ask for.
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { epicBranch } from "../epics.ts";
 import { LABELS, type Issue } from "./decide.ts";
 import { ACCEPTED, type Gestures } from "./github.ts";
 import type { Run } from "./runs.ts";
@@ -76,9 +77,9 @@ const EFFORTS = new Set(["low", "medium", "high", "xhigh"]);
 const LOCKED = (label: string) => /^try:/.test(label) || label === ACCEPTED || label === LABELS.taken || label === LABELS.inPass;
 
 // Applies what an agent asked for, and says which tickets it acted on.
-export async function applyAgentActions(actions: AgentAction[], context: { act: Gestures; issues: Map<number, Issue>; log: (line: string) => void; who: string }): Promise<Set<number>> {
+export async function applyAgentActions(actions: AgentAction[], context: { act: Gestures; issues: Map<number, Issue>; log: (line: string) => void; who: string; base?: string }): Promise<Set<number>> {
   const acted = new Set<number>();
-  const { act, issues, log, who } = context;
+  const { act, issues, log, who, base = "main" } = context;
   // An agent acts only on open, trusted tickets.
   const known = (n: unknown): n is number => typeof n === "number" && issues.get(n)?.trusted === true;
   // Bounds on what one answer may create: a confused agent cannot flood the backlog.
@@ -90,7 +91,9 @@ export async function applyAgentActions(actions: AgentAction[], context: { act: 
         await act.labels(action.calibrate, [LABELS.ready, `model:${action.model}`, `effort:${action.effort}`], old);
         acted.add(action.calibrate);
         log(`${who}: #${action.calibrate} calibrated ${action.model}/${action.effort}`);
-      } else if ("split" in action && known(action.split) && Array.isArray(action.tickets) && action.tickets.length > 0 && action.tickets.length <= 10) {
+      } else if ("split" in action && who === "manager" && known(action.split) && Array.isArray(action.tickets) && action.tickets.length > 0 && action.tickets.length <= 30) {
+        // The epic's branch comes first: its children are cooked on it.
+        await act.createBranch(epicBranch(action.split), base);
         const children: number[] = [];
         // A child is work the manager put on the rail: it is fired, at its parent's priority.
         const labels = [LABELS.ready, ...(issues.get(action.split)?.labels.filter((label) => /^prio:\d+$/.test(label)) ?? [])];

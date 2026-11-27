@@ -17,7 +17,7 @@ export const ghCli = (bin: string, env: NodeJS.ProcessEnv): Gh => (args, input) 
 const TRUSTED = new Set(["OWNER", "MEMBER", "COLLABORATOR"]);
 export const ACCEPTED = "accepted";
 export const branchOf = (issue: number) => `cook/${issue}-github`;
-const issueOfBranch = (branch: string) => /^cook\/(\d+)-github$/.exec(branch)?.[1];
+export const issueOfBranch = (branch: string) => /^cook\/(\d+)-github$/.exec(branch)?.[1] ?? /^epic\/(\d+)$/.exec(branch)?.[1];
 
 // The tickets this one waits for: every #N after "depends on", "blocked by" or "after" on a line of its body,
 // plus GitHub's own "blocked by" links. A ticket that waits is not a question for the chef: it waits on its own.
@@ -31,8 +31,9 @@ const QUERY = `query($owner: String!, $name: String!, $cursor: String) {
   repository(owner: $owner, name: $name) {
     issues(states: OPEN, first: 100, after: $cursor, orderBy: {field: CREATED_AT, direction: ASC}) {
       pageInfo { hasNextPage endCursor }
-      nodes { number title body authorAssociation labels(first: 30) { nodes { name } } blockedBy(first: 20) { nodes { number state } } }
+      nodes { number title body authorAssociation labels(first: 30) { nodes { name } } blockedBy(first: 20) { nodes { number state } } comments(last: 5) { nodes { body } } }
     }
+    refs(refPrefix: "refs/heads/epic/", first: 100) { nodes { name } }
     pullRequests(states: OPEN, first: 100) {
       nodes { number headRefName mergeable commits(last: 1) { nodes { commit { checkSuites(first: 20) { nodes { status app { slug } } } statusCheckRollup { state contexts(first: 60) { nodes {
         __typename ... on CheckRun { name conclusion status } ... on StatusContext { context state } } } } } } } }
@@ -43,7 +44,7 @@ const QUERY = `query($owner: String!, $name: String!, $cursor: String) {
 type Context = { __typename: string; name?: string; conclusion?: string | null; status?: string; context?: string; state?: string };
 type Suite = { status: string; app: { slug: string } | null };
 type RawPr = { number: number; headRefName: string; mergeable: string; commits: { nodes: Array<{ commit: { checkSuites?: { nodes: Suite[] }; statusCheckRollup: { state: string; contexts: { nodes: Context[] } } | null } }> } };
-type RawIssue = { number: number; title: string; body: string; authorAssociation: string; labels: { nodes: Array<{ name: string }> }; blockedBy?: { nodes: Array<{ number: number; state: string }> } };
+type RawIssue = { number: number; title: string; body: string; authorAssociation: string; labels: { nodes: Array<{ name: string }> }; blockedBy?: { nodes: Array<{ number: number; state: string }> }; comments?: { nodes: Array<{ body: string }> } };
 
 const FAILED = new Set(["FAILURE", "TIMED_OUT", "CANCELLED", "STARTUP_FAILURE", "ACTION_REQUIRED", "ERROR"]);
 
@@ -61,10 +62,11 @@ export function checksOf(rollup: { state: string; contexts: { nodes: Context[] }
   return failing.length > 0 ? { checks: "failure", failing } : { checks: "success", failing: [] };
 }
 
-export async function readState(gh: Gh, repo: string): Promise<{ issues: Issue[]; prs: PullRequest[] }> {
+export async function readState(gh: Gh, repo: string): Promise<{ issues: Issue[]; prs: PullRequest[]; epicBranches: number[] }> {
   const [owner, name] = repo.split("/");
   const issues: Issue[] = [];
   let prs: PullRequest[] = [];
+  let epicBranches: number[] = [];
   let cursor: string | null = null;
   do {
     const args = ["api", "graphql", "-f", `query=${QUERY}`, "-F", `owner=${owner}`, "-F", `name=${name}`];
@@ -72,9 +74,10 @@ export async function readState(gh: Gh, repo: string): Promise<{ issues: Issue[]
     const data = JSON.parse(await gh(args)).data.repository;
     for (const raw of data.issues.nodes as RawIssue[]) {
       const labels = raw.labels.nodes.map((label) => label.name);
-      issues.push({ number: raw.number, title: raw.title, labels, trusted: TRUSTED.has(raw.authorAssociation) || labels.includes(ACCEPTED), epic: Number(/^Epic: #(\d+)/m.exec(raw.body)?.[1]) || undefined, dependsOn: [...new Set([...dependsOn(raw.body), ...(raw.blockedBy?.nodes ?? []).filter((one) => one.state === "OPEN").map((one) => one.number)])] });
+      issues.push({ number: raw.number, title: raw.title, labels, trusted: TRUSTED.has(raw.authorAssociation) || labels.includes(ACCEPTED), split: labels.includes("epic") && (raw.comments?.nodes ?? []).some((one) => /^Split by the manager into /.test(one.body)) ? true : undefined, epic: Number(/^Epic: #(\d+)/m.exec(raw.body)?.[1]) || undefined, dependsOn: [...new Set([...dependsOn(raw.body), ...(raw.blockedBy?.nodes ?? []).filter((one) => one.state === "OPEN").map((one) => one.number)])] });
     }
     if (cursor === null) {
+      epicBranches = ((data.refs?.nodes ?? []) as Array<{ name: string }>).map((ref) => Number(ref.name)).filter(Number.isInteger);
       prs = (data.pullRequests.nodes as RawPr[]).flatMap((raw) => {
         const issue = issueOfBranch(raw.headRefName);
         if (issue === undefined) return [];
@@ -83,7 +86,7 @@ export async function readState(gh: Gh, repo: string): Promise<{ issues: Issue[]
     }
     cursor = data.issues.pageInfo.hasNextPage ? data.issues.pageInfo.endCursor : null;
   } while (cursor !== null);
-  return { issues, prs };
+  return { issues, prs, epicBranches };
 }
 
 // The ticket as an agent may read it: its title and body, and only the
@@ -124,6 +127,11 @@ export function gestures(gh: Gh, repo: string) {
       });
     },
     close: (issue: number, body: string, reason = "not planned") => gh(["issue", "close", String(issue), ...r, "--reason", reason, "--comment", body]),
+    // A branch from the head of another; one that already exists is left as it is.
+    createBranch: async (name: string, from: string) => {
+      const sha = (JSON.parse(await gh(["api", `repos/${repo}/git/ref/heads/${from}`])) as { object: { sha: string } }).object.sha;
+      await gh(["api", "-X", "POST", `repos/${repo}/git/refs`, "-f", `ref=refs/heads/${name}`, "-f", `sha=${sha}`]).catch((error: Error) => { if (!/already exists/i.test(error.message)) throw error; });
+    },
     // Adds lines at the end of the issue's body.
     appendToBody: async (issue: number, lines: string) => {
       const body = (JSON.parse(await gh(["api", `repos/${repo}/issues/${issue}`])) as { body: string | null }).body ?? "";
