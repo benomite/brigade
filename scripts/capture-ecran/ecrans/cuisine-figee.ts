@@ -78,11 +78,6 @@ const STATUS_CANTINE = ["project    cantine", "kitchen    open", "", "rail      
 
 const STATION = ["station    box — Debian 12, 8 cœurs", "machine    disponible · charge 1.2", "quota      tient", ""].join("\n");
 
-// Ce que `manager` rend, mot pour mot, le chef ayant allumé — ou éteint — le
-// manager à 09:25 (#906). La cuisine figée ne le lit pas : un écran qui le veut le pose sur son rendu.
-const SECTIONS_DU_MANAGER = ["dernières décisions   aucune", "écartées              aucune", "épiques               aucune", "réactions             aucune", ""];
-export const MANAGER_ALLUME = ["manager               ALLUMÉ depuis le 2026-10-13T09:25:21.838Z (par chef) — il juge les issues ouvertes, pose `fire` et le calibrage", ...SECTIONS_DU_MANAGER].join("\n");
-
 export const RENDUS: Record<string, Rendu> = {
   parade: { facts: FAITS_PARADE, status: STATUS_PARADE, station: STATION },
   cantine: { facts: FAITS_CANTINE, status: STATUS_CANTINE, station: STATION },

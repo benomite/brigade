@@ -11,7 +11,6 @@ import { describe, test, type TestContext } from "node:test";
 import { decrireEtat, faits as runtimeFacts, lireEtat } from "../../runtime/src/etat.ts";
 import type { Fait } from "../../runtime/src/evenements.ts";
 import { ouvrirJournal } from "../../runtime/src/journal.ts";
-import { managerOutput } from "./helpers/manager-output.ts";
 import { alerts, entryOfSetup, holdBands, type Alert, type Band } from "../src/alerts.ts";
 import { putAside } from "../src/awaiting.ts";
 import { forTheBar } from "../src/bar.ts";
@@ -33,7 +32,7 @@ const REFUSAL_NETWORK =
 const SETUP_A_FIX =
   "setup impossible: `.claude/brigade/worktree-setup.sh` fails twice identically (code de sortie 1) — what it said is on #15 — to fix: the project's setup, then merge into the integration branch; setups start again on their own as soon as the integration branch moves; until then, none is launched, for any ticket";
 
-// Une cuisine saine — runtime en marche, une station, version à jour, manager allumé — dont le
+// Une cuisine saine — runtime en marche, une station, version à jour — dont le
 // test tient l'horloge. `bande` : ce que l'app en dessine, lu comme le process principal le lit.
 function kitchen(t: TestContext) {
   const directory = mkdtempSync(join(tmpdir(), "brigade-app-setup-"));
@@ -50,7 +49,7 @@ function kitchen(t: TestContext) {
   const render = () => {
     const now = new Date(`${DAY}T10:00:00.000Z`);
     const state = lireEtat(log, now);
-    return { faits: `${JSON.stringify(runtimeFacts(state, now))}\n`, status: `${decrireEtat(state, now).join("\n")}\n`, manager: managerOutput(log) };
+    return { faits: `${JSON.stringify(runtimeFacts(state, now))}\n`, status: `${decrireEtat(state, now).join("\n")}\n` };
   };
   const bands = holdBands({ etablir: 1, minimum: 0 });
   bands.ouvrir(["parade"]);
@@ -58,8 +57,7 @@ function kitchen(t: TestContext) {
   const band = (): Band => {
     const rendered = render();
     bands.faits(reading("facts", rendered.faits));
-    bands.status(putAside(reading("status", rendered.status)));
-    return bands.manager(reading("manager", rendered.manager));
+    return bands.status(putAside(reading("status", rendered.status)));
   };
   // Deux échecs à l'identique, le second bloque (#643) — à 9 h 30, sur la base `ba5e0001`.
   const block = (hosts: string[]) => {
@@ -147,16 +145,15 @@ describe("le setup du projet bloqué, dans la bande d'alertes", () => {
     const rendered = render();
     const facts = understand(rendered.faits);
     assert.ok(!("informe" in facts));
-    const manager = { allume: true, mot: "ALLUMÉ", dit: "" };
 
     // `status` entier, son bloc à sa place.
-    assert.equal(theLine(alerts({ projet: "parade", faits: facts, status: rendered.status, manager })).releve, REFUSAL_NETWORK);
+    assert.equal(theLine(alerts({ projet: "parade", faits: facts, status: rendered.status })).releve, REFUSAL_NETWORK);
 
     // `status` sans son bloc, et rien à côté : la tête, et ce qui manque.
     const shownOne = putAside(reading("status", rendered.status));
     assert.ok("attend" in shownOne);
     const withoutBlock = shownOne.sorties[0]?.texte ?? assert.fail();
-    const line = theLine(alerts({ projet: "parade", faits: facts, status: withoutBlock, manager }));
+    const line = theLine(alerts({ projet: "parade", faits: facts, status: withoutBlock }));
     assert.match(line.releve ?? "", /^BLOCKED for 30 min on ba5e000 — /);
     assert.match(line.pourquoi ?? "", /`attend` block/);
   });

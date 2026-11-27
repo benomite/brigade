@@ -5,7 +5,7 @@
 import { shapeOfChef } from "../../../app/src/board/todo-github.ts";
 import { shareTheCards } from "../../../app/src/vue/cards-assigned/cards-assigned.ts";
 import { configuration, cuisine, demarrage, type Ecran, MAINTENANT, type Rendu } from "./commun.ts";
-import { MANAGER_ALLUME, PROJETS, RENDUS } from "./cuisine-figee.ts";
+import { PROJETS, RENDUS } from "./cuisine-figee.ts";
 import { SECOND } from "./rail-waiting-commun.ts";
 
 const PARADE = RENDUS.parade as Rendu;
@@ -30,6 +30,6 @@ export const ecran: Ecran = {
   donnees: () => ({
     maintenant: MAINTENANT,
     reponses: { demarrage: demarrage(configuration(PROJETS)), espace: [SECOND] },
-    envois: cuisine({ ...RENDUS, parade: { ...PARADE, facts: { ...PARADE.facts, attend: ATTEND, attendAutres: AUTRES }, status: STATUS, manager: MANAGER_ALLUME } }),
+    envois: cuisine({ ...RENDUS, parade: { ...PARADE, facts: { ...PARADE.facts, attend: ATTEND, attendAutres: AUTRES }, status: STATUS } }),
   }),
 };

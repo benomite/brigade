@@ -359,9 +359,8 @@ export type Bridge = {
   // Ce que fait chaque cook d'un projet, à chaque lecture de son tableau de la cuisine (ticket 1846) — ou pourquoi
   // il ne se lit pas : la fiche d'un ticket en pose son cook (activity-of-cook.js).
   surActivites(receive: (published: import("./activity-of-cook.js").Published) => void): void;
-  // Ce que la commande de l'onglet affiché a rendu, mot pour mot. `manager` : dans l'onglet
-  // Manager, ce qui se pose au-dessus — l'état du manager, lu dans cette sortie (manager.ts).
-  surContenu(receive: (reading: Reading, manager: undefined) => void): void;
+  // Ce que la commande de l'onglet affiché a rendu, mot pour mot.
+  surContenu(receive: (reading: Reading) => void): void;
   // Ce que `faits` a rendu pour un projet : de quoi dessiner, ou ce qui a été obtenu à la place.
   // Un essai du projet nommé a changé : la vue relit `essais`.
   surEssais(receive: (project: string) => void): void;

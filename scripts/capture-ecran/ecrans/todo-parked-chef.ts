@@ -5,7 +5,7 @@
 // `todo-parked-chef-repondu` : la réponse tapée, Answer cliqué.
 import type { Expected } from "../../../app/src/facts.ts";
 import { configuration, cuisine, demarrage, type Donnees, type Ecran, MAINTENANT, type Rendu } from "./commun.ts";
-import { MANAGER_ALLUME, PROJETS, RENDUS } from "./cuisine-figee.ts";
+import { PROJETS, RENDUS } from "./cuisine-figee.ts";
 import { SECOND } from "./rail-waiting-commun.ts";
 
 const PARADE = RENDUS.parade as Rendu;
@@ -34,7 +34,7 @@ export const ANSWER_DE_41 = '[aria-label="the question #41 asks you"] .phrase .a
 export const donneesDe = (attend: Expected[], reponses: Record<string, unknown> = {}): Donnees => ({
   maintenant: MAINTENANT,
   reponses: { demarrage: demarrage(configuration(PROJETS)), espace: [SECOND], ...reponses },
-  envois: cuisine({ ...RENDUS, parade: { ...PARADE, facts: { ...PARADE.facts, attend, kitchenBoard: KANBAN }, status: STATUS, manager: MANAGER_ALLUME } }),
+  envois: cuisine({ ...RENDUS, parade: { ...PARADE, facts: { ...PARADE.facts, attend, kitchenBoard: KANBAN }, status: STATUS } }),
 });
 
 export const ecran: Ecran = {

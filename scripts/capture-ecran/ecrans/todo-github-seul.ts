@@ -2,7 +2,7 @@
 // label `chef-todo`, sa sorte et son texte tirés du commentaire `<!-- brigade:todo kind=… -->` que le runtime y a posé.
 // `facts` porte ces cartes dans `attend[].chef`, comme board/todo-github.ts les y met ; le bloc `awaiting` de `status` est vide.
 import { configuration, cuisine, demarrage, type Ecran, MAINTENANT, type Rendu } from "./commun.ts";
-import { MANAGER_ALLUME, PROJETS, RENDUS } from "./cuisine-figee.ts";
+import { PROJETS, RENDUS } from "./cuisine-figee.ts";
 import { SECOND } from "./rail-waiting-commun.ts";
 
 const PARADE = RENDUS.parade as Rendu;
@@ -24,6 +24,6 @@ export const ecran: Ecran = {
   donnees: () => ({
     maintenant: MAINTENANT,
     reponses: { demarrage: demarrage(configuration(PROJETS)), espace: [SECOND] },
-    envois: cuisine({ ...RENDUS, parade: { ...PARADE, facts: { ...PARADE.facts, attend: ATTEND }, status: STATUS, manager: MANAGER_ALLUME } }),
+    envois: cuisine({ ...RENDUS, parade: { ...PARADE, facts: { ...PARADE.facts, attend: ATTEND }, status: STATUS } }),
   }),
 };
