@@ -1,1 +1,1 @@
-{"risk": ["runtime/src/", "runtime/deploy/", "runtime/paquet/", ".brigade/kitchen.json", ".brigade/try.json"]}
+{"risk": ["runtime/src/bac-a-sable/", "runtime/src/porte", "runtime/src/tenir-porte.ts", "runtime/src/station/portes.ts", "runtime/src/station/tenir-portes.ts", "runtime/src/kitchen/main.ts", "runtime/deploy/", "runtime/paquet/", ".brigade/kitchen.json", ".brigade/try.json"]}
