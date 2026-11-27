@@ -6,6 +6,7 @@ import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
+import { pathToFileURL } from "node:url";
 import type { CallGitHub } from "../../app/src/board/client.ts";
 import { durationInClear, writeTheAutonomyPage, type QueryGitHub } from "../../scripts/autonomy-page/generate.ts";
 
@@ -86,7 +87,7 @@ test("figures that cannot be computed fail and write nothing: GitHub refuses, or
 });
 
 test("the lead time is written as the app writes a duration", async () => {
-  const app = (await import(join(ROOT, "app/src/vue/project/delay.js"))) as { durationInClear(ms: number): string };
+  const app = (await import(pathToFileURL(join(ROOT, "app/src/vue/project/delay.js")).href)) as { durationInClear(ms: number): string };
   for (const ms of [0, 59_000, 12 * 60_000, 2 * 3600_000, 5_220_000, 86400_000, 3 * 86400_000 + 4 * 3600_000 + 59_000]) assert.equal(durationInClear(ms), app.durationInClear(ms));
 });
 
