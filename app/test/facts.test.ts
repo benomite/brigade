@@ -11,7 +11,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test } from "node:test";
-import { ACTION, type Reading } from "../src/box.ts";
+import type { Reading } from "../src/box.ts";
 import { putAside } from "../src/awaiting.ts";
 import { withoutQuestion } from "../src/handover-second.ts";
 import { hourHM } from "../src/format.ts";

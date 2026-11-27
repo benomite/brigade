@@ -26,6 +26,6 @@ describe("#4682 — the app launches no `manager` command", () => {
     assert.equal(existsSync(join(APP, "manager.ts")), false);
     assert.equal(existsSync(join(RUNTIME, "src", "manager-cli.ts")), false);
     assert.doesNotMatch(readFileSync(join(RUNTIME, "package.json"), "utf8"), /"manager"/);
-    assert.doesNotMatch(readFileSync(join(RUNTIME, "src", "commandes.ts"), "utf8"), /nom: "manager"/);
+    assert.equal(existsSync(join(RUNTIME, "src", "commandes.ts")), false);
   });
 });
