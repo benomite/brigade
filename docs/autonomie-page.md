@@ -2,12 +2,6 @@
 
 `site/autonomie.html` shows the autonomy figures of benomite/brigade. It computes nothing: `site/autonomie.js` renders `site/autonomie.json` as it finds it.
 
-## Status
-
-Depends on #3213 (the autonomy figures), which is not merged. The contract below is an **assumption** the generator of #3213 must produce, or be aligned with. Until then, the generator step of `.github/workflows/pages.yml` is a placeholder that writes no figure, and the page shows "Figures not yet available".
-
-The figures are computed by `app/src/vue/autonomy/compute.ts` (`chiffresDAutonomie`): pure functions with no import, outside the old runtime (#4505), so a generator run by plain `node` in the workflow can reuse them.
-
 ## Input contract: `site/autonomie.json`
 
 ```json
@@ -24,4 +18,15 @@ The figures are computed by `app/src/vue/autonomy/compute.ts` (`chiffresDAutonom
 
 ## Publishing
 
-One workflow, `.github/workflows/pages.yml`, runs the generator step and deploys `site/`: on push to main, daily (schedule) and on demand. There is no second deploy path.
+One workflow, `.github/workflows/pages.yml`, runs the generator step and deploys `site/`: on push to main, daily (schedule) and on demand. There is no second deploy path. A pull request builds the artifact without the generator: it is never deployed.
+
+## The generator
+
+`scripts/autonomy-page/generate.ts` writes `site/autonomie.json` over the last 30 days of benomite/brigade, with the workflow's `GITHUB_TOKEN` (read only, no other secret):
+
+- the read is the app's (`app/src/vue/autonomy/autonomy-github.ts`), the computation the app's too (`app/src/vue/autonomy/compute.ts`, `chiffresDAutonomie`: pure, with no import, #4505), the same as the app's Autonomy screen;
+- the events and comments of the served tickets are read fifty at a time with GraphQL first, so the run stays within the token's 1,000 REST requests an hour; a ticket GraphQL does not give whole goes to the app's REST read;
+- served without a human and the send-back rate show as `90% (690 of 763)` (the tickets the kitchen served), the lead time as the app writes a duration (`1 h 27 min`), the pull requests merged as a count;
+- every figure links to the pull requests merged in the period, to the second; the fourth figure is their count.
+
+When the figures cannot be computed (GitHub refuses, the period is only read in part, no ticket served), the script writes nothing and exits non-zero with an `::error::` line: the job fails, nothing is deployed, and the page last published stays.
