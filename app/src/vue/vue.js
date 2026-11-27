@@ -161,7 +161,7 @@ import { setToolsOfSecond } from "./tools-of-second.js";
 import { NO_STATION } from "./cooks/without-station.js";
 import { brandAfter } from "./card-wait/card-wait.js";
 import { waitExhausted, RAIL_NOT_READ } from "./wait-of-rail.js";
-import { AGENTS, MENU, STATIONS } from "./project/menu/menu.js";
+import { AGENTS, MENU, KNOW_HOW, STATIONS } from "./project/menu/menu.js";
 import { toggleSwitch as switchOfTheApp } from "./components/switch/switch.js";
 import { DONE_SAYS, stationsAPropose, holdTheAdditionOfStation } from "./project/stations/AddStation.js";
 import { haltStation, actionOfStop, WITHOUT_ACTION } from "./project/stations/StopStation.js";
@@ -805,7 +805,7 @@ function retainedOnes() {
   tabsHeld = new Map();
   try {
     const readOnes = JSON.parse(window.localStorage?.getItem(KEY_OF_TABS) ?? "{}");
-    for (const [name, id] of Object.entries(readOnes ?? {})) if ([RAIL, STATIONS, AGENTS, CONVERSATION].includes(id)) tabsHeld.set(name, id);
+    for (const [name, id] of Object.entries(readOnes ?? {})) if ([RAIL, STATIONS, AGENTS, KNOW_HOW, CONVERSATION].includes(id)) tabsHeld.set(name, id);
   } catch {
     // Illisible : chaque projet s'ouvre sur Rail, et le prochain choix le réécrit.
   }
@@ -4783,8 +4783,8 @@ function setTheRail(project) {
   const held = heldOnes.get(project.nom);
   rail.hidden = false;
   const tab = tabOf(project);
-  rail.dataset.onglet = [STATIONS, AGENTS].includes(tab) ? tab : RAIL;
-  rail.ariaLabel = tab === STATIONS ? "The stations" : tab === AGENTS ? "The agents" : "The rail";
+  rail.dataset.onglet = [STATIONS, AGENTS, KNOW_HOW].includes(tab) ? tab : RAIL;
+  rail.ariaLabel = tab === STATIONS ? "The stations" : tab === AGENTS ? "The agents" : tab === KNOW_HOW ? "The know-how" : "The rail";
   // Settings ouvert par-dessus : sa section des plafonds et du closer suit la lecture, comme elle le faisait sur l'onglet
   // (ticket 3014) ; un champ en cours de frappe n'est pas reposé.
   restTheHealth(project, true);
@@ -4800,6 +4800,14 @@ function setTheRail(project) {
   if (tab === AGENTS) {
     agentsOfProject.montrer(project.nom);
     if (rail.children[0] !== agentsOfProject.element) rail.replaceChildren(agentsOfProject.element);
+    return;
+  }
+  // Know-how (ticket 4570) : le bloc du savoir-faire, lu sur GitHub (know-how/), posé seul ; un champ en cours de frappe n'est pas reposé.
+  if (tab === KNOW_HOW) {
+    setCooking(project);
+    const tape = /** @type {HTMLElement | null} */ (document.activeElement);
+    if (!gestureOfKnowHow && tape?.tagName === "INPUT" && rail.contains(tape)) return;
+    rail.replaceChildren(knowledgeOfProject(project).poser());
     return;
   }
   const outsideLine = outsideLines.get(project.nom);
@@ -6496,12 +6504,25 @@ const candidatesOpen = new Set();
 // Les chiffres d'autonomie de chaque projet (autonomy/figures.js, ticket 3222), dans sa section, lus de GitHub.
 /** @type {Map<string, ReturnType<typeof holdTheFiguresOfAutonomy>>} */
 const autonomyOfProjects = new Map();
-// Le savoir-faire du projet (know-how/, ticket 4239), dans la même section : lu sur GitHub par le process principal.
+// Le savoir-faire du projet (know-how/, ticket 4239), sous son onglet (ticket 4570) : lu sur GitHub par le process principal.
 /** @type {Map<string, ReturnType<typeof holdTheKnowledge>>} */
 const knowledgeOfProjects = new Map();
+// Le bloc se repose là où il est montré : sous son onglet — sauf sous un champ où le chef écrit, `garder`, ce que tout redessin du dehors fait aussi —, ou nulle part.
+/** @param {Project} project @param {boolean} [keep] */
+function restTheKnowHow(project, keep = false) {
+  if (current?.nom !== project.nom || active() !== undefined || tabOf(project) !== KNOW_HOW) return;
+  gestureOfKnowHow = !keep;
+  try {
+    setRail(project);
+  } finally {
+    gestureOfKnowHow = false;
+  }
+}
+// Seuls les gestes du bloc (éditer, annuler, proposer) reposent le champ ; tout autre setRail (minuterie, survol, lectures) le laisse.
+let gestureOfKnowHow = false;
 /** @param {Project} project */
 function knowledgeOfProject(project) {
-  const held = knowledgeOfProjects.get(project.nom) ?? holdTheKnowledge(document, { lire: () => brigade.savoirDuProjet(project.nom), changer: (change) => brigade.changerLeSavoir(project.nom, change), ouvrir: (url) => void brigade.ouvrirLaProposition(url), reposer: (keep) => restTheHealth(project, keep) });
+  const held = knowledgeOfProjects.get(project.nom) ?? holdTheKnowledge(document, { lire: () => brigade.savoirDuProjet(project.nom), changer: (change) => brigade.changerLeSavoir(project.nom, change), ouvrir: (url) => void brigade.ouvrirLaProposition(url), reposer: (keep) => restTheKnowHow(project, keep) });
   knowledgeOfProjects.set(project.nom, held);
   return held;
 }
@@ -6521,7 +6542,7 @@ function postMortemsOf(project) {
 /** @param {Project} project @param {boolean} [keep] */
 function setTheBannerOfHealth(project, keep = true) {
   const tape = /** @type {HTMLElement | null} */ (document.activeElement);
-  if (keep && (tape?.tagName === "INPUT" || tape?.tagName === "SELECT") && tape.closest?.('[data-bloc="plafonds-duree"], [data-bloc="closer"], [data-bloc="know-how"]') && bannerHealth.contains(tape)) return;
+  if (keep && (tape?.tagName === "INPUT" || tape?.tagName === "SELECT") && tape.closest?.('[data-bloc="plafonds-duree"], [data-bloc="closer"]') && bannerHealth.contains(tape)) return;
   const seenOne = projectsSeen?.projets.find(({ nom: name }) => name === project.nom);
   const states = statesOfCaps.get(project.nom) ?? new Map();
   statesOfCaps.set(project.nom, states);
@@ -6540,7 +6561,6 @@ function setTheBannerOfHealth(project, keep = true) {
       ouvrir: (url) => void brigade.ouvrirLaProposition(url),
     }),
     setTheCloserOfHealth(project),
-    knowledgeOfProject(project).poser(),
     setBlockTimeOfThePass(document, seenOne?.temps),
     autonomyOfProject(project).poser(),
     setBlockPostMortems(document, postMortemsOf(project)),
