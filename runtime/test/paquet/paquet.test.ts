@@ -10,6 +10,7 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSyn
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { after, before, describe, test, type TestContext } from "node:test";
+import { cibleDuBinaire } from "../../paquet/binaire.ts";
 import { jusqua, lancer, repertoireTemporaire } from "../outils.ts";
 
 const PAQUET = join(import.meta.dirname, "../../paquet");
@@ -26,7 +27,8 @@ function construire(args: string[]): Promise<Rendu> {
   return new Promise((resoudre) => {
     const donnee = args.includes("--repo") || args.includes("--sans-identite");
     const identite = donnee ? [] : ["--repo", "acme/brigade", "--maintainer", "Test <test@example.org>"];
-    execFile(process.execPath, [CONSTRUIRE, ...args.filter((a) => a !== "--sans-identite"), ...identite], { encoding: "utf8" }, (erreur, stdout, stderr) => {
+    const archives = args.includes("--node-linux-x64") ? [] : ["--sans-archives"];
+    execFile(process.execPath, [CONSTRUIRE, ...args.filter((a) => a !== "--sans-identite"), ...identite, ...archives], { encoding: "utf8" }, (erreur, stdout, stderr) => {
       resoudre({ code: erreur ? Number(erreur.code ?? 1) : 0, sortie: stdout + stderr });
     });
   });
@@ -427,5 +429,72 @@ describe("ce que dpkg joue à l'installation et à la mise à jour", { skip: san
     const systeme = doublures(t, { systemctl: "" });
     assert.equal(jouer(join(PAQUET, "debian/prerm"), ["upgrade", "1.2.4"], systeme.env).code, 0);
     assert.deepEqual(systeme.appels(), []);
+  });
+});
+
+// Des binaires qui n'ont de `node` que l'en-tête : celui d'un ELF ou d'un Mach-O 64 bits.
+function binaireFactice(fichier: string, os: "linux" | "darwin", arch: "x64" | "arm64"): string {
+  const tete = Buffer.alloc(64);
+  if (os === "linux") {
+    tete.writeUInt32BE(0x7f454c46, 0);
+    tete[4] = 2;
+    tete[5] = 1;
+    tete.writeUInt16LE(arch === "x64" ? 0x3e : 0xb7, 18);
+  } else {
+    tete.writeUInt32LE(0xfeedfacf, 0);
+    tete.writeUInt32LE(arch === "x64" ? 0x01000007 : 0x0100000c, 4);
+  }
+  writeFileSync(fichier, tete);
+  return fichier;
+}
+
+describe("les archives de la station (#4734)", { skip: sansDpkgDeb }, () => {
+  let dossier = "";
+  let sortie = "";
+  let rendu: Rendu = { code: -1, sortie: "" };
+  const archive = (os: string, arch: string) => join(sortie, `brigade-station-1.2.3-${os}-${arch}.tar.gz`);
+  const liste = (os: string, arch: string) => spawnSync("tar", ["-tzf", archive(os, arch)], { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 }).stdout.split("\n").map((l) => l.replace(/^\.\//, ""));
+
+  before(async () => {
+    dossier = mkdtempSync(join(tmpdir(), "brigade-archives-test-"));
+    sortie = join(dossier, "construit");
+    rendu = await construire([
+      "--sortie", sortie, "--version", "1.2.3", "--node", fauxNode(dossier, "v99.0.0"),
+      "--node-linux-x64", binaireFactice(join(dossier, "node-linux"), "linux", "x64"),
+      "--node-darwin-arm64", binaireFactice(join(dossier, "node-darwin"), "darwin", "arm64"),
+    ]);
+  });
+  after(() => rmSync(dossier, { recursive: true, force: true }));
+
+  test("une commande produit une archive par plateforme, qui porte runtime, node, bin/brigade, install.sh et services", () => {
+    assert.equal(rendu.code, 0, rendu.sortie);
+    for (const [os, arch] of [["linux", "x64"], ["darwin", "arm64"]] as const) {
+      const fichiers = liste(os, arch);
+      for (const attendu of ["runtime/src/kitchen/main.ts", "node/bin/node", "bin/brigade", "install.sh", "services/"]) assert.ok(fichiers.includes(attendu), `${attendu} manque à l'archive ${os}-${arch}`);
+      assert.ok(fichiers.includes("services/brigade-station.service"));
+    }
+  });
+
+  test("le node de chaque archive est celui de son système et de son architecture", (t) => {
+    for (const [os, arch] of [["linux", "x64"], ["darwin", "arm64"]] as const) {
+      const lu = repertoireTemporaire(t);
+      assert.equal(spawnSync("tar", ["-xzf", archive(os, arch), "-C", lu, "node/bin/node"]).status, 0);
+      assert.deepEqual(cibleDuBinaire(join(lu, "node/bin/node")), { os, arch });
+    }
+  });
+
+  test("les unités de l'archive pointent sous /opt/brigade-station/current, et le lanceur du Mac a son emplacement de plists", () => {
+    const lu = spawnSync("tar", ["-xzOf", archive("linux", "x64"), "services/brigade-station.service"], { encoding: "utf8" });
+    assert.match(lu.stdout, /^ExecStart=\/opt\/brigade-station\/current\/node\/bin\/node src\/kitchen\/main\.ts$/m);
+    assert.doesNotMatch(lu.stdout, /\/usr\/lib\/brigade-station/);
+    assert.ok(liste("darwin", "arm64").some((f) => f.startsWith("services/launchd/")));
+  });
+
+  test("un node d'une autre plateforme est refusé, et rien n'est écrit", async () => {
+    const autre = join(dossier, "refus");
+    const refus = await construire(["--sortie", autre, "--version", "1.2.3", "--node", fauxNode(dossier, "v99.0.0"), "--node-linux-x64", binaireFactice(join(dossier, "mauvais"), "darwin", "arm64"), "--node-darwin-arm64", binaireFactice(join(dossier, "node-darwin"), "darwin", "arm64")]);
+    assert.notEqual(refus.code, 0);
+    assert.match(refus.sortie, /linux-x64.*darwin-arm64/);
+    assert.equal(existsSync(join(autre, "brigade-station-1.2.3-linux-x64.tar.gz")), false);
   });
 });

@@ -57,14 +57,15 @@ export function paquetsDeLApp(version: string, signe: boolean): Paquet[] {
 // The station runs on Linux and macOS, installed by one script (runtime/deploy/installer-station.sh),
 // and on Windows, installed by its PowerShell twin (runtime/deploy/windows/installer-station.ps1).
 // `installer-station.sh`, `installer-station.ps1`, `brigade-station_amd64.deb`,
-// `brigade-station-mac.tar.gz` and `brigade-station-windows.zip` keep their names: the install
+// and `brigade-station-windows.zip` keep their names: the install
 // commands (`releases/download/station/installer-station.sh` and `.ps1`), the scripts themselves and
 // the running stations' own update (runtime/src/mise-a-jour/publications.ts) read them by name.
-export function paquetsDeLaStation(): Paquet[] {
+export function paquetsDeLaStation(version = "<version>"): Paquet[] {
   return [
     { construit: "installer-station.sh", nom: "installer-station.sh", plateforme: "Linux", quoi: "Station, install script (Linux and macOS)", ouverture: OUVERTURE.Linux },
     { construit: "brigade-station_amd64.deb", nom: "brigade-station-linux-amd64.deb", plateforme: "Linux", quoi: "Station, Debian/Ubuntu package (amd64)", ouverture: "No executable bit to set: install it with `sudo apt install ./brigade-station-linux-amd64.deb`." },
-    { construit: "brigade-station-mac.tar.gz", nom: "brigade-station-mac.tar.gz", plateforme: "Mac", quoi: "Station, runtime for macOS (the install script sets it up)", ouverture: "Nothing to open: run `installer-station.sh` with `sh`, under your account, without sudo." },
+    { construit: `brigade-station-${version}-linux-x64.tar.gz`, nom: `brigade-station-${version}-linux-x64.tar.gz`, plateforme: "Linux", quoi: "Station, archive (x64): runtime, node, services", ouverture: "Nothing to open: its `install.sh` sets it up." },
+    { construit: `brigade-station-${version}-darwin-arm64.tar.gz`, nom: `brigade-station-${version}-darwin-arm64.tar.gz`, plateforme: "Mac", quoi: "Station, archive (Apple silicon): runtime, node, services", ouverture: "Nothing to open: its `install.sh` sets it up, under your account, without sudo." },
     { construit: "installer-station.ps1", nom: "installer-station.ps1", plateforme: "Windows", quoi: "Station, install script (Windows)", ouverture: "Nothing to unblock: paste `irm <its address> | iex` into PowerShell, under your account, as an ordinary user." },
     { construit: "brigade-station-windows.zip", nom: "brigade-station-windows.zip", plateforme: "Windows", quoi: "Station, runtime for Windows (the install script sets it up)", ouverture: "Nothing to open: `installer-station.ps1` downloads and sets it up." },
   ];
@@ -75,13 +76,13 @@ export type OptionsNotes = { produit: Produit; version: string; signe: boolean; 
 const cellule = (texte: string) => texte.replaceAll("|", "\\|");
 
 export function notes({ produit, version, signe, commit }: OptionsNotes): string {
-  const paquets = produit === "app" ? paquetsDeLApp(version, signe) : paquetsDeLaStation();
+  const paquets = produit === "app" ? paquetsDeLApp(version, signe) : paquetsDeLaStation(version);
   const titre = produit === "app" ? `The Brigade app ${version}` : `The Brigade station ${version}`;
   const origine = commit === undefined ? "" : `, built from the commit ${commit}`;
   // The station has no signing: its row says what to do, not that the build is unsigned.
   const etat =
     produit === "station"
-      ? "The station is a Linux package, and a runtime for macOS and for Windows, each set up by its install script: nothing is signed by an app store, so there is no warning to click through."
+      ? "The station is a Linux package, and archives for Linux and macOS, and a runtime for Windows, each set up by its install script: nothing is signed by an app store, so there is no warning to click through."
       : signe
         ? "These builds are signed: the Mac app is notarized and the Windows installer is signed, so they open without a warning. The steps below only apply to an unsigned build, and to the Linux AppImage, which is not signed."
         : "These builds are unsigned: the first time you open one, your system warns you. Follow the steps of its row.";

@@ -36,6 +36,7 @@ tool launches beside it:
 |---|---|
 | `relais.ts`, `moteur/codex-en-flux.ts` | the kitchen, for each agent |
 | `station/tenir-portes.ts` | `brigade-station-porte.service`: the station's network gates |
+| `brigade-command/main.ts` | `runtime/bin/brigade`, linked to `/usr/local/bin/brigade`: the station's operator command, run by the chef or over `ssh` (`status [--json]`, `logs`, `restart`, `project add\|remove`, `update [--check]`, `uninstall [--purge]`); same output on Linux and Mac |
 | `mise-a-jour/main.ts` | `brigade-station-mise-a-jour.timer`: the station's update |
 | `connexion-max/connecter-cli.ts` | `installer-station.sh`, under Linux: the Max connection of the station's account |
 | `reseau-cli.ts`, `bac-a-sable/detection-projet.ts`, `essai-projet/declaration-cli.ts` | by hand, from the project folder: they write `.claude/brigade/reseau`, `.claude/brigade/bac-a-sable.json` and `.brigade/try.json` when absent |
