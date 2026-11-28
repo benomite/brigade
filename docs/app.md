@@ -2895,7 +2895,8 @@ from the rail.
 ### The rail
 
 **The view draws the plan of the kitchen (#4238,
-[`2026-11-24-simplified-process.md`](superpowers/specs/2026-11-24-simplified-process.md)).** Left to right: **Backlog** —
+[`2026-11-24-simplified-process.md`](superpowers/specs/2026-11-24-simplified-process.md), which replaces the process parts of
+[`2026-11-23-autonomy-trust-control.md`](superpowers/specs/2026-11-23-autonomy-trust-control.md)).** Left to right: **Backlog** —
 its top is the rail, `Rail — ready to cook`, the queued tickets set apart; under it, `Not ready yet`, what is in the
 backlog without being ready (awaiting you, parked, blocked) —, then **Manager** (its question before splitting an epic,
 asked or answered), **Cooks**, **Pass** and **Served**. Each card sits in the column of the step it is at
