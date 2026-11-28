@@ -9,7 +9,7 @@ where a value is kept before you change it. The three levels are named with the 
 |---|---|---|---|
 | **project** | `.claude/brigade/projet.json`, in the project's repository | by a pull request, held for the chef | yes: everyone who clones the repository gets it |
 | **this computer** | the station's configuration, on that machine | the chef, on that station (`brigade <projet> station`, or the app) | no: private to the station |
-| **you** | `~/.config/brigade/app.json`, and a secret gist of the chef's GitHub account | the chef, in the app | no: it follows the chef, not the project |
+| **you** | `~/.config/brigade/app.json` | the chef, in the app | no: it follows the chef, not the project |
 
 **Nothing private goes in git.** Secrets, the paths of a machine, and what a machine decides for
 itself (its cook count, its workspace folders, its capabilities, its sandbox) stay at their level. The
@@ -183,28 +183,22 @@ These are the settings the writer of `projet.json` refuses: a project's file nev
 
 ## 3. You — the app's preferences
 
-The app keeps its own preferences in `~/.config/brigade/app.json`, outside any repository, and in
-a **secret gist of your GitHub account**. Every `you` setting is one of two kinds, and the split is
-the list of device-bound keys in `app/src/settings-personal/share.ts`: a key on that list stays on
-the machine it was set on; any other key of the file is a preference, and follows you from one
-device to another — including one added later, with no change to this page. The app draws the
-colors and writes them itself; see [`app.md`](app.md), "A project's colors" and "Your preferences
-follow you from one device to another".
+The app keeps its own preferences in `~/.config/brigade/app.json`, outside any repository, on each device. The app draws the
+colors and writes them itself; see [`app.md`](app.md), "A project's colors".
 
-**Follows you** (the gist, then `app.json` on each device):
+**Kept in `app.json`:**
 
 | Setting | Key in `app.json` | Note |
 |---|---|---|
 | The colors of a project (tab and accent) | `projets[].couleurs` | shown under `you` in the Settings screen (`app/src/vue/levels.js`) |
 | The short label of a project's tile in the bar | `projets[].sigle` | shown under `you` in the Settings screen; absent, the app derives one from the names (`app/src/acronym.ts`) |
-| The order of your projects in the bar | the order of `projets` | set by arranging the bar; the order of two devices is merged, not overwritten |
+| The order of your projects in the bar | the order of `projets` | set by arranging the bar |
 | The kitchen's state in the menu bar (Mac) or the notification area (Windows) | `barreDeMenus` | `false` hides it; absent, it is shown. Set in Settings, under `you` (`app/src/vue/levels.js`); see [`app.md`](app.md), "The kitchen's state in the menu bar and the notification area" |
-| Other display preferences | none yet | the app has no theme, density or font size; one added later follows you by default |
-| Any other personal key | any key not listed below | follows you by default |
+| Other display preferences | none yet | the app has no theme, density or font size |
 
-**Stays on this device** (never in the gist; each device keeps its own):
+**Specific to this machine:**
 
-| Setting | Key in `app.json` | Why it stays |
+| Setting | Key in `app.json` | Why |
 |---|---|---|
 | A project's folder on this machine | `projets[].dossier` | a path that exists on this machine only |
 | Ordinary tickets and the cook limit of this machine's station | `projets[].ordinaires`, `projets[].limiteCooks` | decisions this machine makes for itself (§2) |
@@ -213,7 +207,6 @@ The app no longer reads or writes any key naming an ssh host, a list of boxes or
 written by an older version that still carries them is read without error, and those keys are ignored.
 
 **A collaborator never sees your preferences.** Someone who shares a project and clones its
-repository runs the app with their own `app.json` and reads their own gist: your colors, your order
-and your gist never reach them, and nothing of yours reaches the project's repository.
+repository runs the app with their own `app.json` and has their own colors and order: yours never reach them, and nothing of yours reaches the project's repository.
 **`projet.json` is not affected**: nothing in this section reads or writes it. The project's shared
 settings stay in §1, and change by a pull request.
