@@ -447,10 +447,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 26
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: 21
+          cache: gradle
       - name: Construire l'APK, non signé (clé de debug)
         # Le SDK Android est préinstallé sur le runner (ANDROID_HOME) ; setup-java pose JAVA_HOME.
         run: |
