@@ -1,8 +1,7 @@
 /* La carte « Awaiting you » (ticket 2918, maquette Project.dc.html) : le bon qui attend le chef, sur le fond chaud de ce qui
    l'attend, avec la carte de réponse posée dessous (question, choix, champ). Elle ne nomme aucun écran : `.bon[data-carte="attente"]`
    la tient. Sa pastille est celle de components/pill, ses choix les boutons de components/button. */
-/* La carte de TODO (#1281) : sous le trait de coupe, la question à l'encre, en entier ; les captures
-   d'un écran à valider, avant et après, comme celles d'une livraison ; un bouton par choix, sur toute
+/* La carte de TODO (#1281) : sous le trait de coupe, la question à l'encre, en entier ; un bouton par choix, sur toute
    la largeur, son texte entier ; puis le champ du texte libre et son « send ». Bordée d'accent à
    gauche : c'est à toi. Ce qui l'a refusée se lit dessous, en une ligne, le détail au survol. */
 .bon .carte-todo {
