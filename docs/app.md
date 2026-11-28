@@ -2216,7 +2216,7 @@ default branch when the project does not name one — for its `sha`, only `drift
 with `version` and `integrationBranch`; a new branch `brigade/setting-…` starts from the integration branch's head, the
 file is written on it, and the PR opens towards the integration branch). While it runs the row says `opening the pull
 request…`; then `150 s proposed in` and a `pull request #<n>` link that opens it in the browser. The value shown stays
-the one in force: the runtime reads the new one at its next fetch once the PR is merged (`reglages-projet/en-vigueur.ts`).
+the one in force: the runtime reads the new one at its next fetch once the PR is merged.
 An empty field proposes the cap's removal (`removal proposed in`). A value the runtime would refuse (zero, a fraction for
 a whole threshold) proposes nothing and says so under the field, what was typed staying in it; a step GitHub refuses
 (reading the branch head, creating the branch, writing the file, opening the PR) is the error line `nothing was proposed`,

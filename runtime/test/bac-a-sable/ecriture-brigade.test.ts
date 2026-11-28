@@ -10,7 +10,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { dansLeBacASableLocal, type BacASableLocal } from "../../src/bac-a-sable/local.ts";
-import { argumentsClaude } from "../../src/claude.ts";
+import { argumentsClaude } from "../../src/claude-launch.ts";
 import { posixOnly } from "../support/plateforme.ts";
 
 const FAUX_COOK = join(import.meta.dirname, "../aides/faux-cook.ts");

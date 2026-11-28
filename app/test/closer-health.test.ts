@@ -5,7 +5,6 @@
 // mergé. Une vérification ajoutée ou retirée se propose de même ; la liste en vigueur ne change qu'au merge.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { CLES_DU_CLOSER, reglagesDuTexte } from "../../runtime/src/reglages-projet/reglages.ts";
 import { changeTheSetting, changeTheVerifications, readTheCloser, readPass, SETTINGS, textOfVerifications, VERIFICATIONS, verificationsOf } from "../src/closer-health.ts";
 import { FILE } from "../src/caps-duration.ts";
 import { PROPOSES } from "../src/box.ts";
@@ -141,8 +140,8 @@ const json = (object: unknown) => `${JSON.stringify(object, null, 2)}\n`;
 const issue = (number: number, body: string, others: Record<string, unknown> = {}) => ({ number, title: TITLE_OF_THE_CLOSING, html_url: `https://github.com/${REPOSITORY}/issues/${number}`, created_at: "2026-10-10T08:00:00Z", state: "closed", author_association: "OWNER", body, ...others });
 
 describe("le closer, dans le dépôt du projet", () => {
-  test("l'app connaît exactement les réglages du closer du runtime, et ses défauts", () => {
-    assert.deepEqual(SETTINGS.map(({ cle: key }) => key), [...CLES_DU_CLOSER]);
+  test("l'app connaît exactement les réglages du closer, et ses défauts", () => {
+    assert.deepEqual(SETTINGS.map(({ cle: key }) => key), ["calibration", "cooksBelow", "maxTokens", "maxRemovedLines"]);
     const defaults = Object.fromEntries(SETTINGS.map(({ cle: key, defaut: fallback }) => [key, fallback]));
     assert.deepEqual(defaults, { calibration: null, cooksBelow: COOKS_PAR_DEFAUT, maxTokens: TOKENS_PAR_DEFAUT, maxRemovedLines: RETRAITS_PAR_DEFAUT });
   });
@@ -212,7 +211,7 @@ describe("les réglages du closer, proposés depuis Health", () => {
     });
     assert.deepEqual(repository.demandes, [`GET /repos/${REPOSITORY}/contents/${FILE}?ref=main`, `GET /repos/${REPOSITORY}/git/ref/heads/main`, `POST /repos/${REPOSITORY}/git/refs`, `PUT /repos/${REPOSITORY}/contents/${FILE}`, `POST /repos/${REPOSITORY}/pulls`]);
     const first = repository.texte(FILE, "pr") ?? assert.fail("pas de fichier proposé");
-    assert.deepEqual(reglagesDuTexte(first).closer, { maxTokens: 300000, maxRemovedLines: 800 });
+    assert.deepEqual(JSON.parse(first).closer, { maxTokens: 300000, maxRemovedLines: 800 });
     assert.deepEqual(await changeTheSetting({ depot: REPOSITORY, branche: "main", cle: "calibration", saisie: { model: "opus", effort: "high" }, client: repository.client }), {
       propose: PROPOSES,
       pr: `https://github.com/${REPOSITORY}/pull/62`,
@@ -235,7 +234,7 @@ describe("les réglages du closer, proposés depuis Health", () => {
     assert.deepEqual(repository.ouvertes.map(({ base }) => base), ["main", "main", "main"]);
     const text = repository.texte(FILE, "pr") ?? assert.fail("pas de fichier proposé");
     assert.deepEqual(JSON.parse(text).defaultCalibrations, PROJECT.defaultCalibrations);
-    assert.deepEqual(reglagesDuTexte(text).closer, { cooksBelow: 2, maxTokens: 300000 });
+    assert.deepEqual(JSON.parse(text).closer, { cooksBelow: 2, maxTokens: 300000 });
     // Relu sur main : la valeur en vigueur, celle d'avant — la PR vaut une fois mergée.
     assert.equal(repository.texte(FILE), json(PROJECT));
     const readOne = await readTheCloser({ depot: REPOSITORY, branche: "main", client: repository.client });
@@ -253,7 +252,7 @@ describe("les réglages du closer, proposés depuis Health", () => {
 
     const fresh = github();
     await changeTheSetting({ depot: REPOSITORY, branche: "main", cle: "calibration", saisie: { model: "sonnet", effort: "medium" }, client: fresh.client });
-    assert.deepEqual(reglagesDuTexte(fresh.texte(FILE, "pr") ?? assert.fail("pas de fichier")), { integrationBranch: "main", closer: { calibration: { model: "sonnet", effort: "medium" } } });
+    assert.deepEqual(JSON.parse(fresh.texte(FILE, "pr") ?? assert.fail("pas de fichier")), { version: 1, integrationBranch: "main", closer: { calibration: { model: "sonnet", effort: "medium" } } });
 
     const withoutBranch = github({ fichiers: { [FILE]: json(PROJECT) } });
     assert.ok("propose" in (await changeTheSetting({ depot: REPOSITORY, branche: null, cle: "maxRemovedLines", saisie: "800", client: withoutBranch.client })));

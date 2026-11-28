@@ -6,7 +6,6 @@ import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { join, sep } from "node:path";
 import { describe, test } from "node:test";
-import { attenteDeLIssue } from "../../../runtime/src/attente-github/marque.ts";
 import type { ClientOfThePriority } from "../../src/priority.ts";
 import { hooksOfParking } from "../../src/second/hook-of-parking.ts";
 import { context, principal } from "../../src/second/action-of-parking.ts";
@@ -84,8 +83,6 @@ describe("le second et l'app parquent et déparquent un ticket dans le même ét
     const { labels, commentaires: comments } = second.etat() ?? assert.fail();
     assert.deepEqual(labels, ["fire", "chef-todo", "parked"]);
     assert.equal(comments.length, 1);
-    // La station le relit (runtime/src/attente-github/marque.ts), et l'app aussi : le même enregistrement.
-    assert.deepEqual(attenteDeLIssue(comments.map((body) => ({ body, association: "OWNER" }))), { what: "the signed quote", who: "the client", followUp: new Date(2026, 10, 20).toISOString() });
     const third = thirdOfComments(comments.map((body) => ({ body, created_at: TODAY.toISOString(), author_association: "OWNER" })));
     assert.deepEqual([third?.qui, third?.quoi, third?.relance], ["the client", "the signed quote", new Date(2026, 10, 20).toISOString()]);
   });

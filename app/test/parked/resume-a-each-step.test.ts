@@ -5,7 +5,7 @@
 // (runtime/test/parked/parquer-a-chaque-etape.test.ts). L'étape est lue comme la station la lisait (`etatDuTicket`, copie locale).
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { corpsDuParking } from "../../../runtime/src/attente-github/marque.ts";
+import { parkingBody as corpsDuParking } from "../parking-body.ts";
 import type { ClientOfThePriority } from "../../src/priority.ts";
 import type { BoardRead } from "../../src/board/read.ts";
 import { waitOnGithub, park } from "../../src/vue/wait/wait-github.ts";

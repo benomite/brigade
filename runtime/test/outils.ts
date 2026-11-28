@@ -524,3 +524,10 @@ export function commiter(arbre: string, fichier = "travail.txt"): void {
   git(arbre, "add", ".");
   git(arbre, "commit", "-q", "-m", `ajoute ${fichier}`);
 }
+
+// A file as the origin carries it on the base branch, after the last fetch; null when the branch lacks it.
+export function lireALaBase(lieu: { clone: string; base: string }, chemin: string, env?: NodeJS.ProcessEnv): string | null {
+  const run = (...args: string[]) => execFileSync("git", args, { cwd: lieu.clone, env, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  if (run("ls-tree", "--name-only", `origin/${lieu.base}`, "--", chemin).trim() === "") return null;
+  return run("show", `origin/${lieu.base}:${chemin}`);
+}

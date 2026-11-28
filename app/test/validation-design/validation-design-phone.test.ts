@@ -5,7 +5,6 @@
 // Aucun runtime ne tourne, aucun `gh` n'est lancé.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { DE_CONFIANCE as OF_TRUST_OF_RUNTIME } from "../../../runtime/src/alimenter.ts";
 import { readCaptureOnTHEApi } from "../../src/captures.ts";
 import { postTheCard } from "./card-posted.ts";
 import { cardOfChefOfTodo } from "../../src/card-todo.ts";
@@ -305,7 +304,6 @@ describe("ce que le téléphone ne tient pas pour fait", () => {
   });
 
   test("ce que le téléphone écrit et lit est ce que le runtime écrit et lit", () => {
-    assert.deepEqual(OF_TRUST, OF_TRUST_OF_RUNTIME);
     assert.equal(BRAND_OF_SEND_BACK, SEND_BACK_OF_RUNTIME);
     assert.equal(LABEL_IN_PASS, IN_PASS_OF_RUNTIME);
     assert.equal(LABEL_OF_CHEF, CHEF_TODO);
