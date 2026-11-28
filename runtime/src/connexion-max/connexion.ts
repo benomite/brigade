@@ -182,6 +182,3 @@ export function lireExposition(texte: string): ConnexionMax | null {
   }
 }
 
-// Le `PATH` qu'une unité reçoit de systemd : celui des commandes lancées sous
-// le compte, pas celui de qui lance le geste.
-export const SYSTEMD_PATH = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin";
