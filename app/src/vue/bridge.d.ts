@@ -147,10 +147,6 @@ export type Bridge = {
   // Une issue de la carte d'un besoin qui manque à la principale du projet (ticket 1400) : le choix — sa clé —, l'issue
   // retenue. Elle s'écrit dans la demande de la principale, qui la pose à son journal. Rend ce qui est fait, ou pourquoi rien.
   choisirUneIssue(name: string, choice: string, issue: string): Promise<Chosen>;
-  // « report to brigade », sous chaque panne que l'app montre (ticket 1977) : ouvre dans le navigateur une nouvelle issue
-  // préremplie sur benomite/brigade — versions, système, la panne, les lignes du journal qui en parlent, masquées
-  // (report/opening.ts). Rien n'est envoyé : le chef l'envoie lui-même. Rend ouvert, ou pourquoi rien.
-  signaler(request: RequestOfReport): Promise<RenderedOfReport>;
   // Ouvre dans le navigateur une page où autoriser brigade sur GitHub — une de celles qu'une station a publiées —,
   // ou une page que le parcours d'un projet neuf montre (ticket 1111) : son geste, son ticket de préparation, sa PR.
   autoriserSurGitHub(url: string): Promise<boolean>;

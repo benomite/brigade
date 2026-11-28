@@ -109,7 +109,6 @@ import { connectionAtTheStation, linesOfTheStationLocale } from "./project/stati
 import { mountThePanel } from "./project/panel-second/panel-second.js";
 import { setAddition, setBlockOfProjects } from "./home/projects/ProjectsBlock.js";
 import { holdTheKnowledge } from "./know-how/know-how.js";
-import { holdTheReport } from "./report/action.js";
 import { lineEmpty } from "./components/line-empty/line-empty.js";
 import { lineReadOnly } from "./read-only/read-only.js";
 import { THIS_COMPUTER, CANCEL, YES, ADD_ONE_PROJECT, NOT_STILL, READ_OF, NOT_REACHED } from "./lexicon.js";
@@ -338,9 +337,6 @@ function actionsOfServer(project, entrust) {
   };
 }
 const opinion = element("avis");
-// « report to brigade », sous chaque panne que l'app montre (ticket 1977) : une issue préremplie, ouverte dans le navigateur.
-// Sur le téléphone, rien ne l'ouvrirait : le bouton n'y est pas.
-const report = holdTheReport({ doc: document, pont: brigade, actif: () => phoneSeen === undefined });
 const alertOfKitchen = document.createElement("div");
 alertOfKitchen.id = "alerte-de-cuisine";
 const addition = element("ajout");
@@ -1168,71 +1164,13 @@ function propos(text) {
 // Ce qui se dit, au survol, d'une lecture de GitHub qui n'a pas rendu la file sur le téléphone.
 const AT_PHONE = "GitHub was reached, and did not give this project's queue as the app expects. This phone tries again every 30 s.";
 
-// Ce que l'app dit quand le geste de la box a refusé le projet : le nom qu'elle
-// lui a donné, et d'où il vient. Le refus lui-même est au-dessus, mot pour mot.
-/** @param {string} name */
-const unknown = (name) =>
-  [
-    "The station was reached, and its step does not know this project: what it said about it is above.",
-    `The app gave it “${name}” — the “nom” of the project in ${configuration.chemin}. The station must serve it under this name.`,
-    "If it was uninstalled from this station, this is expected: it can no longer be controlled there. “Remove this project”, in its space's panel, removes it from the app.",
-  ].join("\n");
-
-// Ce que l'app dit quand le geste a refusé celui qui le lance. Elle nomme où
-// est écrit le geste qui donne ce droit, et ne le rejoue pas : il se joue sur la box.
-const WITHOUT_RIGHT = [
-  "The station was reached, and its step refused your account: what it said about it is above.",
-  "This is neither a failure nor a runtime to update: it is a right this account lacks.",
-  "",
-  "It is given on the station, by someone who has `sudo` there — the app does not do it for you:",
-  "(docs/installer.md, “Ajouter un humain”)",
-].join("\n");
-
-// Ce que l'app dit quand le code de la box est celui d'une commande absente.
-// Elle ne sait pas laquelle : c'est la box qui la nomme, au-dessus.
-/** @param {Project} project */
-const commandMissing = (project) => [
-  "The station was reached, and a command is missing there: what it said about it is above. The app does not know which.",
-  "If it names `brigade`, the step is not installed there; if it names `sudo`, the step lacks it to run under the service account.",
-  "",
-  "Both are installed on the station, when preparing it:",
-  "(docs/installer.md, section 3, “Préparer”)",
-  "",
-  `The app plays this step for you: there is nothing to type on your workstation.`,
-].join("\n");
-
-// Ce que l'app dit quand le geste a refusé le `node` de la box (code 70).
-const NODE_INAPTE = [
-  "The station was reached, and its step refused to start the runtime: the station's `node` does not suit it. What it said about it is above.",
-  "",
-  "It is not the runtime that needs updating: the step's sentence says the remedy, and it is applied on the station:",
-  "(docs/installer.md, section 3, “Préparer”)",
-].join("\n");
-
-
-
 // Une lecture en échec se dit en une ligne, dans les mots de l'app ; ce que la station a
 // répondu, et ce que l'app en dit de plus (le code de sortie choisit le renvoi, le texte n'est jamais
 // traduit), se lisent au survol. Rien de technique n'est écrit à plat.
 /** @param {Project} project @param {import("../box.ts").Failure & { projet: string }} receivedOne @param {string} morePilotable ce qui se dit d'une box jointe dont le code ne dit aucun cas */
 function obtainedInOneLine(project, receivedOne, morePilotable) {
-  const [line, suite] =
-    receivedOne.cas === "projet-inconnu"
-      ? ["the station does not know this project", unknown(receivedOne.projet)]
-      : receivedOne.cas === "sans-droit"
-        ? ["your account lacks the right to this action on the station", WITHOUT_RIGHT]
-        : receivedOne.cas === "commande-manque"
-          ? ["a command is missing on the station", commandMissing(project)]
-          : receivedOne.cas === "node-inapte"
-            ? ["the station's node does not suit the runtime", NODE_INAPTE]
-            : receivedOne.atteinte
-              ? ["the station answered, but not as the app expects", morePilotable]
-              : ["the station did not answer", undefined];
-  const saidOne = lineError(document, line, suite === undefined ? receivedOne.erreur : `${receivedOne.erreur}\n\n${suite}`);
-  // Ce que la station a dit, sans la commande lancée : la panne du signalement, en quelques mots.
-  const said = receivedOne.erreur.split("\n").filter((one) => one.trim() !== "" && !one.startsWith("$ ")).join(" ");
-  saidOne.append(...report.poser({ projet: project.nom, reference: { ligne: line }, panne: said === "" ? `${project.nom}: ${line}` : `${project.nom}: ${line} — ${said}` }));
-  return [saidOne];
+  const [line, suite] = receivedOne.atteinte ? ["the station answered, but not as the app expects", morePilotable] : ["the station did not answer", undefined];
+  return [lineError(document, line, suite === undefined ? receivedOne.erreur : `${receivedOne.erreur}\n\n${suite}`)];
 }
 
 

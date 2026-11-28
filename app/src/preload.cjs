@@ -61,7 +61,6 @@ const bridge = {
   lireReglagesDeLaStation: () => ipcRenderer.invoke("reglagesDeLaStation:lire"),
   ecrireReglagesDeLaStation: (change) => ipcRenderer.invoke("reglagesDeLaStation:ecrire", change),
   choisirUneIssue: (name, choice, issue) => ipcRenderer.invoke("choisirUneIssue", name, choice, issue),
-  signaler: (request) => ipcRenderer.invoke("signaler", request),
   demenagerLaCuisine: (name, to) => ipcRenderer.invoke("demenagerLaCuisine", name, to),
   autoriserSurGitHub: (url) => ipcRenderer.invoke("autoriserSurGitHub", url),
   agentsAtWork: (project) => ipcRenderer.invoke("agentsAtWork", project),

@@ -172,6 +172,3 @@
   display: flex;
   margin-top: var(--pas-2);
 }
-.bon .signaler .signale {
-  color: var(--bon-discret);
-}

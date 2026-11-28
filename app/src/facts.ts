@@ -221,13 +221,6 @@ export function understand(output: string): Facts | { informe: string } {
   }
 }
 
-// Ce que l'app dit d'une lecture de `faits` en échec, avec les mêmes mots que sous `status`.
-const TITLES: Readonly<Record<Exclude<Failure["cas"], null>, string>> = {
-  "projet-inconnu": "REACHED, BUT UNKNOWN TO THE STATION",
-  "sans-droit": "REACHED, BUT WITHOUT THE RIGHT TO THE ACTION",
-  "commande-manque": "REACHED, BUT A COMMAND IS MISSING ON THE STATION",
-  "node-inapte": "REACHED, BUT THE STATION'S NODE DOES NOT SUIT THE RUNTIME",
-};
 // Une lecture qui n'a pas joint GitHub du tout (board/read.ts, `horsLigne`) : l'app est hors ligne, une seule cause
 // pour tout ce qu'elle lit (#1818). Rien de ce qui était lu ne s'en efface, et rien n'y est une panne.
 export const isOutsideLine = (reading: object): boolean => "horsLigne" in reading && reading.horsLigne === true;
@@ -236,10 +229,9 @@ export const isOutsideLine = (reading: object): boolean => "horsLigne" in readin
 export const isMissedOfBoard = (reading: object): boolean => "erreur" in reading && "duTableau" in reading && reading.duTableau === true;
 
 // `sansReponse` : ce qui se dit d'une box jointe dont le code ne dit aucun cas — pour une autre commande que `facts`.
-export function titleOfFailure({ cas: theCase, atteinte: reached, duTableau: ofBoard }: Failure, withoutAnswer = "REACHED, BUT `facts` DID NOT ANSWER"): string {
+export function titleOfFailure({ atteinte: reached, duTableau: ofBoard }: Failure, withoutAnswer = "REACHED, BUT `facts` DID NOT ANSWER"): string {
   // Lue de GitHub (#1694, #2061) : aucune station n'a été jointe, c'est GitHub qui n'a pas dit.
   if (ofBoard === true) return "NOT READ FROM GITHUB";
-  if (theCase !== null) return TITLES[theCase];
   return reached ? withoutAnswer : "NOT REACHED";
 }
 

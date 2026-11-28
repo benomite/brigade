@@ -28,20 +28,6 @@ export const THE_CHEF = "the chef";
 // Le ticket parked pour `qui`, pour `quoi`, jusqu'à `jusqua` : au chef seulement, il va dans son TODO.
 export const parkedOf = (who: string, what: string | undefined, until: string | null): Parked => ({ qui: who, ...(what === undefined ? {} : { quoi: what }), jusqua: until, ...(who === THE_CHEF ? { chef: true } : {}) });
 
-// Ce dont un bon se compose, pour un ticket.
-// `lignes` : les siennes sous la ligne `rail` de `status` — absentes, cette ligne
-// n'a pas été lue ; vides, elle l'a été et ne dit rien de lui.
-// `stations` : celles de ses cooks en cours, d'après `faits` — absentes, le
-// runtime ne donne pas les cooks.
-// `bloque` : le bloc `attend` dit ce qui l'arrête, et le bon le porte à part.
-// `enCeMoment` : ce que la cuisine fait du ticket, tel que `faits` le donne et que
-// l'app l'écrit (facts.ts, `direEnCeMoment`) — absent, le bon ne porte pas cette ligne.
-// `attente` : pour un ticket mis de côté, la raison en clair que le runtime donne
-// dans `faits` — elle remplace sa ligne brute de `status`, qui n'est plus relayée.
-// `revenu` : pour un ticket revenu de WAITING, le motif que le runtime en donne dans `faits`.
-// `lieux` : où cuit chaque station que `faits` donne (`lieuDe`) — absents, le runtime ne
-// donne pas les stations.
-export type Sources = { lignes?: readonly string[]; stations?: readonly string[]; bloque: boolean; enCeMoment?: string; attente?: string; revenu?: string; lieux?: ReadonlyMap<string, string> };
 
 // Où cuit un ticket en cours : sur la box, ou sur le Mac du chef — une station distante, qui
 // tire son travail depuis son poste. C'est ce que `faits` dit de la station qui le tient

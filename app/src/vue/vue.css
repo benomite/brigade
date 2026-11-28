@@ -2026,14 +2026,6 @@ main > header {
   align-items: baseline;
   gap: var(--pas-2);
 }
-.signaler .signaler-a-brigade {
-  white-space: nowrap;
-}
-.signaler .signale {
-  margin: 0;
-  font-size: var(--taille-meta);
-  color: var(--discret);
-}
 
 /* Les blocs de Stations, de Health et de Cooks (ticket 2485) : chacun son titre, en attendant son contenu. */
 .bloc-du-projet {

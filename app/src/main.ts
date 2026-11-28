@@ -1,6 +1,6 @@
 // L'app : une fenêtre, et le process qui tient les terminaux, la veille des
 // box et le suivi du fichier des projets.
-import { appendFile, readFile } from "node:fs/promises";
+import { appendFile } from "node:fs/promises";
 import { homedir, hostname, userInfo } from "node:os";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -20,7 +20,6 @@ import { askAtSecond, noteOfTheQuestion } from "./discussion.ts";
 import { noteOfTheHandover, passAtSecond } from "./handover-second.ts";
 import { discussionOfGitHub } from "./card-github.ts";
 import { pathConfiguration, EXAMPLE, type Project } from "./config.ts";
-import { openTheReport, versionAimed } from "./vue/report/opening.ts";
 import { readTheAgents } from "./team-of-the-box.ts";
 import { writeInTheProject, readInTheProject } from "./vue/card-project/card-project-folder.ts";
 import { choice, whole, PALETTE } from "./colors.ts";
@@ -817,22 +816,6 @@ ipcMain.handle("changerLeSavoir", async (_, name: unknown, change: unknown) => {
   if ("pr" in rendered) proposalsOfSetting.add(rendered.pr);
   return rendered;
 });
-// « report to brigade », sous chaque panne que l'app montre (ticket 1977, vue/report/) : le journal du projet est lu
-// là où sa cuisine tourne — hors de son passage, qu'une lecture longue ne le retienne pas —, et l'issue préremplie
-// s'ouvre dans le navigateur du poste. Rien n'est envoyé à GitHub d'ici : le chef l'envoie lui-même.
-ipcMain.handle("signaler", (_, request: unknown) =>
-  openTheReport(request, {
-    appVersion: app.getVersion(),
-    // La version du runtime à côté de l'app : celle de son `package.json`.
-    runtimeVersion: async (readEntry) => {
-      const version = await readFile(join(locations.runtime, "package.json"), "utf8")
-        .then((text) => (JSON.parse(text) as { version?: unknown }).version)
-        .catch(() => undefined);
-      return versionAimed(readEntry, stations.vu()?.stations ?? [], typeof version === "string" && version !== "" ? version : "unknown");
-    },
-    ouvrir: (url) => shell.openExternal(url),
-  }),
-);
 // Les adresses des pull requests que l'app a ouvertes — plafonds, closer, savoir : seule l'une d'elles s'ouvre depuis l'écran.
 const proposalsOfSetting = new Set<string>();
 const kitchenOfProject = (name: unknown) => {
