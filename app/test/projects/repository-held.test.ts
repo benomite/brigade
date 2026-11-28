@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { EchecDuWorktree as OfRuntime } from "../../../runtime/src/echec-du-worktree.ts";
 import type { AccesBloque as AccessOfRuntime } from "../../../runtime/src/projets/acces.ts";
-import { refus as refusalOfRuntime } from "../../../runtime/src/projets/refus.ts";
+import { refusal as refusalOfRuntime } from "../../../runtime/src/projets/refusal.ts";
 import type { Home } from "../../src/home.ts";
 import { forTheBar } from "../../src/bar.ts";
 import { EXAMPLE, type Project } from "../../src/config.ts";
@@ -205,7 +205,7 @@ test("lireSuivi ne croit que ce qui a la forme : un accès sans geste, un échec
   assert.deepEqual(slip?.worktree, { ...FAILURE, acces: ACCESS });
 });
 
-// Ce que le runtime publie (runtime/src/projets/refus.ts), tel quel.
+// Ce que le runtime publie (runtime/src/projets/refusal.ts), tel quel.
 const REFUSAL = refusalOfRuntime("proxy-port-set");
 
 test("un projet refusé par la station : la page dit pourquoi et ce que le chef fait, sans le texte brut ni chemin", async () => {

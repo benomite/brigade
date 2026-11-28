@@ -56,7 +56,7 @@ import { aSortirAvec, direSortieAvecEn, type AbandonEnChaine } from "./abandon-e
 import { decisionsPosees } from "./decisions.ts";
 import { GESTE_DE_STATION_A_CHAUD_EN } from "./stations-declarees.ts";
 import { prendLesOrdinaires } from "./bac-a-sable/ordinaires.ts";
-import type { Refus } from "./projets/refus.ts";
+import type { Refusal } from "./projets/refusal.ts";
 import { dernierAbandon, dernierDigest, type AbandonNotifie, type DigestPublie } from "./journal-du-jour/publication.ts";
 
 // La raison d'un ticket 86 sous sa carte : ce que la cuisine fait d'une
@@ -911,7 +911,7 @@ export type Faits = {
     lacks?: string;
     cuisson: Cuisson;
     arreteeDepuis: string | null;
-    refus: Refus | null;
+    refus: Refusal | null;
     cooks: Array<{ ticket: number; titre: string; station: string }>;
     // Toujours posés par `faits` ; facultatifs pour qui lit un runtime d'avant ces champs.
     fournit?: string[];
@@ -951,7 +951,7 @@ export type CarteVue = Omit<CarteDuTicket, "captures"> & { captures: CapturesVue
 // le dépôt GitHub que la box sert — de quoi donner l'adresse d'une issue qui
 // n'est pas sur le rail. `refusDeLaMachine` : pourquoi la station de cette
 // machine refuse le projet — ses stations d'ici sont alors `refused` —, ou null.
-export function faits(etat: EtatCuisine, maintenant: Date, depot?: string, limiteGithub: number | null = null, refusDeLaMachine: Refus | null = null, appels: Repartition | null = null, lacune: (station: string) => string | null = () => null): Faits {
+export function faits(etat: EtatCuisine, maintenant: Date, depot?: string, limiteGithub: number | null = null, refusDeLaMachine: Refusal | null = null, appels: Repartition | null = null, lacune: (station: string) => string | null = () => null): Faits {
   const adresse = (ticket: number) =>
     etat.rail.find((surLeRail) => surLeRail.ticket === ticket)?.url ?? (depot !== undefined && DEPOT_GITHUB.test(depot) ? `https://github.com/${depot}/issues/${ticket}` : null);
   const attendus = new Set<number>();

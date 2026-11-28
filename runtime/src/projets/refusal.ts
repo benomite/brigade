@@ -2,41 +2,18 @@
 // change pas, une phrase, et le geste qu'il peut faire. La station l'écrit
 // dans son suivi (`demande.ts`, `refus`), que l'app lit dans le gist : le
 // fichier `en-service` garde, lui, le texte brut de l'erreur. En anglais :
-// c'est l'app qui les montre.
+// c'est l'app qui les montre. Les codes sont dans `refusal-codes.ts`.
 //
-// Toute cause de refus du runtime a ici son entrée : `CAUSES` est typé par
-// `CodeDeRefus`, et un test relit le catalogue.
+// Toute cause de refus du runtime a ici son entrée : `REFUSAL_CAUSES` est typé
+// par `RefusalCode`, et un test relit le catalogue.
 import { decrire, REMEDES, type CoteRemede, type Registre } from "../remedes/registre.ts";
-
-export const CODES_DE_REFUS = [
-  // La cuisine du projet refuse de s'ouvrir.
-  "sandbox-unusable",
-  "configuration-invalid",
-  "clone-missing",
-  "already-served",
-  "door-not-open",
-  "proxy-port-set",
-  // La station ne peut pas préparer le projet.
-  "clone-failed",
-  "fetch-blocked",
-  "push-blocked",
-  "decisions-not-written",
-  "hand-written-line",
-  "handed-over-elsewhere",
-  "kitchen-not-joinable",
-  // Ni sa cuisine ni son service GitHub seul ne prend les tickets du projet.
-  "not-served",
-  // Tout le reste.
-  "unexpected",
-] as const;
-
-export type CodeDeRefus = (typeof CODES_DE_REFUS)[number];
+import type { RefusalCode } from "./refusal-codes.ts";
 
 export type Cause = { message: string; action: string };
 
 // Une phrase pour le chef, sans chemin ni terme de code ; l'action est ce
 // qu'il fait pour lever le refus.
-export const CAUSES: Record<CodeDeRefus, Cause> = {
+export const REFUSAL_CAUSES: Record<RefusalCode, Cause> = {
   "sandbox-unusable": { message: "This computer cannot run the project's cooks in Claude Code's sandbox.", action: "Update Claude Code from the app; if the sandbox is still unusable, the reason is shown." },
   "configuration-invalid": { message: "The station's settings for this project are incomplete or wrong.", action: "Let the station write its settings for this project again, from the app." },
   "clone-missing": { message: "The station has no copy of this project's repository to work from.", action: "Fetch the repository again from the app." },
@@ -57,9 +34,9 @@ export const CAUSES: Record<CodeDeRefus, Cause> = {
 // Ce que le suivi d'un projet refusé porte : `status` est toujours « refused ».
 // Et, du remède qui le lève (`remedes/registre.ts`), son descripteur
 // (`remedy`) — ou pourquoi l'app n'a pas de bouton (`noRemedy`).
-export type Refus = { status: "refused"; code: CodeDeRefus; message: string; action: string } & CoteRemede;
+export type Refusal = { status: "refused"; code: RefusalCode; message: string; action: string } & CoteRemede;
 
 // `registre` : les remèdes de la station — par défaut, ceux du runtime.
-export function refus(code: CodeDeRefus, registre: Registre = REMEDES): Refus {
-  return { status: "refused", code, ...CAUSES[code], ...decrire(code, registre) };
+export function refusal(code: RefusalCode, registre: Registre = REMEDES): Refusal {
+  return { status: "refused", code, ...REFUSAL_CAUSES[code], ...decrire(code, registre) };
 }

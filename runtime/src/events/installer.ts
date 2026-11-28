@@ -1,6 +1,6 @@
 // What the box's installation command logs: every call, accepted or refused.
-// It runs as root, outside any project: its log belongs to the box
-// (`installateur.ts`), not to a project. The envelope carries who (`author`,
+// It runs as root, outside any project: its log belongs to the box,
+// not to a project. The envelope carries who (`author`,
 // the calling account), when (`at`) and which project (`project`).
 
 // What the caller typed, bounded: neither a file's contents nor an endless

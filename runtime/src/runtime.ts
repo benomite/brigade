@@ -4,7 +4,7 @@
 import { existsSync, mkdirSync } from "node:fs";
 import { hostname } from "node:os";
 import type { Fait } from "./evenements.ts";
-import type { CodeDeRefus } from "./projets/refus.ts";
+import type { RefusalCode } from "./projets/refusal-codes.ts";
 import { cheminJournal, ouvrirJournal, type Journal } from "./journal.ts";
 import { sessionEnCours } from "./projections/sessions.ts";
 import { PROJECT_NAME as NOM_DE_PROJET } from "./project-name.ts";
@@ -15,9 +15,9 @@ const AUTEUR = "runtime";
 export { NOM_DE_PROJET };
 
 export class ConfigInvalide extends Error {
-  // La cause du refus pour le chef (`projets/refus.ts`), quand elle est connue.
-  readonly code: CodeDeRefus | undefined;
-  constructor(message: string, code?: CodeDeRefus) {
+  // La cause du refus pour le chef, quand elle est connue.
+  readonly code: RefusalCode | undefined;
+  constructor(message: string, code?: RefusalCode) {
     super(message);
     this.code = code;
     this.name = "ConfigInvalide";

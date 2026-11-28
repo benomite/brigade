@@ -1,5 +1,5 @@
 // Les remèdes des refus de la station : le geste qui lève un refus
-// (`projets/refus.ts`), fait par la station elle-même, quand le chef clique
+// (`remedes/catalogue`), fait par la station elle-même, quand le chef clique
 // sur le bouton de l'app (#1202).
 //
 // Un remède s'enregistre ici, avec les codes de refus qu'il lève : le refus
@@ -10,11 +10,11 @@
 //
 // Un refus qu'aucun remède ne lève porte, à la place, pourquoi il n'y a pas de
 // bouton (`SANS_REMEDE`), en une phrase : toute cause de refus a la sienne,
-// `SANS_REMEDE` étant typé par `CodeDeRefus`. Elle ne sert plus dès qu'un
+// `SANS_REMEDE` étant typé par `RefusalCode`. Elle ne sert plus dès qu'un
 // remède lève ce refus.
 //
 // Ce que le payload porte est en anglais : c'est l'app qui le montre.
-import type { CodeDeRefus } from "../projets/refus.ts";
+import type { RefusalCode } from "../projets/refusal-codes.ts";
 import { remedesDuCatalogue } from "./catalogue/index.ts";
 
 // Ce que la station donne au remède qu'elle joue.
@@ -35,7 +35,7 @@ export type Remede = {
   // Stable : l'app le renvoie tel quel pour le demander.
   id: string;
   // Les refus qu'il lève — chacun n'a qu'un remède.
-  leve: readonly CodeDeRefus[];
+  leve: readonly RefusalCode[];
   // Ce que le geste fera, en clair, en une phrase : l'app l'écrit sur le bouton.
   description: string;
   // Il retire ou efface quelque chose : l'app demande confirmation avant.
@@ -73,7 +73,7 @@ export function creerRegistre(remedes: readonly Remede[] = []): Registre {
       if (parId.has(id)) throw new Error(`remède « ${id} » : déjà enregistré`);
       if (leve.length === 0) throw new Error(`remède « ${id} » : il ne lève aucun refus`);
       for (const code of leve) {
-        if (!Object.hasOwn(SANS_REMEDE, code)) throw new Error(`remède « ${id} » : « ${code} » n'est pas un code de refus (projets/refus.ts)`);
+        if (!Object.hasOwn(SANS_REMEDE, code)) throw new Error(`remède « ${id} » : « ${code} » n'est pas un code de refus`);
         const pris = parCode.get(code);
         if (pris !== undefined) throw new Error(`remède « ${id} » : le refus « ${code} » est déjà levé par « ${pris.id} »`);
       }
@@ -91,7 +91,7 @@ export function creerRegistre(remedes: readonly Remede[] = []): Registre {
 
 // Pourquoi l'app n'a pas de bouton pour ce refus, tant qu'aucun remède ne le
 // lève : une phrase pour le chef, sans chemin ni terme de code.
-export const SANS_REMEDE: Record<CodeDeRefus, string> = {
+export const SANS_REMEDE: Record<RefusalCode, string> = {
   "sandbox-unusable": "Repairing the sandbox means installing software on this computer, which the app does not do for you.",
   "configuration-invalid": "The app cannot tell which of the station's settings is wrong, so only you can correct them.",
   "clone-missing": "The station fetches the repository again by itself, so there is nothing for a button to do.",
@@ -114,7 +114,7 @@ export const REMEDES: Registre = creerRegistre(remedesDuCatalogue());
 
 // Ce que le refus de ce code porte de son remède : son descripteur, ou
 // pourquoi il n'y en a pas.
-export function decrire(code: CodeDeRefus, registre: Registre = REMEDES): CoteRemede {
+export function decrire(code: RefusalCode, registre: Registre = REMEDES): CoteRemede {
   const remede = registre.pour(code);
   if (remede === null) return { noRemedy: SANS_REMEDE[code] };
   return { remedy: { id: remede.id, description: remede.description, destructive: remede.destructif } };
