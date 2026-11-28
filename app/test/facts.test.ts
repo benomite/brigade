@@ -589,21 +589,6 @@ describe("le rail en six colonnes", () => {
     });
   });
 
-  test("une carte qui demande au chef de juger une livraison — validation du design — est dans Pass, sur la carte du ticket livré : une carte, jamais sur le rail (#3519)", () => {
-    const design = { sorte: "design-validation", texte: "Validate its screen", design: { pr: 31, ticket: 15, sha: "abcdef1", url: "https://github.com/benomite/brigade/pull/31", captures: { complet: true, ecrans: [] } } };
-    {
-      const draws = rail({ ...WITHOUT_DELIVERED, rail: RAIL, attend: [{ ticket: 93, titre: "Validate #15", url: "https://github.com/benomite/brigade/issues/93", chef: design }] });
-
-      // La carte rouge de la validation est la seule de ce ticket : celle du ticket livré (15) n'est plus dans Pass.
-      assert.deepEqual(ranks(draws)[2], ["Pass", "1", [12]]);
-      assert.deepEqual(ranks(draws)[3], ["Awaiting you", "1", [93]]);
-      assert.equal(draws.colonnes[3]?.cartes[0]?.etape, "Pass");
-      assert.equal(draws.colonnes[0]?.cartes.some(({ ticket }) => ticket === 93), false);
-      // Elle porte le titre du ticket livré, pas celui de la carte.
-      assert.equal(draws.colonnes[3]?.cartes[0]?.titre, "Ticket 15");
-    }
-  });
-
   test("un ticket du bloc qui n'est pas sur le rail s'ouvre par l'adresse que `faits.attend` donne, et porte son titre s'il y en a un — l'app n'en compose aucune", () => {
     const awaiting = [
       { ticket: 30, titre: "", url: "https://github.com/benomite/brigade/issues/30" },

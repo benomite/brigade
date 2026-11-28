@@ -15,10 +15,6 @@
 //   - les gestes de WAITING (#3075) — « waiting for… » sur une carte de TODO, « resume » et « it arrived, back to the
 //     kitchen » sur une carte de WAITING : le téléphone ne joint aucun runtime, il les écrit sur l'issue comme le desktop
 //     sans runtime ici (vue/wait/wait-github.ts, `attenteSurGithub`).
-//   - les deux gestes de la carte « Validate its screen » (ticket 3185) — « Validate » et « Send back to the kitchen » : le
-//     téléphone ne porte pas la commande du runtime que le desktop joue, il écrit sur GitHub ce qu'elle y écrit
-//     (vue/validation-design/validation-design-github.ts, `validerSurGithub`) — la PR mergée et la carte fermée, ou le
-//     renvoi posté sur le ticket et la carte fermée.
 //
 // Une écriture que GitHub refuse, ou qui ne le joint pas, se dit en une ligne, ce que GitHub en a dit au survol, et rien
 // ne la tient pour faite : la lecture n'est relancée qu'après une écriture que GitHub a prise (`ecrit`), comme le desktop
@@ -32,7 +28,6 @@ import { waitOnGithub } from "./vue/wait/wait-github.ts";
 import type { BoardRead } from "./board/read.ts";
 import type { CardOfChef } from "./board/todo-github.ts";
 import { answerOnGithub } from "./board-actions/answer-github.ts";
-import { validateOnGithub, type RenderedOfValidation } from "./vue/validation-design/validation-design-github.ts";
 
 export type Options = {
   // Le jeton GitHub du chef — celui du coffre du téléphone ; nul sans lui, et GitHub dit ce qu'il refuse.
@@ -107,16 +102,6 @@ export function openTheActionsGitHub(options: Options) {
       if (repository === undefined) return { refus: WITHOUT_REPOSITORY(project), detail: "" };
       const rendered = await answerOnGithub({ depot: repository, ticket, chef, reponse: answer, client });
       if ("repondue" in rendered) options.ecrit?.(project);
-      return rendered;
-    },
-
-    // Un geste du chef sur la carte « Validate its screen » que la dernière lecture porte : valider, ou renvoyer en cuisine
-    // avec son commentaire, écrit sur GitHub.
-    async gesteDeValidation(project: string, ticket: unknown, action: unknown): Promise<RenderedOfValidation> {
-      const repository = options.depot(project);
-      if (repository === undefined) return { refus: WITHOUT_REPOSITORY(project), detail: "" };
-      const rendered = await validateOnGithub({ depot: repository, carte: ticket, design: options.chef(project, ticket)?.design, geste: action, client });
-      if ("fait" in rendered) options.ecrit?.(project);
       return rendered;
     },
   };

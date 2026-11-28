@@ -51,7 +51,7 @@ const startup = () => ({
 });
 
 async function open(): Promise<Played> {
-  const vue = await playTheVue({ demarrage: startup, espace: () => [], lireCapture: () => ({ image: "data:image/png;base64,iVBORw0KGgo=" }) });
+  const vue = await playTheVue({ demarrage: startup, espace: () => [] });
   (vue.element("projets").children.at(1) ?? assert.fail("pas d'entrée")).click();
   await repos();
   return vue;

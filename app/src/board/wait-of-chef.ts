@@ -40,7 +40,6 @@ import { cardOfTheQuestionOfEpic, EPIC_LABEL, questionOfEpicThe } from "./questi
 import { parkedChefCard, LABEL_PARKED_CHEF, whyParked, KIND_PARKED_CHEF } from "./parked-chef-github.ts";
 import { cardOfComment, shapeOfChef, LABEL_OF_CHEF, type CardOfChef } from "./todo-github.ts";
 import { thirdOfComments } from "../vue/wait/wait-github.ts";
-import { KIND_OF_VALIDATION, validationOfBody } from "../vue/validation-design/validation-design-github.ts";
 
 const { ready: LABEL_FIRE, parked: LABEL_PARKED } = LABELS;
 // Parqué (`parked`, #4129) : il attend quelqu'un d'autre que le chef — jamais une entrée, une carte du chef parquée pour un
@@ -117,7 +116,6 @@ class OutsideLine extends Error {}
 // La ligne d'une carte du chef : sa question, puis comment y répondre — un choix de la carte, ou ses propres mots.
 function lineOfTheCard({ sorte: kind, texte: said }: CardOfChef): string {
   const { question, choix: choice } = shapeOfChef(said);
-  if (kind === KIND_OF_VALIDATION && question !== null) return `${question} — on its Todo card: Validate, or Send back to the kitchen with a comment`;
   if (kind === KIND_PARKED_CHEF && question !== null && choice.length > 0) return `${question} — on its Todo card: ${choice.map(({ texte: wording }) => `“${wording}”`).join(" or ")} — or answer in your own words`;
   if (kind === KIND_PARKED_CHEF && question !== null) return `${question} — on its Todo card: Answer, in your own words — the ticket goes back on the rail`;
   const reply = choice.length === 0 ? "answer on its Todo card, in your own words" : `answer on its Todo card: ${choice.map(({ texte: wording }) => `“${wording}”`).join(" or ")} — or in your own words`;
@@ -210,7 +208,7 @@ export async function readWhatAwaitingTheChef(options: { depot: string; appeler:
       const brand = readOnes
         .flatMap((comment) => {
           const card = cardOfComment(text(comment.body));
-          return card === null ? [] : [{ carte: card, corps: text(comment.body), le: date(comment.created_at) }];
+          return card === null ? [] : [{ carte: card, le: date(comment.created_at) }];
         })
         .at(-1);
       const { ticket } = entry(issue);
@@ -219,15 +217,12 @@ export async function readWhatAwaitingTheChef(options: { depot: string; appeler:
         unreadable.push(`#${ticket} carries \`${LABEL_OF_CHEF}\` but is not shown in Todo: ${why} — write the question on the ticket (the chef sees it once it is written), or take the label off if it is technical`);
         continue;
       }
-      // La carte « Validate its screen » (ticket 3185) : sa PR et ses captures, lues du corps de son issue — ou du commentaire
-      // de la carte, quand la validation est demandée sur le ticket même (ticket 3615).
-      const design = brand.carte.sorte === KIND_OF_VALIDATION ? (validationOfBody(repository, text(issue.body)) ?? validationOfBody(repository, brand.corps)) : null;
       // La carte d'une question du manager, qui parque l'issue pour le chef (#4129) : la réponse qu'il recommande, comme sur
       // un écart (#3434) — sa ligne `Recommended:` quitte le texte. Sans elle, la carte est comme toute autre.
       const shape = shapeOfChef(brand.carte.texte.replace(/\*\*/g, ""));
       const recommended = recommendedOf(shape.contexte, shape.choix);
       const textOfTheCard = recommended === null ? brand.carte.texte : [shape.question ?? "", ...shape.choix.map(({ texte: wording, suite }) => `- [${suite}] ${wording}`), ...(recommended.contexte === "" ? [] : ["", recommended.contexte])].join("\n");
-      const chef = { ...brand.carte, texte: textOfTheCard, ...(recommended === null ? {} : { recommandee: recommended.recommandee }), ...(design === null ? {} : { design }) };
+      const chef = { ...brand.carte, texte: textOfTheCard, ...(recommended === null ? {} : { recommandee: recommended.recommandee }) };
       set({ ...entry(issue), depuis: brand.le ?? created(issue), quoi: "carte", ligne: lineOfTheCard(brand.carte), chef });
     }
     // Les issues que la nouvelle cuisine parque pour le chef, si aucune carte ne les dit déjà : depuis son commentaire.

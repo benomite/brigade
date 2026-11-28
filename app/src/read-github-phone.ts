@@ -26,8 +26,7 @@
 // Et les gestes du chef (#2502) : ce que la vue écrit — répondre à une carte de TODO, reprendre, mettre en suspens —
 // s'écrit sur GitHub par les gestes du téléphone (actions-github-phone.ts, le code d'écriture du desktop), sur ce que
 // la dernière lecture de chaque projet a lu : son dépôt, son dernier rail lu, la carte du chef d'un ticket. Une écriture
-// que GitHub a prise relance la lecture, qui la montre ; aucune station n'est jointe pour l'écrire. Et les captures d'une
-// carte (ticket 3185) : chaque image, à l'adresse que la dernière lecture donne, lue sur l'API de GitHub (`capture`).
+// que GitHub a prise relance la lecture, qui la montre ; aucune station n'est jointe pour l'écrire.
 import { holdHome, type Home } from "./home.ts";
 import { holdUpstream, type Seen as SeenUpstream } from "./upstream.ts";
 import { putAside } from "./awaiting.ts";
@@ -35,7 +34,6 @@ import { forTheBar, type Shown } from "./bar.ts";
 import type { Project } from "./config.ts";
 import { holdFacts, type Drawable } from "./facts.ts";
 import { pageOfFacts } from "./read-only.ts";
-import { readCaptureOnTHEApi, type Image } from "./captures.ts";
 import { openTheActionsGitHub } from "./actions-github-phone.ts";
 import { clientOfThePriority, type SendGitHub } from "./priority.ts";
 import { FILE_PROJECTS, readRequest } from "./projects/request.ts";
@@ -343,12 +341,6 @@ export function openTheReadGitHub(options: Options) {
     // Un lien de la ligne d'un projet en lecture seule (ticket 3163) : la page, pour le seul dépôt que sa dernière lecture
     // dit en lecture seule — rien sinon.
     pageDeLaLectureSeule: (project: unknown, page: unknown): string | undefined => (typeof project === "string" ? pageOfFacts(last.get(project)?.faits, page) : undefined),
-    // L'image d'une capture d'une carte (ticket 3185) : à l'adresse que la dernière lecture donne pour elle, lue sur l'API
-    // de GitHub — jamais une adresse venue de la vue.
-    capture: (project: unknown, ticket: unknown, screen: unknown, moment: unknown): Promise<Image> => {
-      const address = typeof project === "string" ? facts.capture(project, ticket, screen, moment) : undefined;
-      return address === undefined ? Promise.resolve({ sans: "the reading gave no address for this screenshot: the app has nothing to read" }) : readCaptureOnTHEApi(call, address);
-    },
     // L'onglet affiché n'a pas de lecture propre sur le téléphone : son contenu vient du rail lu.
     onglet: (_project: string | undefined, _id: string | undefined, _request: number) => undefined,
   };

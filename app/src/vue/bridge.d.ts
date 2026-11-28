@@ -107,9 +107,6 @@ export type Bridge = {
   ouvrirLien(project: string, ticket: number, url: string): Promise<boolean>;
   // Le titre d'une issue que la box ne donne pas, lu par le `gh` du poste à l'adresse que la box a rendue.
   lireTitre(project: string, ticket: number): Promise<import("../question.ts").Title | undefined>;
-  // Une capture d'un ticket d'interface, par son écran et son moment : l'image, lue par le `gh` du
-  // poste à l'adresse que la box a rendue, en `data:` — ou pourquoi elle ne l'est pas.
-  lireCapture(project: string, ticket: number, screen: string, moment: "avant" | "apres"): Promise<import("../captures.ts").Image | undefined>;
   // Les tickets `fire` du projet, lus sur GitHub par le `gh` du poste (fire.ts) : ce que le rail sait encore quand la box ne répond pas.
   lireFeu(project: string): Promise<import("../fire.ts").Fire | undefined>;
   // « réessayer maintenant » : les lectures de la box repartent tout de suite, au lieu d'attendre leur tour.
@@ -296,10 +293,6 @@ export type Bridge = {
   choisirLesProjets?(id: string, repositories: string[]): Promise<Choice>;
   // La réponse du chef à la carte de TODO d'un ticket (card-todo.ts) : un choix par son rang, ou son texte. Rien pour un projet sans box.
   repondreCarte(project: string, ticket: number, answer: import("../card-todo.ts").Answer): Promise<import("../card-todo.ts").Rendered | undefined>;
-  // Un geste du chef sur la carte « Validate its screen » d'un ticket (validation-design/, ticket 3185) : valider, ou renvoyer
-  // en cuisine avec un commentaire — la commande `design` du runtime, jouée par le process principal ; sur le téléphone, écrit
-  // sur GitHub (actions-github-phone.ts). Rien pour un projet inconnu.
-  gesteDeValidation(project: string, ticket: number, action: import("./validation-design/validation-design-github.ts").ActionOfValidation): Promise<import("./validation-design/validation-design-github.ts").RenderedOfValidation | undefined>;
   // Un lien de la ligne d'un projet en lecture seule (ticket 3163, vue/read-only/) : comment obtenir l'écriture sur son
   // dépôt, ou le forker — ouvert pour le seul dépôt que la dernière lecture dit en lecture seule (read-only.ts).
   ouvrirLectureSeule?(project: string, page: import("../read-only.ts").PageOfTheReadOnly): Promise<boolean>;

@@ -33,9 +33,7 @@ export const account = (n) => `${n} ${n === 1 ? "card" : "cards"}`;
 
 // Ce que la carte demande, en quelques mots : le genre de sa question, et ses choix.
 /** @param {CardOfTodo} todo */
-export function kindOfTheCard({ sorte: kind, choix: choice, question, validation }) {
-  // La carte « Validate its screen » (ticket 3185) : deux gestes, valider ou renvoyer en cuisine.
-  if (validation !== undefined) return "Design validation";
+export function kindOfTheCard({ sorte: kind, choix: choice, question }) {
   const options = `${choice.length} ${choice.length === 1 ? "option" : "options"}`;
   if (question === null || choice.length === 0) return "Review only you can make";
   // Une PR à merger à la main, mise de côté par la station ou d’un fork (tickets 3368, 3367) : un merge, pas un choix.
@@ -148,16 +146,6 @@ export function setTheCard(doc, { carte: card, total, brouillon: draft, enRoute:
   if (inRoute) body.append(created(doc, "p", "mot-des-cartes", IN_ROUTE));
   if (refusal !== undefined) body.append(lineError(doc, refusal.dit, refusal.detail, { classe: "refus", alerte: true }));
   return Object.assign([header(doc, total, back), body], { saisie: input });
-}
-
-// Une carte ouverte qui se pose ailleurs (la carte « Validate its screen », validation-design/, ticket 3185) : l'en-tête et le
-// numéro de la carte ouverte, puis ce qu'elle pose.
-/** @param {Fabrique} doc @param {{ carte: Card, total: number, retour: () => void }} vue @param {any[]} elements */
-export function setTheCardAside(doc, { carte: card, total, retour: back }, elements) {
-  const body = created(doc, "div", "corps-des-cartes");
-  body.dataset.vu = "carte";
-  body.append(created(doc, "span", "numero-de-carte", `#${card.ticket} · ${card.projet}`), ...elements);
-  return [header(doc, total, back), body];
 }
 
 // L'envoi : la coche, « Sent to the kitchen. », et où en est le projet. `reste` : les cartes qui l'attendent encore sur lui.
