@@ -1,6 +1,6 @@
 // The projects the new kitchen serves: `<station dir>/kitchen/projects`, one line `<name> <owner/repo> <base> [PLACES=<n>] [CLONE=<path>]` each (none when absent).
 import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
 export type KitchenProject = { name: string; repo: string; base: string; places: number; clone: string };
 
@@ -17,6 +17,7 @@ export function readProjects(text: string, stationDir: string): KitchenProject[]
     });
 }
 
+export const worktreesOf = (project: KitchenProject) => join(dirname(project.clone), ".brigade-worktrees", project.name); // beside the clone, never under the station dir (#4783)
 export const projectsFile = (stationDir: string) => join(stationDir, "kitchen", "projects");
 
 export function projectsOfTheKitchen(stationDir: string): KitchenProject[] {
