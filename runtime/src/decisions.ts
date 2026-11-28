@@ -24,7 +24,7 @@ import type { ReglagesDeFermeture } from "./events/closing.ts";
 import { configFermeture, provenancesDeFermeture } from "./closing/settings.ts";
 import { lireBudget, lireBudgetDeLaBase } from "./cout-des-gates.ts";
 import { cheminJournal, type Journal } from "./journal.ts";
-import { DECISIONS } from "./noms-des-decisions.ts";
+import { DECISIONS } from "./decision-names.ts";
 import { configManager } from "./manager.ts";
 import { plafondDuProjet, type PlafondLu } from "./reagir.ts";
 import { variablesDuDepot } from "./reglages-projet/en-vigueur.ts";

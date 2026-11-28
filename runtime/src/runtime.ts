@@ -7,7 +7,7 @@ import type { Fait } from "./evenements.ts";
 import type { CodeDeRefus } from "./projets/refus.ts";
 import { cheminJournal, ouvrirJournal, type Journal } from "./journal.ts";
 import { sessionEnCours } from "./projections/sessions.ts";
-import { NOM_DE_PROJET } from "./nom-de-projet.ts";
+import { PROJECT_NAME as NOM_DE_PROJET } from "./project-name.ts";
 import { prendreVerrou, VerrouTenu } from "./verrou.ts";
 
 const AUTEUR = "runtime";

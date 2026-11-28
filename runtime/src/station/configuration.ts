@@ -18,8 +18,8 @@
 import { readFileSync } from "node:fs";
 import { isAbsolute, join, resolve, sep } from "node:path";
 import { LECTURES_INTERDITES } from "../bac-a-sable/configuration.ts";
-import { NOM_DE_PROJET } from "../nom-de-projet.ts";
-import { DECISIONS } from "../noms-des-decisions.ts";
+import { PROJECT_NAME } from "../project-name.ts";
+import { DECISIONS } from "../decision-names.ts";
 
 // Ce que la station porte sous son répertoire (`BRIGADE_STATION_DIR`).
 export const CONFIGURATION = "projets";
@@ -118,7 +118,7 @@ export function lireConfiguration(texte: string): Configuration {
     // Un réglage n'est pas une branche : la ligne n'en dit alors aucune.
     const base = reste[0] !== undefined && !REGLAGE.test(reste[0]) ? reste[0] : null;
     const suite = base === null ? reste : reste.slice(1);
-    if (!NOM_DE_PROJET.test(nom)) return refuser(`nom de projet invalide — attendu un identifiant court en minuscules, chiffres et tirets (brigade, compta)`);
+    if (!PROJECT_NAME.test(nom)) return refuser(`nom de projet invalide — attendu un identifiant court en minuscules, chiffres et tirets (brigade, compta)`);
     // La même ligne répétée est le même projet : il n'est lu qu'une fois.
     if (projets.some((projet) => projet.nom === nom && projet.ligne === champs.join(" "))) return;
     if (projets.some((projet) => projet.nom === nom)) return refuser(`le projet « ${nom} » a déjà sa ligne`);
