@@ -53,7 +53,7 @@ import { filter } from "./step-project.js";
 
 /** @typedef {import("./connection.js").Connection} Connection */
 export const OPENING_OF = (/** @type {string} */ project) => `Opening ${project}…`;
-// Le geste qui connecte Claude Code sur cet ordinateur  .
+// Le geste qui connecte Claude Code sur cet ordinateur.
 export const ITSELF_CONNECT_A_CLAUDE = "log in";
 export const PROJECT_MISSING = "Type the project to work on: its GitHub repository, `owner/repo`.";
 export const ACCOUNT_MISSING = "Connect to GitHub above, or type the project as `owner/repo`: a name alone does not say whose it is.";
