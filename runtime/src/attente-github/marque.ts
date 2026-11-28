@@ -5,7 +5,6 @@
 // Sans E/S ni import lourd : `parked`, la retenue et `status` la lisent par attente-github.ts, et l'app la lit et l'écrit
 // ici (#3761). Les marques d'avant, `<!-- brigade:waiting … -->`, se lisent encore : un ticket parqué avant #4129 garde
 // ce qu'il attend.
-import type { Commentaire } from "../github.ts";
 
 // Le label d'une issue dont le ticket attend quelqu'un.
 export const LABEL_PARKED = "parked";
@@ -58,7 +57,7 @@ export function corpsDuParking(attente: AttenteGitHub, par?: { station: string; 
 
 // Ce qu'attend l'issue, d'après le plus récent commentaire marqué d'un auteur
 // du dépôt ; null si aucun ne se lit.
-export function attenteDeLIssue(commentaires: readonly Pick<Commentaire, "body" | "association">[]): AttenteMarquee | null {
+export function attenteDeLIssue(commentaires: readonly { body: string; association: string }[]): AttenteMarquee | null {
   for (const { body, association } of [...commentaires].reverse()) {
     if (!DE_CONFIANCE.includes(association)) continue;
     const brut = MARQUE_LUE.exec(body)?.[1];

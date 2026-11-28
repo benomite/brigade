@@ -1,20 +1,15 @@
-// Ce qu'une porte tient du journal de son projet : sa liste blanche, que le
-// runtime y publie (`network.declared`), et ses refus, qu'elle y écrit. Le
-// journal n'est ouvert que le temps d'un geste : une restauration ne trouve
-// pas la porte assise dessus. La porte d'une installation par projet
-// (`tenir-porte.ts`) et celles de la station (`station/portes.ts`) le lisent
-// de la même façon.
+// Ce qu'une porte tient de la cuisine : sa liste blanche, que la cuisine publie
+// dans `network.json`, et ses refus, qu'elle dit sur sa sortie. Les portes de
+// la station (`station/portes.ts`) la lisent ainsi.
 import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { cheminJournal, ouvrirJournal } from "./journal.ts";
 import { AUTRES_HOTES, compterLesRefus, garderLaListe } from "./porte.ts";
 import { DECLARATION_RESEAU, lireDeclaration, REGLES_DE_BASE, reglesDuProjet, type Regle } from "./reseau.ts";
 
-const AUTEUR = "porte";
-// Ce que la liste se garde entre deux lectures du journal. Un hôte
+// Ce que la liste se garde entre deux lectures du fichier. Un hôte
 // fraîchement publié n'attend pas ce délai : la porte relit avant de refuser.
 const RELECTURE_MS = 5000;
 // Une relecture avant refus par seconde au plus : une rafale de refus ne fait
-// pas ouvrir le journal à chaque connexion.
+// pas relire le fichier à chaque connexion.
 const RELECTURE_AVANT_REFUS_MS = 1000;
 
 const dire = (erreur: unknown) => (erreur instanceof Error ? erreur.message : String(erreur));
@@ -47,11 +42,10 @@ export function allowlistPublisher(path: string, base: string, git: (args: strin
   };
 }
 
-// La liste blanche du projet, lue de son journal. Avant le premier démarrage
-// de son runtime, il n'y a pas de journal : le socle suffit à rapatrier le
-// dépôt, d'où viendra le reste. `published`: the file the new kitchen
-// publishes; once it exists, it is read instead of the journal.
-export function listeDuJournal(repertoireEtat: string, options: { avertir?: (message: string) => void; published?: string } = {}): (fraiches?: boolean) => Regle[] {
+// La liste blanche du projet, lue du fichier que la cuisine publie (`published`).
+// Avant sa première publication, le socle suffit à rapatrier le dépôt, d'où
+// viendra le reste.
+export function listePubliee(options: { avertir?: (message: string) => void; published?: string } = {}): (fraiches?: boolean) => Regle[] {
   return garderLaListe(
     (): Regle[] => {
       if (options.published !== undefined && existsSync(options.published)) {
@@ -59,34 +53,17 @@ export function listeDuJournal(repertoireEtat: string, options: { avertir?: (mes
         if (!Array.isArray(hosts) || !hosts.every((hote) => typeof hote === "string")) throw new Error(`${options.published}: no list of hosts`);
         return reglesDuProjet(hosts);
       }
-      if (!existsSync(cheminJournal(repertoireEtat))) return REGLES_DE_BASE;
-      const journal = ouvrirJournal(repertoireEtat, { lectureSeule: true });
-      try {
-        return reglesDuProjet(journal.duType("network.declared", 1)[0]?.payload.hosts ?? []);
-      } finally {
-        journal.fermer();
-      }
+      return REGLES_DE_BASE;
     },
     { delaiMs: RELECTURE_MS, plancherFraisMs: RELECTURE_AVANT_REFUS_MS, avertir: options.avertir },
   );
 }
 
-// Ce qu'une porte fait d'un refus : une ligne de sa sortie, et — comptés, un
-// par hôte et par dix minutes — un `network.refused` au journal du projet.
-export function refusAuJournal(repertoireEtat: string, projet: string, options: { dire?: (ligne: string) => void } = {}): (hote: string, port: number) => void {
+// Ce qu'une porte fait d'un refus : une ligne de sa sortie, comptée — une par
+// hôte et par dix minutes.
+export function refusDeLaPorte(options: { dire?: (ligne: string) => void } = {}): (hote: string, port: number) => void {
   const ecrire = options.dire ?? ((ligne: string) => console.error(ligne));
   return compterLesRefus((refus) => {
     ecrire(`brigade : outgoing connection refused — ${refus.host === AUTRES_HOTES ? "other hosts still, no longer named" : `${refus.host}:${refus.port}`}${refus.count > 1 ? ` (${refus.count} attempts)` : ""}`);
-    try {
-      if (!existsSync(cheminJournal(repertoireEtat))) return;
-      const journal = ouvrirJournal(repertoireEtat);
-      try {
-        journal.ajouter({ project: projet, ticket: null, author: AUTEUR, type: "network.refused", payload: refus });
-      } finally {
-        journal.fermer();
-      }
-    } catch (erreur) {
-      ecrire(`brigade : refusal not logged — ${dire(erreur)}`);
-    }
   });
 }

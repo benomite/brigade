@@ -24,7 +24,6 @@
 //
 // Sans E/S : la station donne les fichiers changés, le dépôt et le commit.
 import { toucheLaVue } from "./calibrage.ts";
-import type { Evenement } from "./evenements.ts";
 import { possede } from "./zones.ts";
 
 export const DOSSIER_CAPTURES = "docs/captures";
@@ -47,19 +46,6 @@ export type Captures = { sha: string; screens: CapturesDEcran[] };
 // touche.
 export function estDInterface(ticket: { zone: string[] }): boolean {
   return toucheLaVue(ticket.zone);
-}
-
-// La zone que le ticket portait la dernière fois qu'il a été pris, lue dans son
-// histoire. C'est elle qui juge la livraison, pas celle du jour : le cook tourne
-// sous le compte du service, et peut éditer la fiche de son propre ticket.
-export function zoneALaPrise(histoire: readonly Evenement[]): string[] {
-  let zone: string[] = [];
-  let prise: string[] = [];
-  for (const evenement of histoire) {
-    if (evenement.type === "ticket.arrived" || evenement.type === "ticket.changed") zone = evenement.payload.card?.zone ?? [];
-    else if (evenement.type === "ticket.taken") prise = zone;
-  }
-  return prise;
 }
 
 const sansAccents = (texte: string) => texte.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();

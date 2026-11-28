@@ -3,7 +3,6 @@
 // Le rapprochement des formulations est fait par le cook de la rétro, dans la
 // rétro : ici, l'égalité est exacte, sur l'id.
 import { blanchir } from "../livrable.ts";
-import type { Ecart, EntreeRetenue } from "./evenements.ts";
 import { LeconInconnue, proposer, reconfirmer, type Carnet, type Origine } from "./lecons.ts";
 
 export type Sortie = { genre: "reconfirm"; id: string } | { genre: "propose"; texte: string };
@@ -100,6 +99,16 @@ export function extraireRetro(message: string | null): string | null {
 // suivi d'un blanc ou de la fin. Un point dans un mot (`v2.1`, `pass.ts`) ne
 // coupe rien.
 export const phrases = (texte: string): number => texte.split(/(?<=[.!?…])\s+/).filter((morceau) => morceau.trim() !== "").length;
+
+// Ce qu'une rétro retient, entrée par entrée : une leçon nouvelle, ou une leçon
+// du projet reconfirmée par son id.
+export type EntreeRetenue = { kind: "propose"; text: string } | { kind: "reconfirm"; id: string };
+
+// Pourquoi une ligne de la rétro n'est pas retenue : illisible (`unreadable`),
+// une leçon trop longue (`too-long`), un id qui n'est celui d'aucune leçon du
+// projet (`unknown-id`), une entrée déjà dite par la même rétro (`duplicate`),
+// ou au-delà des leçons qu'une rétro peut laisser (`over-limit`).
+export type Ecart = "unreadable" | "too-long" | "unknown-id" | "duplicate" | "over-limit";
 
 export type Tri = { kept: EntreeRetenue[]; dropped: { line: string; reason: Ecart }[] };
 

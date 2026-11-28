@@ -4,7 +4,7 @@
 // configuration (`portes.ts`). Il ne lance rien : ni `claude`, ni `git`, ni le
 // code d'un projet.
 import { resolve } from "node:path";
-import { ConfigInvalide } from "../runtime.ts";
+import { ConfigInvalide } from "../config-invalide.ts";
 import { configPortes, tenirPortes, VARIABLE_PORTES } from "./portes.ts";
 
 const REFUS = 2;

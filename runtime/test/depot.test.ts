@@ -8,7 +8,7 @@ import { describe, test, type TestContext } from "node:test";
 import { posixOnly } from "./support/plateforme.ts";
 import { environnementReseau, lireALaBase, ouvrirDepot, WorktreeDetourne } from "../src/depot.ts";
 import { identifiantsLivres } from "../src/identifiants.ts";
-import { ConfigInvalide } from "../src/runtime.ts";
+import { ConfigInvalide } from "../src/config-invalide.ts";
 import { BASE, commiter, depotGit, ENV_GIT, git, repertoireTemporaire } from "./outils.ts";
 
 function projet(t: TestContext) {

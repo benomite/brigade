@@ -3,10 +3,7 @@
 // tout ce que le runtime lance. La porte elle-même est dans `porte.ts` ; ce
 // qui refuse une connexion qui la contourne est l'unité systemd, pas ce code.
 import { createSocket } from "node:dgram";
-import type { Fait } from "./evenements.ts";
-import { lire } from "./plafonds.ts";
-import type { Journal } from "./journal.ts";
-import type { Runtime } from "./runtime.ts";
+import { lire } from "./config-invalide.ts";
 
 // Ce que le dépôt du projet déclare : un hôte par ligne.
 export const DECLARATION_RESEAU = ".claude/brigade/reseau";
@@ -131,46 +128,4 @@ export function sonderLeFiltre(envoyer: Envoyer = envoyerUnDatagramme): Promise<
       resoudre(erreur === null ? false : erreur.code === "EPERM" || erreur.code === "EACCES" ? true : null);
     });
   });
-}
-
-const AUTEUR = "runtime";
-
-// Les hôtes que la cuisine a ouverts seule (`repair.network`, #1397) parce que
-// le setup les joint : ils s'ajoutent à ce que la base déclare.
-const OUVERTURES_RELUES = 1000;
-export const hotesOuvertsParLaCuisine = (journal: Journal): string[] => [...new Set(journal.duType("repair.network", OUVERTURES_RELUES).flatMap(({ payload }) => payload.hosts))];
-
-// Publie au journal ce que le dépôt déclare sur sa branche d'intégration, au
-// démarrage puis à chaque tick, quand cela change : la porte lit sa liste là,
-// et le chef aussi. Rend de quoi republier sans attendre le tick : la base
-// n'avance dans le clone qu'à son rapatriement, et le setup du ticket qui
-// vient d'être pris part aussitôt après. `declaration` : le fichier tel que la base le porte, ou
-// null si elle ne l'a pas ; elle lève si elle n'a pas pu le lire — la
-// dernière déclaration lue tient alors : une lecture ratée ne ferme pas les
-// hôtes du projet.
-export function brancherReseau(runtime: Runtime, options: { base: string; declaration: () => string | null; avertir?: (message: string) => void }): () => void {
-  const { journal, projet } = runtime;
-  const avertir = options.avertir ?? ((message: string) => console.error(message));
-  const noter = (fait: Fait) => journal.ajouter({ project: projet, ticket: null, author: AUTEUR, ...fait });
-  // Le dernier défaut dit : un clone illisible ne se répète pas à chaque tick.
-  let dit: string | null = null;
-  const publier = () => {
-    try {
-      const { hotes, problemes } = lireDeclaration(options.declaration() ?? "");
-      const ouverts = hotesOuvertsParLaCuisine(journal).filter((hote) => !hotes.includes(hote));
-      const declare = { base: options.base, hosts: [...hotes, ...ouverts], problems: problemes };
-      journal.base.transaction(() => {
-        const dernier = journal.duType("network.declared", 1)[0]?.payload ?? { base: options.base, hosts: [], problems: [] };
-        if (JSON.stringify(dernier) !== JSON.stringify(declare)) noter({ type: "network.declared", payload: declare });
-      });
-      dit = null;
-    } catch (erreur) {
-      const defaut = erreur instanceof Error ? erreur.message : String(erreur);
-      if (defaut !== dit) avertir(`brigade : network declaration unreadable on \`${options.base}\`, the last allowlist read holds — ${defaut}`);
-      dit = defaut;
-    }
-  };
-  publier();
-  runtime.surReveil((cause) => void (cause === "tick" && publier()));
-  return publier;
 }

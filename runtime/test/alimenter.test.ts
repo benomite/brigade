@@ -5,7 +5,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { configRail, priorite } from "../src/alimenter.ts";
-import { ConfigInvalide } from "../src/runtime.ts";
+import { ConfigInvalide } from "../src/config-invalide.ts";
 import { DEPOT } from "./outils.ts";
 
 test("la priorité d'un ticket se lit dans ses labels — `prio:0`, celle de la réparation d'une base rouge, passe devant toutes", () => {

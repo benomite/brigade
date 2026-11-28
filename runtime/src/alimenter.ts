@@ -2,7 +2,7 @@
 // l'environnement ; la priorité d'un ticket ; ceux dont un commentaire fait
 // foi. Le rail ne s'alimente plus de GitHub dans le journal : c'est la station
 // GitHub seul (`brigade-github.ts`) qui lit les tickets sur GitHub (#2061).
-import { ConfigInvalide } from "./runtime.ts";
+import { ConfigInvalide } from "./config-invalide.ts";
 import { refusEn } from "./zones.ts";
 
 // `prio:1` → 1, de 1 à 9 — et `prio:0`, qui passe devant tout : celle que la

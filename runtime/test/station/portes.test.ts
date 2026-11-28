@@ -6,7 +6,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { connect, createServer, type AddressInfo, type Server } from "node:net";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
-import { ouvrirJournal } from "../../src/journal.ts";
+import { KITCHEN_ALLOWLIST } from "../../src/porte-journal.ts";
 import { ouvrirPorte } from "../../src/porte.ts";
 import { attendrePorteDeLaStation, ecrirePortes, lirePortes, tenirPortes } from "../../src/station/portes.ts";
 import { jusqua, lancer, repertoireTemporaire } from "../outils.ts";
@@ -40,29 +40,22 @@ function demander(port: number, cible: string): Promise<string> {
   });
 }
 
-// Une station d'essai : sa configuration, et pour chaque projet son journal où
-// le runtime a publié ce que son dépôt déclare.
+// Une station d'essai : sa configuration, et pour chaque projet le fichier où la
+// cuisine a publié ce que son dépôt déclare.
 function uneStation(t: TestContext, projets: Record<string, string[]>) {
   const racine = repertoireTemporaire(t);
   const fichier = join(racine, "portes.json");
   const configurer = (noms: string[]) => writeFileSync(join(racine, "projets"), noms.map((nom) => `${nom} acme/${nom} main\n`).join(""));
   configurer(Object.keys(projets));
   for (const [nom, hosts] of Object.entries(projets)) {
-    mkdirSync(join(racine, "etat", nom), { recursive: true });
-    const journal = ouvrirJournal(join(racine, "etat", nom));
-    journal.ajouter({ project: nom, ticket: null, author: "runtime", type: "network.declared", payload: { base: "main", hosts, problems: [] } });
-    journal.fermer();
+    mkdirSync(join(racine, "kitchen", nom), { recursive: true });
+    writeFileSync(join(racine, "kitchen", nom, KITCHEN_ALLOWLIST), JSON.stringify({ base: "main", hosts, problems: [] }));
   }
-  const refus = (nom: string) => {
-    const journal = ouvrirJournal(join(racine, "etat", nom), { lectureSeule: true });
-    try {
-      return journal.duType("network.refused", 10).map((e) => ({ author: e.author, ...(e.payload as { host: string; port: number }) }));
-    } finally {
-      journal.fermer();
-    }
-  };
-  return { racine, fichier, configurer, refus };
+  return { racine, fichier, configurer };
 }
+
+// Les refus qu'une porte a dits sur sa sortie, pour un projet.
+const refus = (lignes: string[], nom: string) => lignes.filter((ligne) => ligne.startsWith(`brigade [${nom}] : outgoing connection refused`)).map((ligne) => ligne.replace(/^.*refused — /, ""));
 
 async function tenir(t: TestContext, racine: string, fichier: string, vers: number) {
   const lignes: string[] = [];
@@ -80,9 +73,9 @@ async function tenir(t: TestContext, racine: string, fichier: string, vers: numb
 }
 
 describe("les portes de la station", { concurrency: 4 }, () => {
-  test("deux projets, deux listes : chacun ne joint que ce que son dépôt déclare — ce qu'un projet ouvre ne l'est pas pour l'autre —, et chaque refus va au journal de son projet", async (t) => {
-    const { racine, fichier, refus } = uneStation(t, { calcul: ["registry.npmjs.org"], espace: ["pypi.org"] });
-    const { tenues } = await tenir(t, racine, fichier, await exterieur(t));
+  test("deux projets, deux listes : chacun ne joint que ce que son dépôt déclare — ce qu'un projet ouvre ne l'est pas pour l'autre —, et chaque refus est dit au nom de son projet", async (t) => {
+    const { racine, fichier } = uneStation(t, { calcul: ["registry.npmjs.org"], espace: ["pypi.org"] });
+    const { tenues, lignes } = await tenir(t, racine, fichier, await exterieur(t));
 
     const ports = lirePortes(fichier);
     assert.deepEqual(ports, tenues.ports());
@@ -97,9 +90,9 @@ describe("les portes de la station", { concurrency: 4 }, () => {
     // Le socle, à chacun : Anthropic et GitHub.
     for (const port of [calcul, espace]) assert.equal(await demander(port, "api.github.com:443"), "HTTP/1.1 200 Connection Established");
 
-    await jusqua(() => refus("calcul").length === 1 && refus("espace").length === 1);
-    assert.deepEqual(refus("calcul"), [{ author: "porte", host: "pypi.org", port: 443, count: 1 }]);
-    assert.deepEqual(refus("espace"), [{ author: "porte", host: "registry.npmjs.org", port: 443, count: 1 }]);
+    await jusqua(() => refus(lignes, "calcul").length === 1 && refus(lignes, "espace").length === 1);
+    assert.deepEqual(refus(lignes, "calcul"), ["pypi.org:443"]);
+    assert.deepEqual(refus(lignes, "espace"), ["registry.npmjs.org:443"]);
   });
 
   test("la porte de la station ne laisse passer qu'Anthropic et GitHub — rien de ce qu'un projet déclare", async (t) => {
@@ -123,7 +116,7 @@ describe("les portes de la station", { concurrency: 4 }, () => {
     const { espace = 0 } = lirePortes(fichier).projets;
     assert.ok(espace > 0);
     assert.equal(await demander(espace, "api.github.com:443"), "HTTP/1.1 200 Connection Established");
-    assert.ok(lignes.includes(`brigade [espace] : porte ouverte — 127.0.0.1:${espace}, liste blanche lue dans ${join(racine, "etat/espace")}`), lignes.join("\n"));
+    assert.ok(lignes.includes(`brigade [espace] : porte ouverte — 127.0.0.1:${espace}, liste blanche lue dans ${join(racine, "kitchen/espace", KITCHEN_ALLOWLIST)}`), lignes.join("\n"));
 
     configurer(["espace"]);
     await tenues.relire();

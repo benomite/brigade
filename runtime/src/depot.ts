@@ -6,7 +6,7 @@ import { createHash } from "node:crypto";
 import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync } from "node:fs";
 import { basename, dirname, join, posix, resolve } from "node:path";
 import { verifierAcces, type Acces } from "./projets/acces.ts";
-import { ConfigInvalide } from "./runtime.ts";
+import { ConfigInvalide } from "./config-invalide.ts";
 
 export type Depot = {
   // Rapatrie la base depuis l'origine et crée le worktree du run, sur une

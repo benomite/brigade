@@ -8,7 +8,7 @@ import { format } from "node:util";
 import { ecrireSecret } from "../src/droits.ts";
 import { JETON_MASQUE, masquerIdentifiants } from "../src/identifiants.ts";
 import { configJeton, direJeton, environnementClaude, FICHIER_DU_JETON, masquerLaConsole, VARIABLE_DU_JETON } from "../src/jeton-claude.ts";
-import { ConfigInvalide } from "../src/runtime.ts";
+import { ConfigInvalide } from "../src/config-invalide.ts";
 import { exposer, REMEDE } from "./aides/droits.ts";
 import { repertoireTemporaire } from "./outils.ts";
 

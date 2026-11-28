@@ -18,7 +18,7 @@
 import { tmpdir } from "node:os";
 import { isAbsolute } from "node:path";
 import { REGLES_DE_BASE, type Regle } from "../reseau.ts";
-import { ConfigInvalide } from "../runtime.ts";
+import { ConfigInvalide } from "../config-invalide.ts";
 import { argumentsDuBacASable, configurer, reglagesSansBacASable, type CookSansBac, type ConfigDeBacASable, type Cook } from "./configuration.ts";
 import { lireDeclarationBacASable } from "./declaration.ts";
 import { detecter, type Sondes } from "./detection.ts";

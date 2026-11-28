@@ -22,7 +22,7 @@ import { lireALaBase } from "../depot.ts";
 import { CHEMIN_DE_LA_FICHE } from "../fiche-projet/defauts.ts";
 import { ficheDuTexte, FicheInvalide } from "../fiche-projet/fiche.ts";
 import { direHumains } from "../humains/humains.ts";
-import { ConfigInvalide } from "../runtime.ts";
+import { ConfigInvalide } from "../config-invalide.ts";
 import { brancheDuClaudeMd, FAMILLES_DE_SEUILS, FICHIER, reglagesDuTexte, ReglageRefuse, roadmapDuClaudeMd, SEUILS_DU_PROJET, type ReglagesProjet } from "./reglages.ts";
 
 // Les réglages que la branche d'intégration porte, ou null si elle n'a pas le

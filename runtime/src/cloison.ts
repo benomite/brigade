@@ -9,11 +9,8 @@ import { execFileSync } from "./sans-invite.ts";
 import { constants, copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, delimiter, dirname, isAbsolute, join, relative, resolve } from "node:path";
-import type { Fait } from "./evenements.ts";
-import type { EtatDeCloison } from "./events/partition.ts";
 import { FICHIER_DU_JETON } from "./jeton-claude.ts";
-import type { Runtime } from "./runtime.ts";
-import { ConfigInvalide } from "./runtime.ts";
+import { ConfigInvalide } from "./config-invalide.ts";
 
 export type Lancement = { commande: string; args: string[] };
 
@@ -332,36 +329,4 @@ export function configCloison(env: Record<string, string | undefined>, lieux: { 
 // Le lancement tel qu'il part : dans la cloison s'il y en a une, tel quel sinon.
 export function envelopper(cloison: Cloison | null | undefined, lancement: Lancement, acces: Acces): Lancement {
   return cloison ? cloison.envelopper(lancement, acces) : lancement;
-}
-
-const AUTEUR = "runtime";
-
-// Écrit l'état de la cloison au journal s'il a changé : c'est là que le chef
-// le lit (`npm run partition`), sans variable ni fichier d'unité.
-export function annoncerCloison(runtime: Runtime, etat: EtatDeCloison): void {
-  const { journal, projet } = runtime;
-  const noter = (fait: Fait) => journal.ajouter({ project: projet, ticket: null, author: AUTEUR, ...fait });
-  journal.base.transaction(() => {
-    const dernier = journal.duType("isolation.configured", 1)[0]?.payload;
-    if (JSON.stringify(dernier) !== JSON.stringify(etat)) noter({ type: "isolation.configured", payload: etat });
-  });
-}
-
-// Ce que le runtime dit de sa cloison au démarrage, et que `npm run partition`
-// répète : sans elle, les projets se voient — c'est un choix, il se lit.
-export function direFichiers(sandbox: EtatDeCloison["sandbox"]): string {
-  return sandbox
-    ? `every launch (setup, cook, gates, reviewer, judges) runs in \`${sandbox.bin}\` — hidden: ${sandbox.hidden.join(", ")}; machine read-only; Max credentials read-only (${sandbox.credentials})`
-    : "none (BRIGADE_SANDBOX_BIN is not set): a cook reads everything the service account reads — the state, the clone, the worktrees and the secrets of the other projects included";
-}
-
-export function direReseau(proxy: EtatDeCloison["proxy"]): string {
-  if (!proxy) return "open (BRIGADE_PROXY_PORT is not set): a cook reaches everything the machine reaches";
-  const filtre =
-    proxy.enforced === true
-      ? "a direct send is refused by the kernel: the unit filters"
-      : proxy.enforced === false
-        ? "BUT a direct send goes out: the unit does not seem to filter anything (IPAddressDeny), and a process that ignores HTTPS_PROXY would get out freely"
-        : "the unit's filter could not be probed from here";
-  return `allowlist, through the door 127.0.0.1:${proxy.port} — ${filtre}`;
 }
