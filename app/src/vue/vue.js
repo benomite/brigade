@@ -85,8 +85,8 @@ import { setDelay } from "./project/delay.js";
 import { setChoice, withoutTheChoice } from "./project/choice.js";
 import { mountTheCardProject } from "./card-project/mount-card-project.js";
 import { levelOf, LEVELS_SAID } from "./levels.js";
-import { lineOfAlert, capRead } from "./stations-of-cooking.js";
-import { displacementTracking, isOneComputer, topOf, nameOfTaking, servingOf, ONE_MINUTE_MS } from "./stations-tab/state.js";
+import { lineOfAlert } from "./stations-of-cooking.js";
+import { displacementTracking, isOneComputer, topOf, servingOf, ONE_MINUTE_MS } from "./stations-tab/state.js";
 import { choiceOfDisplacement } from "./stations-tab/choice.js";
 import { serverSeen } from "./add-server/add-server.js";
 import { keyOf, OR_DISPLACE, setTheTabOfStations, WHO_COOKED as WHO_COOKED_TAB, WHO_OF_OTHER } from "./stations-tab/stations-tab.js";
@@ -2636,10 +2636,7 @@ async function stopTheStation(project, station) {
 function detailsOfTheStation(project, station) {
   const readEntry = (stationsViews?.stations ?? []).find(({ id }) => id === station.id);
   const here = station.ici ? linesOfThisComputer(project) : readEntry === undefined ? [] : [connectionAtTheStation(document, readEntry)];
-  // Le plafond du projet sur elle, comme sa box le dit (ticket 1292), et ce qui la sature.
-  const caps = homeSeen?.plafonds?.[project.nom];
-  const cap = caps?.[station.prise ?? station.nom] ?? caps?.[station.nom] ?? caps?.[nameOfTaking(station.nom)];
-  return [...here, ...(cap === undefined ? [] : capRead(document, cap))];
+  return here;
 }
 
 // La station de cet ordinateur (ticket 2489, project/stations/LocalStation.js) : ses dossiers, son bac à sable, sa

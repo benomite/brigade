@@ -10,8 +10,6 @@ import { dirname, isAbsolute, join, sep } from "node:path";
 import { ordinaryRead } from "./ordinary.ts";
 import { colorsRead, whole, isColor, ROLES, draw, type Colors, type Role } from "./colors.ts";
 import { refusalOfAcronym } from "./acronym.ts";
-import { same, set } from "./settings-personal/merge.ts";
-import { personal, type Preferences } from "./settings-personal/share.ts";
 
 // Le modèle et l'effort du manager et du reviewer d'un projet.
 export type ProjectCalibration = { manager: { modele: string; effort: string }; reviewer: { modele: string; effort: string } };
@@ -298,30 +296,6 @@ export function changeMenuBar(path: string, active: unknown, home = homedir()): 
   if ((content.barreDeMenus ?? true) === active) return undefined;
   content.barreDeMenus = active;
   return rewrite(path, written(opened.contenu));
-}
-
-// Les préférences personnelles du fichier (settings-personal/share.ts), celles qui suivent le chef d'un
-// appareil à l'autre — ou la raison pour laquelle il n'est pas compris : un fichier qu'un éditeur est
-// en train d'écrire ne dit pas que le chef a tout effacé.
-export function preferencesOfFile(path: string, home = homedir()): { preferences: Preferences } | { refus: string } {
-  const opened = reread(path, home);
-  return "refus" in opened ? opened : { preferences: personal(opened.contenu) };
-}
-
-// Pose dans le fichier les préférences personnelles lues dans le gist (settings-personal/merge.ts) : les
-// couleurs, l'ordre et les réglages des projets qu'il connaît, et les préférences du fichier. Le dossier
-// d'un projet et tout ce qui ne vaut que pour cet ordinateur restent ceux du fichier. Rien
-// n'est écrit si rien ne change, ni si le fichier ne serait plus compris. Rend la raison, si elles ne
-// l'ont pas été.
-export function setPreferences(path: string, preferences: Preferences, home = homedir()): string | undefined {
-  const opened = reread(path, home);
-  if ("refus" in opened) return opened.refus;
-  const pose = set(opened.contenu, preferences);
-  if (same(pose, opened.contenu)) return undefined;
-  const fresh = written(pose);
-  const understood = understand(path, fresh, home);
-  if (understood.refus !== undefined) return `the preferences read from GitHub were not written: the file would no longer be understood — ${understood.refus}`;
-  return rewrite(path, fresh);
 }
 
 // Un dossier absent n'invalide pas le fichier : un disque débranché ne doit pas

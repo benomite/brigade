@@ -196,7 +196,7 @@ export function openTheReadGitHub(options: Options) {
   // La dernière lecture réussie du rail de chaque projet, par son nom : c'est elle que visent les gestes du chef, comme
   // ceux du desktop (board/rail.ts, `dernier`).
   const last = new Map<string, BoardRead>();
-  const home = holdHome({ projets: () => projects.map(({ nom: name }) => ({ nom: name, servi: true })), maintenant: () => now().getTime() });
+  const home = holdHome({ projets: () => projects.map(({ nom: name }) => ({ nom: name, servi: true })) });
   let list: ListRead | undefined;
   // La trace du téléphone connecté (#3303, phone-connected.ts) : posée une fois par lancement, après une liste lue ;
   // ratée, elle se repose à la lecture suivante. Sans `ecrire`, rien ne part.

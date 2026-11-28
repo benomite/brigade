@@ -14,4 +14,3 @@ export const REASONS = {
   "sans-projet": (name: string): Omit<ReasonOfStation, "cle"> => ({ phrase: "not added to any project", survol: `add a project to ${name}: it cooks nothing until then`, bouton: { libelle: "add a project", geste: "ajouter-un-projet" } }),
 } as const satisfies Record<ReasonOfStation["cle"], (name: string) => Omit<ReasonOfStation, "cle">>;
 
-export const reasonOf = (key: ReasonOfStation["cle"], name: string): ReasonOfStation => ({ cle: key, ...REASONS[key](name) });

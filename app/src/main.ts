@@ -83,9 +83,6 @@ import { githubOfStations } from "./stations/github.ts";
 import { holdStations, type SeenOfStations } from "./stations/stations.ts";
 import { versionsInFile } from "./stations/versions.ts";
 import { followConfiguration } from "./tracking.ts";
-import { gistOfPreferences } from "./settings-personal/gist.ts";
-import { settingsPersonal } from "./settings-personal/settings-personal.ts";
-import { holdPreferences } from "./settings-personal/sync.ts";
 import { openTerminals } from "./terminals.ts";
 
 // Où sont le runtime de la station, son `node` et le clone de l'app : dans le dépôt, ou dans le
@@ -292,7 +289,7 @@ function tellTheFacts(receivedOne: Drawable): void {
 }
 // L'accueil (home.ts) : une ligne par projet, une par station, et la ligne de santé — redessiné à
 // chaque lecture qui le change, de `faits`, de `status` ou des stations sur GitHub.
-const home = holdHome({ locale: () => (stationLocale === undefined ? null : localGist(rootOfTheStation)), projets: () => projects().map((project) => ({ nom: project.nom, servi: readable(project) })) });
+const home = holdHome({ projets: () => projects().map((project) => ({ nom: project.nom, servi: readable(project) })) });
 function tellTheHome(seenOne: Home | undefined): void {
   if (seenOne !== undefined) tell("accueil", seenOne);
 }
@@ -387,18 +384,6 @@ const removals = holdRemovals({
 // rejoué, il se relit avec les projets tels que l'app les montre maintenant.
 let see = () => {};
 
-// Les préférences du chef — les couleurs des projets, leur ordre, ce qu'il règle de l'affichage — le
-// suivent d'un appareil à l'autre dans un gist secret de son compte, lu et écrit par le `gh` du poste
-// (reglages-perso/). Le fichier des projets reste ce que les écrans lisent : chaque accord y pose ce que
-// le gist porte, et y prend ce que le chef a changé ici. Le dossier d'un projet et son hôte n'en partent
-// jamais. Le gist illisible — GitHub injoignable, un autre compte —, l'app montre le fichier tel qu'il est.
-const preferences = holdPreferences({
-  // Jamais posé hors des essais, comme pour les gists des stations.
-  perso: settingsPersonal({ gist: gistOfPreferences({ gh: process.env.BRIGADE_GH_BIN || "gh", delaiMs: 30_000 }), appJson: pathConfiguration() }),
-  fichier: { preferences: () => tracking.preferences(), poserPreferences: (wanted) => tracking.poserPreferences(wanted) },
-  surPanne: (reason) => console.error(`brigade: your preferences were not synced with GitHub — ${reason}`),
-});
-
 // Le fichier des projets : créé s'il manque, relu dès qu'il change. Un projet
 // qui a quitté la liste — ou changé de dossier — perd ses terminaux et sa mise
 // en service ; les autres n'en savent rien.
@@ -415,8 +400,6 @@ const tracking = followConfiguration({
     // couleurs : écrites, elles reviennent ici par une relecture, qui n'a plus rien à tirer. Un
     // fichier qui n'a pas pu être relu attend de l'être : l'app n'y écrit rien.
     if (configuration.nonRelu === undefined && !configuration.projets.every(({ couleurs: colors }) => whole(colors))) tint();
-    // Ce que le chef vient de changer de ses préférences part dans son gist.
-    preferences.signaler();
   },
 });
 // Les couleurs qui manquent aux projets, tirées et écrites dans le fichier (config.ts). Un fichier
@@ -455,7 +438,6 @@ const projectsOfStations = holdProjects({
   surLecture: (seenOne) => {
     lastSeenOfProjects = seenOne;
     tell("projetsDesStations", seenOne);
-    tellTheHome(home.projetsDesStations(seenOne));
     // Une station vient de dire qu'elle sert un projet de l'app : son rail se lit, et la vue le sait aussitôt.
     const servedOnes = JSON.stringify(seenOne.projets.map(({ nom: name }) => servedElsewhere(seenOne, name)));
     if (servedOnes === servedRead) return;
@@ -473,7 +455,6 @@ const stations = holdStations({
   github: githubOfStations({ gh: process.env.BRIGADE_GH_BIN || "gh", delaiMs: 30_000 }),
   surLecture: (seenOne) => {
     tell("stations", seenOne);
-    tellTheHome(home.stations(seenOne));
     void projectsOfStations.relire();
     void holdWhatProvidesThisComputer(seenOne);
   },
@@ -988,7 +969,6 @@ app.on("window-all-closed", () => app.quit());
 app.on("will-quit", () => {
   tracking.fermer();
   menuBar.fermer();
-  preferences.fermer();
   terminals.fermer();
   turns.fermer();
   standby.fermer();
@@ -1014,8 +994,6 @@ app.on("will-quit", () => {
 // revient peut-être d'un `git pull`, ou d'une heure pendant laquelle on a livré.
 app.on("browser-window-focus", () => {
   tracking.relire();
-  // Et les préférences du chef : il revient peut-être d'un autre appareil, où il les a changées.
-  void preferences.tirer();
 });
 
 // Sous Windows, une notification ne s'affiche que pour une app qui a son identifiant de modèle
@@ -1060,9 +1038,6 @@ void app.whenReady().then(() => {
   verificationsOfVersion = setInterval(checkTheVersion, CADENCE_OF_VERSIONS_MS);
   // Les projets déclarés avant que les couleurs existent reçoivent les leurs, une fois.
   tint();
-  // Les préférences du chef : lues dans son gist — qui en prend celles du fichier, s'il n'en a encore
-  // aucune —, puis relues chaque minute. Celles du gist l'emportent sur les couleurs tout juste tirées.
-  preferences.demarrer();
   return window.loadFile(join(import.meta.dirname, "vue/index.html"));
 }).catch((error: unknown) => {
   // Un démarrage qui échoue ne reste pas muet : le chef lit en une phrase que la fenêtre ne s'ouvre pas, et quoi faire (#4071).

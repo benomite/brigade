@@ -22,7 +22,6 @@ import { lineEmpty } from "../components/line-empty/line-empty.js";
 import { brand } from "../components/pill/pill.js";
 import { placeAddServer } from "../add-server/add-server.js";
 import { CANCEL, THIS_COMPUTER, RECORDING, READ_OF, YES } from "../lexicon.js";
-import { linesOfCooks } from "../stations-of-cooking.js";
 import { setTheQuota } from "../stations-quota/stations-quota.js";
 import { setTheChoice } from "./choice.js";
 import { BLOCKED, CHOOSE, COOK_HERE, sentenceOfTop, TO_HERE } from "./state.js";
@@ -275,13 +274,7 @@ function card(doc, seenOne, station, actions) {
     lack.className = "manque";
     root.append(lack);
   }
-  // Ce qu'elle tient du projet : les tickets de ses cooks, ce qu'elle fait tourner d'autre ; rien, elle est au repos.
-  const holds = station.cooks.length + station.agents.length > 0;
-  root.append(
-    holds
-      ? linesOfCooks(doc, station.cooks, station.agents, seenOne.enCuisson === true && station.etat === "en-ligne")
-      : lineEmpty(doc, AT_REST, { classe: "au-repos" }),
-  );
+  root.append(lineEmpty(doc, AT_REST, { classe: "au-repos" }));
   // Ses gestes, ou la confirmation de son arrêt — puis, confirmé, qu'il s'écrit. La station où la cuisine déménage n'en a
   // pas tant qu'elle démarre : la ligne du haut suit le déménagement.
   if (seenOne.arret?.id === key && seenOne.arret.enCours) {
