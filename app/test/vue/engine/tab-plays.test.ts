@@ -22,12 +22,12 @@ process.env.TZ = "UTC";
 const A = "2026-11-12T10:00:00.000Z";
 const REPOSITORY = "benomite/parade";
 const MAC: StationVue = { id: "gmac", nom: "macbook", machine: "macOS 25.0.0", coeurs: 12, etat: "en-ligne", ligne: "online", dit: "online", version: "2.4.0", projets: ["parade"], max: "connectee" };
-const HOME: Home = { projets: [], stations: [], sante: { ton: "vert", dit: "Max ✓  ·  GitHub ✓", survol: "" } };
+const HOME: Home = { projets: [] };
 const PARADE: Project = { nom: "parade", dossier: "/tmp/parade", depot: REPOSITORY, base: "main" };
 const ON_THIS_MAC: ProjectSeen = { nom: "parade", depot: REPOSITORY, base: "main", suiviPar: undefined, stations: [], servi: null, cuitSur: null, demenagement: null } as never;
 const SEEN: SeenOfProjects = { a: A, projets: [ON_THIS_MAC], locale: "gmac", recommandee: "gmac", avertissements: {}, machines: { gmac: machineProposed(MAC) }, calibrage: calibrationRecommended([]) };
 const lineOfMac = { station: "macbook/claude", distante: false, plafond: 2, ordinaires: false, bacASable: null, prendOrdinaires: true, cuisson: "idle", arreteeDepuis: null, refus: null, presente: true, cooks: [] };
-const facts = (line: object) => ({ etat: "ouverte", lu: A, compteurs: { rail: 0, auTravail: 0, aLaPass: 0, attend: 0, livres24h: 0 }, cooks: [], attend: [], livres: [], stations: [line] });
+const facts = (line: object) => ({ etat: "ouverte", lu: A, compteurs: { rail: 0, auTravail: 0, aLaPass: 0, attend: 0, livres24h: 0 }, attend: [], livres: [], stations: [line] });
 
 const roots: string[] = [];
 after(() => {

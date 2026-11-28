@@ -34,10 +34,7 @@ const FACTS: Facts = {
   etat: "ouverte",
   lu: "2026-11-09T10:04:11.000Z",
   compteurs: { rail: 2, auTravail: 0, aLaPass: 0, attend: 1, livres24h: 0 },
-  rail: [
-    { ticket: 21, etat: "en attente", titre: "L'export du journal", url: issue(21), activite: null },
-    { ticket: 22, etat: "86", titre: "Drop the importer", url: issue(22), activite: null },
-  ],
+  
   attend: [{ ticket: 12, titre: "Validation SIRET", url: issue(12) }],
   attendAutres: [
     { ticket: 22, titre: "Drop the importer", url: issue(22), chef: CARD("Drop the legacy importer?"), qui: ["bob"] },
@@ -53,7 +50,7 @@ async function open({ etroit: narrow, faits: facts = FACTS }: { etroit: boolean;
   return vue;
 }
 function receive(vue: Played, facts: Facts) {
-  const receivedOne = holdFacts(() => new Map()).recevoir({ projet: PARADE, demande: 0, a: A, sorties: [{ commande: "facts", texte: JSON.stringify(facts) }] });
+  const receivedOne = holdFacts().recevoir({ projet: PARADE, demande: 0, a: A, sorties: [{ commande: "facts", texte: JSON.stringify(facts) }] });
   vue.dire("surFaits", { ...receivedOne, demande: vue.dernier("faits")[0] as number });
 }
 

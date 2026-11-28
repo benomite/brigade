@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import type { Card, Column } from "../../../src/facts.ts";
-import { aOneAction, lineParked, setTheTodo } from "../../../src/vue/kitchen/kitchen.js";
+import { aOneAction, whatAwaitingYou, columnOfPlan, lineParked, planOfTheKitchen, setTheBandOfTop, setTheTodo } from "../../../src/vue/kitchen/kitchen.js";
 import { Fake } from "../../helpers/false-vue.ts";
 
 const doc = { createElement: (balise: string) => new Fake(balise) };
@@ -14,10 +14,60 @@ const numbers = (cards: readonly Card[] | undefined) => (cards ?? []).map(({ tic
 const PARKED = { qui: "Camille", jusqua: "2026-11-28T09:00:00Z" };
 
 describe("chaque carte dans la colonne de son étape", () => {
+  test("les colonnes de facts.ts deviennent le plan : backlog, manager, cooks, pass, served — dans cet ordre", () => {
+    const plan = planOfTheKitchen([
+      column("On the rail", [card(10, "en attente")]),
+      column("Taken", [card(11, "pris")]),
+      column("Pass", [card(12, "en pass")]),
+      column("Waiting", []),
+      column("Served", [card(13, "servi")], { defile: true }),
+    ]);
+    assert.deepEqual(plan.map(({ nom: name }) => name), ["Backlog", "Manager", "Cooks", "Pass", "Served"]);
+    assert.deepEqual(plan.map(({ cartes: cards }) => numbers(cards)), [[10], [], [11], [12], [13]]);
+    assert.deepEqual(plan.map(({ compte: account }) => account), ["1", "0", "1", "1", "1"]);
+    assert.deepEqual(plan.map(({ ton: your }) => your), ["gris", "gris", "bleu", "jaune", "vert"]);
+    assert.deepEqual(plan.map(({ defile: scrolls }) => scrolls), [undefined, undefined, undefined, undefined, true]);
+    // Le vide de chaque colonne est celui que facts.ts dit ; le manager a le sien.
+    assert.deepEqual(plan.map(({ vide: empty }) => empty), ["no ticket in On the rail", "no ticket with the manager", "no ticket in Taken", "no ticket in Pass", "no ticket in Served"]);
+  });
 
+  test("aucune colonne Waiting : une carte qui attend va dans la colonne de son étape, d'après son mot", () => {
+    const wait = [card(21, "pris", { parque: PARKED }), card(22, "en pass", { parque: PARKED }), card(23, "base rouge"), card(24, "servi"), card(25, "WAITING", { parque: PARKED }), card(26, "en attente")];
+    const plan = planOfTheKitchen([column("On the rail", []), column("Waiting", wait)]);
+    const of = (name: string) => numbers(plan.find((one) => one.nom === name)?.cartes);
+    assert.deepEqual([of("Backlog"), of("Manager"), of("Cooks"), of("Pass"), of("Served")], [[25, 26], [], [21], [22, 23], [24]]);
+    assert.ok(!plan.some(({ nom: name }) => /waiting/i.test(name)));
+  });
 
+  test("le manager tient sa question avant de découper, posée au chef ou répondue", () => {
+    const plan = planOfTheKitchen([column("On the rail", [card(60, "en attente", {  attendu: true }), card(61, "en attente")]), column("Waiting", [card(62, "en attente", {  })])]);
+    assert.deepEqual(numbers(plan[1]?.cartes), [60, 62]);
+    assert.deepEqual(numbers(plan[0]?.cartes), [61]);
+    assert.equal(columnOfPlan("On the rail", card(60, "en attente", {  })), "Manager");
+    assert.equal(columnOfPlan("Taken", card(1, "pris")), "Cooks");
+    assert.equal(columnOfPlan("Waiting", card(1, "en pass")), "Pass");
+    assert.equal(columnOfPlan("Waiting", card(1, "86")), "Backlog");
+    assert.equal(columnOfPlan("Une colonne inconnue", card(1, "pris")), "Backlog");
+  });
 
+  test("le backlog : le rail en tête, les tickets prêts à cuire ; dessous, ce qui ne l'est pas — rouges d'abord", () => {
+    const [backlog] = planOfTheKitchen([
+      column("On the rail", [card(30, "en attente", { attendu: true, parque: { qui: "the chef", jusqua: null, chef: true } }), card(31, "en attente"), card(32, "tests écrits"), card(33, "BLOQUÉ"), card(34, "en attente", { parque: PARKED })]),
+      column("Waiting", [card(35, "WAITING", { parque: { ...PARKED, chef: true } })]),
+    ]);
+    assert.deepEqual(numbers(backlog?.cartes), [30, 35, 31, 32, 33, 34]);
+    assert.deepEqual(numbers(backlog?.pretes), [31, 32]);
+    assert.deepEqual(numbers(backlog?.pasPretes), [30, 35, 33, 34]);
+    // Les autres colonnes ne se coupent pas.
+    assert.equal(planOfTheKitchen([column("Taken", [card(1, "pris")])])[2]?.pretes, undefined);
+  });
 
+  test("une colonne pas connue — la box ne répond pas — rend tout le plan inconnu, sans « 0 »", () => {
+    const plan = planOfTheKitchen([column("On the rail", [], { compte: "?", vide: "not known while the station is unreachable" }), column("Taken", [], { compte: "?" })]);
+    assert.deepEqual(plan.map(({ compte: account }) => account), ["?", "?", "?", "?", "?"]);
+    assert.equal(plan[1]?.vide, "not known while the station is unreachable");
+    assert.deepEqual(planOfTheKitchen([column("Taken", [])]).map(({ compte: account }) => account), ["0", "0", "0", "0", "0"]);
+  });
 });
 
 describe("la carte parked dit qui elle attend et jusqu'à quand", () => {
@@ -32,6 +82,17 @@ describe("la carte parked dit qui elle attend et jusqu'à quand", () => {
 });
 
 describe("le TODO liste exactement ce qui attend le chef", () => {
+  // Ce qui attend le chef est parked pour lui (facts.ts, #4261) ; une relance passée ne la lui rend plus.
+  test("les cartes rouges du plan, parked pour le chef comprises, une fois chacune — rien d'autre", () => {
+    const forTheChef = { parque: { qui: "the chef", jusqua: null, chef: true } };
+    const plan = planOfTheKitchen([
+      column("On the rail", [card(50, "en attente", { attendu: true, ...forTheChef }), card(51, "en attente")]),
+      column("Taken", [card(52, "pris", { attendu: true, qui: ["bob"] })]),
+      column("Waiting", [card(53, "pris", { parque: { ...PARKED, chef: true } }), card(54, "pris", { parque: PARKED }), card(55, "WAITING", {  })]),
+      column("Pass", [card(50, "en pass", { attendu: true, ...forTheChef })]),
+    ]);
+    assert.deepEqual(numbers(whatAwaitingYou(plan)), [50, 53]);
+  });
 
   test("une ligne, « 2 wait for you » ; rien quand rien n'attend le chef (#4354)", () => {
     assert.equal(setTheTodo(doc, { cartes: [], ouvrir: () => {}, deplie: { ouvert: false } }), undefined);
@@ -72,6 +133,45 @@ describe("le TODO liste exactement ce qui attend le chef", () => {
   });
 });
 
+describe("la bande du haut : une carte du supervisor et une du closer, sur une ligne (#4354)", () => {
+  const ROLES = [
+    { role: "supervisor", does: "watches the whole kitchen", latest: { what: "parked #31 for the chef", ticket: 31, at: "2026-11-25T08:30:00Z" } },
+    { role: "closer", does: "tidies what is served", latest: { what: "removed dead code", ticket: null, at: "2026-11-25T06:00:00Z" } },
+  ];
+  const NOW = Date.parse("2026-11-25T09:00:00Z");
+  const band = (more: Partial<Parameters<typeof setTheBandOfTop>[1]> = {}) =>
+    setTheBandOfTop(doc, { roles: ROLES, alerte: undefined, maintenant: NOW, deplies: new Set(), ...more }) as unknown as Fake;
+  const cards = (setOne: Fake) => setOne.dessous("button").map((one) => [one.dataset.agent, one.textContent]);
+  const tones = (setOne: Fake) => setOne.dessous("span").filter(({ className }) => className === "pastille").map(({ dataset }) => dataset.ton);
+
+  test("son nom, un point d'état et deux ou trois mots — aucune phrase", () => {
+    const setOne = band();
+    assert.equal(setOne.className, "bande-du-haut");
+    assert.deepEqual(cards(setOne), [["supervisor", "supervisorok"], ["closer", "closertidied 3 h ago"]]);
+    assert.deepEqual(tones(setOne), ["gris", "gris"]);
+    assert.deepEqual(setOne.dessous("p"), []);
+  });
+
+  test("une issue que la cuisine a ouverte sur elle-même : le supervisor en alerte ; sans rôle, « no tidy yet »", () => {
+    const setOne = band({ roles: undefined, alerte: 77 });
+    assert.deepEqual(cards(setOne), [["supervisor", "supervisoralert: #77"], ["closer", "closerNo tidy yet."]]);
+    assert.deepEqual(tones(setOne), ["rouge", "gris"]);
+  });
+
+  test("un clic déplie son détail — ce qu'il fait, sa dernière action et son heure — ; un second le replie ; le dépli se garde", () => {
+    const unfoldedOnes = new Set<string>();
+    const setOne = band({ deplies: unfoldedOnes });
+    const [supervisor] = setOne.dessous("button");
+    supervisor?.click();
+    assert.deepEqual(setOne.dessous("p").map(({ textContent }) => textContent), ["watches the whole kitchen · last: parked #31 for the chef · 08:30 UTC"]);
+    assert.equal(supervisor?.ariaExpanded, "true");
+    assert.deepEqual([...unfoldedOnes], ["supervisor"]);
+    assert.deepEqual(band({ deplies: unfoldedOnes, roles: [] }).dessous("p").map(({ textContent }) => textContent), ["No action yet."]);
+    supervisor?.click();
+    assert.deepEqual(setOne.dessous("p"), []);
+    assert.deepEqual([...unfoldedOnes], []);
+  });
+});
 
 describe("un message porte un geste", () => {
   test("un bouton, à lui ou à ce qui le suit", () => {

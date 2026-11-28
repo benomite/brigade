@@ -29,7 +29,7 @@ async function open(): Promise<Played> {
 const card = (ticket: number, state: string, extra: object = {}) => ({ ticket, etat: state, titre: `Ticket ${ticket}`, url: url(ticket), activite: null, ...extra });
 async function show(facts: Partial<Facts> & { rail: Facts["rail"] }, vue?: Played): Promise<Played> {
   const openOne = vue ?? (await open());
-  const complete: Facts = { etat: "ouverte", lu: A, compteurs: { rail: 0, auTravail: 0, aLaPass: 0, attend: 0, livres24h: 0 }, cooks: [], attend: [], ...facts };
+  const complete: Facts = { etat: "ouverte", lu: A, compteurs: { rail: 0, auTravail: 0, aLaPass: 0, attend: 0, livres24h: 0 }, attend: [], ...facts };
   const receivedOne = holdFacts().recevoir({ projet: PARADE, demande: 0, a: A, sorties: [{ commande: "facts", texte: JSON.stringify(complete) }] });
   openOne.dire("surFaits", { ...receivedOne, demande: openOne.dernier("faits")[0] as number });
   await repos();

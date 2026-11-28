@@ -44,6 +44,9 @@ export function helpUsable(
 export const helpUnusable = !helpUsable(HELP);
 
 
+// Faux là où node-pty n'est pas livré compilé (Linux) : l'app est une app du Mac et de Windows.
+export const ptyAvailable = existsSync(PRECOMPILED);
+
 // L'environnement du chef, moins ce que `npm start` y a ajouté : ses variables
 // suivraient le chef dans chaque shell et dans le second.
 const environment = (): Record<string, string> =>

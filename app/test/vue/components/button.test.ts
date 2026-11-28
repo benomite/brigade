@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test } from "node:test";
-import { button, kindOfButton } from "../../../src/vue/components/button/button.js";
+import { button, KINDS, kindOfButton } from "../../../src/vue/components/button/button.js";
 import { Fake, tokensOf } from "../../helpers/false-vue.ts";
 
 const doc = { createElement: (balise: string) => new Fake(balise) };
@@ -29,6 +29,15 @@ function declarations(css: string, selector: string): Map<string, string> {
 }
 
 describe("le bouton", () => {
+  test("une sorte par bouton, secondaire par défaut ; seul le recommandé porte la classe `recommande`", () => {
+    for (const kind of KINDS) {
+      const created = button(doc, "Run the closing pass", () => {}, { sorte: kind }) as Fake;
+      assert.equal(created.balise, "button");
+      assert.equal(created.dataset.bouton, kind);
+      assert.equal(created.className, kind === "recommande" ? "recommande" : "");
+    }
+    assert.equal((button(doc, "Add a station", () => {}) as Fake).dataset.bouton, "secondaire");
+  });
 
   test("son libellé, son type et son geste au clic ; un `submit` sans geste laisse son formulaire l'écouter", () => {
     const clics: string[] = [];

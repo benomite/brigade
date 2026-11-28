@@ -25,3 +25,7 @@ export function slip(doc, { numero: number, mot: word, etat: state, hors: outsid
   return created;
 }
 
+
+// La tête d'un bon posé : ce à quoi un écran ajoute son âge, ses essais, la pastille « awaiting you ».
+/** @param {any} created */
+export const headOfSlip = (created) => created.children[0];

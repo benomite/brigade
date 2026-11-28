@@ -29,8 +29,8 @@ const HOME: Home = {
     { nom: "espace", ton: "jaune", dit: "5 decisions await you, for 2 d", survol: "read at 12:00:00 PM — open it to act", attend: 5 },
     { nom: "calculus", ton: "rouge", dit: "base red · #655 being repaired", survol: "read at 12:00:00 PM — open it to act" },
   ],
-  stations: [{ id: "g1", nom: "parade-box", ton: "vert", dit: "online · 2 cooks · brigade, espace, calculus", phrase: "online · 2 cooks running", survol: "Linux 6.1.0 · version 1.4.0" }],
-  sante: { ton: "vert", dit: "Max ✓  ·  GitHub ✓", survol: "Max: …\nGitHub: …" },
+  
+  
 };
 // Le code de l'app en retard : ce qui, avant, s'écrivait en tête de l'accueil, avec sa commande.
 const CODE: SeenOfCode = { a: A, clones: [{ id: "app", etat: "en-retard", tete: "this app's code is 3 commits behind origin/v2", lignes: ["the app relaunches on the new version"], commande: "git -C /tmp/brigade pull" }], alerte: "this app's code is 3 commits behind" } as unknown as SeenOfCode;

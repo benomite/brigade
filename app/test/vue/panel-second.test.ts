@@ -4,7 +4,13 @@
 // seul, puis la vue entière devant le faux pont (helpers/false-vue.ts), l'app fermée puis rouverte sur le même stockage.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
+import { forTheBar } from "../../src/bar.ts";
+import { EXAMPLE } from "../../src/config.ts";
+import { PALETTE } from "../../src/colors.ts";
 
+import { HEADINGS } from "../../src/tabs.ts";
+import { EFFORTS, MODELS } from "../../src/projects/projects.ts";
+import type { Terminal } from "../../src/terminals.ts";
 import {
   bound,
   KEY_OF_PANELS,
@@ -16,7 +22,7 @@ import {
   REMAINS_AT_RAIL,
   holdThePanel,
 } from "../../src/vue/project/panel-second/panel-second.js";
-import { Fake, FakeStorage } from "../helpers/false-vue.ts";
+import { Fake, FakeScreen, FakeStorage, type Played, playTheVue, repos } from "../helpers/false-vue.ts";
 
 const doc = { createElement: (balise: string) => new Fake(balise), createElementNS: (_space: string, balise: string) => new Fake(balise) };
 
@@ -194,3 +200,84 @@ describe("le bord et le bouton, montés sur la colonne", () => {
   });
 });
 
+describe("dans la vue : l'app fermée puis rouverte", () => {
+  const PROJECTS = [
+    { nom: "parade", dossier: "/tmp/parade" },
+    { nom: "fanfare", dossier: "/tmp/fanfare" },
+  ];
+  const SECOND: Terminal = { id: 1, projet: "parade", genre: "second", titre: "second · claude", note: "fil repris", arrete: false };
+  const OTHER: Terminal = { id: 7, projet: "fanfare", genre: "second", titre: "second · claude", note: "session neuve", arrete: false };
+  const startup = () => ({
+    configuration: forTheBar({ chemin: "/tmp/app.json", projets: PROJECTS }, () => true),
+    palette: PALETTE,
+    exemple: EXAMPLE,
+    rubriques: HEADINGS,
+    gestes: {},
+    calibrage: { modeles: MODELS, efforts: EFFORTS },
+    });
+  // La place de l'espace : le rail (main) et le panneau, 1600 px à eux deux.
+  async function play(storage: FakeStorage, screen?: FakeScreen): Promise<Played> {
+    const vue = await playTheVue({ demarrage: startup, espace: (project) => (project === "fanfare" ? [OTHER] : [SECOND]) }, { stockage: storage, ...(screen === undefined ? {} : { ecran: screen }) });
+    Object.assign(vue.element("main"), { getBoundingClientRect: () => ({ width: 1240 }) });
+    Object.assign(vue.element("second"), { getBoundingClientRect: () => ({ width: 360 }) });
+    return vue;
+  }
+  async function enter(vue: Played, name: string): Promise<void> {
+    (vue.element("projets").children.at(PROJECTS.findIndex((project) => project.nom === name) + 1) ?? assert.fail(`pas de case pour ${name}`)).click();
+    await repos();
+  }
+  const width = (vue: Played) => vue.element("second").style.getPropertyValue("--largeur-du-second");
+  const folded = (vue: Played) => vue.element("second").hasAttribute("data-replie");
+
+  test("à la première ouverture d'un projet, le panneau est à droite, ouvert, avec son bord et son bouton", async () => {
+    const vue = await play(new FakeStorage());
+    await enter(vue, "parade");
+    assert.equal(vue.element("second").hidden, false);
+    assert.equal(folded(vue), false);
+    assert.equal(width(vue), "360px");
+    assert.equal(vue.element("bord-du-second").hidden, false);
+    assert.equal(vue.element("replier-second").parentElement, vue.element("tete-du-second"));
+    assert.equal(vue.element("replier-second").ariaExpanded, "true");
+  });
+
+  test("la largeur tirée et l'état replié reviennent au lancement suivant, chaque projet les siens ; tirée trop loin, bornée", async () => {
+    const storage = new FakeStorage();
+    const before = await play(storage);
+    await enter(before, "parade");
+    pull(before.element("bord-du-second"), 1240, 100);
+    assert.equal(width(before), "960px");
+    await enter(before, "fanfare");
+    assert.equal(width(before), "360px");
+    pull(before.element("bord-du-second"), 1240, 1500);
+    assert.equal(width(before), "280px");
+    before.element("replier-second").click();
+    await repos();
+    assert.equal(folded(before), true);
+
+    const after = await play(storage);
+    await enter(after, "parade");
+    assert.equal(width(after), "960px");
+    assert.equal(folded(after), false);
+    await enter(after, "fanfare");
+    assert.equal(folded(after), true);
+    assert.equal(after.element("replier-second").ariaLabel, "Unfold the second's panel");
+    after.element("replier-second").click();
+    await repos();
+    assert.equal(folded(after), false);
+    assert.equal(width(after), "280px");
+
+    const still = await play(storage);
+    await enter(still, "fanfare");
+    assert.equal(folded(still), false);
+  });
+
+  test("sur un écran étroit, le panneau est un onglet : son état replié ne le cache pas", async () => {
+    const storage = new FakeStorage();
+    storage.setItem(KEY_OF_PANELS, JSON.stringify({ parade: { largeur: 500, replie: true } }));
+    const vue = await play(storage, new FakeScreen(true));
+    await enter(vue, "parade");
+    assert.equal(folded(vue), false);
+    assert.equal(vue.element("replier-second").hidden, true);
+    assert.equal(vue.element("bord-du-second").hidden, true);
+  });
+});

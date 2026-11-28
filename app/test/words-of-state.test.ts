@@ -4,11 +4,24 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test } from "node:test";
+import { WORDS_OF_CARD, WORDS_OF_KITCHEN, wordOfState } from "../src/slip.ts";
+import { TONES_OF_PROJECT, TONES_OF_TICKET } from "../src/facts.ts";
 
 const FRENCH = ["pris", "en attente", "en pass", "servi", "ouverte", "retenue", "arrêtée", "éteinte"];
 const VUE = join(import.meta.dirname, "../src/vue");
 
 describe("les mots d'état, en anglais, d'une seule table", () => {
+  test("tout état connu d'une carte ou d'une cuisine a son mot anglais", () => {
+    for (const state of TONES_OF_TICKET.keys()) assert.ok(WORDS_OF_CARD[state] !== undefined, `« ${state} » n'a pas de mot`);
+    for (const state of TONES_OF_PROJECT.keys()) assert.ok(WORDS_OF_KITCHEN[state] !== undefined, `« ${state} » n'a pas de mot`);
+    for (const state of [...Object.keys(WORDS_OF_CARD), ...Object.keys(WORDS_OF_KITCHEN)]) {
+      const word = wordOfState(state);
+      assert.ok(!FRENCH.includes(word) && /^[A-Za-z0-9 ]+$/.test(word), `« ${state} » s'affiche « ${word} »`);
+    }
+    assert.equal(wordOfState("pris"), "taken");
+    assert.equal(wordOfState("ouverte"), "open");
+    assert.equal(wordOfState("un mot inconnu"), "un mot inconnu");
+  });
 
   test("la vue ne garde aucune copie de la table", () => {
     for (const file of ["vue.js"]) {

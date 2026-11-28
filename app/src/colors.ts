@@ -26,6 +26,8 @@ export const STATES: readonly { nom: string; valeur: string }[] = [
   { nom: "gray", valeur: "#7a808a" },
 ];
 
+// Deux teintes de la palette sont au moins à cet écart l'une de l'autre, et de chaque couleur d'état.
+export const DISTINCT = 15;
 // Une couleur libre plus près que ça d'une couleur d'état, ou de celle d'un autre projet, se le voit dire.
 export const CLOSE = 10;
 

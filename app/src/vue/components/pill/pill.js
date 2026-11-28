@@ -25,6 +25,9 @@ export const shapeOf = (your) => (your === undefined ? undefined : SHAPES[your])
 /** @type {Record<State, string>} */
 const TONES = { queued: "gris", taken: "bleu", pass: "jaune", awaiting: "rouge", waiting: "orange", served: "vert" };
 
+/** @param {string | undefined} your @returns {State | undefined} */
+export const stateOfYour = (your) => STATES.find((state) => TONES[state] === your);
+
 // Le marqueur seul : un point à la forme et à la couleur d'un ton ; sans ton, un point vide. `coin` : au coin d'une case.
 /** @param {Fabrique} doc @param {string | undefined} your @param {{ coin?: boolean }} [options] */
 export function brand(doc, your, { coin = false } = {}) {

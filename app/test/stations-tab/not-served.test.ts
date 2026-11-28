@@ -21,7 +21,7 @@ import { type Fake, type Played, playTheVue, openTab, repos } from "../helpers/f
 const A = "2026-11-12T10:00:00.000Z";
 const REPOSITORY = "benomite/parade";
 const MAC: StationVue = { id: "gmac", nom: "macbook", machine: "macOS 25.0.0", coeurs: 12, etat: "en-ligne", ligne: "online", dit: "online", version: "2.4.0", projets: [], max: "connectee" };
-const HOME: Home = { projets: [], stations: [], sante: { ton: "vert", dit: "Max ✓  ·  GitHub ✓", survol: "" } };
+const HOME: Home = { projets: [] };
 const PARADE: Project = { nom: "parade", dossier: "/tmp/parade", depot: REPOSITORY, base: "main" };
 const CANTINE: Project = { nom: "cantine", dossier: "/tmp/cantine", depot: "benomite/cantine", base: "main" };
 // Aucune station ne dit le servir sur GitHub.
@@ -34,7 +34,6 @@ const FACTS = {
   etat: "ouverte",
   lu: A,
   compteurs: { rail: 8, auTravail: 0, aLaPass: 0, attend: 0, livres24h: 0 },
-  cooks: [],
   attend: [],
   livres: [],
   stations: [lineOfMac],

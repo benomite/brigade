@@ -32,7 +32,7 @@ test("a fresh profile opens on Home, not on a tour: GitHub is connected from the
   const vue = await playTheVue({
     demarrage: startup,
     compteGitHub: () => ({ nonConnecte: true }),
-    stationsDuCompte: () => WITHOUT_ACCOUNT,
+    
     seConnecterAGitHub: () => ({ connecte: true }),
     espace: () => [],
   });
@@ -52,7 +52,7 @@ test("from that Home, « + » opens Add a project, which connects GitHub too", a
     demarrage: startup,
     compteGitHub: () => ({ nonConnecte: true }),
     depotsDuChef: () => ({ depots: [] }),
-    stationsDuCompte: () => WITHOUT_ACCOUNT,
+    
     espace: () => [],
   });
   (vue.poses().find((pose) => pose.id === "entree-ajout") ?? assert.fail("no « + »")).click();

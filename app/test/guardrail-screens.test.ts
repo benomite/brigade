@@ -131,15 +131,13 @@ async function openCard(answers: Answers): Promise<Plays> {
 }
 const failedCard = () =>
   openCard({
-    lireQuestion: () => ({ a: A, sans: `not read: ${RAW}` }),
+    
   });
 
 // Settings (#1700) : une seule page, qui ne lit rien : sa lecture ratée n'a rien à dire.
 async function settings(): Promise<Plays> {
   const vue = await open();
   await openRead(vue, "Settings");
-  const number = (vue.dernier("onglet") as [string, string, number])[2];
-  vue.dire("surContenu", { projet: "parade", demande: number, a: A, erreur: RAW, atteinte: false, cas: null });
   await repos();
   return { vue, racine: screen(vue, ...READING) };
 }
@@ -212,7 +210,7 @@ describe("une lecture en échec tient en une ligne, son détail n'est qu'au surv
 
 // L'accueil devant un projet où une décision attend : sa ligne, telle que home.ts la dit.
 const ONE_DECISION = "attend     1 décision attend le chef depuis 5 h 28\n  #535  depuis 5 h 28  merge à faire  Titre\nfin attend\n";
-const QUEUED_FACTS: Facts = { etat: "ouverte", lu: A, compteurs: { rail: 1, auTravail: 0, aLaPass: 0, attend: 1, livres24h: 0 }, cooks: [], attend: [], livres: [] };
+const QUEUED_FACTS: Facts = { etat: "ouverte", lu: A, compteurs: { rail: 1, auTravail: 0, aLaPass: 0, attend: 1, livres24h: 0 }, attend: [] };
 async function homeQueued(): Promise<Plays> {
   const vue = await open({}, false);
   const line = lineOfProject(PARADE_AT_THE_HOME, { a: A, faits: QUEUED_FACTS }, { texte: "cuisine    ouverte", attend: ONE_DECISION });
@@ -221,7 +219,7 @@ async function homeQueued(): Promise<Plays> {
   await repos();
   return { vue, racine: vue.element("tous") };
 }
-const queuedCard = () => openCard({ lireQuestion: () => ({ a: A, aucune: true }) });
+const queuedCard = () => openCard({  });
 
 describe("en attente de décision, aucun écran n'écrit à plat une commande ni un prix", () => {
   for (const [name, play] of [["accueil", homeQueued], ["fiche d'une carte", queuedCard]] as const) {

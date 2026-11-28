@@ -3,6 +3,7 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { requestOnTheTicket, REFUSAL_CONTROL_TICKET } from "../src/request.ts";
+import { holdFacts, type Facts } from "../src/facts.ts";
 import { ACTIONS, type CardTile, actionsOfCard, cardActions, PRICE } from "../src/card-actions.ts";
 
 const card = (state: string | undefined, more: Partial<CardTile> = {}): CardTile => ({ ticket: 21, ...(state === undefined ? {} : { etat: state }), ouvrable: true, attendu: false, ...more });
@@ -61,4 +62,21 @@ describe("la demande au second, depuis la fiche d'un ticket qui ne t'attend pas"
     assert.deepEqual(requestOnTheTicket("parade", 14, "pris", "un\ntitre"), { refus: REFUSAL_CONTROL_TICKET });
   });
 
+  test("ce qu'elle sait du ticket vient des derniers faits lus : le rail, sinon Livré, sinon ce qui attend", () => {
+    const facts: Facts = {
+      etat: "ouverte",
+      lu: "2026-10-13T10:04:11.000Z",
+      compteurs: { rail: 1, auTravail: 1, aLaPass: 0, attend: 1, livres24h: 1 },
+      
+      attend: [{ ticket: 40, titre: "", url: null }],
+      
+    };
+    const heldOnes = holdFacts();
+    heldOnes.recevoir({ projet: "parade", demande: 0, a: "2026-10-13T10:04:12.000Z", sorties: [{ commande: "facts", texte: JSON.stringify(facts) }] });
+    assert.deepEqual(heldOnes.ticket("parade", 14), { etat: "pris", titre: "Le journal" });
+    assert.deepEqual(heldOnes.ticket("parade", 216), { etat: "servi", titre: "Les mesures" });
+    assert.deepEqual(heldOnes.ticket("parade", 40), {});
+    assert.equal(heldOnes.ticket("parade", 7), undefined);
+    assert.equal(heldOnes.ticket("ailleurs", 14), undefined);
+  });
 });

@@ -8,8 +8,16 @@ import assert from "node:assert/strict";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test } from "node:test";
+import { forTheBar } from "../src/bar.ts";
+import { EXAMPLE } from "../src/config.ts";
+import { PALETTE } from "../src/colors.ts";
+import { type Drawable } from "../src/facts.ts";
+import { header } from "../src/card.ts";
+import { EFFORTS, MODELS } from "../src/projects/projects.ts";
+import { HEADINGS } from "../src/tabs.ts";
 import type { Terminal } from "../src/terminals.ts";
-import { type Fake, tokensOf, playTheVue } from "./helpers/false-vue.ts";
+import { red } from "./helpers/red.ts";
+import { type Fake, tokensOf, playTheVue, type Answers, openRead, openTab, repos } from "./helpers/false-vue.ts";
 
 const ROOT = join(import.meta.dirname, "../..");
 const VUE = join(ROOT, "app/src/vue");
@@ -110,6 +118,14 @@ describe("la palette : un seul jeu de variables, écrit à un seul endroit", () 
     assert.equal(background, tokens.get("--fond"));
   });
 
+  test("le terminal lit ses couleurs et sa police dans les jetons", async () => {
+    const vue = await openASpace();
+    const [xterm] = vue.xterms;
+    assert.deepEqual(xterm?.options.theme, { background: tokens.get("--terminal"), foreground: tokens.get("--texte-terminal"), cursor: tokens.get("--texte") });
+    assert.equal(xterm?.options.fontFamily, tokens.get("--police-mono"));
+    // Sa police est chargée avant qu'il ne s'ouvre : il mesure ses cases à l'ouverture.
+    assert.deepEqual(vue.polices, [`13px ${tokens.get("--police-mono")}`, `bold 13px ${tokens.get("--police-mono")}`]);
+  });
 });
 
 describe("la palette est celle de la maquette", () => {
@@ -216,13 +232,45 @@ const A = "2026-10-13T10:04:12.000Z";
 const PARADE = "parade";
 
 const SECOND: Terminal = { id: 1, projet: PARADE, genre: "second", titre: "second · claude", note: "session neuve", arrete: false };
+const startup = () => ({
+  configuration: forTheBar({ chemin: "/tmp/app.json", projets: [{ nom: PARADE, dossier: "/tmp/parade" }] }, () => true),
+  palette: PALETTE,
+  exemple: EXAMPLE,
+  rubriques: HEADINGS,
+  gestes: {},
+  calibrage: { modeles: MODELS, efforts: EFFORTS },
+  });
+const ANSWERS: Answers & Required<Pick<Answers, "demarrage">> = {
+  demarrage: startup,
+  espace: () => [SECOND],
+};
 
 const texts = (elements: Fake[]) => elements.map((element) => element.textContent);
 const entry = (vue: Awaited<ReturnType<typeof playTheVue>>, rank: number): Fake => vue.element("projets").children.at(rank) ?? assert.fail(`pas d'entrée ${rank} dans la barre`);
 
+// L'espace de « parade », ouvert par sa case de la barre : « T », puis elle, puis « + ».
+async function openASpace(answers: Answers = {}) {
+  const vue = await playTheVue({ ...ANSWERS, ...answers });
+  entry(vue, 1).click();
+  await repos();
+  assert.equal(vue.element("espace").textContent, PARADE);
+  return vue;
+}
 
 describe("le texte relayé de la box s'affiche à l'identique, sans troncature ni reformatage", () => {
+  test("« Tous les projets » ne relaie rien : ce que la box rend se lit dans l'espace du projet (ci-dessous), mot pour mot", async () => {
+    const vue = await playTheVue(ANSWERS);
+    assert.deepEqual(vue.element("tous").dessous("pre"), []);
+    assert.doesNotMatch(vue.element("tous").textContent, /rail {2}3 tickets|attend {5}1 décision/);
+  });
 
+  test("dans le second, à droite : ce que le terminal reçoit est ce que le pty a écrit, tel quel", async () => {
+    const vue = await openASpace();
+    vue.dire("surSortie", SECOND.id, RELAYS);
+    vue.dire("surSortie", SECOND.id, "\r\n");
+
+    assert.deepEqual(vue.xterms.map(({ ecrits: writtenOnes }) => writtenOnes), [[RELAYS, "\r\n"]]);
+  });
 
   test("aucune règle de la peau ne coupe, ne cache ni ne récrit un `pre` : ses blancs et ses lignes sont gardés", () => {
     const sheet = rules(read("vue.css"));
@@ -251,8 +299,53 @@ describe("le texte relayé de la box s'affiche à l'identique, sans troncature n
     assert.deepEqual(cut.map(({ selecteurs: selectors }) => selectors), []);
   });
 
+  test("sur un bon, deux lignes au plus ; ce que la fiche détaille garde ses blancs", async () => {
+    const vue = await openASpace();
+    vue.dire("surFaits", { ...FACTS, demande: vue.dernier("faits")[0] as number });
+
+    // Sur la carte, deux lignes au plus ; ce que la box a écrit en entier ne s'y relaie plus, et la fiche ne le relaie pas non plus.
+    const slips = vue.element("rail").dessous("li").filter((li) => li.className === "bon");
+    for (const slip of slips) assert.ok(slip.dessous("p").length <= 2, `#${slip.children[0]?.children[0]?.textContent}`);
+    assert.deepEqual(texts(vue.element("rail").dessous("p").filter((p) => p.className === "ligne")), []);
+    const rule = rules(read("vue.css")).find(({ selecteurs: selectors }) => selectors.includes("#fiche .details p") && selectors.length === 1);
+    assert.equal(rule?.declarations.get("white-space"), "pre-wrap");
+  });
 });
 
+// Ce que `faits` donne à dessiner d'un projet, prêt à poser (facts.ts) : deux cooks, un rail.
+const FACTS: Drawable = {
+  projet: PARADE,
+  demande: 0,
+  a: A,
+  tableau: {
+    etat: "ouverte",
+    mot: "open",
+    ton: "vert",
+    
+    
+    compteurs: [
+      { libelle: "rail", nombre: 9 },
+      { libelle: "au travail", nombre: 2 },
+      { libelle: "à la pass", nombre: 1 },
+      { libelle: "t'attend", nombre: 1 },
+      { libelle: "livrés 24 h", nombre: 11 },
+    ],
+    cooks: { enCours: [{ ticket: 218, titre: "Formulaire devis multi-étapes", station: "box/claude-opus" }], vide: "aucun cook en cours" },
+    evenement: "il y a 2 min · pass verte sur #216",
+    rail: {
+      colonnes: [
+        { nom: "Sur le rail", ton: "gris", compte: "1", cartes: [{ ticket: 222,    titre: "Récapitulatif devis avant envoi", fiche: header({ titre: "Récapitulatif devis avant envoi" }), ouvrable: true, attendu: false, attend: [], dit: [{ libelle: "depuis", valeur: "3 h 02" }, { libelle: "bloque", valeur: "zone tenue par #218 (app/src)" }], sans: "non communiqué par la file : qui le tient · son bail · ce qu'il brûle" }], vide: "aucun ticket" },
+        { nom: "Au travail", ton: "bleu", compte: "1", cartes: [{ ticket: 218,    titre: "Formulaire devis multi-étapes", fiche: header({ titre: "Formulaire devis multi-étapes" }), ouvrable: false, attendu: false, attend: [], dit: [{ libelle: "tient", valeur: "box/claude-opus", exact: true }, { libelle: "depuis", valeur: "12 min" }, { libelle: "bail", valeur: "sans progrès depuis 3 min, bail encore 27 min" }, { libelle: "brûle", valeur: "230 000 tokens au dernier relevé" }], sans: "non communiqué par la file : ce qui le bloque" }], vide: "aucun ticket" },
+        { nom: "Pass", ton: "jaune", compte: "0", cartes: [], vide: "aucun ticket" },
+        { nom: "T'attend", ton: "rouge", compte: "1", cartes: [{ ticket: 12,    titre: "Validation SIRET", fiche: header({ titre: "Validation SIRET" }), ouvrable: true, attendu: true, attend: ["depuis 2 j  livraison verte, non mergée — à merger à la main :   gh pr merge 31"], dit: [{ libelle: "depuis", valeur: "2 j" }, { libelle: "cuisiné par", valeur: "box/claude-opus", exact: true }], sans: "non communiqué par la file : qui le tient · son bail · ce qu'il brûle" }], vide: "aucun ticket" },
+        { nom: "Livré", ton: "vert", compte: "0", cartes: [], vide: "aucun ticket" },
+      ],
+      hors: [{ ticket: 86,  titre: "Hors colonnes", fiche: header({ titre: "Hors colonnes" }), ouvrable: false, attendu: false, attend: [], dit: [], sans: "non communiqué par `facts`, et pas lu par l'app dans ce que `status` écrit de ce ticket, relayé dessous tel quel : qui le tient · depuis quand · son bail · ce qu'il brûle · ce qui le bloque", relais: "un mot inconnu  -  depuis 5 min  (ce que la box en dit)  Hors colonnes" }],
+      attendLu: A,
+      
+    },
+  },
+};
 
 describe("la fenêtre se réduit sans que rien ne se casse", () => {
   const sheet = rules(read("vue.css"));
@@ -291,6 +384,75 @@ describe("la fenêtre se réduit sans que rien ne se casse", () => {
   });
 });
 
+describe("le monospace est une information, pas un style", () => {
+  // Tout ce qui est posé dans la fenêtre, une fois l'espace ouvert et ses faits lus — sur l'un et l'autre
+  // onglet du projet (#1184) : la carte du projet est sur Stations, le kanban entier sur Rail.
+  // Sur Rail, rien ne s'ouvre par-dessus ; Settings ouvert ne lit rien (#1700).
+  async function allPose(tab: "Rail" | "Settings"): Promise<Fake[]> {
+    const vue = await openASpace();
+    vue.dire("surFaits", { ...FACTS, demande: vue.dernier("faits")[0] as number });
+    await openTab(vue, "Stations");
+    const onStations = vue.poses();
+    await openTab(vue, "Rail");
+    if (tab === "Settings") {
+      await openRead(vue, tab);
+      await repos();
+    }
+    return [...new Set([...onStations, ...vue.poses()])];
+  }
+  const mono = (element: Fake) => element.className.split(" ").includes("mono");
+  const carrying = (poses: Fake[], text: string) => poses.filter((element) => element.textContent === text && element.children.length === 0);
+
+  test("un numéro de ticket est en monospace partout où il se pose : la carte, le rail", async () => {
+    const poses = [...(await allPose("Rail")), ...(await allPose("Settings"))];
+
+    // Le cook de la carte et son ticket du rail, les bons.
+    for (const number of ["#218", "#222", "#12", "#86"]) {
+      const found = carrying(poses, number);
+      assert.ok(found.length > 0, `${number} n'est posé nulle part`);
+      for (const pose of found) assert.ok(mono(pose), `${number} est posé hors du monospace, dans <${pose.balise} class="${pose.className}">`);
+    }
+    assert.equal(carrying(poses, "#218").length >= 2, true, "le ticket du cook est sur sa carte et sur le rail");
+    // Et aucun numéro seul n'est posé ailleurs que dans le monospace.
+    for (const pose of poses) if (/^#\d+$/.test(pose.textContent) && pose.children.length === 0) assert.ok(mono(pose), pose.textContent);
+  });
+
+  test("un identifiant de run aussi", async () => {
+    const poses = await allPose("Rail");
+
+    // Le cook de la carte du projet n'est plus posé nulle part (la page Cooks n'existe plus) : quoi qu'il en reste, c'est en monospace.
+    for (const pose of poses) if (pose.textContent === "box/claude-opus" && pose.children.length === 0) assert.ok(mono(pose), pose.textContent);
+  });
+
+  test("le nom du projet, qui est son identifiant sur la box, et les contrôles de réglage", async () => {
+    const [name] = (await allPose("Rail")).filter((pose) => pose.id === "espace");
+    assert.ok(name !== undefined && mono(name) && name.textContent === PARADE);
+
+    // Dans Settings (#1700), les contrôles des réglages — l'arrêt de la cuisine — disent
+    // leur geste en mots : aucun n'est en monospace, et aucune commande n'est affichée.
+    const poses = await allPose("Settings");
+    const buttons = poses.filter((pose) => pose.balise === "button" && pose.parentElement?.className === "champ");
+    assert.ok(buttons.length > 0 && buttons.every((pose) => !mono(pose)), "un contrôle de réglage est en monospace");
+  });
+
+  test("ce qui se lit ne l'est pas : un titre, un mot d'état, un libellé, ce que l'app dit elle-même", async () => {
+    const poses = [...(await allPose("Settings")), ...(await allPose("Rail"))];
+
+    for (const readOne of ["Formulaire devis multi-étapes", "Validation SIRET", "taken", "queued", "un mot inconnu", "Backlog", "Manager", "Rail", "Settings", "second · claude"]) {
+      const found = carrying(poses, readOne);
+      assert.ok(found.length > 0, `« ${readOne} » n'est posé nulle part`);
+      for (const pose of found) assert.ok(!mono(pose) && pose.balise !== "pre" && pose.balise !== "code", `« ${readOne} » est en monospace`);
+    }
+    // Sur plusieurs lignes, les mots de l'app sont à part de ceux de la box : jamais dans un `pre` nu.
+    const vue = await playTheVue({ ...ANSWERS, demarrage: () => ({ ...startup(), configuration: forTheBar({ chemin: "/tmp/app.json", projets: [{ nom: PARADE, dossier: "/tmp/parade" }] }) }) });
+    // Sur l'accueil, un projet sans box se dit en une ligne ; ce qu'elle suppose du fichier est au survol.
+    vue.dire("surAccueil", { projets: [{ nom: PARADE, ton: "gris", dit: "no station: nothing is read", survol: "its entry in the projects file does not say where its station is" }] });
+    const withoutBox = vue.element("tous").dessous("button").find((pose) => pose.className === "ligne");
+    assert.equal(withoutBox?.textContent, `${PARADE}idleno station: nothing is read›`);
+    assert.equal(withoutBox?.title, "no station: nothing is read — its entry in the projects file does not say where its station is");
+    assert.equal(vue.element("tous").dessous("pre").length, 0);
+  });
+});
 
 describe("rien de ce qui est au parking n'apparaît", () => {
   // Ce que l'ancienne maquette dessinait sans qu'on le construise ; les planches du 2026-11-08 (#2907)
@@ -298,6 +460,16 @@ describe("rien de ce qui est au parking n'apparaît", () => {
   // l'épique #3518 (#3746, #3747), qui en fait un moteur d'une station et dit sur la fiche d'une livraison son moteur.
   const PARKING = /openweight|preprod|mac\/chrome|chrome-connect|revue-humaine|accès-prod|depuis ton mac|toutes les brigades|expire dans|<progress|<meter|progressbar|jauge|\bcommis\b|thème clair|prefers-color-scheme|light-dark\(/i;
 
+  test("ni dans les fichiers de la vue, ni dans ce qu'elle pose", async () => {
+    for (const file of files) assert.doesNotMatch(read(file), PARKING, file);
+
+    const vue = await openASpace();
+    vue.dire("surFaits", { ...FACTS, demande: vue.dernier("faits")[0] as number });
+    for (const pose of vue.poses()) assert.doesNotMatch(pose.textContent, PARKING, `<${pose.balise} id="${pose.id}">`);
+    // Sur l'onglet Stations non plus.
+    await openTab(vue, "Stations");
+    for (const pose of vue.poses()) assert.doesNotMatch(pose.textContent, PARKING, `<${pose.balise} id="${pose.id}">`);
+  });
 
   test("un seul thème, sombre : ni thème clair, ni réglage de thème", () => {
     // Les seules requêtes admises sont la largeur de la page étroite (#1186), qui change la mise en page, et « reduce
@@ -349,6 +521,28 @@ describe("le cadre est fait de cartes, sur fond sombre", () => {
 // libellé de chaque état reste dans le DOM. Rien n'est demandé au runtime : tout vient de ce que
 // la box dit déjà (faits). La vue est jouée devant un faux document.
 const PILL = withoutComments(read("components/pill/pill.css"));
+const facts = (state: string, your: string | undefined, stopped = false, stations: { lignes: [] } | null = { lignes: [] }): Drawable => ({
+  projet: PARADE,
+  demande: 0,
+  a: A,
+  tableau: {
+    etat: state,
+    ...(your === undefined ? {} : { ton: your }),
+    ...(stations === null ? {} : { stations }),
+    
+    
+    compteurs: [{ libelle: "rail", nombre: 1 }],
+    
+    
+    rail: {
+      colonnes: [
+        { nom: "Awaiting you", ton: "rouge", compte: "1", cartes: [{ ticket: 12,   titre: "Validation SIRET", fiche: header({ titre: "Validation SIRET" }), ouvrable: true, attendu: true, attend: ["livraison verte, non mergée"], dit: [], parque: { qui: "the chef", jusqua: null, chef: true } }], vide: "aucun ticket" },
+      ],
+      hors: [],
+      attendLu: A,
+    },
+  },
+});
 
 // Les règles de la feuille qui portent ce sélecteur, déclarations comprises.
 const declarationsOf = (selector: string, sheet: string): Map<string, string> => {
@@ -360,9 +554,38 @@ const declarationsOf = (selector: string, sheet: string): Map<string, string> =>
 const silhouette = (declarations: Map<string, string>) => `${declarations.get("border-radius") ?? ""}|${declarations.get("transform") ?? ""}|${declarations.get("clip-path") ?? ""}|${declarations.get("background") ?? ""}`;
 
 describe("la cuisine : une pastille à forme, et son libellé", () => {
+  test("cuisine ouverte : disque vert ; arrêtée : carré rouge — sur la pastille de la barre", async () => {
+    const vue = await openASpace();
+    const number = () => vue.dernier("faits")[0] as number;
+    const bar = () => vue.element("projets").dessous("span").find((s) => s.className === "pastille") ?? assert.fail("pas de pastille dans la barre");
+    vue.dire("surFaits", { ...facts("ouverte", "vert"), demande: number() });
+    assert.deepEqual([bar().dataset.ton, bar().dataset.forme], ["vert", "disque"]);
+
+    vue.dire("surFaits", { ...facts("arrêtée", "rouge", true), demande: number() });
+    assert.deepEqual([bar().dataset.ton, bar().dataset.forme], ["rouge", "carre"]);
+  });
 });
 
 describe("un ticket qui t'attend", () => {
+  test("sa pilule dit « t'attend » en mots, avec la forme de la colonne — et l'état du ticket garde la sienne", async () => {
+    const vue = await openASpace();
+    // Le rail est au centre de l'espace : aucun onglet n'est à ouvrir pour le lire.
+    vue.dire("surFaits", { ...facts("ouverte", "vert"), demande: vue.dernier("faits")[0] as number });
+
+    // La carte de #12 : son bon, pas son entrée du TODO (#4238).
+    const slip = vue.element("rail").dessous("li").find((li) => li.className.split(" ").includes("bon") && li.dataset.ticket === "12") ?? assert.fail("pas de carte #12");
+    const pills = slip.dessous("span").filter((s) => s.dataset.pastille !== undefined);
+    const brand = (s: Fake) => s.children[0]?.dataset;
+    // L'état du ticket (servi) et la pilule « t'attend » : chacun sa pastille, de la famille.
+    assert.deepEqual(
+      pills.slice(-2).map((s) => [s.children[1]?.textContent, s.dataset.pastille, brand(s)?.ton, brand(s)?.forme]),
+      [["servi", "served", "vert", "disque"], ["awaiting you", "awaiting", "rouge", "carre"]],
+    );
+    // TODO n'est pas une colonne (#3458) : la carte est dans le backlog (#4238), et sa colonne porte le rouge de ce qui t'attend.
+    const [column] = vue.element("rail").dessous("section");
+    assert.equal(column?.dataset.colonne, "Backlog");
+    assert.deepEqual(red(vue.element("rail")).length, 1);
+  });
 });
 
 describe("la forme se lit sans la couleur", () => {

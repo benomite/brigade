@@ -11,7 +11,7 @@ import { hooksOfParking } from "../../src/second/hook-of-parking.ts";
 import { context, principal } from "../../src/second/action-of-parking.ts";
 import { unpark } from "../../src/actions-github.ts";
 import { openTerminals, type Launch } from "../../src/terminals.ts";
-import { park } from "../../src/vue/wait/wait-github.ts";
+import { park, thirdOfComments } from "../../src/vue/wait/wait-github.ts";
 
 const REPOSITORY = "BOBL-tech/mirrorlab";
 const TICKET = 614;
@@ -68,6 +68,22 @@ const USAGE = "usage: parking.ts park <owner>/<repo>#<issue> --who <who it waits
 const PARK = ["park", `${REPOSITORY}#${TICKET}`, "--who", "the client", "--what", "the signed quote", "--until", DAY];
 
 describe("le second et l'app parquent et déparquent un ticket dans le même état, sur un projet qui n'est pas brigade", () => {
+  test("parqué : le même label et le même commentaire, que la station et l'app relisent — qui, pour quoi, jusqu'à quand", async () => {
+    const app = github();
+    const second = github();
+    assert.ok("fait" in (await parkByTheApp(app.client)));
+    const launches = await byTheSecond(second.client, ...PARK);
+    assert.deepEqual([launches.code, launches.redit], [0, ""]);
+    assert.equal(launches.dit, `in WAITING on GitHub: #${TICKET} awaits the client, follow-up on ${DAY} — https://github.com/${REPOSITORY}/issues/${TICKET}#issuecomment-1`);
+    assert.deepEqual(second.ecrites, app.ecrites);
+    assert.deepEqual(second.etat(), app.etat());
+
+    const { labels, commentaires: comments } = second.etat() ?? assert.fail();
+    assert.deepEqual(labels, ["fire", "chef-todo", "parked"]);
+    assert.equal(comments.length, 1);
+    const third = thirdOfComments(comments.map((body) => ({ body, created_at: TODAY.toISOString(), author_association: "OWNER" })));
+    assert.deepEqual([third?.qui, third?.quoi, third?.relance], ["the client", "the signed quote", new Date(2026, 10, 20).toISOString()]);
+  });
 
   test("déparqué — `unpark` de l'app, `unpark` du second : le même état", async () => {
     const app = github();

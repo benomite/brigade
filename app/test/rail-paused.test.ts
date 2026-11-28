@@ -4,15 +4,36 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, test } from "node:test";
+import { forTheBar } from "../src/bar.ts";
+import { EXAMPLE } from "../src/config.ts";
+import { PALETTE } from "../src/colors.ts";
 import { holdFacts, type Drawable } from "../src/facts.ts";
+import { HEADINGS } from "../src/tabs.ts";
+import { EFFORTS, MODELS } from "../src/projects/projects.ts";
+import { NO_STATION } from "../src/vue/cooks/without-station.js";
 import { holdReadsOfBoard } from "../src/board/rail.ts";
 import { keptReadsInFile } from "../src/board/kept-reads.ts";
 import { holdTheBudgetGitHub, readingUnderBudget } from "../src/budget-github.ts";
 import type { BoardRead } from "../src/board/read.ts";
-import { type Played } from "./helpers/false-vue.ts";
+import type { Facts } from "../src/facts.ts";
+import { type Played, playTheVue, type Answers, repos } from "./helpers/false-vue.ts";
 
 const PARADE = "parade";
 const a = (minute: number) => `2026-11-27T15:${String(minute).padStart(2, "0")}:00.000Z`;
+const startup = (served: boolean) => () => ({
+  configuration: forTheBar({ chemin: "/tmp/app.json", projets: [{ nom: PARADE, dossier: "/tmp/parade" }] }, () => served),
+  palette: PALETTE,
+  exemple: EXAMPLE,
+  rubriques: HEADINGS,
+  gestes: {},
+  calibrage: { modeles: MODELS, efforts: EFFORTS },
+  });
+async function open(answers: Answers = {}, served = true): Promise<Played> {
+  const vue = await playTheVue({ demarrage: startup(served), espace: () => [], ...answers });
+  (vue.element("projets").children.at(1) ?? assert.fail("pas d'entrée")).click();
+  await repos();
+  return vue;
+}
 
 const PAUSE = { jusqua: "2026-11-27T16:27:00.000Z", restant: 734, total: 5_000 };
 const paused = (minute: number): Drawable => holdFacts().recevoir({ projet: PARADE, demande: 0, a: a(minute), erreur: "The rail of chef/parade is not read until 2026-11-27 16:27 UTC", atteinte: true, cas: null, duTableau: true, pause: PAUSE });
@@ -24,8 +45,20 @@ const linesOfPause = (vue: Played) => vue.element("rail").dessous("p").filter(({
 
 describe("le quota GitHub retient le rail (#4620)", () => {
   for (const served of [true, false]) {
+    test(`sans rail lu${served ? "" : ", aucune station de cet ordinateur ne servant le projet"} : l'onglet Rail dit la pause et l'heure de reprise, jamais NO_STATION`, async () => {
+      const vue = await open({}, served);
+      receive(vue, paused(1));
+      const text = vue.element("rail").textContent;
+      assert.deepEqual(linesOfPause(vue), [SAYS]);
+      assert.ok(!text.includes(NO_STATION), text);
+    });
   }
 
+  test("sans reste connu (un refus sans en-têtes), la ligne dit la pause et l'heure de reprise", async () => {
+    const vue = await open();
+    receive(vue, holdFacts().recevoir({ projet: PARADE, demande: 0, a: a(1), erreur: "paused", atteinte: true, cas: null, duTableau: true, pause: { jusqua: PAUSE.jusqua } }));
+    assert.deepEqual(linesOfPause(vue), [`GitHub quota: reads paused — reading resumes at ${hourOf(PAUSE.jusqua)}`]);
+  });
 });
 
 describe("le dernier rail lu survit au redémarrage (#4620)", () => {
@@ -63,4 +96,26 @@ describe("le dernier rail lu survit au redémarrage (#4620)", () => {
     assert.deepEqual(!readEntry.lu && readEntry.pause, { jusqua: new Date(clock.t + 27 * 60_000).toISOString(), restant: 734, total: 5_000 });
   });
 
+  test("l'onglet Rail le dessine après le redémarrage, sous la pause : ses colonnes, l'heure de sa lecture, son âge et l'heure où GitHub reprend", async () => {
+    const facts: Facts = {
+      etat: "ouverte", lu: a(0), 
+      compteurs: { rail: 1, auTravail: 1, aLaPass: 0, attend: 0, livres24h: 0 },
+      
+      
+      attend: [],
+    };
+    const vue = await open();
+    // Ce que le main rend au premier tour après le redémarrage : le rail gardé, lu à 15:00, avec la pause.
+    receive(vue, holdFacts().recevoir({ projet: PARADE, demande: 0, a: a(0), publieLe: a(0), pause: PAUSE, sorties: [{ commande: "facts", texte: JSON.stringify(facts) }] } as never));
+    const rail = vue.element("rail");
+    assert.ok(rail.textContent.includes("Le journal en ajout seul"), rail.textContent);
+    assert.ok(!rail.textContent.includes(NO_STATION), rail.textContent);
+    // Une seule ligne au-dessus du rail dit la pause (#4645) : ce qui reste, l'heure de reprise — rien d'autre ne la redit.
+    assert.deepEqual(linesOfPause(vue), [SAYS]);
+    assert.equal(rail.dessous("p").filter(({ className }) => className.split(" ").includes("perime")).length, 0);
+    // La lecture reprend : la ligne part.
+    receive(vue, holdFacts().recevoir({ projet: PARADE, demande: 0, a: a(28), publieLe: a(28), sorties: [{ commande: "facts", texte: JSON.stringify(facts) }] } as never));
+    assert.deepEqual(linesOfPause(vue), []);
+    assert.ok(vue.element("rail").textContent.includes("Le journal en ajout seul"));
+  });
 });

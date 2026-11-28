@@ -42,7 +42,6 @@ const station = (name: string, more: Partial<OfRuntime> = {}): OfRuntime => ({
   cuisson: "cooking",
   arreteeDepuis: null,
   refus: null,
-  cooks: [],
   ...more,
 });
 const COOK_14 = { ticket: 14, titre: "Le journal en ajout seul", station: "box/claude" };
@@ -67,19 +66,14 @@ const FACTS: Facts = {
   etat: "ouverte",
   lu: "2026-10-20T10:04:11.000Z",
   compteurs: { rail: 1, auTravail: 2, aLaPass: 1, attend: 0, livres24h: 0 },
-  rail: [
-    { ticket: 14, etat: "pris", titre: COOK_14.titre, url: "https://github.com/benomite/brigade/issues/14", activite: null },
-    { ticket: 15, etat: "pris", titre: COOK_15.titre, url: "https://github.com/benomite/brigade/issues/15", activite: null },
-    { ticket: 21, etat: "en attente", titre: "L'export du journal", url: "https://github.com/benomite/brigade/issues/21", activite: null },
-    { ticket: 30, etat: "en pass", titre: "La pass verte", url: "https://github.com/benomite/brigade/issues/30", activite: { fait: "gates en cours", cible: null, depuis: "2026-10-20T10:03:41.000Z" } },
-  ],
-  cooks: [COOK_14, COOK_15],
+  
+  
   attend: [],
 };
 
 function drawable(stations: OfRuntime[]): Drawable {
   const facts = { ...FACTS, stations };
-  return holdFacts(() => new Map()).recevoir({ projet: PARADE, demande: 0, a: A, sorties: [{ commande: "facts", texte: JSON.stringify(facts) }] });
+  return holdFacts().recevoir({ projet: PARADE, demande: 0, a: A, sorties: [{ commande: "facts", texte: JSON.stringify(facts) }] });
 }
 
 // L'espace de parade, ses faits lus, sur un écran étroit ou large.

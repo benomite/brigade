@@ -3,11 +3,12 @@
 // pages, ses refus, ses relectures sous ETag et sa colonne Served.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { type Board } from "../../../src/facts.ts";
+import { understand, board as boardOf, type Facts, type Board } from "../../../src/facts.ts";
 import type { CallGitHub, AnswerGitHub } from "../../../src/board/client.ts";
-import { readTheBoardOfRepository } from "../../../src/board/read.ts";
+import { readTheBoardOfRepository, type ReadOfBoardOfRepository } from "../../../src/board/read.ts";
 import { withWhatAwaitingTheChef } from "../../../src/board/wait-of-chef.ts";
 import type { MemoryOfReads } from "../../../src/board/rail-github.ts";
+import { statusOfBoard } from "../../../src/board/rail.ts";
 
 const REPOSITORY = "acme/kitchen";
 const ok = (data: unknown, etag?: string): AnswerGitHub => ({ status: 200, data, ...(etag === undefined ? {} : { etag }) });
@@ -39,10 +40,22 @@ const READ = new Date("2026-11-04T03:02:03.076Z");
 const read = async (call: CallGitHub, memory?: MemoryOfReads) =>
   withWhatAwaitingTheChef(await readTheBoardOfRepository({ depot: REPOSITORY, appeler: call, maintenant: () => READ, ...(memory === undefined ? {} : { memoire: memory }) }), call);
 
+// Ce que la vue dessine de la lecture : le tableau de `facts`, avec ce que `status` écrit.
+function draws(readOne: ReadOfBoardOfRepository): Board {
+  assert.ok(readOne.lu, "the rail is read");
+  const facts = understand(JSON.stringify(readOne.faits));
+  assert.ok(!("informe" in facts), `facts are in shape: ${"informe" in facts ? facts.informe : ""}`);
+  return boardOf(facts as Facts, undefined, { texte: statusOfBoard(readOne), a: readOne.luLe });
+}
 const kanban = (seenOne: Board) => seenOne.kitchenBoard ?? assert.fail("no kanban");
 const columns = (seenOne: Board) => Object.fromEntries(kanban(seenOne).columns.map(({ title, cards }) => [title, cards.map(({ ticket }) => `#${ticket}`)]));
 
 describe("le kanban d'un projet : ses issues, leurs labels et leurs PR", () => {
+  test("plus de cent tickets : chaque page est lue", async () => {
+    const cent = Array.from({ length: 100 }, (_, rank) => issue(100 + rank, ["fire"]));
+    const seenOne = draws(await read(async (path, headers) => (path.includes("/issues?state=open") ? ok(/[?&]page=1$/.test(path) ? cent : [issue(300, ["fire"])]) : github()(path, headers))));
+    assert.equal(columns(seenOne)["Ready"]?.length, 101);
+  });
 
   test("GitHub qui refuse : la lecture du projet échoue en le disant — jamais un rail vide", async () => {
     const refuses: CallGitHub = async (path, headers) => (path.includes("/issues?state=open") ? { status: 403, data: {} } : github()(path, headers));
@@ -74,6 +87,17 @@ describe("la colonne Served : les issues fermées par une PR mergée en 24 h", (
     updated_at: mergeThe ?? "2026-11-05T12:00:00Z", merged_at: mergeThe, head: { ref: `cook/${n}-github` }, body: `Closes #${n}\n\nCooked by station \`${station}\`.`,
   });
 
+  test("brigade le 2026-11-06 : une trentaine de tickets servis, tous dans Served, le plus récent d'abord", async () => {
+    const thirty = Array.from({ length: 30 }, (_, i) => closedOne(100 + i, new Date(Date.parse("2026-11-04T03:00:00Z") - (i + 1) * 40 * 60_000).toISOString()));
+    const old = closedOne(99, "2026-11-02T00:00:00Z");
+    const withoutMerge = closedOne(98, null);
+    const seenOne = draws(await read(github({ fermees: [...thirty, withoutMerge, old] })));
+    const servedOnes = columns(seenOne)["Served"] ?? [];
+    assert.equal(servedOnes.length, 30);
+    assert.equal(servedOnes[0], "#100");
+    assert.ok(!servedOnes.some((c) => c === "#98" || c === "#99"), "neither unmerged nor older than 24 h");
+    assert.equal(seenOne.compteurs.find(({ libelle: wording }) => wording === "served 24 h")?.nombre, 30);
+  });
 
   test("une seule lecture des PR fermées par rafraîchissement", async () => {
     const calls: string[] = [];

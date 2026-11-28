@@ -4,14 +4,15 @@
 // sur un vrai terminal : la commande lancée avant la fermeture tourne toujours, l'historique est là.
 // Aucun test n'attend une durée : chacun attend ce que le terminal affiche.
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { execFileSync, spawn } from "node:child_process";
+import { mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
-import { scriptOfAttachment, type Target, type Session } from "../src/persistence.ts";
+import { destroy, scriptOfAttachment, type Target, type Session } from "../src/persistence.ts";
+import { openPty as realPty, ptyAvailable } from "../src/pty.ts";
 import { reminderRead, memoriesInFile, type Reminder, type Memories } from "../src/memories.ts";
-import { openTerminals, type Launch, type Terminal } from "../src/terminals.ts";
+import { openTerminals, type Launch, type Pty, type Terminal } from "../src/terminals.ts";
 import { HERE } from "../src/platform.ts";
 
 const BRIGADE = { nom: "brigade", dossier: "/projets/brigade" };
@@ -336,6 +337,7 @@ const python = (() => {
     return false;
   }
 })();
+const SKIPS = multiplexer === undefined ? "ni tmux ni screen sur ce poste" : !ptyAvailable && !python ? `ni node-pty livré compilé pour ${process.platform}-${process.arch}, ni python3` : false;
 const HELP_PTY = join(import.meta.dirname, "helpers/pty.py");
 
 // Attend un fait. Le délai n'est qu'une garde, pour qu'un test cassé finisse par le dire.
@@ -349,4 +351,91 @@ async function until(condition: () => boolean, what: () => string): Promise<void
 
 const withoutEscapes = (text: string) => text.replace(/\x1b\[[0-9;?>=]*[ -/]*[@-~]|\x1b[()][0-9A-Za-z]|\x1b[=>78DEHMc]|\r/g, "");
 
+// Un vrai terminal pour ce qu'un registre lance, dans l'environnement du test : node-pty là où il
+// est livré, l'aide en Python ailleurs. Le second, lui, n'est pas lancé : un faux pty le tient.
+function realPtys(env: Record<string, string>, ends: Promise<void>[]) {
+  return (launches: Launch): Pty => {
+    if (launches.commande === "faux-claude") return { ecrire: () => {}, redimensionner: () => {}, tuer: () => {} };
+    const line = ["/usr/bin/env", "-i", ...Object.entries(env).map(([key, value]) => `${key}=${value}`), launches.commande, ...launches.args];
+    if (ptyAvailable) {
+      let finish = () => {};
+      ends.push(new Promise((resolve) => (finish = resolve)));
+      return realPty({ ...launches, commande: line[0] ?? "", args: line.slice(1), surFin: (code) => (finish(), launches.surFin(code)) });
+    }
+    const child = spawn("python3", ["-I", HELP_PTY, ...line], { cwd: launches.dossier, stdio: ["pipe", "pipe", "inherit"] });
+    child.stdout.on("data", (data: Buffer) => launches.surSortie(data.toString("utf8")));
+    ends.push(new Promise((resolve) => child.on("exit", (code) => (resolve(), launches.surFin(code ?? 0)))));
+    return { ecrire: (data) => void child.stdin.write(data), redimensionner: () => {}, tuer: () => void child.kill() };
+  };
+}
 
+describe(`fermer l'app, la rouvrir : sur ce poste${multiplexer === undefined ? "" : `, par ${multiplexer}`}`, { skip: SKIPS }, () => {
+  test("le shell revient rattaché à sa session : la commande lancée avant la fermeture tourne toujours, et l'historique est là — fermé pour de bon, il ne revient plus et sa session n'existe plus", async (t) => {
+    const root = realpathSync(mkdtempSync(join(tmpdir(), "brigade-app-shells-")));
+    const env = { PATH: process.env.PATH ?? "/usr/bin:/bin", HOME: root, SHELL: "/bin/sh", TERM: "xterm-256color", TMUX_TMPDIR: root, SCREENDIR: root, LANG: "C" };
+    // Un nom de projet à ce test : deux suites de front ne partagent pas une session.
+    const project = { nom: `essai-shells-${process.pid}`, dossier: root };
+    const memories = memoriesInFile(join(root, "app", "shells.json"));
+    const ends: Promise<void>[] = [];
+    const openEntries: Session[] = [];
+    t.after(async () => {
+      for (const session of openEntries) await destroy(session, { env });
+      await Promise.all(ends);
+      rmSync(root, { recursive: true, force: true });
+    });
+
+    const app = () => {
+      let output = "";
+      const terminals = openTerminals({
+        claude: "faux-claude",
+        shell: "/bin/sh",
+        souvenirs: memories,
+        detruire: (session) => destroy(session, { env }),
+        ouvrirPty: realPtys(env, ends),
+        surSortie: (_, data) => void (output += data),
+        surEtat: () => {},
+      });
+      return { terminaux: terminals, sortie: () => withoutEscapes(output) };
+    };
+
+    // Première ouverture : un shell sur ce poste, et une commande qui reste au premier plan —
+    // `cat` ne rend ce qu'il reçoit que s'il tourne encore.
+    const first = app();
+    first.terminaux.espace(project);
+    const shell = first.terminaux.ouvrir(project, WORKSTATION);
+    const session: Session = { nom: `brigade-${project.nom}-1`, cible: WORKSTATION };
+    openEntries.push(session);
+    first.terminaux.ecrire(shell.id, "echo AVANT-$((6*7)); cat\r");
+    await until(() => first.sortie().includes("AVANT-42"), first.sortie);
+    first.terminaux.ecrire(shell.id, "ligne-une\r");
+    await until(() => (first.sortie().match(/ligne-une/g) ?? []).length >= 2, first.sortie);
+    first.terminaux.fermer();
+    await Promise.all(ends);
+
+    // Rouverte : le shell revient de lui-même avec l'espace, et montre ce que la session avait affiché.
+    const second = app();
+    const [, back] = second.terminaux.espace(project);
+    assert.equal(back?.titre, "shell 1");
+    await until(() => second.sortie().includes("AVANT-42") && second.sortie().includes("ligne-une"), second.sortie);
+    // `cat` est toujours là : il rend ce qui lui est tapé.
+    second.terminaux.ecrire(back?.id ?? 0, "apres-retour\r");
+    await until(() => (second.sortie().match(/apres-retour/g) ?? []).length >= 2, second.sortie);
+
+    // Fermé pour de bon : sa session est détruite, et la réouverture suivante ne le ramène pas.
+    assert.deepEqual(await second.terminaux.fermerShell(back?.id ?? 0), { ferme: true });
+    second.terminaux.fermer();
+    await Promise.all(ends);
+    const exists = () => {
+      try {
+        execFileSync("/bin/sh", ["-c", `tmux has-session -t =${session.nom} 2>/dev/null || screen -ls 2>/dev/null | grep -q "[.]${session.nom}[[:space:]]"`], { env, stdio: "ignore" });
+        return true;
+      } catch {
+        return false;
+      }
+    };
+    // `screen -X quit` rend la main avant que la session ait fini de partir : on attend qu'elle soit partie.
+    await until(() => !exists(), () => `la session ${session.nom} existe encore sur ce poste`);
+    const third = app();
+    assert.deepEqual(third.terminaux.espace(project).map(({ genre: kind }) => kind), ["second"]);
+  });
+});

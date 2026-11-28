@@ -9,11 +9,15 @@ import { mkdtempSync, readFileSync, realpathSync, rmSync, statSync, writeFileSyn
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
-import { addProject, changeColor, colorProjects, readConfiguration, type Project } from "../src/config.ts";
-import { choice, colorsRead, gap, gapLab, STATES, PALETTE, CLOSE, close, ROLES, draw } from "../src/colors.ts";
+import { forTheBar } from "../src/bar.ts";
+import { addProject, changeColor, colorProjects, EXAMPLE, readConfiguration, type Project } from "../src/config.ts";
+import { choice, colorsRead, DISTINCT, gap, gapLab, STATES, PALETTE, CLOSE, close, ROLES, draw } from "../src/colors.ts";
 
+import { EFFORTS, MODELS } from "../src/projects/projects.ts";
+import { HEADINGS } from "../src/tabs.ts";
 import { followConfiguration } from "../src/tracking.ts";
-import { tokensOf } from "./helpers/false-vue.ts";
+import type { Terminal } from "../src/terminals.ts";
+import { type Fake, type Played, tokensOf, playTheVue, openRead, repos } from "./helpers/false-vue.ts";
 
 const VUE = join(import.meta.dirname, "../src/vue");
 const VALUES = PALETTE.map(({ valeur: value }) => value);
@@ -73,6 +77,15 @@ describe("la palette", () => {
     assert.equal(tokens.get("--fond"), "#121418");
   });
 
+  test(`au moins seize teintes, deux à deux à ΔE ≥ ${DISTINCT}, et chacune à ΔE ≥ ${DISTINCT} de chaque couleur d'état`, () => {
+    assert.ok(PALETTE.length >= 16, `${PALETTE.length} teintes`);
+    const too: string[] = [];
+    for (const [rank, one] of PALETTE.entries()) {
+      for (const other of PALETTE.slice(rank + 1)) if (gap(one.valeur, other.valeur) < DISTINCT) too.push(`${one.nom} — ${other.nom} : ${gap(one.valeur, other.valeur).toFixed(1)}`);
+      for (const state of STATES) if (gap(one.valeur, state.valeur) < DISTINCT) too.push(`${one.nom} — ${state.nom} (état) : ${gap(one.valeur, state.valeur).toFixed(1)}`);
+    }
+    assert.deepEqual(too, []);
+  });
 
   test("chaque teinte se lit sur le fond sombre de la peau, et sous le texte foncé d'une case choisie", () => {
     const background = tokens.get("--fond") ?? assert.fail("pas de --fond");
@@ -260,3 +273,160 @@ describe("les couleurs dans le fichier des projets", () => {
   });
 });
 
+describe("les couleurs dans la vue", () => {
+  const PARADE: Project = { nom: "parade", dossier: "/tmp/parade", couleurs: { onglet: "#a98cf2", accent: "#25c0c5" } };
+  const FANFARE: Project = { nom: "fanfare", dossier: "/tmp/fanfare", couleurs: { onglet: "#f28cbf", accent: "#d9b98a" } };
+  const BARE: Project = { nom: "nue", dossier: "/tmp/nue" };
+  const SECOND: Terminal = { id: 1, projet: "parade", genre: "second", titre: "second · claude", note: "", arrete: false };
+
+  const play = (projects: Project[], tint?: (project: string, role: string, color: string) => string | undefined) =>
+    playTheVue({
+      demarrage: () => ({
+        configuration: forTheBar({ chemin: "/tmp/app.json", projets: projects }, () => true),
+        palette: PALETTE,
+        exemple: EXAMPLE,
+        rubriques: HEADINGS,
+        gestes: {},
+        calibrage: { modeles: MODELS, efforts: EFFORTS },
+        }),
+      espace: () => [SECOND],
+      ...(tint === undefined ? {} : { colorer: tint }),
+    });
+  // La case de la barre : « T », puis les projets dans l'ordre du fichier, puis « + ».
+  const caseOf = (vue: Played, rank: number): Fake => vue.element("projets").children.at(rank) ?? assert.fail(`pas d'entrée ${rank}`);
+  const accent = () => (globalThis as unknown as { document: { documentElement: Fake } }).document.documentElement.style.getPropertyValue("--accent");
+  // Une ligne de réglage par rôle (#1700) : son nom, sa couleur, puis la palette — ses seuls boutons.
+  const pills = (vue: Played, row: number) => (vue.element("couleurs").children.filter(({ className }) => className === "reglage")[row] ?? assert.fail(`pas de rangée ${row}`)).dessous("button");
+  const saidOnes = (vue: Played) => vue.element("couleurs").dessous("p").filter(({ className }) => className === "dit refus").map(({ textContent }) => textContent);
+
+  test("dans la barre, chaque case porte la couleur d'onglet de son projet — celle d'un projet qui n'en a pas reste celle de la peau", async () => {
+    const vue = await play([PARADE, FANFARE, BARE]);
+    assert.deepEqual(
+      [1, 2, 3].map((rank) => [caseOf(vue, rank).classList.contains("teinte"), caseOf(vue, rank).style.getPropertyValue("--teinte")]),
+      [
+        [true, "#a98cf2"],
+        [true, "#f28cbf"],
+        [false, ""],
+      ],
+    );
+  });
+
+  test("l'espace d'un projet porte son accent, à la place de celui de la peau ; « Tous les projets » reprend celui de la peau", async () => {
+    const vue = await play([PARADE, FANFARE, BARE]);
+    assert.equal(accent(), "");
+    caseOf(vue, 1).click();
+    await repos();
+    assert.equal(accent(), "#25c0c5");
+    caseOf(vue, 2).click();
+    await repos();
+    assert.equal(accent(), "#d9b98a");
+    caseOf(vue, 3).click();
+    await repos();
+    assert.equal(accent(), "", "un projet sans couleur a l'accent de la peau");
+    caseOf(vue, 0).click();
+    await repos();
+    assert.equal(accent(), "");
+  });
+
+  test("dans Settings, sous toi, les couleurs se choisissent dans la palette, et le choix se voit dès que le fichier l'a pris", async () => {
+    const vue = await play([PARADE, FANFARE], () => undefined);
+    caseOf(vue, 1).click();
+    await repos();
+    await openRead(vue, "Settings");
+    const colors = vue.element("couleurs");
+    assert.equal(colors.hidden, false);
+    for (const [row, scope] of [[0, "purple"], [1, "turquoise"]] as const) {
+      const poses = pills(vue, row);
+      assert.deepEqual(poses.map(({ style }) => style.getPropertyValue("--teinte")), VALUES);
+      assert.deepEqual(poses.filter(({ ariaPressed }) => ariaPressed === "true").map(({ title }) => title.split(": ")[1]), [scope]);
+    }
+
+    (pills(vue, 0).find(({ title }) => title.endsWith(": pink")) ?? assert.fail("no pink")).click();
+    await repos();
+    assert.deepEqual(vue.dernier("colorer"), ["parade", "onglet", "pink"]);
+    (pills(vue, 1).find(({ title }) => title.endsWith(": orange")) ?? assert.fail("pas d'orange")).click();
+    await repos();
+    assert.deepEqual(vue.dernier("colorer"), ["parade", "accent", "orange"]);
+
+    // Le fichier l'a pris : la case et l'espace changent tout de suite.
+    const repainted = { ...PARADE, couleurs: { onglet: "#f28cbf", accent: "#f2994a" } };
+    vue.dire("surConfiguration", forTheBar({ chemin: "/tmp/app.json", projets: [repainted, FANFARE] }, () => true), []);
+    await repos();
+    assert.equal(caseOf(vue, 1).style.getPropertyValue("--teinte"), "#f28cbf");
+    assert.equal(accent(), "#f2994a");
+    assert.deepEqual(pills(vue, 0).filter(({ ariaPressed }) => ariaPressed === "true").map(({ title }) => title), ["tab, in the bar: pink"]);
+  });
+
+  test("un choix refusé le dit sous les couleurs ; une couleur libre se montre au bout de la palette, pressée, sans geste", async () => {
+    const vue = await play([{ ...PARADE, couleurs: { onglet: "#123456" } }], () => "ce fichier n'a pas pu être écrit : EACCES");
+    caseOf(vue, 1).click();
+    await repos();
+    await openRead(vue, "Settings");
+    const own = pills(vue, 0).at(-1);
+    assert.equal(own?.style.getPropertyValue("--teinte"), "#123456");
+    assert.equal(own?.title, "tab, in the bar: #123456, your own color");
+    assert.equal(own?.ariaPressed, "true");
+    assert.equal(own?.disabled, true);
+    assert.equal(pills(vue, 0).length, PALETTE.length + 1);
+    assert.equal(pills(vue, 1).length, PALETTE.length);
+
+    pills(vue, 1)[0]?.click();
+    await repos();
+    assert.deepEqual(saidOnes(vue), ["ce fichier n'a pas pu être écrit : EACCES"]);
+  });
+
+  test("une couleur libre se choisit au sélecteur, au bout de chaque rangée : elle part telle quelle, `#rrggbb`", async () => {
+    const vue = await play([PARADE, FANFARE], () => undefined);
+    caseOf(vue, 1).click();
+    await repos();
+    await openRead(vue, "Settings");
+    const free = vue.element("couleurs").dessous("input");
+    assert.deepEqual(free.map(({ type, title, value }) => [type, title, value]), [
+      ["color", "tab, in the bar: another color…", "#a98cf2"],
+      ["color", "accent, in the space: another color…", "#25c0c5"],
+    ]);
+    assert.deepEqual(vue.element("couleurs").dessous("label").map(({ textContent }) => textContent), ["other…", "other…"]);
+    const [tab, accentFree] = free;
+    if (tab === undefined || accentFree === undefined) assert.fail("pas de sélecteur");
+    tab.value = "#70c08c";
+    tab.declencher("change");
+    await repos();
+    assert.deepEqual(vue.dernier("colorer"), ["parade", "onglet", "#70c08c"]);
+    accentFree.value = "#123456";
+    accentFree.declencher("change");
+    await repos();
+    assert.deepEqual(vue.dernier("colorer"), ["parade", "accent", "#123456"]);
+  });
+
+  test("trop proche d'une couleur d'état ou d'un autre projet, une couleur libre reste, et une ligne sous sa rangée dit laquelle", async () => {
+    // Le vert d'état à ΔE 1 sur l'onglet, l'onglet de fanfare à ΔE 1 sur l'accent.
+    const near = { ...PARADE, couleurs: { onglet: "#70c08c", accent: "#f08dbe" } };
+    const vue = await play([near, FANFARE], () => undefined);
+    caseOf(vue, 1).click();
+    await repos();
+    await openRead(vue, "Settings");
+    // Chaque avertissement sous la ligne de son rôle.
+    assert.deepEqual(
+      vue.element("couleurs").children.map((line) => line.dessous("p").filter(({ className }) => className === "dit refus").map(({ textContent }) => textContent)),
+      [["tab, in the bar: close to green, a state color — kept anyway"], ["accent, in the space: close to the tab of fanfare — kept anyway"]],
+    );
+    // Gardée : pressée au bout de sa rangée, et sur la case de la barre.
+    assert.equal(pills(vue, 0).at(-1)?.ariaPressed, "true");
+    assert.equal(caseOf(vue, 1).style.getPropertyValue("--teinte"), "#70c08c");
+
+    // Une teinte de la palette choisie à sa place : plus rien à dire.
+    vue.dire("surConfiguration", forTheBar({ chemin: "/tmp/app.json", projets: [{ ...near, couleurs: { onglet: "#a98cf2", accent: "#f08dbe" } }, FANFARE] }, () => true), []);
+    await repos();
+    assert.deepEqual(saidOnes(vue), ["accent, in the space: close to the tab of fanfare — kept anyway"]);
+  });
+
+  test("la vue ne pose que deux variables — l'accent et la teinte d'un projet — et aucune règle d'état ne les nomme", () => {
+    const source = readFileSync(join(VUE, "vue.js"), "utf8");
+    assert.deepEqual([...new Set([...source.matchAll(/(?:setProperty|removeProperty)\("(--[a-z-]+)"/g)].map(([, name]) => name))].sort(), ["--accent", "--teinte"]);
+    const css = readFileSync(join(VUE, "vue.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+    for (const [, head = "", body = ""] of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+      if (!/data-ton|\.pastille|data-etat|data-verdict|\.refus|\.alerte/.test(head)) continue;
+      assert.doesNotMatch(body, /var\(--(accent|teinte)\)/, `${head.trim()} nomme une couleur de projet`);
+    }
+  });
+});

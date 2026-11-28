@@ -3,11 +3,16 @@
 // réponse envoyée, et le focus passe à la suivante. D'abord le module seul, puis le TODO du rail, puis la vue jouée.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
+import { forTheBar } from "../../../src/bar.ts";
 import type { CardOfTodo } from "../../../src/card-todo.ts";
-import { type Card, type Facts } from "../../../src/facts.ts";
+import { EXAMPLE } from "../../../src/config.ts";
+import { PALETTE } from "../../../src/colors.ts";
+import { holdFacts, type Card, type Facts } from "../../../src/facts.ts";
+import { HEADINGS } from "../../../src/tabs.ts";
+import { EFFORTS, MODELS } from "../../../src/projects/projects.ts";
 import { parkedTodo } from "../../../src/vue/parked/parked-todo.js";
 import { setTheTodo } from "../../../src/vue/kitchen/kitchen.js";
-import { Fake, type Played } from "../../helpers/false-vue.ts";
+import { Fake, type Played, playTheVue, repos } from "../../helpers/false-vue.ts";
 
 const doc = { createElement: (balise: string) => new Fake(balise) };
 const rec = (ticket: number) => ({ ticket, who: "chef", what: `thing ${ticket}`, until: null, step: "Cooks" });
@@ -109,6 +114,16 @@ const card = (ticket: number, more: Partial<Card> = {}): Card => ({ ticket, titr
 const todoCard = (more: Partial<CardOfTodo> = {}): CardOfTodo => ({ sorte: "product-question", question: "Ship it?", choix: [{ texte: "Yes", prix: "" }, { texte: "No", prix: "" }], prixDuTexte: "", ...more });
 
 describe("le TODO du rail, au clavier", () => {
+  test("`1` joue la réponse du premier choix, comme son bouton ; Entrée, le recommandé de la carte", () => {
+    const played: unknown[][] = [];
+    const gestures = { etat: () => ({ etape: "repos" }) as never, jouer: (...a: unknown[]) => void played.push(a) };
+    const set = () => setTheTodo(doc, { deplie: { ouvert: true }, cartes: [card(50, { todo: todoCard() }), card(51, { todo: todoCard({  }) })], ouvrir: () => {}, gestes: gestures as never }) as unknown as Fake;
+    const [fifty, fiftyOne] = set().dessous("li") as [Fake, Fake];
+    press(fifty, "1");
+    press(fiftyOne, "Enter");
+    set().dessous("li")[0]!.dessous("button").find(({ textContent }) => textContent === "Yes")!.click();
+    assert.deepEqual(played, [[50, "repondre", { question: "Ship it?", choix: 1 }], [51, "repondre", { question: "Ship it?", choix: 2 }], [50, "repondre", { question: "Ship it?", choix: 1 }]]);
+  });
 
   test("redessinée, une carte dont la réponse est en route ou attend la cuisine dit la réponse ; refusée, ses boutons reviennent ; partie du TODO, elle est oubliée", () => {
     const answered = new Map<number, string>();
@@ -134,9 +149,21 @@ const A = "2026-11-25T09:00:00.000Z";
 const url = (ticket: number) => `https://github.com/chef/parade/issues/${ticket}`;
 const QUESTION = { sorte: "product-question", texte: "Ship the export as CSV?\n- [resume] Yes, ship it\n- [close] No, drop it" };
 const WORLD: Facts = {
-  etat: "ouverte", lu: A, compteurs: { rail: 0, auTravail: 0, aLaPass: 0, attend: 0, livres24h: 0 }, cooks: [],
-  attend: [{ ticket: 50, titre: "Ticket 50", url: url(50), chef: QUESTION }, { ticket: 51, titre: "Ticket 51", url: url(51), chef: QUESTION }],
+  etat: "ouverte", lu: A, compteurs: { rail: 0, auTravail: 0, aLaPass: 0, attend: 0, livres24h: 0 }, attend: [{ ticket: 50, titre: "Ticket 50", url: url(50), chef: QUESTION }, { ticket: 51, titre: "Ticket 51", url: url(51), chef: QUESTION }],
 } as unknown as Facts;
+const startup = () => ({
+  configuration: forTheBar({ chemin: "/tmp/app.json", projets: [{ nom: PARADE, dossier: "/tmp/parade" }] }, () => true),
+  palette: PALETTE, exemple: EXAMPLE, rubriques: HEADINGS,
+  calibrage: { modeles: MODELS, efforts: EFFORTS }, });
+async function show(): Promise<Played> {
+  const vue = await playTheVue({ demarrage: startup, espace: () => [], ouvrirIssue: () => true, repondreCarte: () => ({ repondue: true, dit: "posted", commentaire: 7 }) });
+  (vue.element("projets").children.at(1) ?? assert.fail("pas d'entrée")).click();
+  await repos();
+  const receivedOne = holdFacts().recevoir({ projet: PARADE, demande: 0, a: A, sorties: [{ commande: "facts", texte: JSON.stringify(WORLD) }] });
+  vue.dire("surFaits", { ...receivedOne, demande: vue.dernier("faits")[0] as number });
+  await repos();
+  return vue;
+}
 const theTodo = (vue: Played): Fake => {
   const opinion = vue.element("rail").children.find(({ className }) => className === "avis-du-todo") ?? assert.fail("pas de TODO");
   const [line] = opinion.dessous("button");
@@ -145,3 +172,11 @@ const theTodo = (vue: Played): Fake => {
 };
 const entryOf = (vue: Played, ticket: number): Fake => theTodo(vue).dessous("li").find(({ dataset }) => dataset.ticket === String(ticket)) ?? assert.fail(`pas d'entrée #${ticket}`);
 
+test("la vue : `1` sur une entrée du TODO poste son premier choix par le pont, et l'entrée redessinée dit la réponse envoyée", async () => {
+  const vue = await show();
+  press(entryOf(vue, 50), "1");
+  await repos();
+  assert.deepEqual(vue.appels.filter(({ geste }) => geste === "repondreCarte").map(({ args }) => args), [[PARADE, 50, { question: "Ship the export as CSV?", choix: 1 }]]);
+  assert.equal(entryOf(vue, 50).textContent, "#50 Ticket 50 · answered: “Yes, ship it”");
+  assert.equal(entryOf(vue, 51).tabIndex, 0);
+});
