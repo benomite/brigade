@@ -6,7 +6,7 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { corpsDeCeQuiEstFait } from "../../../runtime/src/validation-design/brief.ts";
-import { retenirLeDesign } from "../../../runtime/src/validation-design/validation-design.ts";
+import { postTheCard } from "./card-posted.ts";
 import { cardOfChefOfTodo } from "../../src/card-todo.ts";
 import { holdFacts } from "../../src/facts.ts";
 import { readWhatAwaitingTheChef } from "../../src/board/wait-of-chef.ts";
@@ -78,21 +78,16 @@ function fakeGitHub() {
   return { github, appeler: call, issues, merges, pr, surLaPR: onThePR };
 }
 
-// La carte posée par le runtime, comme la pass la pose sur une livraison design verte qui porte ses captures : sur le ticket
+// La carte posée comme l'ancien runtime la posait (card-posted.ts), comme la pass la posait sur une livraison design verte qui porte ses captures : sur le ticket
 // même, qui devient la carte (ticket 3615). `avant` : ce qui se passe sur le faux avant que la pass ne la pose.
 async function cardOfTrial(before: (fake: ReturnType<typeof fakeGitHub>) => void = () => {}) {
   const fake = fakeGitHub();
   before(fake);
-  const motive = await retenirLeDesign(fake.github, {
-    depot: REPOSITORY,
-    station: "box/claude",
-    ticket: { number: TICKET, title: "Export the journal as CSV", labels: ["fire"] },
-    pr: { number: PR, sha: SHA },
-    fichiers: ["app/src/vue/rail.js", `docs/captures/${TICKET}/rail-avant.png`, `docs/captures/${TICKET}/rail-apres.png`],
-    renvoyer: async () => assert.fail("une livraison qui porte ses captures n'est pas renvoyée"),
-    jugerLeChoix: async () => ({ choix: "the layout of the rail" }),
-  });
-  assert.match(motive ?? "", /asked on #58/);
+  // What the ticket asked and what the cook said it changed, as the old runtime read them for the card's brief (#3330).
+  const ticketBody = fake.issues.get(TICKET)?.body ?? "";
+  const asked = ticketBody.includes("The chef copies") ? "Export the journal as CSV — The chef copies the journal by hand every week." : "Export the journal as CSV";
+  const done = fake.surLaPR.length > 0 ? ["the rail shows an Export as CSV button", "an empty journal greys it out"] : null;
+  await postTheCard(fake.github, { asked, done });
   assert.equal(fake.issues.size, 1, "no issue apart");
   return fake;
 }

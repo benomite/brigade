@@ -23,7 +23,6 @@ import type { LeconRecue } from "../apprentissage/injection.ts";
 import type { Base } from "../base.ts";
 import { recouvrement } from "../zones.ts";
 import { fichierDuProfil, parseDefinition, PROFILS_DIR, type DefinitionDeProfil } from "./definition.ts";
-import type { CarnetDonne } from "./evenements.ts";
 
 // Le carnet que reçoit le cook d'un profil : le profil, son domaine, sa
 // définition (relative au dépôt), et les leçons promues de son carnet.
@@ -85,8 +84,13 @@ export function carnetDuProfil(profil: DefinitionDeProfil): CarnetRecu {
   };
 }
 
+// Le carnet d'un profil donné au cook d'un ticket de son domaine, à son
+// lancement. `run` : ce cook. `name` et `zone` : le profil, et son domaine.
+// `lessons` : les ids des leçons du carnet qu'il a reçues.
+export type GivenNotebook = { run: string; name: string; zone: string; file: string; lessons: string[] };
+
 // Ce que le journal dit du carnet donné au cook `run`.
-export const carnetDonne = (run: string, carnet: CarnetRecu): CarnetDonne => ({
+export const carnetDonne = (run: string, carnet: CarnetRecu): GivenNotebook => ({
   run,
   name: carnet.nom,
   zone: carnet.domaine,

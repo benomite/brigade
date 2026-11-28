@@ -11,10 +11,6 @@ import type { TestContext } from "node:test";
 import { pathToFileURL } from "node:url";
 import { Sortie, type Commande } from "../src/appel.ts";
 import { signalerLArbre } from "../src/arbre.ts";
-import type { Fait } from "../src/evenements.ts";
-import { DECISIONS } from "../src/decisions.ts";
-import { cheminJournal, ouvrirJournal, type Journal } from "../src/journal.ts";
-import type { Projection } from "../src/projection.ts";
 
 // La doublure de `claude` : son scénario se choisit par la variable FAUX_CLAUDE.
 export const FAUX_CLAUDE = join(import.meta.dirname, "aides/faux-claude.sh");
@@ -213,12 +209,6 @@ export function repertoireTemporaire(t: TestContext): string {
   return repertoire;
 }
 
-// Un fait d'un domaine que le runtime ne connaît pas encore (rail, pass…) : le
-// journal doit le porter sans le comprendre.
-export function faitInconnu(type: string, payload: Record<string, unknown> = {}): Fait {
-  return { type, payload } as unknown as Fait;
-}
-
 // Le jour que lit un test qui compare une valeur écrite par le runtime : la même
 // constante que l'horloge, pour que changer l'un ne casse pas l'autre.
 export const JOUR_HORLOGE = "2026-10-08";
@@ -239,17 +229,6 @@ export function horloge(depart = `${JOUR_HORLOGE}T10:00:00.000Z`): () => Date {
   };
 }
 
-// L'état complet des projections : le contenu de chacune de leurs tables.
-export function photographier(journal: Journal, projections: Projection[]): Record<string, unknown[]> {
-  const photo: Record<string, unknown[]> = {};
-  for (const projection of projections) {
-    for (const table of projection.tables) {
-      photo[`${projection.nom}/${table}`] = journal.base.lire(`SELECT * FROM ${table} ORDER BY rowid`);
-    }
-  }
-  return photo;
-}
-
 export type Enfant = {
   process: ChildProcess;
   sortie: () => string;
@@ -259,73 +238,12 @@ export type Enfant = {
   fin: Promise<number | null>;
 };
 
-// Un journal neuf, schéma posé, sans un événement : fabriqué une fois par
-// process, puis copié là où un test en veut un — poser tout le schéma à chaque
-// lancement coûte deux fois plus que d'ouvrir celui-ci.
-let octetsDuJournalVide: Buffer | undefined;
-function journalVide(): Buffer {
-  if (octetsDuJournalVide === undefined) {
-    const repertoire = mkdtempSync(join(tmpdir(), "brigade-journal-vide-"));
-    try {
-      ouvrirJournal(repertoire).fermer();
-      octetsDuJournalVide = readFileSync(cheminJournal(repertoire));
-    } finally {
-      rmSync(repertoire, { recursive: true, force: true });
-    }
-  }
-  return octetsDuJournalVide;
-}
-
-// Pose ce journal vide dans un répertoire d'état qui n'en a pas encore : ce
-// qu'un runtime qui démarre y trouve alors, c'est le schéma qu'il aurait posé.
-export function poserJournalVide(repertoire: string): void {
-  if (!existsSync(cheminJournal(repertoire))) writeFileSync(cheminJournal(repertoire), journalVide());
-}
-
-// Les décisions du chef n'ont plus que le journal pour support : ce qu'un test
-// donne par variable à un runtime, le chef l'a posé au journal avant son
-// démarrage — tel quel, valeur illisible comprise, que le runtime refusera.
-// Ce que le journal porte déjà n'est pas écrasé, et la variable reste alors à
-// l'environnement : le runtime l'ignore et le dit.
-// `BRIGADE_TEST_SANS_DECISIONS=1` laisse les variables où elles sont.
-export function decisionsAuJournal(fichier: string, env: Record<string, string>): Record<string, string> {
-  const { BRIGADE_TEST_SANS_DECISIONS: sans, ...reste } = env;
-  const decisions = DECISIONS.filter((nom) => (reste[nom] ?? "") !== "");
-  const etat = reste.BRIGADE_STATE_DIR;
-  if (sans === "1" || !fichier.endsWith("main.ts") || decisions.length === 0 || !etat || !existsSync(etat)) return reste;
-  poserJournalVide(etat);
-  const journal = ouvrirJournal(etat);
-  try {
-    const posees = new Set(journal.tout().filter((e) => e.type === "decision.set").map((e) => String(e.payload.name)));
-    for (const nom of decisions) {
-      if (posees.has(nom)) continue;
-      journal.ajouter({ project: reste.BRIGADE_PROJECT ?? "brigade", ticket: null, author: "chef", type: "decision.set", payload: { name: nom, value: reste[nom] ?? "", previous: null } });
-      delete reste[nom];
-    }
-  } finally {
-    journal.fermer();
-  }
-  return reste;
-}
-
-// Ce que le runtime n'a rien écrit : un journal absent, ou qui ne porte que les
-// décisions du chef.
-export function rienEcritParLeRuntime(repertoire: string): boolean {
-  if (!existsSync(join(repertoire, "log.db"))) return true;
-  const journal = ouvrirJournal(repertoire, { lectureSeule: true });
-  try {
-    return journal.tout().every((e) => e.type === "decision.set");
-  } finally {
-    journal.fermer();
-  }
-}
-
 // Lance un fichier TypeScript dans un vrai process Node, tué à la fin du test
 // s'il vit encore. L'environnement est celui qu'on lui donne, plus ENV_ENFANT :
 // un BRIGADE_STATE_DIR posé dans le shell du dev ne lui parvient jamais.
 export function lancer(t: TestContext, fichier: string, args: string[] = [], env: Record<string, string> = {}): Enfant {
   const enfant = spawn(process.execPath, [fichier, ...args], {
-    env: { ...ENV_ENFANT, ...decisionsAuJournal(fichier, env) },
+    env: { ...ENV_ENFANT, ...env },
     stdio: ["ignore", "pipe", "pipe"],
   });
   let sortie = "";

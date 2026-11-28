@@ -2,44 +2,60 @@
 // la ligne de sa station par l'accueil. Le réglage ne part plus de l'app (#2061) : aucune box ne lit plus de tableau
 // de la cuisine.
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { describe, test } from "node:test";
-import { decrireEtat, lireEtat } from "../../runtime/src/etat.ts";
-import { ouvrirJournal } from "../../runtime/src/journal.ts";
-import type { EtatStation } from "../../runtime/src/projections/stations.ts";
 import { holdHome } from "../src/home.ts";
 import { capsOf } from "../src/cap.ts";
 import type { StationVue } from "../src/stations/stations.ts";
 
 const A = "2026-10-16T12:00:00.000Z";
 
-const station = (name: string, fields: Partial<EtatStation> = {}): EtatStation => ({
-  station: name, engine: "claude", provides: ["code"], maxCooks: 0, cores: 8, cap: null, announcedAt: "2026-10-16T08:00:00.000Z",
-  quotaUntil: null, quotaReason: null, fallbackEngine: null, fallbackQuotaUntil: null, disconnectedAt: null, disconnectedReason: null,
-  saturatedAt: null, saturatedResource: null, saturatedObserved: null, saturatedLimit: null, saturatedCauses: [],
-  heldAt: null, heldReason: null, unarbitratedAt: null, unarbitratedReason: null,
-  remote: false, seenAt: null, presentSince: null, ordinary: false, sandbox: null,
-  ...fields,
-});
-
-// Le `status` tel que le runtime l'écrit pour ces stations.
-function statusOf(stations: EtatStation[]): string {
-  const directory = mkdtempSync(join(tmpdir(), "brigade-app-plafond-"));
-  const log = ouvrirJournal(directory);
-  try {
-    const now = new Date(A);
-    return decrireEtat({ ...lireEtat(log, now), stations }, now).join("\n");
-  } finally {
-    log.fermer();
-    rmSync(directory, { recursive: true, force: true });
-  }
-}
+// Le `status` tel que le runtime l'écrivait (ancien `decrireEtat`, runtime/src/etat.ts), figé : d'abord pour quatre
+// stations — `box` (8 cœurs), `mac/claude` (plafond 5 posé par le chef), `vieille` (2 déclarés, cœurs inconnus) et
+// `libre` (sans limite, posée par le chef) —, puis pour `box` seule.
+const STATUS_OF_FOUR =
+  "project    unknown — empty log\n" +
+  "runtime    never started\n" +
+  "kitchen    open · breaker closed (0 failures in a row, opens at ?)\n" +
+  "backup     NEVER DONE — is the timer `brigade-sauvegarde@<projet>` running?\n" +
+  "\n" +
+  "awaiting   nothing awaits the chef\n" +
+  "end awaiting\n" +
+  "\n" +
+  "rail       empty\n" +
+  "\n" +
+  "cooks      none running — box: 6 at most — 8 cores, mac/claude: 5 at most — set by you, replaces 6 (8 cores), vieille: 2 at most — declared, libre: no limit — set by you, replaces 6 (8 cores)\n" +
+  "\n" +
+  "consumed   in flight: nothing\n" +
+  "           5 h: nothing\n" +
+  "           24 h: nothing\n" +
+  "           what this project has launched, not the account's consumption: /usage gives it\n" +
+  "\n" +
+  "latest events\n" +
+  "  none";
+const STATUS_OF_BOX =
+  "project    unknown — empty log\n" +
+  "runtime    never started\n" +
+  "kitchen    open · breaker closed (0 failures in a row, opens at ?)\n" +
+  "backup     NEVER DONE — is the timer `brigade-sauvegarde@<projet>` running?\n" +
+  "\n" +
+  "awaiting   nothing awaits the chef\n" +
+  "end awaiting\n" +
+  "\n" +
+  "rail       empty\n" +
+  "\n" +
+  "cooks      none running — box: 6 at most — 8 cores\n" +
+  "\n" +
+  "consumed   in flight: nothing\n" +
+  "           5 h: nothing\n" +
+  "           24 h: nothing\n" +
+  "           what this project has launched, not the account's consumption: /usage gives it\n" +
+  "\n" +
+  "latest events\n" +
+  "  none";
 
 describe("le plafond d'une station, tel que `status` le dit", () => {
   test("le défaut dit d'où il vient, le réglage du chef dit ce qu'il remplace", () => {
-    const caps = capsOf(statusOf([station("box"), station("mac/claude", { cap: 5 }), station("vieille", { cores: null, maxCooks: 2 }), station("libre", { cap: 0 })]));
+    const caps = capsOf(STATUS_OF_FOUR);
     assert.deepEqual(caps.get("box"), { dit: "6 at most — 8 cores", nombre: 6, parLeChef: false });
     assert.deepEqual(caps.get("mac/claude"), { dit: "5 at most — set by you, replaces 6 (8 cores)", nombre: 5, parLeChef: true, remplace: "6" });
     assert.deepEqual(caps.get("vieille"), { dit: "2 at most — declared", nombre: 2, parLeChef: false });
@@ -63,7 +79,7 @@ describe("l'accueil pose le plafond sur la ligne de leur station", () => {
   test("la page peut régler une station dont un projet lu dit le plafond — et seulement celle-là", () => {
     const home = holdHome({ projets: () => [{ nom: "brigade", servi: true }], maintenant: () => Date.parse(A) });
     home.stations({ a: A, stations: [vue("box"), vue("autre")] });
-    const seenOne = home.status({ projet: "brigade", demande: 1, a: A, attend: undefined, sorties: [{ commande: "status", texte: statusOf([station("box")]) }] });
+    const seenOne = home.status({ projet: "brigade", demande: 1, a: A, attend: undefined, sorties: [{ commande: "status", texte: STATUS_OF_BOX }] });
     const [box, other] = seenOne?.stations ?? [];
     assert.equal(box?.plafond?.dit, "6 at most — 8 cores");
     assert.equal(box?.reglable, true);

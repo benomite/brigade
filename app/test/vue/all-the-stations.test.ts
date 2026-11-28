@@ -5,7 +5,7 @@
 // devant un faux document (helpers/false-vue.ts).
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import type { Faits as FactsOfRuntime } from "../../../runtime/src/etat.ts";
+import type { Facts as FactsOfRuntime } from "../../src/facts.ts"; // the app's own Facts (the old runtime's etat.ts is gone)
 import type { Home } from "../../src/home.ts";
 import { forTheBar } from "../../src/bar.ts";
 import { EXAMPLE, type Project } from "../../src/config.ts";
@@ -45,7 +45,7 @@ const ON_THE_BOX: ProjectSeen = {
 };
 const seenOf = (...projects: ProjectSeen[]): SeenOfProjects => ({ a: A, projets: projects, locale: "gmac", recommandee: "gbox", avertissements: {}, machines: { gbox: machineProposed(BOX), gmac: machineProposed(MAC), gpc: machineProposed(PC) }, calibrage: calibrationRecommended([]) });
 
-type OfRuntime = FactsOfRuntime["stations"][number];
+type OfRuntime = NonNullable<FactsOfRuntime["stations"]>[number];
 const station = (name: string, more: Partial<OfRuntime> = {}): OfRuntime => ({ station: name, distante: false, plafond: 3, ordinaires: false, bacASable: null, prendOrdinaires: true, cuisson: "cooking", arreteeDepuis: null, refus: null, cooks: [], ...more });
 const COOK_14 = { ticket: 14, titre: "Le journal en ajout seul", station: "box/claude" };
 // `facts` de la box : elle seule s'y est annoncée — le Mac, déclaré, ne l'a pas encore fait.
@@ -128,7 +128,7 @@ describe("une carte par station qui sert le projet, chacune une fois (#1786, #31
 describe("chaque carte dit sa station telle que `facts` la voit (#1830)", () => {
   // mirrorscreen : la cuisine lit le Mac mais il ne s'est jamais manifesté à elle ; l'app, elle, le lit en ligne sur GitHub.
   const THE_BOX = station("box/claude", { cooks: [COOK_14], fournit: ["code", "raisonnement"], presente: true, vueLe: null });
-  const THE_MAC = station("macbook/claude", { distante: true, ensemble: true, fournit: ["code", "raisonnement", "navigateur-headless", "macos"], presente: false, vueLe: null });
+  const THE_MAC = station("macbook/claude", { distante: true, fournit: ["code", "raisonnement", "navigateur-headless", "macos"], presente: false, vueLe: null });
 
   test("que la box ne voit pas, le Mac ne cuit pas — jamais vert, même en ligne sur GitHub ; la box, elle, est en ligne", async () => {
     const vue = await open(seenOf(ON_THE_BOX), [THE_BOX, THE_MAC]);

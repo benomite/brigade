@@ -5,14 +5,19 @@
 // mergé. Une vérification ajoutée ou retirée se propose de même ; la liste en vigueur ne change qu'au merge.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { brancheDuTicket } from "../../runtime/src/brigade-github.ts";
-import { COOKS_PAR_DEFAUT, RETRAITS_PAR_DEFAUT, TOKENS_PAR_DEFAUT } from "../../runtime/src/closing/settings.ts";
 import { CLES_DU_CLOSER, reglagesDuTexte } from "../../runtime/src/reglages-projet/reglages.ts";
 import { changeTheSetting, changeTheVerifications, readTheCloser, readPass, SETTINGS, textOfVerifications, VERIFICATIONS, verificationsOf } from "../src/closer-health.ts";
 import { FILE } from "../src/caps-duration.ts";
 import { PROPOSES } from "../src/box.ts";
 import type { ClientOfThePriority } from "../src/priority.ts";
 import type { AnswerGitHub } from "../src/board/client.ts";
+
+// The branch of a ticket's cook, as the old runtime named it (`brancheDuTicket` of brigade-github.ts, deleted in #4775).
+const brancheDuTicket = (issue: number) => `cook/${issue}-github`;
+// The closer's defaults, as the old runtime's closing/settings.ts set them (deleted in #4775).
+const COOKS_PAR_DEFAUT = 1;
+const TOKENS_PAR_DEFAUT = 500_000;
+const RETRAITS_PAR_DEFAUT = 500;
 
 const REPOSITORY = "chef/parade";
 const PROJECT = { version: 1, integrationBranch: "main", defaultCalibrations: { manager: { model: "sonnet", effort: "medium" } }, closer: { maxTokens: 300000 }, drift: { ticketTokens: 900 } };

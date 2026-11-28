@@ -1,15 +1,7 @@
-// Les leçons qu'un cook reçoit à son lancement : les provisoires de son projet,
-// et de lui seul, les plus récentes d'abord, au plus `plafond` — un réglage du
-// projet, pour que le contexte d'un cook ne grossisse pas sans fin. Une leçon
-// est récente par la rétro qui l'a proposée. Celle que le carnet du dépôt
-// tient — promue, ou sortie — n'est plus provisoire : elle n'est pas reçue.
-//
-// Ce qu'il a reçu est au journal, à son lancement (`lessons` de
-// `cook.launched`, leurs ids) : une liste vide dit qu'il n'en a reçu aucune.
-import type { Base } from "../base.ts";
-import { parseCarnet } from "../carnet/carnet.ts";
-import { lire } from "../plafonds.ts";
-import { leconsProvisoires } from "./provisoires.ts";
+// Les leçons qu'un cook reçoit à son lancement : au plus `plafond` — un réglage
+// du projet, pour que le contexte d'un cook ne grossisse pas sans fin —, et le
+// bloc que sa consigne en porte.
+import { readNumber } from "../invalid-config.ts";
 
 export const LECONS_INJECTEES_PAR_DEFAUT = 20;
 export const VARIABLE_LECONS_INJECTEES = "BRIGADE_INJECTED_LESSONS";
@@ -18,36 +10,12 @@ export const VARIABLE_LECONS_INJECTEES = "BRIGADE_INJECTED_LESSONS";
 // des leçons (`seuils/seuils.ts`). Zéro : ses cooks n'en reçoivent aucune. Une
 // valeur illisible refuse le démarrage en nommant la variable.
 export function lirePlafondDesLecons(env: NodeJS.ProcessEnv): number {
-  return lire(env, VARIABLE_LECONS_INJECTEES, LECONS_INJECTEES_PAR_DEFAUT, "an integer, zero or more", (valeur) => Number.isSafeInteger(valeur) && valeur >= 0);
+  return readNumber(env, VARIABLE_LECONS_INJECTEES, LECONS_INJECTEES_PAR_DEFAUT, "an integer, zero or more", (valeur) => Number.isSafeInteger(valeur) && valeur >= 0);
 }
 
 // `etage` : une leçon de l'étage commun de l'installation, acceptée par le
 // chef (`commun/etage.ts`) — absente, une leçon provisoire du projet.
 export type LeconRecue = { id: string; texte: string; etage?: "commun" };
-
-// Les ids que le carnet du dépôt tient. Un carnet illisible n'en retire
-// aucune : le cook part tout de même, avec les leçons du journal.
-function idsDuCarnet(carnet: string | null): Set<string> {
-  if (carnet === null) return new Set();
-  try {
-    return new Set(parseCarnet(carnet).lessons.map((lecon) => lecon.id));
-  } catch {
-    return new Set();
-  }
-}
-
-// Les leçons que reçoit un cook du projet : les `plafond` plus récentes, la
-// plus récente d'abord. `carnet` : le texte du carnet à la base, null s'il n'y
-// en a pas.
-export function leconsAInjecter(base: Base, projet: string, reglage: { plafond: number; carnet: string | null }): LeconRecue[] {
-  if (reglage.plafond <= 0) return [];
-  const tenues = idsDuCarnet(reglage.carnet);
-  return leconsProvisoires(base, projet)
-    .filter((lecon) => !tenues.has(lecon.id))
-    .slice(-reglage.plafond)
-    .reverse()
-    .map((lecon) => ({ id: lecon.id, texte: lecon.texte }));
-}
 
 // Ce que la consigne d'un cook en dit : rien sans leçon, sinon chacune avec
 // son id — celui qu'une rétro reconfirme. Les leçons de l'étage commun ont

@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test } from "node:test";
-import type { Faits as FactsOfRuntime } from "../../runtime/src/etat.ts";
+import type { Facts as FactsOfRuntime } from "../src/facts.ts"; // the app's own Facts (the old runtime's etat.ts is gone)
 import { forTheBar } from "../src/bar.ts";
 import { EXAMPLE } from "../src/config.ts";
 import { PALETTE } from "../src/colors.ts";
@@ -70,7 +70,7 @@ const startup = () => ({
   code: undefined,
 });
 
-type Station = FactsOfRuntime["stations"][number];
+type Station = NonNullable<FactsOfRuntime["stations"]>[number];
 const station = (name: string, more: Partial<Station> = {}): Station => ({
   station: name,
   distante: false,

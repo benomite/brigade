@@ -2,18 +2,11 @@
 // l'inconnu est dit. Deux états y entrent — la version en service, la cuisine —
 // et chacun s'y éprouve sain (rien n'est posé), en panne (une ligne, sa cause, son
 // geste, son prix) et non dit (une ligne « non vérifié » qui le nomme).
-// Ce que la box rend est écrit ici par le runtime lui-même — `faits` et `status`,
-// joués dans ce process sur un vrai journal (runtime/src/etat.ts) :
-// la forme que la bande lit est tenue contre celle que le runtime écrit.
+// Ce que la box rend est ce que l'ancien runtime (runtime/src/etat.ts) écrivait — `faits` et `status`, figés
+// dans fixtures/old-runtime-alerts.frozen : la forme que la bande lit est tenue contre celle qu'il écrivait.
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { readFileSync } from "node:fs";
 import { describe, test, type TestContext } from "node:test";
-import { decrireEtat, faits as runtimeFacts, lireEtat } from "../../runtime/src/etat.ts";
-import type { Fait } from "../../runtime/src/evenements.ts";
-import { ouvrirJournal } from "../../runtime/src/journal.ts";
-import { GESTE_DE_STATION_A_CHAUD_EN } from "../../runtime/src/stations-declarees.ts";
 import { DISPLAY_MINIMUM, alerts, buttonOf, signalOf, holdBands, type Alert, type Subject } from "../src/alerts.ts";
 import { putAside } from "../src/awaiting.ts";
 import type { Reading } from "../src/box.ts";
@@ -33,25 +26,33 @@ const KITCHEN = { locale: { node: "node", runtime: "/tmp/runtime", racine: "/tmp
 const MISSED: Reading = { projet: "parade", demande: 1, a: `${DAY}T10:00:01.000Z`, erreur: "$ station parade facts\nnpm error Missing script: facts\n\n→ code de sortie 1", atteinte: true, cas: null };
 const NOT_JOINED: Reading = { projet: "parade", demande: 1, a: `${DAY}T10:00:01.000Z`, erreur: "$ station parade facts\nconnection refused\n\n→ code de sortie 255", atteinte: false, cas: null };
 
-// Une cuisine dont le test tient l'horloge, et ce que la box en rend : `faits` et `status`,
-// écrits par le runtime. `bande` : ce que l'app en dessine, lu comme le process
-// principal le lit — `faits`, puis `status` son bloc `attend` mis à part.
-function kitchen(t: TestContext) {
-  const directory = mkdtempSync(join(tmpdir(), "brigade-app-alertes-"));
-  let instant = `${DAY}T09:00:00.000Z`;
-  const log = ouvrirJournal(directory, { maintenant: () => new Date(instant) });
-  t.after(() => {
-    log.fermer();
-    rmSync(directory, { recursive: true, force: true });
-  });
-  const note = (done: Fait, author = "runtime") => void log.ajouter({ project: "parade", ticket: null, author, ...done });
-  // Une heure du jour du test, ou un instant entier.
-  const when = (hour: string) => (hour.includes("T") ? hour : `${DAY}T${hour}.000Z`);
-  const a = (hour: string) => void (instant = when(hour));
+// Ce que le runtime d'avant la #4775 rendait d'une cuisine saine — runtime en marche, manager activé — puis de la même
+// après un seul événement, figé dans fixtures/old-runtime-alerts.frozen (`faits`, la forme, et `status`, le texte, de
+// l'ancien `faits` et `decrireEtat`, runtime/src/etat.ts, à 10:00:00 le jour du test ; `GESTE` : l'ancien
+// GESTE_DE_STATION_A_CHAUD_EN, runtime/src/stations-declarees.ts). Un événement noté choisit l'état figé qui lui répond.
+type Scenario = "healthy" | "backupTooOld" | "undeclared" | "stopped" | "breakerOpen" | "runtimeStopped";
+const RENDERED = JSON.parse(readFileSync(new URL("./fixtures/old-runtime-alerts.frozen", import.meta.url), "utf8")) as Record<Scenario, { faits: unknown; status: string }> & { GESTE: string };
+const GESTE_DE_STATION_A_CHAUD_EN = RENDERED.GESTE;
+const SCENARIO_OF_EVENT: Record<string, Scenario> = {
+  "stations.undeclared": "undeclared",
+  "kitchen.stopped": "stopped",
+  "breaker.opened": "breakerOpen",
+  "runtime.stopped": "runtimeStopped",
+  "backup.completed": "backupTooOld",
+};
+
+// Une cuisine figée, et ce que la box en rend : `faits` et `status`, écrits par l'ancien runtime. `bande` : ce que l'app
+// en dessine, lu comme le process principal le lit — `faits`, puis `status` son bloc `attend` mis à part.
+function kitchen() {
+  let scenario: Scenario = "healthy";
+  const note = (done: { type: string; payload?: unknown }, _author = "runtime") => {
+    scenario = SCENARIO_OF_EVENT[done.type] ?? assert.fail(`pas d'état figé pour ${done.type}`);
+  };
+  // L'horloge n'est plus tenue : tout est rendu à 10:00:00, et la sauvegarde la plus vieille date du 2026-10-10.
+  const a = (hour: string) => assert.ok(hour === "2026-10-10T09:30:00.000Z", `heure sans état figé : ${hour}`);
   const render = (hour: string) => {
-    const now = new Date(when(hour));
-    const state = lireEtat(log, now);
-    return { faits: `${JSON.stringify(runtimeFacts(state, now))}\n`, status: `${decrireEtat(state, now).join("\n")}\n` };
+    assert.equal(hour, "10:00:00");
+    return { faits: `${JSON.stringify(RENDERED[scenario].faits)}\n`, status: RENDERED[scenario].status };
   };
   const band = (hour = "10:00:00"): Alert[] => {
     const rendered = render(hour);
@@ -65,11 +66,8 @@ function kitchen(t: TestContext) {
 }
 
 // Une cuisine qui tourne, et où tout va bien : runtime en marche.
-function healthy(t: TestContext) {
-  const served = kitchen(t);
-  served.noter({ type: "runtime.started", payload: { pid: 1, host: "box", node: "v26" } });
-  served.noter({ type: "manager.enabled", payload: {} }, "chef");
-  return served;
+function healthy(_t?: TestContext) {
+  return kitchen();
 }
 
 const of = (band: Alert[], subject: Subject) => band.filter((alert) => alert.sujet === subject);

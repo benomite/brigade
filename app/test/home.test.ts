@@ -2,13 +2,7 @@
 // quelques mots de l'app, sa pastille posée d'après des règles fixes, et rien de brut : ni commande,
 // ni texte d'erreur. Ce qui se calcule ici ; ce que la vue en pose est dans accueil-vue.test.ts.
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { describe, test } from "node:test";
-import { decrireEtat, lireEtat } from "../../runtime/src/etat.ts";
-import { ouvrirJournal } from "../../runtime/src/journal.ts";
-import type { EtatStation } from "../../runtime/src/projections/stations.ts";
 import { lineOfProject, lineOfStation, health, holdHome, type ReadFacts, type ProjectOfTheHome } from "../src/home.ts";
 import type { Facts } from "../src/facts.ts";
 import { hourShort } from "../src/format.ts";
@@ -34,7 +28,7 @@ const someFacts = (fields: Partial<Facts> = {}, counters: Partial<Facts["compteu
 });
 const readOnes = (facts: Facts): ReadFacts => ({ a: A, faits: facts });
 const cook = (ticket: number, station = "parade-box") => ({ ticket, titre: `ticket ${ticket}`, station });
-// Le bloc `attend` tel que `status` l'écrit (runtime/src/attend.ts, `decrireAttentes`).
+// Le bloc `attend` tel que `status` l'écrit (l'ancien runtime/src/attend.ts, `decrireAttentes`).
 const ONE = "attend     1 décision attend le chef depuis 2 j\n  #867  depuis 2 j  merge à faire  Titre\nfin attend\n";
 const FIVE = "attend     5 décisions attendent le chef — la plus ancienne depuis 2 j\n  #1  depuis 2 j  merge\nfin attend\n";
 const BASE_RED = [

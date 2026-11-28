@@ -3,15 +3,13 @@
 // l'onglet Rail. Le bouton ne part plus de l'app (#2061) : aucune box ne lit plus de tableau de la cuisine.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import type { Faits as FactsOfRuntime } from "../../runtime/src/etat.ts";
-import { PASS_A_L_OUVRAGE as PASS_OF_RUNTIME } from "../../runtime/src/activites.ts";
 import { ABSENT, cookingOf, PASS_AT_THE_WORK } from "../src/cooking.ts";
-import { holdFacts, type Facts } from "../src/facts.ts";
+import { holdFacts, type AgentRead, type Facts } from "../src/facts.ts";
 import type { FactsStation } from "../src/ordinary.ts";
 
 const READ = "2026-10-20T10:04:11.000Z";
-type OfRuntime = FactsOfRuntime["stations"][number];
-// Une station telle que le runtime la rend dans `facts` (runtime/src/etat.ts), mot pour mot.
+// Une station telle que le runtime la rend dans `facts`, mot pour mot (la forme de l'app : FactsStation).
+type OfRuntime = FactsStation;
 const station = (name: string, more: Partial<OfRuntime> = {}): OfRuntime => ({
   station: name,
   distante: false,
@@ -144,7 +142,7 @@ describe("les stations lues d'un projet", () => {
 });
 
 describe("ce que chaque station fait tourner hors de ses cooks (#1971)", () => {
-  type Agents = FactsOfRuntime["agents"];
+  type Agents = AgentRead[];
   // Une lecture de `facts` qui porte ces stations, ces agents et ce rail.
   function readWith(stations: OfRuntime[], agents: Agents | undefined, rail: Facts["rail"] = []) {
     const heldOnes = holdFacts();
@@ -200,6 +198,8 @@ describe("ce que chaque station fait tourner hors de ses cooks (#1971)", () => {
   });
 
   test("les phases où la pass travaille sont celles du runtime, une pour une", () => {
+    // Les phases du runtime (l'ancien `PASS_A_L_OUVRAGE`, runtime/src/activites.ts), recopiées une pour une.
+    const PASS_OF_RUNTIME = ["running the gates", "review running since", "judging", "merging"];
     assert.deepEqual([...PASS_AT_THE_WORK].sort(), [...PASS_OF_RUNTIME].sort());
   });
 });

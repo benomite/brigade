@@ -6,10 +6,8 @@ import { spawnSync } from "node:child_process";
 import { chmodSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { configIdentites, ROLES } from "../src/identites.ts";
 import { configJeton } from "../src/jeton-claude.ts";
-import { ConfigInvalide } from "../src/runtime.ts";
-import { configSecrets, lireSecrets } from "../src/secrets.ts";
+import { InvalidConfig } from "../src/invalid-config.ts";
 import { defautDeLAcl, ecrireSecret, lireAcl, ouvertADAutres, ouvertsParLAcl, remedeWindows, type Acl, type Regle } from "../src/droits.ts";
 import { EVERYONE, exposer, icacls, REMEDE, USERS } from "./aides/droits.ts";
 import { repertoireTemporaire } from "./outils.ts";
@@ -168,45 +166,19 @@ test("on Windows, a file opened to Everyone or Users, or inheriting Users from i
   }
 });
 
-test("starting with a secrets file, a Max token or an App key that another account can read is refused, the file named with its fix — and no cook gets the secrets", (t) => {
+test("starting with a Max token that another account can read is refused, the file named with its fix", (t) => {
   const racine = repertoireTemporaire(t);
   const lieux = { repertoireEtat: join(racine, "etat"), clone: join(racine, "clone") };
-  const refuse = (lire: () => unknown, variable: string, fichier: string) =>
-    assert.throws(lire, (erreur: unknown) => {
-      assert.ok(erreur instanceof ConfigInvalide, String(erreur));
-      assert.ok(erreur.message.startsWith(`${variable} invalide : « ${fichier} » est lisible par d'autres que le compte du service`), erreur.message);
-      assert.match(erreur.message, REMEDE);
-      return true;
-    });
-
-  const secrets = join(racine, "secrets.env");
-  ecrireSecret(secrets, "CLE_API=une-valeur-de-dev\n");
   const jeton = join(racine, "jeton-claude");
   ecrireSecret(jeton, "sk-ant-oat01-un-jeton-fabrique-pour-le-test\n");
-  const apps = join(racine, "apps");
-  mkdirSync(apps);
-  ROLES.forEach((role, rang) => {
-    writeFileSync(join(apps, `${role}.id`), `${1001 + rang}\n`);
-    ecrireSecret(join(apps, `${role}.pem`), "pas une clé, mais au seul compte\n");
-  });
-
-  // Fermés, ils passent : la clé n'est refusée que d'être mal écrite.
-  assert.equal(configSecrets({ BRIGADE_SECRETS_FILE: secrets }, lieux), secrets);
+  // Fermé, il passe.
   assert.equal(configJeton({ BRIGADE_CLAUDE_TOKEN_FILE: jeton }, lieux), jeton);
-  assert.throws(() => configIdentites({ BRIGADE_GITHUB_APPS_DIR: apps }), /cook\.pem » n'est pas une clé privée/);
 
-  exposer(secrets);
   exposer(jeton);
-  exposer(join(apps, "cook.pem"));
-  refuse(() => configSecrets({ BRIGADE_SECRETS_FILE: secrets }, lieux), "BRIGADE_SECRETS_FILE", secrets);
-  refuse(() => configJeton({ BRIGADE_CLAUDE_TOKEN_FILE: jeton }, lieux), "BRIGADE_CLAUDE_TOKEN_FILE", jeton);
-  refuse(() => configIdentites({ BRIGADE_GITHUB_APPS_DIR: apps }), "BRIGADE_GITHUB_APPS_DIR", join(apps, "cook.pem"));
-
-  // Ouvert après le démarrage, le fichier n'est plus lu : aucun lancement ne part avec ses valeurs.
-  const worktree = join(racine, "worktree");
-  mkdirSync(join(worktree, ".claude/brigade"), { recursive: true });
-  writeFileSync(join(worktree, ".claude/brigade/secrets"), "CLE_API\n");
-  const lus = lireSecrets(worktree, secrets);
-  assert.equal(lus.pret, false);
-  assert.match(lus.pret ? "" : lus.problemes.join("\n"), REMEDE);
+  assert.throws(() => configJeton({ BRIGADE_CLAUDE_TOKEN_FILE: jeton }, lieux), (erreur: unknown) => {
+    assert.ok(erreur instanceof InvalidConfig, String(erreur));
+    assert.ok(erreur.message.startsWith(`BRIGADE_CLAUDE_TOKEN_FILE invalide : « ${jeton} » est lisible par d'autres que le compte du service`), erreur.message);
+    assert.match(erreur.message, REMEDE);
+    return true;
+  });
 });

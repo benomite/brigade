@@ -5,7 +5,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { configRail, priorite } from "../src/alimenter.ts";
-import { ConfigInvalide } from "../src/runtime.ts";
+import { InvalidConfig } from "../src/invalid-config.ts";
 import { DEPOT } from "./outils.ts";
 
 test("la priorité d'un ticket se lit dans ses labels — `prio:0`, celle de la réparation d'une base rouge, passe devant toutes", () => {
@@ -25,7 +25,7 @@ test("la configuration du rail vient de l'environnement ; le dépôt n'a pas de 
     configRail({ BRIGADE_GITHUB_REPO: "acme/brigade.v2", BRIGADE_LEASE_SECONDS: "90", BRIGADE_GH_BIN: "/tmp/gh" }),
     { depot: "acme/brigade.v2", dureeBailMs: 90_000, gh: "/tmp/gh", communs: [] },
   );
-  assert.throws(() => configRail({}), (e: unknown) => e instanceof ConfigInvalide && /BRIGADE_GITHUB_REPO is not set/.test(e.message));
+  assert.throws(() => configRail({}), (e: unknown) => e instanceof InvalidConfig && /BRIGADE_GITHUB_REPO is not set/.test(e.message));
   for (const depot of ["brigade", "acme/brigade/issues", "https://github.com/acme/brigade", "acme/ brigade"]) {
     assert.throws(() => configRail({ BRIGADE_GITHUB_REPO: depot }), /BRIGADE_GITHUB_REPO invalid/);
   }
@@ -39,6 +39,6 @@ test("les chemins communs du projet sont facultatifs, et ce sont des chemins du 
   assert.deepEqual(communs(""), []);
   assert.deepEqual(communs(" docs/runtime.md , CHANGELOG.md,, docs/runtime.md "), ["docs/runtime.md", "CHANGELOG.md"]);
   for (const valeur of ["/etc", "docs/../..", "docs/*.md", "~/notes"]) {
-    assert.throws(() => communs(valeur), (e: unknown) => e instanceof ConfigInvalide && /BRIGADE_COMMON_PATHS invalid/.test(e.message), valeur);
+    assert.throws(() => communs(valeur), (e: unknown) => e instanceof InvalidConfig && /BRIGADE_COMMON_PATHS invalid/.test(e.message), valeur);
   }
 });

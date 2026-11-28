@@ -6,7 +6,7 @@ import { createHash } from "node:crypto";
 import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync } from "node:fs";
 import { basename, dirname, join, posix, resolve } from "node:path";
 import { verifierAcces, type Acces } from "./projets/acces.ts";
-import { ConfigInvalide } from "./runtime.ts";
+import { InvalidConfig } from "./invalid-config.ts";
 
 export type Depot = {
   // Rapatrie la base depuis l'origine et crée le worktree du run, sur une
@@ -377,7 +377,7 @@ export function ouvrirDepot(options: OptionsDepot): Depot {
   try {
     commun = cheminReel(resolve(clone, git("rev-parse", "--git-common-dir")));
   } catch {
-    throw new ConfigInvalide(`BRIGADE_REPO_DIR invalide : « ${clone} » n'est pas un dépôt git — attendu un clone du dépôt du projet, réservé à la station`);
+    throw new InvalidConfig(`BRIGADE_REPO_DIR invalide : « ${clone} » n'est pas un dépôt git — attendu un clone du dépôt du projet, réservé à la station`);
   }
 
   // Un seul clone pour tous les cooks : deux rapatriements de la même base, ou

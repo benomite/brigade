@@ -1,21 +1,16 @@
-// Qui tient un ticket sur GitHub seul (#2220) : l'app lit les commentaires de prise comme la station qui prend le ticket
-// (runtime/src/github-etat/prise.ts, `tenant`) — les deux sont jouées ici sur les mêmes commentaires, et disent pareil.
+// Qui tient un ticket sur GitHub seul (#2220) : l'app lit les commentaires de prise (taking and release markers) ; chaque
+// cas dit la station qui tient. (The old runtime's `tenant`, deleted, used to be played on the same comments.)
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { corpsDeLacher, corpsDePrise, tenant } from "../../../../runtime/src/github-etat/prise.ts";
 import { stationsOfGithub, holdingOfTheIssue } from "../../../src/vue/cooks/taken.ts";
 
 type Comment = { id: number; body: string; author_association: string; created_at: string };
+// The comment bodies the stations post (formerly runtime/src/github-etat/prise.ts, `corpsDePrise` and `corpsDeLacher`).
+const corpsDePrise = (station: string) => `<!-- brigade:prise station=${station} -->\nTaken by station \`${station}\`.`;
+const corpsDeLacher = (station: string) => `<!-- brigade:lache station=${station} -->\nReleased by station \`${station}\`.`;
 const taking = (id: number, station: string, the: string, association = "OWNER"): Comment => ({ id, body: corpsDePrise(station), author_association: association, created_at: the });
 const release = (id: number, station: string, the: string): Comment => ({ id, body: corpsDeLacher(station), author_association: "OWNER", created_at: the });
 const removal = (label: string, the: string) => ({ event: "unlabeled", label: { name: label }, created_at: the });
-
-// Ce que le runtime dit des mêmes faits : la station qui tient, ou null.
-const ofRuntime = (comments: Comment[], events: ReturnType<typeof removal>[]) =>
-  tenant(
-    comments.map(({ id, body, author_association, created_at }) => ({ id, body, association: author_association, createdAt: created_at })),
-    events.map(({ label, created_at }) => ({ label: label.name, createdAt: created_at })),
-  )?.station ?? null;
 
 const CASE: { nom: string; commentaires: Comment[]; evenements: ReturnType<typeof removal>[]; tient: string | null }[] = [
   { nom: "aucune prise", commentaires: [], evenements: [], tient: null },
@@ -30,9 +25,8 @@ const CASE: { nom: string; commentaires: Comment[]; evenements: ReturnType<typeo
 
 describe("qui tient un ticket, d'après son issue", () => {
   for (const { nom: name, commentaires: comments, evenements: events, tient: holds } of CASE) {
-    test(`${name} — comme le runtime le lit`, () => {
+    test(name, () => {
       assert.equal(holdingOfTheIssue(comments, events)?.station ?? null, holds);
-      assert.equal(ofRuntime(comments, events), holds);
     });
   }
 

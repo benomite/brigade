@@ -3,11 +3,8 @@
 // suivi de ses stations, pas dans la demande ; et un déménagement en cours, écrit par le runtime
 // dans la demande (`remise`, `reprise`), survit à toute réécriture de l'app.
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { describe, test, type TestContext } from "node:test";
-import { accepterSansBacASable, decisionAttendue, lireDecisionSansBacASable } from "../../../runtime/src/onboarding/attente.ts";
 import { documentOfRequest, FILE_PROJECTS, FILE_TRACKING, readRequest, type ProjectRequest } from "../../src/projects/request.ts";
 import { type Mover } from "../../src/projects/move.ts";
 import { holdProjects, type SeenOfProjects } from "../../src/projects/projects.ts";
@@ -117,8 +114,8 @@ test("un déménagement en cours, écrit par le runtime dans la demande, survit 
   assert.deepEqual(readRequest(gists.gmac?.[FILE_PROJECTS]), [{ ...PARADE, reprise: resumption }]);
 });
 
-// « Continue without sandbox » (#1113) : la décision se note par la fonction du runtime, dans l'état du
-// projet sur cet ordinateur — pour la station qui le cuit, la seule que l'app atteigne.
+// « Continue without sandbox » (#1113) : la décision se note pour la station qui cuit le projet, la seule
+// que l'app atteigne.
 describe("continuer sans bac à sable", () => {
   const gistsOfParade = (mainOn: "gbox" | "gmac") => ({
     gbox: { [FILE_PROJECTS]: documentOfRequest([{ ...PARADE, principale: mainOn === "gbox" }]), [FILE_TRACKING]: tracking({ nom: "parade-box", locale: false }, [oneTracking({})]) },
@@ -128,22 +125,6 @@ describe("continuer sans bac à sable", () => {
     const projects = holdProjects({ github: oneGitHub(gistsOfParade(mainOn)), stations: () => [BOX, MAC], depots: async () => [], surLecture: () => {}, locale: () => "gmac", ...(acceptWithoutSandbox === undefined ? {} : { accepterSansBac: acceptWithoutSandbox }) });
     return projects;
   };
-
-  test("la principale est cet ordinateur : la décision est notée pour elle, avec le nom que la station se donne — et la retenue du runtime se lève", async () => {
-    const state = mkdtempSync(join(tmpdir(), "sans-bac-"));
-    const calls: Array<[string, string]> = [];
-    const projects = theProjectsWithoutSandbox("gmac", async (project, station) => {
-      calls.push([project, station]);
-      accepterSansBacASable({ repertoireEtat: state, station });
-    });
-    await projects.relire();
-    const facts = { station: "macbook", sansBacASable: true, decision: lireDecisionSansBacASable(state) };
-    assert.equal(decisionAttendue(facts), true);
-    const rendered = await projects.continuerSansBac("parade");
-    assert.deepEqual(calls, [["parade", "macbook"]]);
-    assert.ok("fait" in rendered);
-    assert.equal(decisionAttendue({ ...facts, decision: lireDecisionSansBacASable(state) }), false);
-  });
 
   test("la principale est ailleurs, le runtime absent ou en échec : un refus en une phrase, rien n'est noté", async () => {
     let notes = 0;

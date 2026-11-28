@@ -6,9 +6,6 @@
 // le faux pont (helpers/false-vue.ts), l'écriture contre un faux GitHub qui tient les gists en mémoire.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { besoinNomme } from "../../../../runtime/src/installation/besoins/catalogue.ts";
-import { ACTION_DU_CHOIX, choixPour, selectionsLues } from "../../../../runtime/src/installation/besoins/besoins.ts";
-import { lireDemande as requestOfRuntime } from "../../../../runtime/src/projets/demande.ts";
 import type { Home } from "../../../src/home.ts";
 import { forTheBar } from "../../../src/bar.ts";
 import { EXAMPLE, type Project } from "../../../src/config.ts";
@@ -21,15 +18,15 @@ import { calibrationRecommended, type Chosen, EFFORTS, machineProposed, MODELS, 
 import type { Files } from "../../../src/stations/github.ts";
 import type { StationVue, SeenOfStations } from "../../../src/stations/stations.ts";
 import { choiceQueued, IN_PROGRESS, setChoice, RECOMMENDED, withoutTheChoice, titleOfChoice } from "../../../src/vue/project/choice.js";
+import { ACTION_OF_CHOICE as ACTION_DU_CHOIX, CHOICES_OF_NEEDS } from "../../helpers/choices-of-needs.ts";
 import { Fake, playTheVue, repos } from "../../helpers/false-vue.ts";
 
 const doc = { createElement: (balise: string) => new Fake(balise) };
 
 // Tels que le runtime les écrit : un Postgres et Docker qui manquent à la box, en attente du chef.
-const need = (id: string) => besoinNomme(id) ?? assert.fail(`aucun besoin « ${id} » au catalogue`);
-const queued = (id: string, preuves: string[]) => ({ ...choixPour({ besoin: need(id), preuves }, { projet: "parade", station: "box", ailleurs: [] }), status: "pending" as const });
-const POSTGRES = queued("postgres", ["`.claude/brigade/worktree-setup.sh` runs `psql`"]);
-const DOCKER = queued("docker", ["`apps/api/package.json` depends on `testcontainers`"]);
+const queued = (id: keyof typeof CHOICES_OF_NEEDS) => ({ ...CHOICES_OF_NEEDS[id], status: "pending" as const });
+const POSTGRES = queued("postgres");
+const DOCKER = queued("docker");
 // Le blocage qui attend chacun, sous la même clé, et un autre blocage, sans choix.
 const blockageOf = ({ id, message, cause }: typeof POSTGRES) => ({ id, message, cause, action: ACTION_DU_CHOIX });
 const CLONE = { id: "clone", message: "box cannot clone benomite/parade.", cause: "The token does not cover benomite/parade.", link: "https://github.com/settings/personal-access-tokens" };
@@ -91,7 +88,7 @@ describe("les cartes, posées par le module", () => {
 
   test("un clic sur l'issue côté projet donne « setup-brings-it » avec la clé du choix ; la carte du navigateur garde ses issues", () => {
     const chosen: string[][] = [];
-    const browser = queued("browser", ["`package.json` depends on `playwright`"]);
+    const browser = queued("browser");
     const pose = set({ projet: "parade", choix: choiceReread([browser]), choisir: (id, issue) => chosen.push([id, issue]) });
     assert.deepEqual(buttons(pose).map((b) => b.textContent).slice(0, 3), ["Cook it on a station that has it", "Provide it on box", "Adapt the tests"]);
     buttons(pose).find((b) => b.textContent === "The project's setup brings it itself")?.click();
@@ -186,9 +183,9 @@ describe("l'issue retenue, écrite dans la demande de la principale", () => {
     assert.deepEqual(writtenOnes, ["g1"]);
     assert.deepEqual(rereadOne("g1")?.[0]?.choix, { "need:postgres": "provide-here" });
     assert.equal(rereadOne("g2")?.[0]?.choix, undefined);
-    const readOne = requestOfRuntime(gists.get("g1")?.[FILE_PROJECTS] ?? "");
-    assert.deepEqual(readOne?.problemes, []);
-    assert.deepEqual(selectionsLues(readOne?.projets[0]?.choix), { "need:postgres": "provide-here" });
+    // The written document itself (the old runtime's `lireDemande`, deleted, used to read it back): well-formed JSON carrying the choice.
+    const written = JSON.parse(gists.get("g1")?.[FILE_PROJECTS] ?? "null") as { projets?: Array<{ choix?: unknown }> } | null;
+    assert.deepEqual(written?.projets?.[0]?.choix, { "need:postgres": "provide-here" });
     // Relue, la page sait l'issue écrite : la carte du Postgres ne revient pas, celle de Docker reste.
     const seenOne = projects.vu()?.projets[0];
     assert.deepEqual(seenOne?.choisis, { "need:postgres": "provide-here" });

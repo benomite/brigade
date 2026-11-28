@@ -6,7 +6,6 @@
 import { execFile } from "./sans-invite.ts";
 import { type Calibrage, VUE_DE_L_APP } from "./calibrage.ts";
 import { dossierDesCaptures, VISUELS } from "./captures.ts";
-import type { FinDeCook } from "./events/station.ts";
 import { blocDesLecons, type LeconRecue } from "./apprentissage/injection.ts";
 import { CHEMIN_DE_LA_FICHE } from "./fiche-projet/defauts.ts";
 import type { FaitsDeLaCuisine } from "./fiche-projet/fiche.ts";
@@ -426,10 +425,13 @@ export function lireFlux(contenu: string): Lecture {
   return lecture;
 }
 
+// Comment un cook a fini : `86` : le quota de l'abonnement est épuisé.
+export type CookEnd = "done" | "failed" | "86" | "disconnected" | "refused";
+
 // La fin d'un cook que rien n'a arrêté. `subtype` n'entre pas en compte : il
 // vaut « success » même quand la session n'a jamais pu parler au modèle, ou
 // que le modèle a refusé de répondre.
-export function verdict(lecture: Lecture, code: number | null): FinDeCook {
+export function verdict(lecture: Lecture, code: number | null): CookEnd {
   if (lecture.deconnecte) return "disconnected";
   // Avant « done » : un refus ne livre rien, quoi qu'en disent `is_error` et
   // le code de sortie.

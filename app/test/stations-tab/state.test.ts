@@ -7,7 +7,6 @@ import { describe, test } from "node:test";
 import type { LineOfStation } from "../../src/cooking.ts";
 import type { MoveInProgress } from "../../src/projects/projects.ts";
 import type { StationVue } from "../../src/stations/stations.ts";
-import { stationDe } from "../../../runtime/src/stations-github/stations.ts";
 import {
   BLOCKED,
   COOKED_BY,
@@ -45,6 +44,11 @@ const BOX = station("gbox", "parade-box", ["parade"]);
 const MAC = station("gmac", "macbook", [], "en-ligne", "macOS 25.0.0");
 const line = (name: string, state: string, more: Partial<LineOfStation> = {}): LineOfStation => ({ station: name, distante: true, etat: state, dit: "", survol: "", cooks: [], agents: [], ...more });
 const cook = (ticket: number) => ({ ticket, titre: `ticket ${ticket}`, station: "parade-box/claude" });
+
+// Copy of the name a registered station takes tickets under (formerly runtime/src/stations-github/stations.ts,
+// `machineDe` + `stationDe`): the machine's name in lowercase, runs of other characters made one dash, then `/claude`.
+const machineDe = (name: string) => name.toLowerCase().replace(/[^\p{Ll}\p{N}-]+/gu, "-").replace(/^-+|-+$/g, "") || "station";
+const stationDe = (name: string) => `${machineDe(name)}/claude`;
 
 describe("la ligne du haut : un seul de quatre états (#3195)", () => {
   test("une station en ligne le sert : « Cooked by <station> · online · N cooks at work », vert", () => {

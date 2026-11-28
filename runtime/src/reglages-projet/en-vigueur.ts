@@ -22,7 +22,7 @@ import { lireALaBase } from "../depot.ts";
 import { CHEMIN_DE_LA_FICHE } from "../fiche-projet/defauts.ts";
 import { ficheDuTexte, FicheInvalide } from "../fiche-projet/fiche.ts";
 import { direHumains } from "../humains/humains.ts";
-import { ConfigInvalide } from "../runtime.ts";
+import { InvalidConfig } from "../invalid-config.ts";
 import { brancheDuClaudeMd, FAMILLES_DE_SEUILS, FICHIER, reglagesDuTexte, ReglageRefuse, roadmapDuClaudeMd, SEUILS_DU_PROJET, type ReglagesProjet } from "./reglages.ts";
 
 // Les réglages que la branche d'intégration porte, ou null si elle n'a pas le
@@ -256,7 +256,7 @@ export type DepotDuProjet = {
 // d'intégration, puis les réglages qu'elle porte. Sans clone, rien ne se lit
 // et rien ne change — c'est l'absence du clone que la cuisine refuse. Un
 // fichier qui n'est pas fait de réglages du projet est un refus d'ouvrir
-// (`ConfigInvalide`).
+// (`InvalidConfig`).
 export function lireLeDepot(env: Record<string, string | undefined>): DepotDuProjet {
   const clone = env.BRIGADE_REPO_DIR;
   const ligne = env.BRIGADE_BASE_BRANCH || null;
@@ -269,7 +269,7 @@ export function lireLeDepot(env: Record<string, string | undefined>): DepotDuPro
   try {
     lus = reglagesAuDemarrage(lieu);
   } catch (erreur) {
-    throw new ConfigInvalide(`the project's settings on origin/${lieu.base} are refused — ${message(erreur)}`);
+    throw new InvalidConfig(`the project's settings on origin/${lieu.base} are refused — ${message(erreur)}`);
   }
   return {
     env: { ...env, BRIGADE_BASE_BRANCH: branche.branche },

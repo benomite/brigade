@@ -4,7 +4,7 @@
 // configuration (`portes.ts`). Il ne lance rien : ni `claude`, ni `git`, ni le
 // code d'un projet.
 import { resolve } from "node:path";
-import { ConfigInvalide } from "../runtime.ts";
+import { InvalidConfig } from "../invalid-config.ts";
 import { configPortes, tenirPortes, VARIABLE_PORTES } from "./portes.ts";
 
 const REFUS = 2;
@@ -19,7 +19,7 @@ let fichier: string | null;
 try {
   fichier = configPortes(process.env);
 } catch (erreur) {
-  if (erreur instanceof ConfigInvalide) refuser(erreur.message);
+  if (erreur instanceof InvalidConfig) refuser(erreur.message);
   throw erreur;
 }
 if (fichier === null) refuser(`${VARIABLE_PORTES} n'est pas défini`);

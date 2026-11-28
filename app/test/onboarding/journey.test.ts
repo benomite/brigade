@@ -4,10 +4,8 @@
 // la raison et l'heure du prochain essai ; prêt, la phrase qui invite au premier ticket, puis plus
 // rien une fois écartée ou à la visite suivante. Les onboardings sont écrits dans la forme même du
 // runtime (`Onboarding`), et relus par `lireOnboarding` comme l'app relit le suivi d'une station.
-import { DIT_MODE_RESTREINT } from "../../../runtime/src/onboarding/mode-restreint.ts";
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import type { Onboarding as OfRuntime } from "../../../runtime/src/onboarding/etat.ts";
 import { forTheBar } from "../../src/bar.ts";
 import { EXAMPLE, type Project } from "../../src/config.ts";
 import { PALETTE } from "../../src/colors.ts";
@@ -19,6 +17,12 @@ import { calibrationRecommended, EFFORTS, machineProposed, MODELS, type SeenOfPr
 import type { SeenOfStations } from "../../src/stations/stations.ts";
 import { OTHER_STATION, CONTINUE_WITHOUT_SANDBOX, SET_ASIDE, STATES_OF_PREPARATION, OPEN_THE_PR, SET_THE_FIRST, setJourney, nextTrialSays } from "../../src/vue/onboarding/journey.js";
 import { Fake, playTheVue, repos } from "../helpers/false-vue.ts";
+
+// Copy of the restricted-mode sentence (formerly runtime/src/onboarding/mode-restreint.ts, `DIT_MODE_RESTREINT`).
+const DIT_MODE_RESTREINT = "restricted mode: no sandbox. Covered: reads of the station's credentials are denied, network access is limited to the project's hosts, and the guard refuses writes outside the cook's worktree and calls to gh beyond its own ticket. Not covered: the guard reads a shell command only as far as it knows it, so sed -i, curl -o, perl -i, python -c and similar pass unchecked.";
+
+// The shape the station publishes: the app's own `Onboarding`.
+type OfRuntime = Onboarding;
 
 const doc = { createElement: (balise: string) => new Fake(balise) };
 const NOW = Date.parse("2026-10-13T10:04:00.000Z");

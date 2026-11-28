@@ -5,7 +5,6 @@
 // d'une ligne — et cette forme est tenue contre le bloc que le runtime écrit.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { decrireAttentes, type Attente } from "../../runtime/src/attend.ts";
 import { saysOf, putAside, ticketsOf } from "../src/awaiting.ts";
 import type { Reading } from "../src/box.ts";
 
@@ -92,40 +91,45 @@ describe("ce qui attend le chef, mis à part", () => {
   });
 });
 
-// Une attente de chaque sorte, telle que le runtime les tient : chacune passe par
-// `decrireAttentes`, qui écrit le bloc de `status`.
-const SINCE = "2026-10-12T08:00:00.000Z";
-const PR = "https://github.com/benomite/brigade/pull/31";
-const delivery = { since: SINCE, cause: null, pr: PR };
-const OF_TICKET: Attente[] = [
-  { ticket: 12, title: "Le journal en ajout seul", ...delivery, quoi: "merge", reason: "review-required" },
-  { ticket: 13, title: "Un motif que personne ne connaît", ...delivery, quoi: "merge", reason: "motif-neuf" },
-  { ticket: 14, title: "La pass rouge", ...delivery, quoi: "remontee", reason: "still-red" },
-  { ticket: 15, title: "La PR fermée", ...delivery, quoi: "fermee", reason: "merge-refused" },
-  // Un ticket mis de côté par la cuisine, ou qui en attend un autre, n'attend jamais le chef (#1834) : aucune entrée.
-  { ticket: 30, title: null, since: SINCE, quoi: "ecartee", reason: "question" },
-  { ticket: 31, title: null, since: SINCE, quoi: "illisible", epique: true },
-  { ticket: 32, title: null, since: SINCE, quoi: "question" },
-];
-const OF_STATION: Attente = { ticket: null, title: null, since: SINCE, quoi: "connexion", station: "claude", reason: null };
-const written = (waits: Attente[]) => decrireAttentes(waits, () => "2 j").join("\n");
+// Le bloc `status` que le runtime écrivait (ex-`decrireAttentes`, runtime/src/attend.ts), figé : une attente de chaque
+// sorte — la station sans connexion Max, puis les tickets #12 à #15 (une livraison, un motif inconnu, une remontée, une
+// PR fermée), #30 mis de côté, #31 illisible, #32 en question — datées d'« 2 j ».
+const BLOCK_OF_ALL =
+  "awaiting   8 decisions await the chef — the oldest for 2 j\n" +
+  "  claude  for 2 j  Max connection expired — to restore: log in again with the `log in` button on the station's page in the app, opened by a click on its line of the home screen — the kitchen starts again on its own within the minute\n" +
+  "  #12  for 2 j  green delivery that touches its judges — review and merge by hand: https://github.com/benomite/brigade/pull/31  Le journal en ajout seul\n" +
+  "  #13  for 2 j  green delivery, not merged (motif-neuf) — no known action for this reason: https://github.com/benomite/brigade/pull/31  Un motif que personne ne connaît\n" +
+  "  #14  for 2 j  escalated by the pass, red (still-red) — to decide: merge https://github.com/benomite/brigade/pull/31 by hand, or remove `fire`  La pass rouge\n" +
+  "  #15  for 2 j  PR closed without merge: https://github.com/benomite/brigade/pull/31 — to decide: remove `fire`, or close the issue  La PR fermée\n" +
+  "  #30  for 2 j  parked for you by the manager, with its question (`chef-todo`) — to decide: answer its card, the manager judges it again; or close the issue\n" +
+  "  #31  for 2 j  manager's split unreadable — to redo: edit the epic, the manager splits it again; or close the issue\n" +
+  "  #32  for 2 j  manager's question before splitting the epic — to answer: on the issue, the manager reads it again and splits it; or close the issue\n" +
+  "end awaiting\n";
+const BLOCK_OF_STATION =
+  "awaiting   1 decision awaits the chef — for 2 j\n" +
+  "  claude  for 2 j  Max connection expired — to restore: log in again with the `log in` button on the station's page in the app, opened by a click on its line of the home screen — the kitchen starts again on its own within the minute\n" +
+  "end awaiting\n";
+const BLOCK_OF_NONE =
+  "awaiting   nothing awaits the chef\n" +
+  "end awaiting\n";
+const TICKETS_OF_ALL = [12, 13, 14, 15, 30, 31, 32];
 
 describe("les tickets que le bloc nomme, pour le rail", () => {
   test("chaque ligne qu'écrit `status` pour un ticket donne son numéro, quelle que soit l'attente — et le reste de la ligne, mot pour mot", () => {
-    const block = written([OF_STATION, ...OF_TICKET]);
+    const block = BLOCK_OF_ALL;
     const readOnes = ticketsOf(block);
 
-    assert.deepEqual(readOnes.map(({ ticket }) => ticket), OF_TICKET.map(({ ticket }) => ticket));
+    assert.deepEqual(readOnes.map(({ ticket }) => ticket), TICKETS_OF_ALL);
     for (const { ticket, ligne: line } of readOnes) assert.ok(block.split("\n").includes(`  #${ticket}  ${line}`), `#${ticket}`);
     assert.match(readOnes[0]?.ligne ?? "", /^for 2 j  .*Le journal en ajout seul$/);
   });
 
   test("une ligne sans numéro en tête n'est à aucun ticket : la station sans connexion Max, la tête du bloc", () => {
-    const block = written([OF_STATION]);
+    const block = BLOCK_OF_STATION;
 
     assert.match(block, /^ {2}claude {2}for 2 j {2}Max connection /m);
     assert.deepEqual(ticketsOf(block), []);
-    assert.deepEqual(ticketsOf(written([])), []);
+    assert.deepEqual(ticketsOf(BLOCK_OF_NONE), []);
     assert.deepEqual(ticketsOf(EMPTY), []);
   });
 

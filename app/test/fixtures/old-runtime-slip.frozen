@@ -1,0 +1,1004 @@
+{
+ "base": {
+  "status": "project    unknown — empty log\nruntime    never started\nkitchen    open · breaker closed (0 failures in a row, opens at ?)\nbackup     NEVER DONE — is the timer `brigade-sauvegarde@<projet>` running?\n\nawaiting   nothing awaits the chef\nend awaiting\n\nrail       3 taken · 1 in pass · 4 queued · 1 86 · 1 served\n  #14  taken  prio:1  by box/claude since 12 min, no progress since 3 min, lease 27 min left  Ticket 14\n  #15  taken  -  by mac/claude since 40 min, STUCK: no progress since 20 min, lease 10 min left  Ticket 15\n  #16  taken  -  by box/claude since 1 h 30, STUCK: no progress since 35 min, lease expired since 5 min  Ticket 16\n  #20  queued  -  since 3 min  Ticket 20\n  #21  queued  prio:2  zone held by #14 (app/src) — since 2 h 05  Ticket 21\n  #22  queued  -  awaiting #14, #15 · zone held by #16 (runtime/src — vue) — since 2 d  Ticket 22\n  #23  queued  -  awaiting #17 (off the rail, issue still open: label `fire` removed) — since 3 h 02  Ticket 23\n  #30  in pass  -  since 4 min, cooked by box/claude  Ticket 30\n  #31  served  -  since 1 h 00, cooked by mac/claude  Ticket 31\n  #40  86  -  since 5 min (setup-failed), back in 5 min  Ticket 40\n\ncooks      none running\n\nconsumed   in flight: nothing\n           5 h: nothing\n           24 h: nothing\n           what this project has launched, not the account's consumption: /usage gives it\n\nlatest events\n  none\n",
+  "faits": {
+   "etat": "éteinte",
+   "lu": "2026-10-13T10:00:00.000Z",
+   "dernierTick": null,
+   "compteurs": {
+    "rail": 4,
+    "auTravail": 3,
+    "aLaPass": 1,
+    "attend": 0,
+    "livres24h": 0
+   },
+   "dernierEvenement": null,
+   "rail": [
+    {
+     "ticket": 14,
+     "etat": "pris",
+     "titre": "Ticket 14",
+     "url": "https://github.com/benomite/brigade/issues/14",
+     "depuis": "2026-10-13T09:48:00.000Z",
+     "activite": {
+      "fait": "lit",
+      "faitEn": "reading",
+      "cible": "runtime/src/etat.ts",
+      "depuis": "2026-10-13T09:58:00.000Z"
+     },
+     "attente": null,
+     "tiers": null,
+     "raison": null,
+     "station": "box/claude"
+    },
+    {
+     "ticket": 15,
+     "etat": "pris",
+     "titre": "Ticket 15",
+     "url": "https://github.com/benomite/brigade/issues/15",
+     "depuis": "2026-10-13T09:20:00.000Z",
+     "activite": {
+      "fait": "lance les tests",
+      "faitEn": "running the tests",
+      "cible": null,
+      "depuis": "2026-10-13T09:40:00.000Z"
+     },
+     "attente": null,
+     "tiers": null,
+     "raison": null,
+     "station": "mac/claude"
+    },
+    {
+     "ticket": 16,
+     "etat": "pris",
+     "titre": "Ticket 16",
+     "url": "https://github.com/benomite/brigade/issues/16",
+     "depuis": "2026-10-13T08:30:00.000Z",
+     "activite": null,
+     "attente": null,
+     "tiers": null,
+     "raison": null,
+     "station": "box/claude"
+    },
+    {
+     "ticket": 20,
+     "etat": "en attente",
+     "titre": "Ticket 20",
+     "url": "https://github.com/benomite/brigade/issues/20",
+     "depuis": "2026-10-13T09:57:00.000Z",
+     "activite": null,
+     "attente": null,
+     "tiers": null,
+     "raison": null
+    },
+    {
+     "ticket": 21,
+     "etat": "en attente",
+     "titre": "Ticket 21",
+     "url": "https://github.com/benomite/brigade/issues/21",
+     "depuis": "2026-10-13T07:55:00.000Z",
+     "activite": null,
+     "attente": null,
+     "tiers": null,
+     "raison": null
+    },
+    {
+     "ticket": 22,
+     "etat": "en attente",
+     "titre": "Ticket 22",
+     "url": "https://github.com/benomite/brigade/issues/22",
+     "depuis": "2026-10-11T08:00:00.000Z",
+     "activite": null,
+     "attente": null,
+     "tiers": null,
+     "raison": null
+    },
+    {
+     "ticket": 23,
+     "etat": "en attente",
+     "titre": "Ticket 23",
+     "url": "https://github.com/benomite/brigade/issues/23",
+     "depuis": "2026-10-13T06:58:00.000Z",
+     "activite": null,
+     "attente": null,
+     "tiers": null,
+     "raison": null
+    },
+    {
+     "ticket": 30,
+     "etat": "en pass",
+     "titre": "Ticket 30",
+     "url": "https://github.com/benomite/brigade/issues/30",
+     "depuis": "2026-10-13T09:56:00.000Z",
+     "activite": {
+      "fait": "relecture en cours",
+      "faitEn": "review in progress",
+      "cible": null,
+      "depuis": "2026-10-13T09:59:00.000Z"
+     },
+     "attente": null,
+     "tiers": null,
+     "raison": null,
+     "station": "box/claude"
+    },
+    {
+     "ticket": 31,
+     "etat": "servi",
+     "titre": "Ticket 31",
+     "url": "https://github.com/benomite/brigade/issues/31",
+     "depuis": "2026-10-13T09:00:00.000Z",
+     "activite": null,
+     "attente": null,
+     "tiers": null,
+     "raison": null,
+     "station": "mac/claude"
+    },
+    {
+     "ticket": 40,
+     "etat": "86",
+     "titre": "Ticket 40",
+     "url": "https://github.com/benomite/brigade/issues/40",
+     "depuis": "2026-10-13T09:55:00.000Z",
+     "activite": null,
+     "attente": {
+      "raison": "attend : setup du projet impossible",
+      "colonne": "86",
+      "retour": "2026-10-13T10:05:00.000Z"
+     },
+     "tiers": null,
+     "raison": null
+    }
+   ],
+   "cooks": [
+    {
+     "ticket": 14,
+     "titre": "Ticket 14",
+     "station": "box/claude"
+    },
+    {
+     "ticket": 15,
+     "titre": "Ticket 15",
+     "station": "mac/claude"
+    },
+    {
+     "ticket": 16,
+     "titre": "Ticket 16",
+     "station": "box/claude"
+    }
+   ],
+   "attend": [],
+   "livres": [],
+   "cuisineOisive": null,
+   "stations": [],
+   "agents": [],
+   "digest": null,
+   "notification": null
+  }
+ },
+ "withoutStation": {
+  "status": "project    unknown — empty log\nruntime    never started\nkitchen    open · breaker closed (0 failures in a row, opens at ?)\nstations   NONE DECLARED for 30 min — no cook leaves, the tickets stay waiting: set them with `brigade <projet> station stations box/claude:30:code+raisonnement`, read at the next wake-up, no restart\nbackup     NEVER DONE — is the timer `brigade-sauvegarde@<projet>` running?\n\nawaiting   nothing awaits the chef\nend awaiting\n\nrail       3 taken · 1 in pass · 4 queued · 1 86 · 1 served\n  #14  taken  prio:1  by box/claude since 12 min, no progress since 3 min, lease 27 min left  Ticket 14\n  #15  taken  -  by mac/claude since 40 min, STUCK: no progress since 20 min, lease 10 min left  Ticket 15\n  #16  taken  -  by box/claude since 1 h 30, STUCK: no progress since 35 min, lease expired since 5 min  Ticket 16\n  #20  queued  -  no station declared — since 3 min  Ticket 20\n  #21  queued  prio:2  zone held by #14 (app/src) — since 2 h 05  Ticket 21\n  #22  queued  -  awaiting #14, #15 · zone held by #16 (runtime/src — vue) — since 2 d  Ticket 22\n  #23  queued  -  awaiting #17 (off the rail, issue still open: label `fire` removed) — since 3 h 02  Ticket 23\n  #30  in pass  -  since 4 min, cooked by box/claude  Ticket 30\n  #31  served  -  since 1 h 00, cooked by mac/claude  Ticket 31\n  #40  86  -  since 5 min (setup-failed), back in 5 min  Ticket 40\n\ncooks      none running\n\nconsumed   in flight: nothing\n           5 h: nothing\n           24 h: nothing\n           what this project has launched, not the account's consumption: /usage gives it\n\nlatest events\n  none\n",
+  "faits": {
+   "etat": "éteinte",
+   "lu": "2026-10-13T10:00:00.000Z",
+   "dernierTick": null,
+   "compteurs": {
+    "rail": 4,
+    "auTravail": 3,
+    "aLaPass": 1,
+    "attend": 0,
+    "livres24h": 0
+   },
+   "dernierEvenement": null,
+   "rail": [
+    {
+     "ticket": 14,
+     "etat": "pris",
+     "titre": "Ticket 14",
+     "url": "https://github.com/benomite/brigade/issues/14",
+     "depuis": "2026-10-13T09:48:00.000Z",
+     "activite": {
+      "fait": "lit",
+      "faitEn": "reading",
+      "cible": "runtime/src/etat.ts",
+      "depuis": "2026-10-13T09:58:00.000Z"
+     },
+     "attente": null,
+     "tiers": null,
+     "raison": null,
+     "station": "box/claude"
+    },
+    {
+     "ticket": 15,
+     "etat": "pris",
+     "titre": "Ticket 15",
+     "url": "https://github.com/benomite/brigade/issues/15",
+     "depuis": "2026-10-13T09:20:00.000Z",
+     "activite": {
+      "fait": "lance les tests",
+      "faitEn": "running the tests",
+      "cible": null,
+      "depuis": "2026-10-13T09:40:00.000Z"
+     },
+     "attente": null,
+     "tiers": null,
+     "raison": null,
+     "station": "mac/claude"
+    },
+    {
+     "ticket": 16,
+     "etat": "pris",
+     "titre": "Ticket 16",
+     "url": "https://github.com/benomite/brigade/issues/16",
+     "depuis": "2026-10-13T08:30:00.000Z",
+     "activite": null,
+     "attente": null,
+     "tiers": null,
+     "raison": null,
+     "station": "box/claude"
+    },
+    {
+     "ticket": 20,
+     "etat": "en attente",
+     "titre": "Ticket 20",
+     "url": "https://github.com/benomite/brigade/issues/20",
+     "depuis": "2026-10-13T09:57:00.000Z",
+     "activite": null,
+     "attente": null,
+     "tiers": null,
+     "raison": null
+    },
+    {
+     "ticket": 21,
+     "etat": "en attente",
+     "titre": "Ticket 21",
+     "url": "https://github.com/benomite/brigade/issues/21",
+     "depuis": "2026-10-13T07:55:00.000Z",
+     "activite": null,
+     "attente": null,
+     "tiers": null,
+     "raison": null
+    },
+    {
+     "ticket": 22,
+     "etat": "en attente",
+     "titre": "Ticket 22",
+     "url": "https://github.com/benomite/brigade/issues/22",
+     "depuis": "2026-10-11T08:00:00.000Z",
+     "activite": null,
+     "attente": null,
+     "tiers": null,
+     "raison": null
+    },
+    {
+     "ticket": 23,
+     "etat": "en attente",
+     "titre": "Ticket 23",
+     "url": "https://github.com/benomite/brigade/issues/23",
+     "depuis": "2026-10-13T06:58:00.000Z",
+     "activite": null,
+     "attente": null,
+     "tiers": null,
+     "raison": null
+    },
+    {
+     "ticket": 30,
+     "etat": "en pass",
+     "titre": "Ticket 30",
+     "url": "https://github.com/benomite/brigade/issues/30",
+     "depuis": "2026-10-13T09:56:00.000Z",
+     "activite": {
+      "fait": "relecture en cours",
+      "faitEn": "review in progress",
+      "cible": null,
+      "depuis": "2026-10-13T09:59:00.000Z"
+     },
+     "attente": null,
+     "tiers": null,
+     "raison": null,
+     "station": "box/claude"
+    },
+    {
+     "ticket": 31,
+     "etat": "servi",
+     "titre": "Ticket 31",
+     "url": "https://github.com/benomite/brigade/issues/31",
+     "depuis": "2026-10-13T09:00:00.000Z",
+     "activite": null,
+     "attente": null,
+     "tiers": null,
+     "raison": null,
+     "station": "mac/claude"
+    },
+    {
+     "ticket": 40,
+     "etat": "86",
+     "titre": "Ticket 40",
+     "url": "https://github.com/benomite/brigade/issues/40",
+     "depuis": "2026-10-13T09:55:00.000Z",
+     "activite": null,
+     "attente": {
+      "raison": "attend : setup du projet impossible",
+      "colonne": "86",
+      "retour": "2026-10-13T10:05:00.000Z"
+     },
+     "tiers": null,
+     "raison": null
+    }
+   ],
+   "cooks": [
+    {
+     "ticket": 14,
+     "titre": "Ticket 14",
+     "station": "box/claude"
+    },
+    {
+     "ticket": 15,
+     "titre": "Ticket 15",
+     "station": "mac/claude"
+    },
+    {
+     "ticket": 16,
+     "titre": "Ticket 16",
+     "station": "box/claude"
+    }
+   ],
+   "attend": [],
+   "livres": [],
+   "cuisineOisive": null,
+   "stations": [],
+   "agents": [],
+   "digest": null,
+   "notification": null
+  }
+ },
+ "twoStations": {
+  "status": "project    unknown — empty log\nruntime    never started\nkitchen    open · breaker closed (0 failures in a row, opens at ?)\nbackup     NEVER DONE — is the timer `brigade-sauvegarde@<projet>` running?\n\nawaiting   nothing awaits the chef\nend awaiting\n\nrail       3 taken · 1 in pass · 4 queued · 1 86 · 1 served\n  #14  taken  prio:1  by box/claude since 12 min, no progress since 3 min, lease 27 min left  Ticket 14\n  #15  taken  -  by mac/claude since 40 min, STUCK: no progress since 20 min, lease 10 min left  Ticket 15\n  #16  taken  -  by box/claude since 1 h 30, STUCK: no progress since 35 min, lease expired since 5 min  Ticket 16\n  #20  queued  -  since 3 min  Ticket 20\n  #21  queued  prio:2  zone held by #14 (app/src) — since 2 h 05  Ticket 21\n  #22  queued  -  awaiting #14, #15 · zone held by #16 (runtime/src — vue) — since 2 d  Ticket 22\n  #23  queued  -  awaiting #17 (off the rail, issue still open: label `fire` removed) — since 3 h 02  Ticket 23\n  #30  in pass  -  since 4 min, cooked by box/claude  Ticket 30\n  #31  served  -  since 1 h 00, cooked by mac/claude  Ticket 31\n  #40  86  -  since 5 min (setup-failed), back in 5 min  Ticket 40\n\ncooks      none running — box/claude: 2 at most — declared, mac/claude: 2 at most — declared\n\nconsumed   in flight: nothing\n           5 h: nothing\n           24 h: nothing\n           what this project has launched, not the account's consumption: /usage gives it\n\nlatest events\n  none\n",
+  "faits": {
+   "etat": "éteinte",
+   "lu": "2026-10-13T10:00:00.000Z",
+   "dernierTick": null,
+   "compteurs": {
+    "rail": 4,
+    "auTravail": 3,
+    "aLaPass": 1,
+    "attend": 0,
+    "livres24h": 0
+   },
+   "dernierEvenement": null,
+   "rail": [
+    {
+     "ticket": 14,
+     "etat": "pris",
+     "titre": "Ticket 14",
+     "url": "https://github.com/benomite/brigade/issues/14",
+     "depuis": "2026-10-13T09:48:00.000Z",
+     "activite": {
+      "fait": "lit",
+      "faitEn": "reading",
+      "cible": "runtime/src/etat.ts",
+      "depuis": "2026-10-13T09:58:00.000Z"
+     },
+     "attente": null,
+     "tiers": null,
+     "raison": null,
+     "station": "box/claude"
+    },
+    {
+     "ticket": 15,
+     "etat": "pris",
+     "titre": "Ticket 15",
+     "url": "https://github.com/benomite/brigade/issues/15",
+     "depuis": "2026-10-13T09:20:00.000Z",
+     "activite": {
+      "fait": "lance les tests",
+      "faitEn": "running the tests",
+      "cible": null,
+      "depuis": "2026-10-13T09:40:00.000Z"
+     },
+     "attente": null,
+     "tiers": null,
+     "raison": null,
+     "station": "mac/claude"
+    },
+    {
+     "ticket": 16,
+     "etat": "pris",
+     "titre": "Ticket 16",
+     "url": "https://github.com/benomite/brigade/issues/16",
+     "depuis": "2026-10-13T08:30:00.000Z",
+     "activite": null,
+     "attente": null,
+     "tiers": null,
+     "raison": null,
+     "station": "box/claude"
+    },
+    {
+     "ticket": 20,
+     "etat": "en attente",
+     "titre": "Ticket 20",
+     "url": "https://github.com/benomite/brigade/issues/20",
+     "depuis": "2026-10-13T09:57:00.000Z",
+     "activite": null,
+     "attente": null,
+     "tiers": null,
+     "raison": null
+    },
+    {
+     "ticket": 21,
+     "etat": "en attente",
+     "titre": "Ticket 21",
+     "url": "https://github.com/benomite/brigade/issues/21",
+     "depuis": "2026-10-13T07:55:00.000Z",
+     "activite": null,
+     "attente": null,
+     "tiers": null,
+     "raison": null
+    },
+    {
+     "ticket": 22,
+     "etat": "en attente",
+     "titre": "Ticket 22",
+     "url": "https://github.com/benomite/brigade/issues/22",
+     "depuis": "2026-10-11T08:00:00.000Z",
+     "activite": null,
+     "attente": null,
+     "tiers": null,
+     "raison": null
+    },
+    {
+     "ticket": 23,
+     "etat": "en attente",
+     "titre": "Ticket 23",
+     "url": "https://github.com/benomite/brigade/issues/23",
+     "depuis": "2026-10-13T06:58:00.000Z",
+     "activite": null,
+     "attente": null,
+     "tiers": null,
+     "raison": null
+    },
+    {
+     "ticket": 30,
+     "etat": "en pass",
+     "titre": "Ticket 30",
+     "url": "https://github.com/benomite/brigade/issues/30",
+     "depuis": "2026-10-13T09:56:00.000Z",
+     "activite": {
+      "fait": "relecture en cours",
+      "faitEn": "review in progress",
+      "cible": null,
+      "depuis": "2026-10-13T09:59:00.000Z"
+     },
+     "attente": null,
+     "tiers": null,
+     "raison": null,
+     "station": "box/claude"
+    },
+    {
+     "ticket": 31,
+     "etat": "servi",
+     "titre": "Ticket 31",
+     "url": "https://github.com/benomite/brigade/issues/31",
+     "depuis": "2026-10-13T09:00:00.000Z",
+     "activite": null,
+     "attente": null,
+     "tiers": null,
+     "raison": null,
+     "station": "mac/claude"
+    },
+    {
+     "ticket": 40,
+     "etat": "86",
+     "titre": "Ticket 40",
+     "url": "https://github.com/benomite/brigade/issues/40",
+     "depuis": "2026-10-13T09:55:00.000Z",
+     "activite": null,
+     "attente": {
+      "raison": "attend : setup du projet impossible",
+      "colonne": "86",
+      "retour": "2026-10-13T10:05:00.000Z"
+     },
+     "tiers": null,
+     "raison": null
+    }
+   ],
+   "cooks": [
+    {
+     "ticket": 14,
+     "titre": "Ticket 14",
+     "station": "box/claude"
+    },
+    {
+     "ticket": 15,
+     "titre": "Ticket 15",
+     "station": "mac/claude"
+    },
+    {
+     "ticket": 16,
+     "titre": "Ticket 16",
+     "station": "box/claude"
+    }
+   ],
+   "attend": [],
+   "livres": [],
+   "cuisineOisive": null,
+   "stations": [
+    {
+     "station": "box/claude",
+     "distante": false,
+     "plafond": 2,
+     "ordinaires": false,
+     "ensemble": false,
+     "bacASable": null,
+     "prendOrdinaires": true,
+     "cuisson": "cooking",
+     "arreteeDepuis": null,
+     "refus": null,
+     "cooks": [
+      {
+       "ticket": 14,
+       "titre": "Ticket 14",
+       "station": "box/claude"
+      },
+      {
+       "ticket": 16,
+       "titre": "Ticket 16",
+       "station": "box/claude"
+      }
+     ],
+     "fournit": [
+      "code"
+     ],
+     "presente": true,
+     "vueLe": null
+    },
+    {
+     "station": "mac/claude",
+     "distante": true,
+     "plafond": 2,
+     "ordinaires": true,
+     "ensemble": false,
+     "bacASable": {
+      "disponible": true,
+      "raison": null,
+      "version": "2.1.250",
+      "depuis": "2026-10-13T09:00:00.000Z"
+     },
+     "prendOrdinaires": true,
+     "cuisson": "cooking",
+     "arreteeDepuis": null,
+     "refus": null,
+     "cooks": [
+      {
+       "ticket": 15,
+       "titre": "Ticket 15",
+       "station": "mac/claude"
+      }
+     ],
+     "fournit": [
+      "code"
+     ],
+     "presente": true,
+     "vueLe": "2026-10-13T09:59:00.000Z"
+    }
+   ],
+   "agents": [],
+   "digest": null,
+   "notification": null
+  }
+ },
+ "boxOnly": {
+  "status": "project    unknown — empty log\nruntime    never started\nkitchen    open · breaker closed (0 failures in a row, opens at ?)\nbackup     NEVER DONE — is the timer `brigade-sauvegarde@<projet>` running?\n\nawaiting   nothing awaits the chef\nend awaiting\n\nrail       3 taken · 1 in pass · 4 queued · 1 86 · 1 served\n  #14  taken  prio:1  by box/claude since 12 min, no progress since 3 min, lease 27 min left  Ticket 14\n  #15  taken  -  by mac/claude since 40 min, STUCK: no progress since 20 min, lease 10 min left  Ticket 15\n  #16  taken  -  by box/claude since 1 h 30, STUCK: no progress since 35 min, lease expired since 5 min  Ticket 16\n  #20  queued  -  since 3 min  Ticket 20\n  #21  queued  prio:2  zone held by #14 (app/src) — since 2 h 05  Ticket 21\n  #22  queued  -  awaiting #14, #15 · zone held by #16 (runtime/src — vue) — since 2 d  Ticket 22\n  #23  queued  -  awaiting #17 (off the rail, issue still open: label `fire` removed) — since 3 h 02  Ticket 23\n  #30  in pass  -  since 4 min, cooked by box/claude  Ticket 30\n  #31  served  -  since 1 h 00, cooked by mac/claude  Ticket 31\n  #40  86  -  since 5 min (setup-failed), back in 5 min  Ticket 40\n\ncooks      none running — box/claude: 2 at most — declared\n\nconsumed   in flight: nothing\n           5 h: nothing\n           24 h: nothing\n           what this project has launched, not the account's consumption: /usage gives it\n\nlatest events\n  none\n",
+  "faits": {
+   "etat": "éteinte",
+   "lu": "2026-10-13T10:00:00.000Z",
+   "dernierTick": null,
+   "compteurs": {
+    "rail": 4,
+    "auTravail": 3,
+    "aLaPass": 1,
+    "attend": 0,
+    "livres24h": 0
+   },
+   "dernierEvenement": null,
+   "rail": [
+    {
+     "ticket": 14,
+     "etat": "pris",
+     "titre": "Ticket 14",
+     "url": "https://github.com/benomite/brigade/issues/14",
+     "depuis": "2026-10-13T09:48:00.000Z",
+     "activite": {
+      "fait": "lit",
+      "faitEn": "reading",
+      "cible": "runtime/src/etat.ts",
+      "depuis": "2026-10-13T09:58:00.000Z"
+     },
+     "attente": null,
+     "tiers": null,
+     "raison": null,
+     "station": "box/claude"
+    },
+    {
+     "ticket": 15,
+     "etat": "pris",
+     "titre": "Ticket 15",
+     "url": "https://github.com/benomite/brigade/issues/15",
+     "depuis": "2026-10-13T09:20:00.000Z",
+     "activite": {
+      "fait": "lance les tests",
+      "faitEn": "running the tests",
+      "cible": null,
+      "depuis": "2026-10-13T09:40:00.000Z"
+     },
+     "attente": null,
+     "tiers": null,
+     "raison": null,
+     "station": "mac/claude"
+    },
+    {
+     "ticket": 16,
+     "etat": "pris",
+     "titre": "Ticket 16",
+     "url": "https://github.com/benomite/brigade/issues/16",
+     "depuis": "2026-10-13T08:30:00.000Z",
+     "activite": null,
+     "attente": null,
+     "tiers": null,
+     "raison": null,
+     "station": "box/claude"
+    },
+    {
+     "ticket": 20,
+     "etat": "en attente",
+     "titre": "Ticket 20",
+     "url": "https://github.com/benomite/brigade/issues/20",
+     "depuis": "2026-10-13T09:57:00.000Z",
+     "activite": null,
+     "attente": null,
+     "tiers": null,
+     "raison": null
+    },
+    {
+     "ticket": 21,
+     "etat": "en attente",
+     "titre": "Ticket 21",
+     "url": "https://github.com/benomite/brigade/issues/21",
+     "depuis": "2026-10-13T07:55:00.000Z",
+     "activite": null,
+     "attente": null,
+     "tiers": null,
+     "raison": null
+    },
+    {
+     "ticket": 22,
+     "etat": "en attente",
+     "titre": "Ticket 22",
+     "url": "https://github.com/benomite/brigade/issues/22",
+     "depuis": "2026-10-11T08:00:00.000Z",
+     "activite": null,
+     "attente": null,
+     "tiers": null,
+     "raison": null
+    },
+    {
+     "ticket": 23,
+     "etat": "en attente",
+     "titre": "Ticket 23",
+     "url": "https://github.com/benomite/brigade/issues/23",
+     "depuis": "2026-10-13T06:58:00.000Z",
+     "activite": null,
+     "attente": null,
+     "tiers": null,
+     "raison": null
+    },
+    {
+     "ticket": 30,
+     "etat": "en pass",
+     "titre": "Ticket 30",
+     "url": "https://github.com/benomite/brigade/issues/30",
+     "depuis": "2026-10-13T09:56:00.000Z",
+     "activite": {
+      "fait": "relecture en cours",
+      "faitEn": "review in progress",
+      "cible": null,
+      "depuis": "2026-10-13T09:59:00.000Z"
+     },
+     "attente": null,
+     "tiers": null,
+     "raison": null,
+     "station": "box/claude"
+    },
+    {
+     "ticket": 31,
+     "etat": "servi",
+     "titre": "Ticket 31",
+     "url": "https://github.com/benomite/brigade/issues/31",
+     "depuis": "2026-10-13T09:00:00.000Z",
+     "activite": null,
+     "attente": null,
+     "tiers": null,
+     "raison": null,
+     "station": "mac/claude"
+    },
+    {
+     "ticket": 40,
+     "etat": "86",
+     "titre": "Ticket 40",
+     "url": "https://github.com/benomite/brigade/issues/40",
+     "depuis": "2026-10-13T09:55:00.000Z",
+     "activite": null,
+     "attente": {
+      "raison": "attend : setup du projet impossible",
+      "colonne": "86",
+      "retour": "2026-10-13T10:05:00.000Z"
+     },
+     "tiers": null,
+     "raison": null
+    }
+   ],
+   "cooks": [
+    {
+     "ticket": 14,
+     "titre": "Ticket 14",
+     "station": "box/claude"
+    },
+    {
+     "ticket": 15,
+     "titre": "Ticket 15",
+     "station": "mac/claude"
+    },
+    {
+     "ticket": 16,
+     "titre": "Ticket 16",
+     "station": "box/claude"
+    }
+   ],
+   "attend": [],
+   "livres": [],
+   "cuisineOisive": null,
+   "stations": [
+    {
+     "station": "box/claude",
+     "distante": false,
+     "plafond": 2,
+     "ordinaires": false,
+     "ensemble": false,
+     "bacASable": null,
+     "prendOrdinaires": true,
+     "cuisson": "cooking",
+     "arreteeDepuis": null,
+     "refus": null,
+     "cooks": [
+      {
+       "ticket": 14,
+       "titre": "Ticket 14",
+       "station": "box/claude"
+      },
+      {
+       "ticket": 16,
+       "titre": "Ticket 16",
+       "station": "box/claude"
+      }
+     ],
+     "fournit": [
+      "code"
+     ],
+     "presente": true,
+     "vueLe": null
+    }
+   ],
+   "agents": [],
+   "digest": null,
+   "notification": null
+  }
+ },
+ "awaiting": {
+  "status": "project    unknown — empty log\nruntime    never started\nkitchen    open · breaker closed (0 failures in a row, opens at ?)\nbackup     NEVER DONE — is the timer `brigade-sauvegarde@<projet>` running?\n\nawaiting   1 decision awaits the chef — for 3 h 02\n  #23  for 3 h 02  PR closed without merge: https://github.com/benomite/brigade/pull/23 — to decide: remove `fire`, or close the issue  Ticket 23\nend awaiting\n\nrail       3 taken · 1 in pass · 4 queued · 1 86 · 1 served\n  #14  taken  prio:1  by box/claude since 12 min, no progress since 3 min, lease 27 min left  Ticket 14\n  #15  taken  -  by mac/claude since 40 min, STUCK: no progress since 20 min, lease 10 min left  Ticket 15\n  #16  taken  -  by box/claude since 1 h 30, STUCK: no progress since 35 min, lease expired since 5 min  Ticket 16\n  #20  queued  -  since 3 min  Ticket 20\n  #21  queued  prio:2  zone held by #14 (app/src) — since 2 h 05  Ticket 21\n  #22  queued  -  awaiting #14, #15 · zone held by #16 (runtime/src — vue) — since 2 d  Ticket 22\n  #23  queued  -  awaiting #17 (off the rail, issue still open: label `fire` removed) — since 3 h 02  Ticket 23\n  #30  in pass  -  since 4 min, cooked by box/claude  Ticket 30\n  #31  served  -  since 1 h 00, cooked by mac/claude  Ticket 31\n  #40  86  -  since 5 min (setup-failed), back in 5 min  Ticket 40\n\ncooks      none running\n\nconsumed   in flight: nothing\n           5 h: nothing\n           24 h: nothing\n           what this project has launched, not the account's consumption: /usage gives it\n\nlatest events\n  none\n",
+  "faits": {
+   "etat": "éteinte",
+   "lu": "2026-10-13T10:00:00.000Z",
+   "dernierTick": null,
+   "compteurs": {
+    "rail": 4,
+    "auTravail": 3,
+    "aLaPass": 1,
+    "attend": 1,
+    "livres24h": 0
+   },
+   "dernierEvenement": null,
+   "rail": [
+    {
+     "ticket": 14,
+     "etat": "pris",
+     "titre": "Ticket 14",
+     "url": "https://github.com/benomite/brigade/issues/14",
+     "depuis": "2026-10-13T09:48:00.000Z",
+     "activite": {
+      "fait": "lit",
+      "faitEn": "reading",
+      "cible": "runtime/src/etat.ts",
+      "depuis": "2026-10-13T09:58:00.000Z"
+     },
+     "attente": null,
+     "tiers": null,
+     "raison": null,
+     "station": "box/claude"
+    },
+    {
+     "ticket": 15,
+     "etat": "pris",
+     "titre": "Ticket 15",
+     "url": "https://github.com/benomite/brigade/issues/15",
+     "depuis": "2026-10-13T09:20:00.000Z",
+     "activite": {
+      "fait": "lance les tests",
+      "faitEn": "running the tests",
+      "cible": null,
+      "depuis": "2026-10-13T09:40:00.000Z"
+     },
+     "attente": null,
+     "tiers": null,
+     "raison": null,
+     "station": "mac/claude"
+    },
+    {
+     "ticket": 16,
+     "etat": "pris",
+     "titre": "Ticket 16",
+     "url": "https://github.com/benomite/brigade/issues/16",
+     "depuis": "2026-10-13T08:30:00.000Z",
+     "activite": null,
+     "attente": null,
+     "tiers": null,
+     "raison": null,
+     "station": "box/claude"
+    },
+    {
+     "ticket": 20,
+     "etat": "en attente",
+     "titre": "Ticket 20",
+     "url": "https://github.com/benomite/brigade/issues/20",
+     "depuis": "2026-10-13T09:57:00.000Z",
+     "activite": null,
+     "attente": null,
+     "tiers": null,
+     "raison": null
+    },
+    {
+     "ticket": 21,
+     "etat": "en attente",
+     "titre": "Ticket 21",
+     "url": "https://github.com/benomite/brigade/issues/21",
+     "depuis": "2026-10-13T07:55:00.000Z",
+     "activite": null,
+     "attente": null,
+     "tiers": null,
+     "raison": null
+    },
+    {
+     "ticket": 22,
+     "etat": "en attente",
+     "titre": "Ticket 22",
+     "url": "https://github.com/benomite/brigade/issues/22",
+     "depuis": "2026-10-11T08:00:00.000Z",
+     "activite": null,
+     "attente": null,
+     "tiers": null,
+     "raison": null
+    },
+    {
+     "ticket": 23,
+     "etat": "en attente",
+     "titre": "Ticket 23",
+     "url": "https://github.com/benomite/brigade/issues/23",
+     "depuis": "2026-10-13T06:58:00.000Z",
+     "activite": null,
+     "attente": null,
+     "tiers": null,
+     "raison": null
+    },
+    {
+     "ticket": 30,
+     "etat": "en pass",
+     "titre": "Ticket 30",
+     "url": "https://github.com/benomite/brigade/issues/30",
+     "depuis": "2026-10-13T09:56:00.000Z",
+     "activite": {
+      "fait": "relecture en cours",
+      "faitEn": "review in progress",
+      "cible": null,
+      "depuis": "2026-10-13T09:59:00.000Z"
+     },
+     "attente": null,
+     "tiers": null,
+     "raison": null,
+     "station": "box/claude"
+    },
+    {
+     "ticket": 31,
+     "etat": "servi",
+     "titre": "Ticket 31",
+     "url": "https://github.com/benomite/brigade/issues/31",
+     "depuis": "2026-10-13T09:00:00.000Z",
+     "activite": null,
+     "attente": null,
+     "tiers": null,
+     "raison": null,
+     "station": "mac/claude"
+    },
+    {
+     "ticket": 40,
+     "etat": "86",
+     "titre": "Ticket 40",
+     "url": "https://github.com/benomite/brigade/issues/40",
+     "depuis": "2026-10-13T09:55:00.000Z",
+     "activite": null,
+     "attente": {
+      "raison": "attend : setup du projet impossible",
+      "colonne": "86",
+      "retour": "2026-10-13T10:05:00.000Z"
+     },
+     "tiers": null,
+     "raison": null
+    }
+   ],
+   "cooks": [
+    {
+     "ticket": 14,
+     "titre": "Ticket 14",
+     "station": "box/claude"
+    },
+    {
+     "ticket": 15,
+     "titre": "Ticket 15",
+     "station": "mac/claude"
+    },
+    {
+     "ticket": 16,
+     "titre": "Ticket 16",
+     "station": "box/claude"
+    }
+   ],
+   "attend": [
+    {
+     "ticket": 23,
+     "titre": "Ticket 23",
+     "url": "https://github.com/benomite/brigade/issues/23",
+     "decision": {
+      "quoi": "fermee",
+      "motif": "stopped",
+      "cause": null,
+      "pr": "https://github.com/benomite/brigade/pull/23"
+     },
+     "carte": {
+      "type": "fermee",
+      "resume": "The PR of #23 was closed without being merged, and the ticket still holds its place on the rail.",
+      "question": "Start #23 over, or take it off the rail?",
+      "choix": [
+       {
+        "texte": "Start it over: a cook takes it up again",
+        "suite": "resume"
+       },
+       {
+        "texte": "Take it off the rail",
+        "suite": "drop"
+       }
+      ],
+      "reponseLibre": true,
+      "secondaire": {
+       "action": "ask-second",
+       "texte": "ask the second"
+      },
+      "captures": null
+     }
+    }
+   ],
+   "livres": [],
+   "cuisineOisive": null,
+   "stations": [],
+   "agents": [],
+   "digest": null,
+   "notification": null
+  }
+ }
+}

@@ -1,10 +1,12 @@
 // Un ticket mis de côté par `served-elsewhere` ou `out-of-kitchen`, sur un projet GitHub seul (#2075) : sa carte dit en une
 // ligne pourquoi, tirée du dernier commentaire qui nomme le label — ceux que la station écrit en le posant
-// (runtime/src/brigade-github.ts, runtime/src/github-seul/renvois/renvois.ts), dits court ; tout autre, par sa première ligne.
+// (the old station, now deleted), dits court ; tout autre, par sa première ligne.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { LABELS_D_AVANT_PARKED } from "../../../runtime/src/github-etat/etats.ts";
 import { labelOfSetAside, lineOfComment, setAsideOf } from "../../src/board/set-aside-github.ts";
+
+// The waiting labels from before `parked` (#4260), copied from the old runtime's github-etat/etats.ts (deleted, #4775).
+const LABELS_BEFORE_PARKED: readonly string[] = ["waiting", "set-aside:failures", "blocked-on-human", "decision", "question", "product-question"];
 
 const REPOSITORY = "acme/kitchen";
 const comment = (body: string, author_association = "OWNER") => ({ body, author_association });
@@ -67,8 +69,8 @@ describe("ce que la carte dit d'un ticket mis de côté, d'après les commentair
     // `parked` attend toujours un autre que le chef (ticket 4129), même sur une carte qui garde `chef-todo` : aucun.
     assert.equal(labelOfSetAside(["fire", "served-elsewhere", "parked", "chef-todo"]), null);
     assert.equal(labelOfSetAside(["fire", "taken"]), null);
-    // Un label d'attente d'avant parked parque le ticket : jamais une mise de côté (runtime/src/github-etat/etats.ts).
-    for (const old of LABELS_D_AVANT_PARKED) assert.equal(labelOfSetAside(["fire", old]), null, old);
+    // Un label d'attente d'avant parked parque le ticket : jamais une mise de côté (list copied above).
+    for (const old of LABELS_BEFORE_PARKED) assert.equal(labelOfSetAside(["fire", old]), null, old);
     // Mis de côté, il ne va au chef que pour une question de produit marquée : `out-of-kitchen` dit sa raison, et rien ne
     // lui est demandé ; plus de carte « lift the hold » ni de merge à la main.
     assert.deepEqual(setAsideOf(REPOSITORY, "out-of-kitchen", [comment("Station `box/claude`: out-of-kitchen — no station here has a GPU.")], 8), { label: "out-of-kitchen", raison: "out-of-kitchen — no station here has a GPU.", liens: [], auChef: false });
