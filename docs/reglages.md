@@ -40,8 +40,6 @@ The file is versioned with the code. Its fields:
 | `risk` | the risk ranking of the kinds of actions (#4230, rule 10 of [`superpowers/specs/2026-11-24-simplified-process.md`](superpowers/specs/2026-11-24-simplified-process.md)): at the pass, the merge of a ticket whose kind of action is ranked `chef` is parked for the chef, and one ranked `safe` never reaches the chef ([`runtime/README.md`](runtime/README.md)) | an object, kind -> `chef` or `safe` (optional; without it, `publish`, `pay` and `write-to-client` are `chef`, `fix-typo` is `safe`, any other kind is `chef`). Any other rank is refused |
 | `githubOnlyState` | **No longer read** (#2061): every project runs on the GitHub-only state, the only path ([`runtime/README.md`](runtime/README.md)). The key is still accepted, so a settings file that carries it stays readable; it can be removed. | `true` or `false` (optional; ignored) |
 
-**The ticket's tools field.** A ticket states the tools it needs on one line of its body, `Tools:` followed by tool names separated by commas, for example `Tools: screenshots, browser`. At cook launch, `runtime/src/outils-du-cook.ts` gives the cook the tools that are both in that line and in the project's `tools` — the same cook kind for every ticket. A ticket without the line gets no tool beyond the project's default, which is none. A tool named on the line and absent from the project's `tools` is not given: the station says so in its log, naming the tool, and the cook's brief carries the same message so that it reports it instead of going without it silently.
-
 The `closer` keys, each one in place of a setting the box held (`brigade <projet> station <gesture>`):
 
 | Key | Meaning | Values | In place of |
