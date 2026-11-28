@@ -11,8 +11,6 @@
 //      « Stop cooking here » — et « Details », replié, qui porte ses réglages et ses lectures, chacun avec son contrôle.
 //   3. Comment le changer : le choix de station (choice.js), ouvert sous la ligne du haut — qui le cuit, ou où déménager.
 //      Quand une station le sert déjà, « Add a station » ouvre le même choix pour en ajouter une (ticket 3402).
-//   4. Où trouver une machine de plus : « Add a server », sous la ligne du haut ou sous le choix ouvert (add-server/,
-//      ticket 4347) — la ligne d'installation d'un serveur, puis le serveur vu arriver et le projet qui lui est confié.
 // Ce module ne touche ni `document` ni le pont : la vue lui donne une fabrique (bricks.js), ce qu'elle a lu et les gestes.
 
 import { buttonAction, folded, hover } from "../bricks.js";
@@ -20,15 +18,13 @@ import { confirmationOfAction } from "../components/confirmation/confirmation.js
 import { lineError } from "../components/line-error/line-error.js";
 import { lineEmpty } from "../components/line-empty/line-empty.js";
 import { brand } from "../components/pill/pill.js";
-import { placeAddServer } from "../add-server/add-server.js";
 import { CANCEL, THIS_COMPUTER, RECORDING, READ_OF, YES } from "../lexicon.js";
-import { linesOfCooks } from "../stations-of-cooking.js";
 import { setTheQuota } from "../stations-quota/stations-quota.js";
 import { setTheChoice } from "./choice.js";
 import { BLOCKED, CHOOSE, COOK_HERE, sentenceOfTop, TO_HERE } from "./state.js";
 import { linesOfEngine } from "../engine/CardEngine.js";
 
-/** @typedef {import("../components/pan/pan.js").Fabrique} Fabrique */
+/** @typedef {{ createElement(balise: string): any }} Fabrique */
 /** @typedef {import("./state.js").Top} Top */
 /** @typedef {import("./state.js").Serving} Serving */
 /** @typedef {import("./state.js").Kind} Kind */
@@ -54,7 +50,6 @@ import { linesOfEngine } from "../engine/CardEngine.js";
  *                 (stations-quota/, ticket 3483) ; absent, pas de quota affiché.
  *   `moteurIci`   le moteur que la station de cet ordinateur a choisi dans ses réglages (moteur/, ticket 3746) : sa carte le
  *                 dit quand le runtime n'en publie rien.
- *   `serveur`     « Add a server » (add-server/, ticket 4347) : son panneau, ouvert ou non, et où en est le serveur attendu ;
  *                 ouvert, il remplace les gestes de la ligne du haut. Absent, le bouton est offert, son panneau fermé.
  *   `quiCuit`     « Choose who cooks it » est offert : l'app connaît le dépôt du projet, et peut y écrire (ticket 3163) ; et,
  *                 quand une station le sert déjà, « Add a station » (ticket 3402).
@@ -78,7 +73,6 @@ import { linesOfEngine } from "../engine/CardEngine.js";
  *   quiCuit?: boolean,
  *   quota?: import("../stations-quota/stations-quota.js").QuotaGithub,
  *   moteurIci?: string,
- *   serveur?: import("../add-server/add-server.js").StateOfServer,
  * }} SeenOfTheTab
  */
 /**
@@ -93,7 +87,6 @@ import { linesOfEngine } from "../engine/CardEngine.js";
  *   confirmerArret(id: string): void,
  *   renoncerArret(): void,
  *   basculer(id: string, opened: boolean): void,
- *   serveur?: import("../add-server/add-server.js").ActionsOfServer,
  * }} ActionsOfTheTab
  */
 
@@ -166,7 +159,7 @@ function lineOfTop(doc, seenOne, actions) {
   }
   // Les gestes : le cuire ici d'un clic, ou choisir qui le cuit ; ou, rien ne cuisant, le déménager ici d'un clic — vers une
   // autre station, c'est le geste de sa carte. Un choix ouvert les remplace, comme le panneau de « Add a server ».
-  if (seenOne.choix !== undefined || seenOne.lecture === true || seenOne.serveur?.ouvert === true) return line;
+  if (seenOne.choix !== undefined || seenOne.lecture === true) return line;
   const here = top.etat === "personne" && seenOne.cuireIci === true;
   const buttons = [
     ...(here ? [buttonAction(doc, COOK_HERE, actions.cuireIci, { recommande: true })] : []),
@@ -275,13 +268,7 @@ function card(doc, seenOne, station, actions) {
     lack.className = "manque";
     root.append(lack);
   }
-  // Ce qu'elle tient du projet : les tickets de ses cooks, ce qu'elle fait tourner d'autre ; rien, elle est au repos.
-  const holds = station.cooks.length + station.agents.length > 0;
-  root.append(
-    holds
-      ? linesOfCooks(doc, station.cooks, station.agents, seenOne.enCuisson === true && station.etat === "en-ligne")
-      : lineEmpty(doc, AT_REST, { classe: "au-repos" }),
-  );
+  root.append(lineEmpty(doc, AT_REST, { classe: "au-repos" }));
   // Ses gestes, ou la confirmation de son arrêt — puis, confirmé, qu'il s'écrit. La station où la cuisine déménage n'en a
   // pas tant qu'elle démarre : la ligne du haut suit le déménagement.
   if (seenOne.arret?.id === key && seenOne.arret.enCours) {
@@ -331,8 +318,6 @@ export function setTheTabOfStations(doc, seenOne, actions) {
     root.append(seenOne.dit.refus ? lineError(doc, seenOne.dit.texte, seenOne.dit.detail ?? "", { classe: "dit-des-stations" }) : said);
   }
   if (seenOne.choix !== undefined) root.append(theChoice(doc, seenOne.choix, actions));
-  // « Add a server », à côté de la liste des stations : sous le choix ouvert, sinon sous la ligne du haut (ticket 4347).
-  if (seenOne.lecture !== true) root.append(...placeAddServer(doc, seenOne.serveur ?? { ouvert: false, vu: { etat: "attente" } }, actions.serveur ?? {}));
   if (seenOne.servantes.length > 0) {
     const cards = created(doc, "div");
     cards.className = "cartes-des-stations";

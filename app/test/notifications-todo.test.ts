@@ -10,8 +10,9 @@ const PROJECTS = [
   { nom: "parade", depot: "chef/parade" },
   { nom: "atelier", depot: "chef/atelier" },
 ];
-const card = (question: string) => `<!-- brigade:todo kind=product-question -->\n${question}\n- [resume] Yes\n- [drop] No`;
-const toDo = (question: string): Issue => ({ labels: ["chef-todo"], commentaires: ["chatter", card(question)] });
+// Un ticket que la cuisine parque pour le chef : le label `parked:chef`, et son commentaire qui dit pourquoi.
+const card = (question: string) => `Parked for the chef: ${question}`;
+const toDo = (question: string): Issue => ({ labels: ["parked:chef"], commentaires: ["chatter", card(question)] });
 
 let world: Record<string, Record<number, Issue>>;
 let unreachable: Set<string>;
@@ -73,7 +74,7 @@ describe("la notification d'une carte de TODO", () => {
     parade[1]!.commentaires.push("a comment");
     parade[1]!.labels.push("prio:1", "parked");
     parade[3] = { labels: ["fire", "served-elsewhere"], commentaires: ["<!-- brigade:renvoi n=1 -->\nnothing to ask"] };
-    parade[4] = { labels: ["chef-todo"], commentaires: ["a label without a marked question"] };
+    parade[4] = { labels: ["fire", "chef-todo"], commentaires: ["a label of the old runtime, which the kitchen no longer reads"] };
     delete parade[2];
     assert.deepEqual(await prober(), { lu: true, notifiees: 0, retirees: 0 });
     assert.deepEqual(shown, []);
@@ -136,20 +137,5 @@ describe("la notification d'une carte de TODO", () => {
     const done = await probe({ appeler: github, memoire: memory, notifier: notify, projets: async () => Promise.reject(new Error("offline")) });
     assert.equal(done.lu, false);
     assert.equal(notifications.size, 1);
-  });
-});
-
-// Ticket 3716 : GitHub numérote issues et PR d'une seule suite — la PR 3710 de #3709 se lirait comme un ticket. La
-// notification d'une carte qui nomme une PR la dit par son ticket.
-describe("la notification dit la PR par son ticket (ticket 3716)", () => {
-  test("la validation du design de #3709, sa PR 3710 : « the PR of #3709 », jamais « #3710 »", async () => {
-    world["chef/parade"]![3709] = {
-      labels: ["chef-todo"],
-      commentaires: ["<!-- brigade:todo kind=design-validation pr=3710 ticket=3709 sha=abcdef1 -->\nValidate the screen of PR #3710 before it is merged."],
-    };
-    await prober();
-    const text = shown.find(({ ticket }) => ticket === 3709)?.texte ?? assert.fail("#3709 is not notified");
-    assert.match(text, /Validate the screen of the PR of #3709 before it is merged/);
-    assert.doesNotMatch(text, /#3710/);
   });
 });

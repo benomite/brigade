@@ -89,29 +89,6 @@ export function buttonAction(doc, wording, action, { recommande: recommended = f
   return group;
 }
 
-// Une case à cocher nommée (ticket 1307, reprise par le ticket 1510) : ce qu'elle coche, et dessous, s'il y a quoi, ce
-// qui le dit en plus. `mono` : son nom est un mot de la machine, écrit tel qu'il se déclare (`navigateur-headless`).
-// `changer` reçoit l'état de la case à chaque clic.
-/** @param {Fabrique} doc @param {{ nom: string, dit: string, cochee: boolean, mono?: boolean }} quoi @param {(tickedOne: boolean) => void} change */
-export function caseATick(doc, { nom: name, dit: said, cochee: tickedOne, mono = false }, change) {
-  const root = doc.createElement("label");
-  root.className = "capacite";
-  const ticked = doc.createElement("input");
-  ticked.type = "checkbox";
-  ticked.checked = tickedOne;
-  ticked.ariaLabel = name;
-  ticked.addEventListener("change", () => change(ticked.checked === true));
-  const called = doc.createElement("span");
-  called.textContent = name;
-  if (mono) called.className = "mono";
-  root.append(ticked, called);
-  if (said !== "") {
-    const note = doc.createElement("small");
-    note.textContent = said;
-    root.append(note);
-  }
-  return root;
-}
 
 // Un bloc replié derrière une ligne (ticket 1456) : ce qui sert rarement — une lecture brute, un historique, un
 // réglage — se montre fermé, sa ligne disant son titre et, en quelques mots, ce qu'il contient ; l'ouvrir montre le
@@ -148,4 +125,27 @@ function titleAndResume(doc, title, resume) {
   said.className = "resume";
   said.textContent = resume;
   return [name, said];
+}
+
+/** @param {Fabrique} doc @param {string} balise @param {string} [text] */
+function created(doc, balise, text) {
+  const pose = doc.createElement(balise);
+  if (text !== undefined) pose.textContent = text;
+  return pose;
+}
+
+// Une phrase du runtime, ses mots entre accents graves — un label, `fire` — posés en code.
+/** @param {Fabrique} doc @param {string} balise @param {string} text */
+export function sentence(doc, balise, text) {
+  const pose = doc.createElement(balise);
+  text.split("`").forEach((piece, rank) => {
+    if (piece === "") return;
+    if (rank % 2 === 0) pose.append(piece);
+    else {
+      const code = created(doc, "code", piece);
+      code.className = "mono";
+      pose.append(code);
+    }
+  });
+  return pose;
 }

@@ -4,24 +4,20 @@
 // d'appairage à taper, ni QR à scanner, ni adresse de station. Ce qu'on attend du chef, en tête, en une phrase ; dessous,
 // un bouton, « sign in with GitHub ». Le pont du téléphone (app/android/web/pont.js) mène le login avec GitHub : la vue
 // montre le code à taper sur la page de GitHub qu'il a ouverte, comme le premier lancement du desktop le montre — la même
-// brique, `connexionDite` (first-launch.js). Connecté, l'app passe à ses projets ; refusé sur GitHub, le code
+// brique, `connexionDite` (addition-project/connection.js). Connecté, l'app passe à ses projets ; refusé sur GitHub, le code
 // expiré ou GitHub injoignable, une ligne le dit sous le bouton, le détail au survol, et le chef recommence d'un clic.
-// Un pont qui sait lire les outils de sa machine (`outilsManquants`, ticket 4059) les vérifie à l'ouverture et avant
-// chaque connexion : un outil qui manque prend la place du bouton — l'écran de l'outil manquant (outils-requis/) —, et
-// le bouton revient, sans connexion relancée, quand il est installé.
 // Ce module ne touche pas `document` et ne joint rien : il reçoit de quoi créer un élément (bricks.js) et le pont, et
 // rend la carte qu'il tient.
 
 import { buttonAction, hover } from "./bricks.js";
 import { lineError } from "./components/line-error/line-error.js";
-import { connectionSaid } from "./first-launch.js";
+import { connectionSaid } from "./addition-project/connection.js";
 import { NOT_STILL } from "./lexicon.js";
-import { setTheTools, holdTheTools } from "./tools-required/tools-required.js";
 
 /** @typedef {import("./bricks.js").Fabrique} Fabrique */
 /** @typedef {import("../connection-github.ts").StartOfConnection} StartOfConnection */
 /** @typedef {import("../connection-github.ts").EndOfConnection} EndOfConnection */
-/** @typedef {{ seConnecterAGitHub?(): Promise<StartOfConnection>, surConnexionGitHub?(receive: (end: EndOfConnection) => void): void, ouvrirLaPage?(url: string): Promise<boolean> } & import("./tools-required/tools-required.js").BridgeOfTools} BridgeOfConnection */
+/** @typedef {{ seConnecterAGitHub?(): Promise<StartOfConnection>, surConnexionGitHub?(receive: (end: EndOfConnection) => void): void, ouvrirLaPage?(url: string): Promise<boolean> }} BridgeOfConnection */
 
 export const TITLE = "Sign in to GitHub";
 export const EXPECTED = "Sign in with your GitHub account to see your projects.";
@@ -52,14 +48,8 @@ export function holdConnectionGitHub(place, doc, { pont: bridge, apres: after })
   /** @type {{ enRoute: true } | StartOfConnection | EndOfConnection | undefined} */
   let connection;
   const awaiting = () => connection !== undefined && ("enRoute" in connection || "code" in connection);
-  // Les outils d'abord : tant que l'un manque, ou que leur lecture est en route, son écran tient la place du bouton.
-  const tools = holdTheTools({ pont: bridge, rendre: () => set() });
-  const actionsOfTools = { ouvrir: (/** @type {string} */ url) => void bridge.ouvrirLaPage?.(url), verifier: () => void tools.verifier(true) };
   const set = () => {
-    const { etat: state } = tools;
-    if (state.manque !== undefined || (state.enCours === "verification" && !state.lu)) return suite.replaceChildren(...setTheTools(doc, state, actionsOfTools));
     suite.replaceChildren(
-      ...setTheTools(doc, state, actionsOfTools),
       ...connectionSaid(doc, connection, ITSELF_CONNECT, {
         seConnecter: () => void itselfConnect(),
         ouvrirLaPage: (url) => void bridge.ouvrirLaPage?.(url),
@@ -78,11 +68,6 @@ export function holdConnectionGitHub(place, doc, { pont: bridge, apres: after })
 
   async function itselfConnect() {
     if (awaiting()) return;
-    // Une connexion qui ne peut pas partir ne tourne pas : l'outil qui manque se dit à sa place.
-    if (bridge.outilsManquants !== undefined) {
-      if (!(await tools.verifier())) return;
-      if (awaiting()) return;
-    }
     connection = { enRoute: true };
     set();
     /** @type {StartOfConnection} */
@@ -101,7 +86,6 @@ export function holdConnectionGitHub(place, doc, { pont: bridge, apres: after })
     if (awaiting()) finish(end);
   });
   set();
-  void tools.verifier();
   return { carte: card };
 }
 

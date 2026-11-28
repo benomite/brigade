@@ -10,9 +10,8 @@ import { putAside } from "../../src/awaiting.ts";
 import { forTheBar } from "../../src/bar.ts";
 import { EXAMPLE, type Project } from "../../src/config.ts";
 import { PALETTE } from "../../src/colors.ts";
-import { BANNER, holdFacts, type Facts } from "../../src/facts.ts";
-import { TABS, HEADINGS } from "../../src/tabs.ts";
-import type { Outage } from "../../src/outages/outages.ts";
+import { holdFacts, type Facts } from "../../src/facts.ts";
+import { HEADINGS } from "../../src/tabs.ts";
 import { calibrationRecommended, EFFORTS, machineProposed, MODELS, type ProjectSeen, type SeenOfProjects } from "../../src/projects/projects.ts";
 import type { StationVue, SeenOfStations } from "../../src/stations/stations.ts";
 import { NOT_SERVED, SERVED } from "../../src/vue/projects-served/projects-served.js";
@@ -21,8 +20,8 @@ import { type Fake, type Played, playTheVue, openTab, repos } from "../helpers/f
 
 const A = "2026-11-12T10:00:00.000Z";
 const REPOSITORY = "benomite/parade";
-const MAC: StationVue = { id: "gmac", nom: "macbook", machine: "macOS 25.0.0", coeurs: 12, etat: "en-ligne", ligne: "online", pannes: [] as Outage[], dit: "online", version: "2.4.0", projets: [], max: "connectee" };
-const HOME: Home = { projets: [], stations: [], sante: { ton: "vert", dit: "Max ✓  ·  GitHub ✓", survol: "" } };
+const MAC: StationVue = { id: "gmac", nom: "macbook", machine: "macOS 25.0.0", coeurs: 12, etat: "en-ligne", ligne: "online", dit: "online", version: "2.4.0", projets: [], max: "connectee" };
+const HOME: Home = { projets: [] };
 const PARADE: Project = { nom: "parade", dossier: "/tmp/parade", depot: REPOSITORY, base: "main" };
 const CANTINE: Project = { nom: "cantine", dossier: "/tmp/cantine", depot: "benomite/cantine", base: "main" };
 // Aucune station ne dit le servir sur GitHub.
@@ -34,11 +33,7 @@ const lineOfMac = { station: "macbook/claude", distante: false, plafond: 2, ordi
 const FACTS = {
   etat: "ouverte",
   lu: A,
-  dernierTick: A,
   compteurs: { rail: 8, auTravail: 0, aLaPass: 0, attend: 0, livres24h: 0 },
-  dernierEvenement: null,
-  rail: [],
-  cooks: [],
   attend: [],
   livres: [],
   stations: [lineOfMac],
@@ -54,12 +49,9 @@ async function thePage({ facts = FACTS as Facts | null, lue: readEntry = true } 
       configuration: forTheBar({ chemin: "/tmp/app.json", projets: [PARADE, CANTINE] }, () => true, (name) => name === "parade"),
       palette: PALETTE,
       exemple: EXAMPLE,
-      onglets: TABS,
       rubriques: HEADINGS,
       gestes: {},
-      banniere: BANNER,
       calibrage: { modeles: MODELS, efforts: EFFORTS },
-      code: undefined,
       stations: { a: A, stations: [MAC] } satisfies SeenOfStations,
       accueil: HOME,
       projetsDesStations: SEEN,
@@ -118,7 +110,7 @@ describe("un projet que cet ordinateur fait tourner sans le servir (#3399)", () 
     for (let tour = 0; tour < 6; tour++) await repos();
     assert.deepEqual(vue.appels.filter(({ geste: action }) => action === "servirUnProjet").map(({ args }) => args), [[REPOSITORY, true]]);
     assert.deepEqual(served, [CANTINE.depot, REPOSITORY]);
-    assert.equal(sentence(vue), "Cooked by macbook · online · idle, nothing on the rail");
+    assert.equal(sentence(vue), "Cooked by macbook · online");
     assert.equal(top(vue).dataset.ton, "vert");
     assert.deepEqual(cards(vue).map(({ ariaLabel }) => ariaLabel), ["macbook"]);
     assert.equal(top(vue).dessous("button").some(({ textContent }) => textContent === COOK_HERE), false);
@@ -131,9 +123,4 @@ describe("un projet que cet ordinateur fait tourner sans le servir (#3399)", () 
     assert.equal(sentence(vue), NOBODY);
   });
 
-  test("la liste de ce Mac pas lue : rien n'est décidé à sa place, la ligne de cuisson dit ce qu'elle dit", async () => {
-    const { vue } = await thePage({ lue: false });
-    assert.equal(sentence(vue), "Cooked by macbook · online · idle, nothing on the rail");
-    assert.equal(tab(vue).dessous("button").some(({ textContent }) => textContent === COOK_HERE), false);
-  });
 });

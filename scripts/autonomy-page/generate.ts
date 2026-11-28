@@ -2,8 +2,8 @@
 // over the last 30 days of benomite/brigade. Run by the `pages` workflow, with its GITHUB_TOKEN:
 //   node scripts/autonomy-page/generate.ts site/autonomie.json
 //
-// Nothing is computed twice: the read is the app's (app/src/vue/autonomy/autonomy-github.ts,
-// `readTheAutonomyOfRepository`), the computation the app's too (app/src/vue/autonomy/compute.ts). One thing
+// Nothing is computed twice: the read is the app's (scripts/autonomy-page/autonomy-github.ts,
+// `readTheAutonomyOfRepository`), the computation the app's too (scripts/autonomy-page/compute.ts). One thing
 // is added, for the GITHUB_TOKEN's budget (1,000 REST requests an hour per repository): the app reads each served
 // ticket's events and comments with two REST calls, about 2,000 over 30 days. Here they are read by fifty with GraphQL
 // first, then handed to the app's read as the issues it already holds (`lues`); a ticket GraphQL does not give whole
@@ -13,9 +13,9 @@
 // nothing and exits non-zero: the step fails, and the page last published stays.
 import { writeFileSync } from "node:fs";
 import { API_GITHUB, byFetch, clientGitHub, postByFetch, type CallGitHub } from "../../app/src/board/client.ts";
-import { readTheAutonomyOfRepository, type IssuesRead } from "../../app/src/vue/autonomy/autonomy-github.ts";
-import { readTheServedOnTheWindow } from "../../app/src/vue/rail/github.ts";
-import { chiffresDAutonomie } from "../../app/src/vue/autonomy/compute.ts";
+import { readTheAutonomyOfRepository, type IssuesRead } from "./autonomy-github.ts";
+import { readTheServedOnTheWindow } from "./served-github.ts";
+import { chiffresDAutonomie } from "./compute.ts";
 
 export const REPOSITORY = "benomite/brigade";
 export const DAYS = 30;

@@ -5,9 +5,7 @@
 // choisie —, et l'item quitte le TODO. Rien à taper ni à recopier. C'est le TODO que le rail pose (kitchen.js,
 // `poserLeTodo`, ticket 4261), qui lui donne les boutons de chaque carte.
 // `choices` : les mêmes pour chaque item, ou ceux de son ticket — le recommandé, plein. `open` : son numéro ouvre sa carte,
-// d'un clic (`openTitle` au survol). `control` : le contrôle de park d'un item (park-control.js), derrière « park or
-// unpark… » ; `opened` garde les items dont il est ouvert d'un rendu à l'autre. En lecture seule (`readOnly`, la raison),
-// l'item se lit sans bouton.
+// d'un clic (`openTitle` au survol). En lecture seule (`readOnly`, la raison), l'item se lit sans bouton.
 // Au clavier (ticket 4646) : un item qui a le focus se répond — `1` à `5` ses choix, Entrée le recommandé, Échap le replie
 // sur une ligne (« later »), qu'Entrée rouvre. Répondu, à la souris ou au clavier, un item se replie sur une ligne qui dit la
 // réponse envoyée, et le focus passe au suivant. `answered` et `later` gardent ces lignes d'un rendu à l'autre ; `data-cle`
@@ -23,11 +21,10 @@ import { waitingFor } from "./records.js";
 /**
  * @typedef {{ records: readonly ParkedRecord[], chef: string, choices: readonly string[] | ((record: ParkedRecord) => readonly Choice[]),
  *   answer: (ticket: number, choice: string) => unknown, readOnly?: string, open?: (ticket: number) => void,
- *   openTitle?: (ticket: number) => string, control?: (record: ParkedRecord) => any, opened?: Set<number>,
+ *   openTitle?: (ticket: number) => string,
  *   answered?: Map<number, string>, later?: Set<number> }} Options
  */
 
-const OPEN_PARK = "park or unpark…";
 const NO_WHAT = "for what: not given";
 const NO_UNTIL = "no date set";
 /** @param {number} n */
@@ -38,7 +35,7 @@ export const ANSWERED = "answered";
 export const KEY_OF_ENTRY = "entree-du-todo";
 // Les touches qui choisissent : `1` le premier choix, jusqu'à `5`.
 const CHOICE_KEYS = ["1", "2", "3", "4", "5"];
-// Une frappe dans un champ (le contrôle de park) est du texte, jamais un choix.
+// Une frappe dans un champ est du texte, jamais un choix.
 const TYPING = ["INPUT", "TEXTAREA", "SELECT"];
 
 // Qui il attend et jusqu'à quand, sur une ligne ; et pour quoi, quand rien ne le dit au-dessus.
@@ -51,7 +48,7 @@ function whoAndWhen(doc, { who, what, until }) {
 }
 
 /** @param {Fabrique} doc @param {Options} options */
-export function parkedTodo(doc, { records, chef, choices, answer, readOnly, open, openTitle = (ticket) => `open #${ticket}'s card`, control, opened = new Set(), answered = new Map(), later = new Set() }) {
+export function parkedTodo(doc, { records, chef, choices, answer, readOnly, open, openTitle = (ticket) => `open #${ticket}'s card`, answered = new Map(), later = new Set() }) {
   const itsOwn = waitingFor(records, chef);
   const frame = doc.createElement("div");
   frame.className = "todo-du-rail";
@@ -114,34 +111,12 @@ export function parkedTodo(doc, { records, chef, choices, answer, readOnly, open
         answer(ticket, text);
       };
       const buttons = theChoice.map((choice) => button(doc, choice.texte, () => choose(choice), { sorte: choice.recommande === true ? "recommande" : "secondaire" }));
-      /** @type {any} */
-      let pose = control !== undefined && opened.has(ticket) ? control(record) : undefined;
-      if (control !== undefined) {
-        const openIt = button(
-          doc,
-          OPEN_PARK,
-          () => {
-            if (opened.delete(ticket)) {
-              pose?.remove();
-              pose = undefined;
-              return;
-            }
-            opened.add(ticket);
-            pose = control(record);
-            item.append(pose);
-          },
-          { sorte: "discret" },
-        );
-        openIt.dataset.action = "open-park";
-        buttons.push(openIt);
-      }
       if (buttons.length > 0) {
         const answers = doc.createElement("div");
         answers.className = "reponses-du-todo";
         answers.append(...buttons);
         item.append(answers);
       }
-      if (pose !== undefined) item.append(pose);
       item.tabIndex = 0;
       item.dataset.cle = `${KEY_OF_ENTRY}#${ticket}`;
       item.dataset.champ = KEY_OF_ENTRY;

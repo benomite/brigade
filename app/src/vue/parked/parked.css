@@ -1,32 +1,7 @@
 /* Le TODO du chef fait des tickets parked qui l'attendent (ticket 4281) : sur chaque entrée (kitchen/kitchen.css), qui elle
-   attend et jusqu'à quand ; le contrôle de park s'ouvre sous l'entrée, sur toute sa largeur. */
+   attend et jusqu'à quand. */
 #rail .entree-du-todo .qui-jusqua {
   color: var(--discret);
-}
-#rail .entree-du-todo .park-control {
-  flex: 1 1 100%;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: var(--pas-1) var(--pas-2);
-}
-#rail .park-control label {
-  display: flex;
-  flex-direction: column;
-  gap: var(--pas-1);
-}
-#rail .park-control label > span {
-  color: var(--discret);
-}
-#rail .park-buttons {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--pas-1);
-}
-#rail .park-reason {
-  flex: 1 1 100%;
-  margin: 0;
-  color: var(--texte-doux);
 }
 /* Au clavier (ticket 4646) : l'entrée qui a le focus le montre ; repliée — répondue, ou remise à plus tard —, elle tient sur
    une ligne, discrète. */

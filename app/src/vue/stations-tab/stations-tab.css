@@ -145,9 +145,6 @@
   overflow-wrap: anywhere;
   color: var(--texte-doux);
 }
-.carte-de-station .agent .agent-fait {
-  color: var(--discret);
-}
 #rail .carte-de-station .replie {
   margin: 0;
 }

@@ -1,5 +1,5 @@
 /* Le bon de l'app (ticket 2918, maquette de docs/maquettes/app/) : un ticket sur son papier, partout où un écran en montre un —
-   le rail, Cooks, la fiche, les captures. Ses règles ne nomment aucun écran : elles ne lisent que `.bon` et ses attributs
+   le rail, Cooks, la fiche. Ses règles ne nomment aucun écran : elles ne lisent que `.bon` et ses attributs
    (`data-hors`, `data-traine`). Son état est la pastille (components/pill), ses gestes les boutons (components/button). */
 .bon[data-hors] {
   flex: 0 1 240px;
@@ -41,14 +41,6 @@
   border-top: 1px dashed var(--bon-trait);
   white-space: pre-wrap;
 }
-/* Les étiquettes d'une carte (ticket 2039) : la station qui la sert (Taken et Pass, plusieurs stations), en trait plein ;
-   une par capacité que son ticket demande, en tireté. Posées partout où `poserBon` pose une carte, pas seulement sur le rail. */
-.bon .etiquettes {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--pas-1);
-  margin-top: var(--pas-1);
-}
 .bon .etiquette {
   padding: 0 var(--pas-2);
   font-size: var(--taille-meta);
@@ -56,9 +48,6 @@
   color: var(--bon-discret);
   border: 1px solid var(--bon-trait);
   border-radius: var(--rayon-bouton);
-}
-.bon .etiquette-capacite {
-  border-style: dashed;
 }
 /* Les deux lignes d'une carte : ce qui se passe, puis — rarement — ce qui demande l'attention. */
 .bon p.ligne-carte,
@@ -80,81 +69,12 @@
 .bon[data-refus] {
   border-inline-start: 3px solid var(--bon-alerte, currentColor);
 }
-.bon p.refus-ligne {
-  font-weight: 600;
-  color: var(--bon-alerte, var(--bon-encre));
-}
-.bon .gestes-du-refus {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--pas-2);
-  align-items: center;
-}
-.bon .gestes-du-refus p.secondaire {
-  display: contents;
-}
 .bon p.signal {
   font-weight: 600;
   color: var(--bon-encre);
 }
 .bon small.repere {
   font-style: normal;
-}
-/* Ce qui a été livré, sous le titre : le résumé de la relecture, en prose et à l'encre — tout le
-   texte, sur autant de lignes qu'il en faut ; rien n'est coupé, ni caché, ni mis en points de
-   suspension. Une ligne trop longue passe à la suivante entre deux mots. */
-.bon p.livraison {
-  padding-top: 0;
-  font-family: var(--police-interface);
-  font-size: var(--taille-corps);
-  color: var(--bon-encre);
-  border-top: 0;
-  overflow-wrap: break-word;
-}
-/* Les captures d'un ticket d'interface : l'écran avant et après, côte à côte, chacun sous sa légende.
-   Une capture que la livraison ne porte pas garde sa place, et le dit ; une livraison qui ne les porte
-   pas toutes le dit en tête, en jaune, sur une ligne. */
-.bon div.captures {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--pas-2);
-  align-items: start;
-}
-.bon .captures figure {
-  display: flex;
-  flex-direction: column;
-  gap: var(--pas-1);
-  min-width: 0;
-  margin: 0;
-}
-.bon .captures img {
-  display: block;
-  width: 100%;
-  height: auto;
-  border: 1px solid var(--bon-trait);
-  border-radius: 0;
-}
-.bon .captures .place {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  aspect-ratio: 16 / 10;
-  font-size: var(--taille-meta);
-  font-style: italic;
-  color: var(--bon-discret);
-  border: 1px dashed var(--bon-trait);
-  border-radius: 0;
-}
-.bon .captures figcaption {
-  font-size: var(--taille-meta);
-  line-height: 1.35;
-  color: var(--bon-discret);
-}
-.bon p.captures-manquantes {
-  font-family: var(--police-interface);
-  font-weight: 600;
-  color: var(--bon-encre);
-  border-top: 2px solid var(--jaune);
 }
 .bon .confirmation {
   flex-direction: column;
@@ -229,24 +149,6 @@
   margin-left: var(--pas-1);
   align-items: center;
 }
-.bon .essai {
-  width: 8px;
-  height: 8px;
-  border: 1.5px solid var(--bon-discret);
-  border-radius: 50%;
-  box-sizing: border-box;
-}
-.bon .essai[data-en-cours] {
-  background: var(--bon-discret);
-}
-/* Le rang de l'essai en cours d'un ticket pris plus d'une fois (ticket 3923), à droite de ses points : « 3rd try ». */
-.bon .rang-essai {
-  margin-left: var(--pas-1);
-  font-size: var(--taille-meta);
-  font-weight: 600;
-  color: var(--bon-discret);
-  white-space: nowrap;
-}
 .bon[data-traine] {
   border-left: 4px solid var(--rouge);
 }
@@ -265,69 +167,8 @@
   border: 1px solid var(--bon-trait);
   border-radius: var(--rayon-pastille);
 }
-/* Les gestes de WAITING, sur un bon : ses boutons en ligne ; le formulaire « waiting for… », sous
-   le bon, un champ par ligne — ce qu'il attend, de qui, le jour de la relance —, puis ce qui le
-   fait partir ou y renonce. Ce qui l'a refusé se lit dessous (components/line-error). */
-.bon .gestes {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--pas-1);
-  padding-top: var(--pas-1);
-  border-top: 1px dashed var(--bon-trait);
-}
-.bon form.attente {
-  display: flex;
-  flex-direction: column;
-  gap: var(--pas-1);
-  padding-top: var(--pas-1);
-  font-size: var(--taille-meta);
-  border-top: 1px dashed var(--bon-trait);
-  cursor: auto;
-}
-.bon form.attente label {
-  display: flex;
-  flex-direction: column;
-  gap: var(--pas-1);
-}
-.bon form.attente input {
-  min-width: 0;
-}
-/* « it arrived, back to the kitchen », parti sur le tableau de la cuisine : sous les gestes de la carte de WAITING, en
-   une ligne — en route, posté (le commentaire au survol), ou ce qui l'a refusé (components/line-error). */
-.bon p.arrivee {
-  margin: 0;
-  font-size: var(--taille-meta);
-  color: var(--bon-discret);
-  border-top: 0;
-}
 /* Sur la carte, sur son papier clair, sous ce qu'elle dit. */
 .bon .signaler {
   display: flex;
   margin-top: var(--pas-2);
-}
-.bon .signaler .signale {
-  color: var(--bon-discret);
-}
-
-/* Essayer une livraison depuis sa carte (trial/trial.js, ticket 3215) : le bouton, où la version se trouve, ou la raison de l'échec et la fin de la sortie.
-   Sa rangée n'est pas `.essai`, le point des essais de la cuisine plus haut (#1895). */
-.bon .essai-rangee {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--pas-2);
-  margin-top: var(--pas-2);
-}
-.bon .essai-ou,
-.bon .essai-echec {
-  margin: 0;
-  overflow-wrap: anywhere;
-}
-.bon .essai-fin {
-  flex-basis: 100%;
-  margin: 0;
-  max-height: 12em;
-  overflow: auto;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
 }

@@ -13,6 +13,7 @@
 import { buttonAction } from "../bricks.js";
 import { AT_RETURN } from "../choice-station/choice-station.js";
 import { setTheChoice } from "../stations-tab/choice.js";
+import { refusalSays } from "../projects-served/projects-served.js";
 
 /** @typedef {import("../bricks.js").Fabrique} Fabrique */
 /** @typedef {import("../stations-tab/choice.js").Choice} Choice */
@@ -138,4 +139,19 @@ export function setTheRequestOfStation(doc, { depot: repository, etat: state, ch
   const [list, ...below] = setTheChoice(doc, { choix: choice, ...(inProgress === undefined ? {} : { enCours: inProgress }), ...(refusal === undefined ? {} : { refus: refusal }) }, action.choisir);
   root.append(created(doc, "h2", "attendu", QUESTION(repository)), created(doc, "p", "phrase", NOBODY(repository)), actions(doc, [list, later]), ...below);
   return root;
+}
+
+export const UNREACHABLE = (/** @type {string} */ name) => `${name} could not be given the project.`;
+
+// La station choisie par le geste que l'app a déjà : ce qu'il rend en devient l'état — ajoutée, ou son refus en une ligne.
+/** @param {string} name @param {() => Promise<{ refus: string, detail?: string } | object>} write @returns {Promise<"ajoutee" | { ligne: string, detail: string }>} */
+export async function addTheStation(name, write) {
+  try {
+    const readOne = await write();
+    if (!("refus" in readOne)) return "ajoutee";
+    const said = refusalSays(readOne.refus.replace(/^not saved: /, ""));
+    return "detail" in readOne && readOne.detail !== undefined ? { ...said, detail: [said.detail, readOne.detail].filter((end) => end !== "").join(" — ") } : said;
+  } catch (error) {
+    return { ligne: UNREACHABLE(name), detail: error instanceof Error ? error.message : String(error) };
+  }
 }

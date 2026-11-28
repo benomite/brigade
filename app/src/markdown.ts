@@ -387,30 +387,3 @@ export const readWords = (text: string): Word[] => readWordsA(text, 0);
 export function render(text: string): Block[] {
   return readBlocks(withoutComments(text).split("\n"), 0);
 }
-
-// Les adresses que ces blocs ouvrent, une fois chacune : celles qu'un clic de la vue peut ouvrir.
-export function linksOf(blocks: readonly Block[]): string[] {
-  const views = new Set<string>();
-  const words = (list: readonly Word[]): void => {
-    for (const word of list) {
-      if ("lien" in word) views.add(word.lien);
-      const inside = "gras" in word ? word.gras : "italique" in word ? word.italique : "barre" in word ? word.barre : "lien" in word ? word.contenu : [];
-      words(inside);
-    }
-  };
-  const walk = (list: readonly Block[]): void => {
-    for (const block of list) {
-      if ("titre" in block) words(block.contenu);
-      else if ("paragraphe" in block) words(block.paragraphe);
-      else if ("citation" in block) walk(block.citation);
-      else if ("liste" in block) for (const element of block.liste) walk(element.blocs);
-      else if ("tableau" in block) for (const rank of [block.tableau.tete, ...block.tableau.lignes]) for (const cell of rank) words(cell);
-      else if ("replie" in block) {
-        words(block.replie.resume);
-        walk(block.replie.blocs);
-      }
-    }
-  };
-  walk(blocks);
-  return [...views];
-}

@@ -1,6 +1,6 @@
 # The simplified process — one kitchen for any project
 
-Dated product spec, 2026-11-24. Written by the second with the chef, who validated it as **the specification of Brigade's process**. It replaces, where they disagree, the process parts of [`2026-11-23-autonomy-trust-control.md`](2026-11-23-autonomy-trust-control.md). The visual version is the chef's artifact « Process Brigade simplifié ».
+Dated product spec, 2026-11-24. Written by the second with the chef, who validated it as **the specification of Brigade's process**. It replaces the earlier autonomy-trust-control spec (2026-11-23, deleted) where they disagreed. The visual version is the chef's artifact « Process Brigade simplifié ».
 
 ## Why
 

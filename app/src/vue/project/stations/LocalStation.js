@@ -16,47 +16,31 @@
 // Ce module ne touche ni `document` ni le pont : la vue lui donne une fabrique (bricks.js), l'état lu et les gestes.
 
 import { hover } from "../../bricks.js";
-import { toggleSwitch } from "../../components/switch/switch.js";
 import { lineError } from "../../components/line-error/line-error.js";
-import { saysOfSetting, rowOfSetting } from "../../components/setting/setting.js";
+import { rowOfSetting } from "../../components/setting/setting.js";
 import { levelOf } from "../../levels.js";
-import { button } from "../../components/button/button.js";
 import { READING, NOT_REACHED, THIS_COMPUTER } from "../../lexicon.js";
 
 /** @typedef {import("../../bricks.js").Fabrique} Fabrique */
-/** @typedef {import("../../../ordinary.ts").Block} BlockOfOrdinary */
 /** @typedef {import("../../../projects/projects.ts").FoldersOfTheStation} Folders */
-/** @typedef {Pick<import("../../../stations/stations.ts").StationVue, "id" | "nom" | "max" | "pannes">} Station */
-/** @typedef {import("../../components/setting/setting.js").Says} Says */
-/** La rangée du bac à sable qu'un changement touche : les tickets ordinaires, ou combien de cooks à la fois. @typedef {"option" | "limite"} Sandbox */
+/** @typedef {Pick<import("../../../stations/stations.ts").StationVue, "id" | "nom" | "max">} Station */
 /**
  * Ce que le bloc montre. `poste` : le nom que l'écran donne à cet ordinateur (« this Mac »). `station` : la station de
  * cet ordinateur telle que GitHub la publie — indéfinie tant qu'elle n'est pas lue, nulle quand cet appareil n'en a pas
  * (un téléphone) : le bloc le dit alors en une ligne. `dossiers`, `ordinaires` : leur dernière lecture —
  * indéfinie, elle est en route ; `ordinaires` nul : le projet ne cuit pas sur cet ordinateur. `refusOrdinaires` : pourquoi
  * le bac à sable ne s'est pas lu. `reglageDit` : ce que le dernier changement du bac à sable a rendu, sous la rangée
- * qu'il touche — en route, ou refusé. `connexionDite` : ce que le dernier login a rendu.
+ * qu'il touche — en route, ou refusé.
  * @typedef {{
  *   poste: string,
  *   projet: string,
  *   station?: Station | null,
  *   dossiers?: Folders,
- *   ordinaires?: BlockOfOrdinary | null,
- *   refusOrdinaires?: string,
- *   reglageDit?: { ou: Sandbox, dit: Says },
- *   connexionDite?: string,
  * }} StateOfTheStationLocale
  */
-/**
- * `regler` : le bac à sable — prendre les tickets ordinaires, combien de cooks à la fois (`null` : pas de limite) —, le
- * même appel que Settings ; `ou` : la rangée qui a changé. `seConnecter` : le login de la panne de connexion, par sa clé.
- * @typedef {{ regler(active: boolean, limit: number | null, or: Sandbox): void, seConnecter(key: string): void }} ActionsOfTheStationLocale
- */
-
 export { READING };
 export const CLONE = (/** @type {string} */ project) => `where ${THIS_COMPUTER}'s station keeps ${project}'s clone. The station chooses it: it is read here, it does not change`;
 export const WORKTREES = (/** @type {string} */ project) => `where ${THIS_COMPUTER}'s station puts the worktrees of ${project}'s cooks — each cook writes only in its own. The station chooses it: it is read here, it does not change`;
-export const NOT_COOKED_NOT = (/** @type {string} */ project, /** @type {string} */ workstation) => `${project} does not cook on ${workstation}`;
 export const CONNECTION = {
   connectee: { dit: "connected", survol: "this station's Claude Code is signed in to your Max account: its cooks can run" },
   perdue: { dit: "lost", survol: "nothing cooks on this station until you log in again" },
@@ -75,87 +59,41 @@ function withIt(doc, balise, text, classe) {
 
 // Une rangée de réglage (components/setting) : `cle`, la clé de sa table de niveaux, que l'étiquette dit déjà — la vue et
 // les tests retrouvent la rangée par elle. `dessous` : ce qu'elle a rendu.
-/** @param {Fabrique} doc @param {{ nom: string, cle: string, valeur: any[], controle?: any[], dessous?: any[] }} ligne */
-function row(doc, { nom: name, cle: key, valeur: value, controle: control = [], dessous: below = [] }) {
-  return rowOfSetting(doc, { nom: name, cle: key, niveau: levelOf(doc, key), valeur: value, controle: control, dessous: below });
+/** @param {Fabrique} doc @param {{ nom: string, cle: string, niveau: any, valeur: any[], controle?: any[], dessous?: any[] }} ligne */
+function row(doc, { nom: name, cle: key, niveau: level, valeur: value, controle: control = [], dessous: below = [] }) {
+  return rowOfSetting(doc, { nom: name, cle: key, niveau: level, valeur: value, controle: control, dessous: below });
 }
 
 // Les deux dossiers : un chemin chacun, ce qu'il est au survol. Ils ne se changent pas.
 /** @param {Fabrique} doc @param {StateOfTheStationLocale} etat */
 function folders(doc, { projet: project, dossiers: readOnes }) {
-  if (readOnes === undefined) return [row(doc, { nom: "folders", cle: "dossier", valeur: [withIt(doc, "span", READING)] })];
-  if ("refus" in readOnes) return [row(doc, { nom: "folders", cle: "dossier", valeur: [lineError(doc, NOT_REACHED("folders"), [readOnes.refus, readOnes.detail ?? ""].filter(Boolean).join(" — "))] })];
+  if (readOnes === undefined) return [row(doc, { nom: "folders", cle: "dossier", niveau: levelOf(doc, "dossier"), valeur: [withIt(doc, "span", READING)] })];
+  if ("refus" in readOnes) return [row(doc, { nom: "folders", cle: "dossier", niveau: levelOf(doc, "dossier"), valeur: [lineError(doc, NOT_REACHED("folders"), [readOnes.refus, readOnes.detail ?? ""].filter(Boolean).join(" — "))] })];
   return [
-    row(doc, { nom: "clone folder", cle: "dossier", valeur: [withIt(doc, "span", readOnes.clone, "mono"), hover(doc, CLONE(project))] }),
-    row(doc, { nom: "worktrees folder", cle: "dossier", valeur: [withIt(doc, "span", readOnes.worktrees, "mono"), hover(doc, WORKTREES(project))] }),
+    row(doc, { nom: "clone folder", cle: "dossier", niveau: levelOf(doc, "dossier"), valeur: [withIt(doc, "span", readOnes.clone, "mono"), hover(doc, CLONE(project))] }),
+    row(doc, { nom: "worktrees folder", cle: "dossier", niveau: levelOf(doc, "dossier"), valeur: [withIt(doc, "span", readOnes.worktrees, "mono"), hover(doc, WORKTREES(project))] }),
   ];
 }
 
-// Le bac à sable : les tickets ordinaires qu'il fait prendre à cette station, et combien de cooks à la fois — les deux
-// lignes de Settings, mêmes valeurs, mêmes contrôles, même appel. Hors d'un Mac il n'y en a pas : la ligne le dit, et
-// pourquoi au survol. Un projet qui ne cuit pas ici n'a rien dans ce bac à sable.
-/** @param {Fabrique} doc @param {StateOfTheStationLocale} etat @param {ActionsOfTheStationLocale} actions */
-function sandbox(doc, { poste: workstation, projet: project, ordinaires: ordinary, refusOrdinaires: refusalOrdinary = "", reglageDit: settingSays }, actions) {
-  if (ordinary === undefined) return [row(doc, { nom: "sandbox", cle: "ordinaires", valeur: [withIt(doc, "span", READING)] })];
-  if (ordinary === null) return [row(doc, { nom: "sandbox", cle: "ordinaires", valeur: [withIt(doc, "span", NOT_COOKED_NOT(project, workstation))] })];
-  if (!ordinary.reglable) return [row(doc, { nom: "sandbox", cle: "ordinaires", valeur: [withIt(doc, "span", `none on ${workstation}`), hover(doc, ordinary.explication)] })];
-  const limit = doc.createElement("input");
-  limit.type = "number";
-  limit.min = "1";
-  limit.step = "1";
-  limit.value = ordinary.limite === null ? "" : String(ordinary.limite);
-  limit.ariaLabel = `Cooks ${workstation} runs at once`;
-  // L'onglet se repose sous les doigts du chef : le champ se retrouve par sa clé, le clavier lui est rendu.
-  limit.dataset.cle = `limite:${project}`;
-  limit.dataset.champ = "cooks";
-  // Un changement en route : les deux contrôles attendent sa réponse.
-  const inProgress = settingSays !== undefined && "enCours" in settingSays.dit;
-  limit.disabled = inProgress;
-  const set = (/** @type {Sandbox} */ or, /** @type {boolean} */ taking) => actions.regler(taking, String(limit.value).trim() === "" ? null : Number(limit.value), or);
-  const option = toggleSwitch(
-    doc,
-    { texte: ordinary.actif ? "on" : "off", allume: ordinary.actif, libelle: `Take the ordinary tickets on ${workstation}`, actif: !inProgress },
-    (taking) => set("option", taking),
-  );
-  limit.addEventListener("change", () => set("limite", option.ariaChecked === "true"));
-  const said = (/** @type {Sandbox} */ or) => saysOfSetting(doc, settingSays?.ou === or ? settingSays.dit : undefined);
-  return [
-    row(doc, {
-      nom: "sandbox · ordinary tickets",
-      cle: "ordinaires",
-      valeur: [withIt(doc, "span", ordinary.actif ? "taken" : "not taken"), hover(doc, ordinary.explication)],
-      controle: [option],
-      dessous: [...saysOfSetting(doc, { refus: ordinary.indisponible ?? "" }), ...saysOfSetting(doc, { refus: refusalOrdinary }), ...said("option")],
-    }),
-    row(doc, { nom: "cooks at once", cle: "ordinaires", valeur: [withIt(doc, "span", ordinary.limite === null ? "no limit" : String(ordinary.limite))], controle: [limit], dessous: said("limite") }),
-  ];
-}
-
-// La connexion à Claude, telle que la station la publie : perdue, le bouton de sa panne la refait (le login de Claude
-// Code sur cet ordinateur) ; ce qu'il a rendu se lit dessous.
-/** @param {Fabrique} doc @param {Station | undefined} station @param {string} saidOne @param {ActionsOfTheStationLocale} actions */
-function connection(doc, station, saidOne, actions) {
+// La connexion à Claude, telle que la station la publie.
+/** @param {Fabrique} doc @param {Station | undefined} station */
+function connection(doc, station) {
   const max = station?.max ?? null;
   const seenOne = max === null ? { dit: station === undefined ? READING : CONNECTION_KILLS, survol: CONNECTION_KILLS_HOVER } : CONNECTION[max];
   const value = withIt(doc, "span", seenOne.dit);
   if (max !== null) value.dataset.etat = max;
-  const outage = station?.pannes.find(({ sujet: subject }) => subject === "connexion-max");
-  const control = [];
-  if (outage !== undefined) {
-    control.push(button(doc, outage.bouton.libelle, () => actions.seConnecter(outage.cle), { sorte: "recommande" }));
-  }
-  return row(doc, { nom: "Claude connection", cle: "claude", valeur: [value, ...(station === undefined ? [] : [hover(doc, seenOne.survol)])], controle: control, dessous: saidOne === "" ? [] : [withIt(doc, "p", saidOne, "dit")] });
+  return row(doc, { nom: "Claude connection", cle: "claude", niveau: levelOf(doc, "claude"), valeur: [value, ...(station === undefined ? [] : [hover(doc, seenOne.survol)])], controle: [] });
 }
 
-// Les lignes de cet ordinateur : ses dossiers, son bac à sable, sa connexion à Claude — chacune une rangée de réglage.
-/** @param {Fabrique} doc @param {StateOfTheStationLocale} state @param {ActionsOfTheStationLocale} [actions] @returns {any[]} */
-export function linesOfTheStationLocale(doc, state, actions = { regler: () => {}, seConnecter: () => {} }) {
+// Les lignes de cet ordinateur : ses dossiers, sa connexion à Claude — chacune une rangée de réglage.
+/** @param {Fabrique} doc @param {StateOfTheStationLocale} state @returns {any[]} */
+export function linesOfTheStationLocale(doc, state) {
   const station = state.station === null ? undefined : state.station;
-  return [...folders(doc, state), ...sandbox(doc, state, actions), connection(doc, station, state.connexionDite ?? "", actions)];
+  return [...folders(doc, state), connection(doc, station)];
 }
 
 // La connexion à Claude d'une autre station, telle qu'elle la publie : elle se refait sur sa machine, pas d'ici.
 /** @param {Fabrique} doc @param {Station} station */
 export function connectionAtTheStation(doc, station) {
-  return connection(doc, { ...station, pannes: [] }, "", { regler: () => {}, seConnecter: () => {} });
+  return connection(doc, station);
 }

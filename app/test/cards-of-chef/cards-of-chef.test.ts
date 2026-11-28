@@ -11,8 +11,8 @@ import { forTheBar } from "../../src/bar.ts";
 import { EXAMPLE } from "../../src/config.ts";
 import { kindOfTheCard, setTheCard } from "../../src/vue/cards-of-chef/cards-of-chef.js";
 import { PALETTE } from "../../src/colors.ts";
-import { BANNER, holdFacts, type Drawable, type Facts } from "../../src/facts.ts";
-import { TABS, HEADINGS } from "../../src/tabs.ts";
+import { holdFacts, type Drawable, type Facts } from "../../src/facts.ts";
+import { HEADINGS } from "../../src/tabs.ts";
 import { EFFORTS, MODELS } from "../../src/projects/projects.ts";
 import { Fake, FakeScreen, type Played, playTheVue, repos } from "../helpers/false-vue.ts";
 
@@ -26,12 +26,9 @@ const startup = () => ({
   configuration: forTheBar({ chemin: "no projects file on this phone", projets: [{ nom: PARADE, dossier: "/tmp/parade" }] }, () => true),
   palette: PALETTE,
   exemple: EXAMPLE,
-  onglets: TABS,
   rubriques: HEADINGS,
   gestes: {},
-  banniere: BANNER,
   calibrage: { modeles: MODELS, efforts: EFFORTS },
-  code: undefined,
   telephone: { github: { compte: "chef" } },
 });
 
@@ -40,11 +37,8 @@ const startup = () => ({
 const FACTS = {
   etat: "ouverte",
   lu: "2026-10-21T10:04:11.000Z",
-  dernierTick: "2026-10-21T10:04:02.000Z",
   compteurs: { rail: 1, auTravail: 0, aLaPass: 0, attend: 1, livres24h: 0 },
-  dernierEvenement: null,
   rail: [{ ticket: 21, etat: "en attente", titre: "L'export du journal", url: "https://github.com/chef/parade/issues/21", activite: null }],
-  cooks: [],
   attend: [
     {
       ticket: 21,
@@ -57,7 +51,7 @@ const FACTS = {
 } as unknown as Facts;
 const EMPTY = { ...FACTS, compteurs: { ...FACTS.compteurs, attend: 0 }, attend: [] } as unknown as Facts;
 
-const drawable = (facts: Facts): Drawable => holdFacts(() => new Map()).recevoir({ projet: PARADE, demande: 0, a: A, sorties: [{ commande: "facts", texte: JSON.stringify(facts) }] });
+const drawable = (facts: Facts): Drawable => holdFacts().recevoir({ projet: PARADE, demande: 0, a: A, sorties: [{ commande: "facts", texte: JSON.stringify(facts) }] });
 function read(vue: Played, facts: Facts): void {
   const requests = vue.appels.filter(({ geste: action }) => action === "faits" || action === "relireBox");
   vue.dire("surFaits", { ...drawable(facts), demande: requests.at(-1)?.args[0] as number });
@@ -191,7 +185,7 @@ describe("la carte ouverte d'un toucher — à première vue (#3086)", () => {
   test("situation, question, recommandation, boutons ; ce que le commentaire dit d'autre est derrière un seul « details », fermé", () => {
     const doc = { createElement: (balise: string) => new Fake(balise) };
     const todo = { sorte: "blocked", resume: "The release run failed.", question: "Retry it?", contexte: "First paragraph.\n\nManager note.", choix: [{ texte: "Retry it", prix: "p" }, { texte: "Close it", prix: "p" }], prixDuTexte: "p" };
-    const [, body] = setTheCard(doc, { carte: { projet: "parade", ticket: 3084, age: "1 h", todo }, total: 1, brouillon: "", enRoute: false, retour: () => {}, ecrire: () => {}, repondre: () => {} }) as unknown as Fake[];
+    const [, body] = setTheCard(doc, { carte: { projet: "parade", ticket: 3084,  todo }, total: 1, brouillon: "", enRoute: false, retour: () => {}, ecrire: () => {}, repondre: () => {} }) as unknown as Fake[];
     const order = (body as Fake).children.map((pose) => pose.textContent);
     assert.deepEqual(order.slice(0, 4), ["#3084 · parade", "The release run failed.", "Retry it?", "Recommended: Retry it"]);
     const folds = (body as Fake).dessous("details");
@@ -206,7 +200,7 @@ describe("la carte ouverte d'une décision du manager (#3434)", () => {
   const doc = { createElement: (balise: string) => new Fake(balise) };
   const set = (recommendation: { rang: number; pourquoi: string } | null) => {
     const todo = { sorte: "manager-decision", question: "Option A or B?", choix: [{ texte: "Option A suffices", prix: "p" }, { texte: "Option B: generate them", prix: "p" }], prixDuTexte: "p", recommandation: recommendation };
-    const [, body] = setTheCard(doc, { carte: { projet: "parade", ticket: 35, age: "1 h", todo }, total: 1, brouillon: "", enRoute: false, retour: () => {}, ecrire: () => {}, repondre: () => {} }) as unknown as Fake[];
+    const [, body] = setTheCard(doc, { carte: { projet: "parade", ticket: 35,  todo }, total: 1, brouillon: "", enRoute: false, retour: () => {}, ecrire: () => {}, repondre: () => {} }) as unknown as Fake[];
     const choice = (body as Fake).dessous("button").filter((button) => button.className.split(" ").includes("choix-du-chef"));
     return { textes: (body as Fake).children.map((pose) => pose.textContent), recommandes: choice.filter((button) => button.className.split(" ").includes("recommande")).map((button) => button.textContent) };
   };

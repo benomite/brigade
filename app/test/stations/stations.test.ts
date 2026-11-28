@@ -15,7 +15,6 @@ import { reply } from "./fake-gh-gists.ts";
 import { duration, lineOf, lineOfVersion, holdStations, type SeenOfStations } from "../../src/stations/stations.ts";
 import { WITHOUT_POSIX } from "../helpers/posix.ts";
 import { whatProvidesThisComputer } from "../../src/stations/provides.ts";
-import { DESCRIPTION_OF_PHONE, FILE_PHONE } from "../../src/phone-connected.ts";
 
 const SOURCES = join(import.meta.dirname, "../../src/stations");
 const NOW = Date.parse("2026-10-15T12:00:00Z");
@@ -127,17 +126,6 @@ describe("les stations lues sur un GitHub de test", { concurrency: 7 }, () => {
     assert.equal(reread !== undefined && "nom" in reread ? reread.nom : null, "box-2");
   });
 
-  // La trace du téléphone connecté (#3303, phone-connected.ts), lue par le `gh` du poste.
-  test("un gist qui porte la trace du téléphone : connecté ; aucun : non ; un `gh` en panne : lève", { skip: WITHOUT_POSIX }, async (t) => {
-    const github = oneGitHub(t);
-    const readOnes = githubOfStations({ gh: github.gh, delaiMs: 30_000 });
-    github.station("box", published());
-    assert.equal(await readOnes.telephone?.(), false);
-    writeFileSync(join(github.repertoire, "t.gist.json"), JSON.stringify({ id: "t", description: DESCRIPTION_OF_PHONE, public: false, updated_at: new Date().toISOString(), files: { [FILE_PHONE]: { filename: FILE_PHONE, content: "{}" } } }));
-    assert.equal(await readOnes.telephone?.(), true);
-    github.panne(true);
-    await assert.rejects(readOnes.telephone?.() ?? Promise.resolve());
-  });
   test("le code tapé appaire la station : elle apparaît sur la home, « online · version X · no project »", { skip: WITHOUT_POSIX }, async (t) => {
     const github = oneGitHub(t);
     github.station("box1", published());
@@ -152,7 +140,7 @@ describe("les stations lues sur un GitHub de test", { concurrency: 7 }, () => {
     const written = JSON.parse(github.gist("box1").files[FILE_PAIRING]?.content ?? "null") as { appaireeLe: string; empreinte: string };
     assert.equal(written.empreinte, fingerprint(CODE));
     assert.equal(written.appaireeLe, new Date(NOW).toISOString());
-    assert.deepEqual(stations.vu()?.stations, [{ id: "box1", nom: "box", machine: "Linux 6.1.0", etat: "en-ligne", ligne: "online · version 1.4.0 · no project", pannes: [], dit: "online", version: "1.4.0", projets: [], max: null, maxDepuis: null, versionDit: "up to date" }]);
+    assert.deepEqual(stations.vu()?.stations, [{ id: "box1", nom: "box", machine: "Linux 6.1.0", etat: "en-ligne", ligne: "online · version 1.4.0 · no project", dit: "online", version: "1.4.0", projets: [], max: null, maxDepuis: null, versionDit: "up to date" }]);
     assert.deepEqual(readings.at(-1), stations.vu());
   });
 

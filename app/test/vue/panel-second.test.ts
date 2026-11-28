@@ -7,8 +7,8 @@ import { describe, test } from "node:test";
 import { forTheBar } from "../../src/bar.ts";
 import { EXAMPLE } from "../../src/config.ts";
 import { PALETTE } from "../../src/colors.ts";
-import { BANNER } from "../../src/facts.ts";
-import { TABS, HEADINGS } from "../../src/tabs.ts";
+
+import { HEADINGS } from "../../src/tabs.ts";
 import { EFFORTS, MODELS } from "../../src/projects/projects.ts";
 import type { Terminal } from "../../src/terminals.ts";
 import {
@@ -211,13 +211,10 @@ describe("dans la vue : l'app fermée puis rouverte", () => {
     configuration: forTheBar({ chemin: "/tmp/app.json", projets: PROJECTS }, () => true),
     palette: PALETTE,
     exemple: EXAMPLE,
-    onglets: TABS,
     rubriques: HEADINGS,
     gestes: {},
-    banniere: BANNER,
     calibrage: { modeles: MODELS, efforts: EFFORTS },
-    code: undefined,
-  });
+    });
   // La place de l'espace : le rail (main) et le panneau, 1600 px à eux deux.
   async function play(storage: FakeStorage, screen?: FakeScreen): Promise<Played> {
     const vue = await playTheVue({ demarrage: startup, espace: (project) => (project === "fanfare" ? [OTHER] : [SECOND]) }, { stockage: storage, ...(screen === undefined ? {} : { ecran: screen }) });

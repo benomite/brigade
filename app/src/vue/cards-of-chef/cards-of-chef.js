@@ -13,7 +13,7 @@ import { lineError } from "../components/line-error/line-error.js";
 /** @typedef {{ createElement(balise: string): any }} Fabrique */
 /** @typedef {import("../../card-todo.ts").CardOfTodo} CardOfTodo */
 /** @typedef {import("../../card-todo.ts").Answer} Answer */
-/** @typedef {{ projet: string, ticket: number, age: string, todo: CardOfTodo }} Card */
+/** @typedef {{ projet: string, ticket: number, todo: CardOfTodo }} Card */
 
 export const TITLE = "Awaiting you";
 export const IN_HEAD = "The kitchen works on. These are the only choices that need you.";
@@ -33,9 +33,7 @@ export const account = (n) => `${n} ${n === 1 ? "card" : "cards"}`;
 
 // Ce que la carte demande, en quelques mots : le genre de sa question, et ses choix.
 /** @param {CardOfTodo} todo */
-export function kindOfTheCard({ sorte: kind, choix: choice, question, validation }) {
-  // La carte « Validate its screen » (ticket 3185) : deux gestes, valider ou renvoyer en cuisine.
-  if (validation !== undefined) return "Design validation";
+export function kindOfTheCard({ sorte: kind, choix: choice, question }) {
   const options = `${choice.length} ${choice.length === 1 ? "option" : "options"}`;
   if (question === null || choice.length === 0) return "Review only you can make";
   // Une PR à merger à la main, mise de côté par la station ou d’un fork (tickets 3368, 3367) : un merge, pas un choix.
@@ -75,21 +73,18 @@ function header(doc, cards, back) {
 }
 
 // La liste : une carte par chose qui attend, d'un seul toucher (le bouton est la carte). `avis` : ce que la lecture des
-// projets a de pire à dire (GitHub qui refuse le téléphone…), posé sous la liste. `ailleurs` : la ligne sous la liste. `tete` :
-// ce qui attend le chef sans être une carte — la ligne du disjoncteur ouvert et son « Resume » (todo-breaker-line.js) —, en
-// tête de la liste ; avec elle, la liste ne dit pas que rien ne t'attend.
-/** @param {Fabrique} doc @param {{ cartes: Card[], ailleurs?: string, avis?: any[], tete?: any[], ouvrir: (card: Card) => void }} liste */
-export function setTheList(doc, { cartes: cards, ailleurs: elsewhere, avis: opinion = [], tete: head = [], ouvrir: open }) {
+// projets a de pire à dire (GitHub qui refuse le téléphone…), posé sous la liste. `ailleurs` : la ligne sous la liste.
+/** @param {Fabrique} doc @param {{ cartes: Card[], ailleurs?: string, avis?: any[], ouvrir: (card: Card) => void }} liste */
+export function setTheList(doc, { cartes: cards, ailleurs: elsewhere, avis: opinion = [], ouvrir: open }) {
   const body = created(doc, "div", "corps-des-cartes");
   body.dataset.vu = "liste";
-  body.append(...head);
-  if (cards.length > 0 || head.length === 0) body.append(created(doc, "p", "mot-des-cartes", cards.length === 0 ? NOTHING_N_AWAITING : IN_HEAD));
+  body.append(created(doc, "p", "mot-des-cartes", cards.length === 0 ? NOTHING_N_AWAITING : IN_HEAD));
   for (const card of cards) {
     const key = created(doc, "button", "carte-a-ouvrir");
     key.type = "button";
     key.dataset.ticket = String(card.ticket);
     const top = created(doc, "span", "haut-de-carte");
-    top.append(created(doc, "span", "numero-de-carte", `#${card.ticket} · ${card.projet}`), created(doc, "span", undefined, card.age));
+    top.append(created(doc, "span", "numero-de-carte", `#${card.ticket} · ${card.projet}`));
     key.append(top, created(doc, "span", "question-de-carte", card.todo.question ?? card.todo.resume ?? ""), created(doc, "span", "genre-de-carte", kindOfTheCard(card.todo)));
     key.addEventListener("click", () => open(card));
     body.append(key);
@@ -151,16 +146,6 @@ export function setTheCard(doc, { carte: card, total, brouillon: draft, enRoute:
   if (inRoute) body.append(created(doc, "p", "mot-des-cartes", IN_ROUTE));
   if (refusal !== undefined) body.append(lineError(doc, refusal.dit, refusal.detail, { classe: "refus", alerte: true }));
   return Object.assign([header(doc, total, back), body], { saisie: input });
-}
-
-// Une carte ouverte qui se pose ailleurs (la carte « Validate its screen », validation-design/, ticket 3185) : l'en-tête et le
-// numéro de la carte ouverte, puis ce qu'elle pose.
-/** @param {Fabrique} doc @param {{ carte: Card, total: number, retour: () => void }} vue @param {any[]} elements */
-export function setTheCardAside(doc, { carte: card, total, retour: back }, elements) {
-  const body = created(doc, "div", "corps-des-cartes");
-  body.dataset.vu = "carte";
-  body.append(created(doc, "span", "numero-de-carte", `#${card.ticket} · ${card.projet}`), ...elements);
-  return [header(doc, total, back), body];
 }
 
 // L'envoi : la coche, « Sent to the kitchen. », et où en est le projet. `reste` : les cartes qui l'attendent encore sur lui.

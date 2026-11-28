@@ -16,14 +16,3 @@
   font-size: var(--taille-corps);
   color: var(--texte);
 }
-/* Le champ masqué de la clé d'API, à la façon des champs de texte des rangées de réglage (components/setting). */
-.moteur-de-la-station .reglage > .champ input[type="password"] {
-  width: 100%;
-  max-width: 320px;
-  padding: var(--pas-1) var(--pas-2);
-  font-size: var(--taille-corps);
-  color: var(--texte);
-  background: var(--fond);
-  border: 1px solid var(--trait);
-  border-radius: var(--rayon-bouton);
-}

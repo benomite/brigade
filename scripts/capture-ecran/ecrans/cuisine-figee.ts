@@ -12,34 +12,23 @@ export const PROJETS: Project[] = [
 
 const issue = (ticket: number) => `https://github.com/chef/parade/issues/${ticket}`;
 
+const carte = (ticket: number, titre: string, pr: number | null = null) => ({ ticket, title: titre, url: issue(ticket), tries: 0, pr: pr === null ? null : { number: pr, url: `https://github.com/chef/parade/pull/${pr}` } });
+const colonnes = (cartes: Record<string, ReturnType<typeof carte>[]>) =>
+  [["backlog", "Backlog"], ["ready", "Ready"], ["cooking", "Cooking"], ["pass", "At the pass"], ["parked", "Parked"], ["served", "Served"]].map(([key, title]) => ({ key: key as "backlog", title: title as string, cards: cartes[key as string] ?? [] }));
+
 const FAITS_PARADE: Facts = {
   etat: "ouverte",
   lu: "2026-10-13T10:04:11.000Z",
-  dernierTick: "2026-10-13T10:04:02.000Z",
   compteurs: { rail: 2, auTravail: 1, aLaPass: 1, attend: 1, livres24h: 2 },
-  dernierEvenement: { seq: 812, at: "2026-10-13T10:03:58.000Z", type: "merge.done", ticket: 9 },
-  rail: [
-    { ticket: 14, etat: "pris", titre: "Le journal en ajout seul", url: issue(14), activite: { fait: "écrit", cible: "app/src/slip.ts", depuis: "2026-10-13T10:02:11.000Z" }, attente: null },
-    { ticket: 21, etat: "en attente", titre: "L'export du journal", url: issue(21), activite: null, attente: null },
-    { ticket: 22, etat: "en attente", titre: "Un ticket libre", url: issue(22), activite: null, attente: null },
-    { ticket: 30, etat: "en pass", titre: "La pass verte", url: issue(30), activite: { fait: "gates en cours", cible: null, depuis: "2026-10-13T10:03:41.000Z" }, attente: null },
-    { ticket: 12, etat: "en pass", titre: "Validation SIRET", url: issue(12), activite: null, attente: null },
-  ],
-  cooks: [{ ticket: 14, titre: "Le journal en ajout seul", station: "box/claude" }],
+  kitchenBoard: {
+    columns: colonnes({
+      ready: [carte(21, "L'export du journal"), carte(22, "Un ticket libre")],
+      cooking: [carte(14, "Le journal en ajout seul")],
+      pass: [carte(30, "La pass verte", 32), carte(12, "Validation SIRET", 31)],
+      served: [carte(9, "Le relevé des mesures", 19), carte(7, "Les accès sous plafond", 8)],
+    }),
+  },
   attend: [{ ticket: 12, titre: "Validation SIRET", url: issue(12) }],
-  livres: [
-    {
-      ticket: 9,
-      titre: "Le relevé des mesures",
-      url: issue(9),
-      livre: "2026-10-13T10:03:58.000Z",
-      station: "box/claude",
-      pr: "https://github.com/chef/parade/pull/19",
-      relecture: { resume: "Le relevé des mesures se lit par station, et un seuil franchi se dit en tête de `status`.", constats: [{ gravite: "remarque", fichier: "runtime/src/mesures.ts", constat: "Le seuil par défaut est répété dans deux fichiers." }] },
-    },
-    { ticket: 7, titre: "Les accès sous plafond", url: issue(7), livre: "2026-10-13T07:12:40.000Z", station: "box/claude", pr: "https://github.com/chef/parade/pull/8", relecture: { resume: "Un accès porte désormais un plafond d'usages.", constats: [] } },
-  ],
-  urgence: null,
 };
 
 const STATUS_PARADE = [
@@ -64,14 +53,14 @@ const STATUS_PARADE = [
 const FAITS_CANTINE: Facts = {
   etat: "ouverte",
   lu: "2026-10-13T10:04:10.000Z",
-  dernierTick: "2026-10-13T10:04:05.000Z",
   compteurs: { rail: 1, auTravail: 0, aLaPass: 0, attend: 0, livres24h: 1 },
-  dernierEvenement: { seq: 140, at: "2026-10-13T09:41:20.000Z", type: "ticket.queued", ticket: 5 },
-  rail: [{ ticket: 5, etat: "en attente", titre: "La carte du midi", url: "https://github.com/chef/cantine/issues/5", activite: null, attente: null }],
-  cooks: [],
+  kitchenBoard: {
+    columns: colonnes({
+      ready: [{ ...carte(5, "La carte du midi"), url: "https://github.com/chef/cantine/issues/5" }],
+      served: [{ ...carte(3, "Les allergènes sur chaque plat", 4), url: "https://github.com/chef/cantine/issues/3" }],
+    }),
+  },
   attend: [],
-  livres: [{ ticket: 3, titre: "Les allergènes sur chaque plat", url: "https://github.com/chef/cantine/issues/3", livre: "2026-10-13T08:20:00.000Z", station: "box/claude", pr: "https://github.com/chef/cantine/pull/4", relecture: null }],
-  urgence: null,
 };
 
 const STATUS_CANTINE = ["project    cantine", "kitchen    open", "", "rail       1 queued", "  #5  queued  -  since 23 min  La carte du midi", "", "cooks      none running", ""].join("\n");

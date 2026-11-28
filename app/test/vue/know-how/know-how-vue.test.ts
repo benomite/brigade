@@ -7,13 +7,13 @@ import { describe, test } from "node:test";
 import { forTheBar } from "../../../src/bar.ts";
 import { EXAMPLE } from "../../../src/config.ts";
 import { PALETTE } from "../../../src/colors.ts";
-import { BANNER, holdFacts, type Facts } from "../../../src/facts.ts";
-import { TABS, HEADINGS } from "../../../src/tabs.ts";
+import { holdFacts, type Facts } from "../../../src/facts.ts";
+import { HEADINGS } from "../../../src/tabs.ts";
 import { EFFORTS, MODELS } from "../../../src/projects/projects.ts";
 import { PROPOSES } from "../../../src/box.ts";
 import type { ChangeOfKnowledge, ReadOfKnowledge, RenderedOfKnowledge } from "../../../src/vue/know-how/know-how-github.ts";
 import { holdTheKnowledge } from "../../../src/vue/know-how/know-how.js";
-import { Fake, playTheVue, openTab, openRead, repos, type Played } from "../../helpers/false-vue.ts";
+import { Fake, playTheVue, openTab, repos, type Played } from "../../helpers/false-vue.ts";
 
 const doc = { createElement: (balise: string) => new Fake(balise) };
 const PR = "https://github.com/chef/parade/pull/77";
@@ -327,13 +327,10 @@ const startup = () => ({
   configuration: forTheBar({ chemin: "/tmp/app.json", projets: [{ nom: "parade", dossier: "/tmp/parade" }] }, () => true),
   palette: PALETTE,
   exemple: EXAMPLE,
-  onglets: TABS,
   rubriques: HEADINGS,
   gestes: {},
-  banniere: BANNER,
   calibrage: { modeles: MODELS, efforts: EFFORTS },
-  code: undefined,
-});
+  });
 
 async function play(reading: ReadOfKnowledge): Promise<{ vue: Played; envoyes: unknown[][] }> {
   const sent: unknown[][] = [];
@@ -353,21 +350,15 @@ async function play(reading: ReadOfKnowledge): Promise<{ vue: Played; envoyes: u
   return { vue, envoyes: sent };
 }
 // A reading of the rail arriving from outside (the 15 s timer, a hover, a read): it redraws the rail.
-const FACTS_OF_RAIL = holdFacts(() => new Map()).recevoir({
+const FACTS_OF_RAIL = holdFacts().recevoir({
   projet: "parade",
   demande: 0,
   a: "2026-11-27T10:00:00.000Z",
-  sorties: [{ commande: "facts", texte: JSON.stringify({ etat: "ouverte", lu: "2026-11-27T10:00:00.000Z", dernierTick: "2026-11-27T10:00:00.000Z", compteurs: { rail: 0, auTravail: 0, aLaPass: 0, attend: 0, livres24h: 0 }, dernierEvenement: null, rail: [], cooks: [], attend: [] } satisfies Facts) }],
+  sorties: [{ commande: "facts", texte: JSON.stringify({ etat: "ouverte", lu: "2026-11-27T10:00:00.000Z", compteurs: { rail: 0, auTravail: 0, aLaPass: 0, attend: 0, livres24h: 0 }, attend: [] } satisfies Facts) }],
 });
 const blockOf = (vue: Played) => vue.element("rail").dessous("section").find(({ dataset }) => dataset.bloc === "know-how") ?? assert.fail("no know-how block in the Know-how tab");
 
 describe("the know-how, in the view", () => {
-  test("Settings no longer shows the know-how block", async () => {
-    const { vue } = await play(READING);
-    await openRead(vue, "Settings");
-    assert.equal(vue.element("bandeau-sante").dessous("section").some(({ dataset }) => dataset.bloc === "know-how"), false);
-  });
-
   test("the Know-how tab reads the project's know-how from the main process and lists every entry with its section and ticket", async () => {
     const { vue } = await play(READING);
     assert.deepEqual(vue.dernier("savoirDuProjet"), ["parade"]);

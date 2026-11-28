@@ -32,9 +32,8 @@ describe("le niveau de chaque réglage montré", () => {
     assert.deepEqual(Object.values(LEVELS_SAID).map(({ libelle: wording }) => wording), ["project", "this computer", "you"]);
   });
 
-  test("dépôt et branche sont du projet ; cooks, dossier et capacités de la machine ; couleurs et sigle de toi", () => {
-    for (const key of ["depot", "branche"]) assert.equal(LEVELS[key], "project", key);
-    for (const key of ["cooks", "dossier", "capacites", "ordinaires"]) assert.equal(LEVELS[key], "machine", key);
+  test("dossier et connexion à Claude sont de la machine ; couleurs et sigle de toi", () => {
+    for (const key of ["dossier", "claude"]) assert.equal(LEVELS[key], "machine", key);
     for (const key of ["couleurs", "sigle"]) assert.equal(LEVELS[key], "you", key);
     // L'état de la cuisine dans la barre des menus (#3269) : une préférence d'affichage du chef.
     assert.equal(LEVELS["barre-de-menus"], "you");

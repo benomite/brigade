@@ -10,8 +10,8 @@ import { PROJETS, RENDUS } from "./cuisine-figee.ts";
 const SECOND: Terminal = { id: 1, projet: "parade", genre: "second", titre: "second · claude", note: "fil repris : la session d'hier", arrete: false };
 const ECRAN_DU_SECOND = ["\x1b[1msecond · parade\x1b[0m", "", "  /brigade:second — rail lu à 10:04", "", "\x1b[2m> \x1b[0m"].join("\r\n");
 
-const BOX: StationVue = { id: "box", nom: "box", machine: "Debian 12 · 8 cores", coeurs: 8, etat: "en-ligne", ligne: "online · 2 projects: parade, cantine", pannes: [], dit: "online", version: "", projets: ["cantine"], max: null };
-const MAC: StationVue = { id: "macbook", nom: "macbook", machine: "macOS 15 · 10 cores", coeurs: 10, etat: "en-ligne", ligne: "online · no project", pannes: [], dit: "online", version: "", projets: [], max: null };
+const BOX: StationVue = { id: "box", nom: "box", machine: "Debian 12 · 8 cores", coeurs: 8, etat: "en-ligne", ligne: "online · 2 projects: parade, cantine", dit: "online", version: "", projets: ["cantine"], max: null };
+const MAC: StationVue = { id: "macbook", nom: "macbook", machine: "macOS 15 · 10 cores", coeurs: 10, etat: "en-ligne", ligne: "online · no project", dit: "online", version: "", projets: [], max: null };
 const STATIONS: SeenOfStations = { a: MAINTENANT, stations: [BOX, MAC] };
 
 const station = (id: string, nom: string) => ({ id, nom, etat: "servi" as const, dit: `served by ${nom}`, autoriser: [] });

@@ -12,16 +12,7 @@ import { join, relative } from "node:path";
 import { test, type TestContext } from "node:test";
 import { jusqua, mort, repertoireTemporaire, vivant } from "../../../runtime/test/outils.ts";
 import { PRINCIPAL } from "../../src/workstation/role.ts";
-import {
-  REQUEST,
-  askRestart,
-  IN_SERVICE,
-  readStateOfVersions,
-  holdProcessOfStation,
-  VARIABLE_OF_VERSIONS,
-  type Issue,
-  type OptionsProcessOfStation,
-} from "../../src/station-process/supervisor.ts";
+import { REQUEST, IN_SERVICE, readStateOfVersions, holdProcessOfStation, VARIABLE_OF_VERSIONS, type Issue, type OptionsProcessOfStation } from "../../src/station-process/supervisor.ts";
 import { openTerminals, type Launch, type Terminal } from "../../src/terminals.ts";
 import { CACHE_OF_COMPILATION } from "../helpers/cache-of-compilation.ts";
 import { WITHOUT_POSIX } from "../helpers/posix.ts";
@@ -137,51 +128,6 @@ function ofTabs(t: TestContext, folder: string) {
   return { lances: launched, etats: states, pids: () => launched.map(({ pid }) => pid) };
 }
 
-test("la station demande à redémarrer sur X : seul son process est remplacé, par celui de X — l'app, le second et le shell gardent leurs pids, et le paquet de l'app n'est pas écrit", { skip: WITHOUT_POSIX }, async (t) => {
-  const ordi = oneComputer(t);
-  ordi.telecharger("1.0.1");
-  const packageBefore = fingerprint(ordi.paquet);
-  const app = process.pid;
-  const { station, issues, dit: said } = hold(t, ordi);
-  await jusqua(() => inService(ordi.racine)?.version === "1.0.0");
-  const before = inService(ordi.racine)?.pid ?? assert.fail("aucune station en service");
-  assert.equal(station.version(), "1.0.0");
-  // La station sait où poser les versions qu'elle télécharge.
-  await jusqua(() => said().includes(`station d'essai en 1.0.0 — versions sous ${ordi.versions}`));
-
-  const tabs = ofTabs(t, `${ordi.machine}/projet`);
-  const openOnes = tabs.pids();
-  assert.equal(openOnes.length, 2);
-  assert.ok(openOnes.every((pid) => vivant(pid)));
-
-  // Le geste de la mise à jour de la station, une fois ses cooks finis (#2189).
-  askRestart(ordi.racine, "1.0.1");
-  await jusqua(() => issues.length > 0);
-
-  assert.deepEqual({ ...issues[0], le: "" }, { quoi: "passee", version: "1.0.1", depuis: "1.0.0", le: "" });
-  const after = inService(ordi.racine);
-  assert.equal(after?.version, "1.0.1");
-  assert.notEqual(after?.pid, before);
-  assert.ok(vivant(after?.pid));
-  await mort(before);
-  assert.equal(station.version(), "1.0.1");
-  assert.equal(station.tourne(), true);
-  // La demande est lue, une fois.
-  assert.equal(readdirSync(ordi.racine).includes(REQUEST), false);
-
-  // L'app est le même process ; le second et le shell aussi : rien ne les a relancés ni rattachés.
-  assert.equal(process.pid, app);
-  assert.deepEqual(tabs.pids(), openOnes);
-  assert.ok(openOnes.every((pid) => vivant(pid)));
-  assert.deepEqual(tabs.etats.filter((terminal) => terminal.arrete), []);
-
-  // Rien n'a touché au paquet de l'app : tout ce qui a été écrit est dans ses données.
-  assert.deepEqual(fingerprint(ordi.paquet), packageBefore);
-  assert.deepEqual(readdirSync(ordi.machine).sort(), ["Brigade.app", "donnees", "projet"]);
-  assert.equal(readStateOfVersions(ordi.versions).retenue, "1.0.1");
-  assert.match(said(), /restarts on 1\.0\.1 \(from 1\.0\.0\) — only its process/);
-  assert.match(said(), /now runs 1\.0\.1/);
-});
 
 for (const [theCase, body, motive] of [
   ["refuse de démarrer", WHO_REFUSES, /it refused to start in 1\.0\.1/],

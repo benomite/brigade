@@ -4,9 +4,8 @@
 import { realpathSync, watch, type FSWatcher } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname } from "node:path";
-import { addProject, changeMenuBar, changeColor, changeOrdinary, changeAcronym, colorProjects, createConfiguration, readConfiguration, setPreferences, preferencesOfFile, tidyProject, removeProject, type Configuration, type Declare } from "./config.ts";
+import { addProject, changeMenuBar, changeColor, changeAcronym, colorProjects, createConfiguration, readConfiguration, tidyProject, removeProject, type Configuration, type Declare } from "./config.ts";
 import type { Role } from "./colors.ts";
-import type { Preferences } from "./settings-personal/share.ts";
 
 export function followConfiguration(options: {
   chemin: string;
@@ -84,18 +83,11 @@ export function followConfiguration(options: {
     changerSigle: (name: string, acronym: unknown) => write(() => changeAcronym(path, name, acronym, home)),
     // Montre ou retire l'état de la cuisine de la barre des menus (menu-bar.ts). Rend la raison, si rien n'a été écrit.
     changerBarreDeMenus: (active: unknown) => write(() => changeMenuBar(path, active, home)),
-    // Règle les tickets ordinaires du Mac pour un projet. Rend la raison, si rien n'a été écrit.
-    changerOrdinaires: (name: string, active: unknown, limit: unknown) => write(() => changeOrdinary(path, name, active, limit, home)),
     // Retire un projet du fichier, et rien d'autre : `surChangement` le dit parti. Rend la raison, s'il ne l'a pas été.
     retirer: (name: string) => write(() => removeProject(path, name, home)),
     // Range un projet à la place `rang` de la liste : `surChangement` dit le nouvel ordre, et
     // personne de parti. Rend la raison, s'il ne l'a pas été.
     ranger: (name: string, rank: number) => write(() => tidyProject(path, name, rank, home)),
-    // Les préférences personnelles du fichier tel qu'il est, ou pourquoi il n'est pas compris (config.ts).
-    preferences: () => preferencesOfFile(path, home),
-    // Pose les préférences lues dans le gist du chef (reglages-perso/) : `surChangement` dit ce qui a
-    // changé, comme pour un geste. Rend la raison, si elles ne l'ont pas été.
-    poserPreferences: (preferences: Preferences) => write(() => setPreferences(path, preferences, home)),
     fermer(): void {
       standby?.close();
     },

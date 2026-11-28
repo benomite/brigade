@@ -3,12 +3,11 @@
 // jouée. Le jour où l'un de ces maillons retire la carte, ce test le dit.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { ACTIONS_OF_WAIT } from "../../../src/wait.ts";
 import { forTheBar } from "../../../src/bar.ts";
 import { EXAMPLE } from "../../../src/config.ts";
 import { PALETTE } from "../../../src/colors.ts";
-import { BANNER, holdFacts } from "../../../src/facts.ts";
-import { TABS, HEADINGS } from "../../../src/tabs.ts";
+import { holdFacts } from "../../../src/facts.ts";
+import { HEADINGS } from "../../../src/tabs.ts";
 import { EFFORTS, MODELS } from "../../../src/projects/projects.ts";
 import { putAside } from "../../../src/awaiting.ts";
 import type { CallGitHub, AnswerGitHub } from "../../../src/board/client.ts";
@@ -40,9 +39,8 @@ const github = (assignees: string[]): CallGitHub => async (address) => {
 
 const startup = () => ({
   configuration: forTheBar({ chemin: "/tmp/app.json", projets: [{ nom: PARADE, dossier: "/tmp/parade" }] }, () => true),
-  palette: PALETTE, exemple: EXAMPLE, onglets: TABS, rubriques: HEADINGS,
-  gestes: { attente: ACTIONS_OF_WAIT },
-  banniere: BANNER, calibrage: { modeles: MODELS, efforts: EFFORTS }, code: undefined, telephone: { github: { compte: "chef" } },
+  palette: PALETTE, exemple: EXAMPLE, rubriques: HEADINGS,
+  calibrage: { modeles: MODELS, efforts: EFFORTS }, telephone: { github: { compte: "chef" } },
 });
 
 // Comme main.ts : la lecture du rail, ce qui attend le chef partagé pour le compte connecté, les faits, puis le `status`.
@@ -50,7 +48,7 @@ async function show(assignees: string[], narrow = false): Promise<Played> {
   const call = github(assignees);
   const readOne = await withWhatAwaitingTheChef(await readTheBoardOfRepository({ depot: REPOSITORY, appeler: call, maintenant: () => new Date(READ) }), call, shareOfCardsAssigned({ appeler: call, depot: REPOSITORY, login: async () => "chef" }));
   assert.ok(readOne.lu, JSON.stringify(readOne));
-  const vue = await playTheVue({ demarrage: startup, espace: () => [], machines: () => [], ouvrirIssue: () => true, repondreCarte: () => ({ repondue: true, dit: "posted", commentaire: 7 }), attente: () => ({ fait: "done", detail: "" }) } as never, { ecran: new FakeScreen(narrow) });
+  const vue = await playTheVue({ demarrage: startup, espace: () => [], machines: () => [], ouvrirIssue: () => true, repondreCarte: () => ({ repondue: true, dit: "posted", commentaire: 7 }) } as never, { ecran: new FakeScreen(narrow) });
   // Large : la page du projet. Étroit : l'accueil, la liste des cartes du chef.
   if (!narrow) (vue.element("projets").children.at(1) ?? assert.fail("pas d'entrée")).click();
   await repos();

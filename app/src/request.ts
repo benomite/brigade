@@ -1,20 +1,15 @@
 // Le geste avec jugement : ce qu'un clic écrit dans le second quand il faut lire, juger,
 // rédiger ou arbitrer — une demande en prose, pas une commande, et **rien ne l'envoie** :
-// c'est l'Entrée du chef qui la fait partir, jamais l'app (docs/superpowers/specs/
-// 2026-10-13-app-poste-de-travail-design.md, « Le modèle, en quatre règles »). Deux clics
+// c'est l'Entrée du chef qui la fait partir, jamais l'app. Deux clics
 // l'écrivent : une carte de T'attend — la carte dit le geste (le bloc `attend` de `status`,
-// mot pour mot), le second lit l'issue, en tire une réponse courte (ce qui se passe, la question, sa recommandation, l'offre du détail), et c'est lui qui répond dessus ; une
-// ligne de la bande d'alertes dont le geste se joue hors de l'app — sur la box, ou après
-// lecture. L'app n'explique rien, n'agit sur rien et ne lit pas l'écran : elle écrit une
+// mot pour mot), le second lit l'issue, en tire une réponse courte (ce qui se passe, la question, sa recommandation, l'offre du détail), et c'est lui qui répond dessus. L'app n'explique rien, n'agit sur rien et ne lit pas l'écran : elle écrit une
 // phrase, sans Entrée (terminals.ts, `inscrire`).
-import type { Alert } from "./alerts.ts";
 import { CONTROL } from "./terminals.ts";
 
 // Pas de contrôle de ce que la file a dit, et pas de `!` ni de `/` en tête : la phrase
 // commence par une lettre, le second ne la prend pour aucune commande.
 export const REFUSAL_CONTROL = "nothing is written: what the queue says about this ticket carries a control character, and a line break would have sent the request";
 export const REFUSAL_CONTROL_TICKET = "nothing is written: what the station says about this ticket carries a control character, and a line break would have sent the request";
-export const REFUSAL_CONTROL_ALERT = "nothing is written: what the station says about this alert carries a control character, and a line break would have sent the request";
 
 // Ce que la note dit quand la demande est écrite : une ligne, sans la recopier — elle est dans le
 // terminal, juste en dessous. Elle disparaît à l'Entrée du chef (terminals.ts, `ecrire`).
@@ -59,22 +54,4 @@ export function requestOnTheTicket(project: string, ticket: number, state?: stri
     `3. une ligne qui me dit que je peux te demander le détail. ` +
     `Ni tableau ni exposé, et n'agis pas avant mon accord.`;
   return CONTROL.test(request) ? { refus: REFUSAL_CONTROL_TICKET } : { demande: request };
-}
-
-// La demande pour une ligne de la bande d'alertes de ce projet, d'après ce qu'elle dit — ou
-// pourquoi rien n'est écrit. Ce que la box en a écrit est repris mot pour mot, ses lignes
-// mises bout à bout : un retour à la ligne y enverrait la demande.
-export function requestOfTheAlert(project: string, { dit: said, releve: reading, pourquoi: why, geste: action, prix: price }: Alert): { demande: string } | { refus: string } {
-  const written = reading === undefined ? "" : ` — la station en écrit : « ${reading.split("\n").join(" ; ")} »`;
-  const request =
-    `La bande d'alertes de ${project} dit : « ${said} »${written}${why === undefined ? "" : ` (${why})`}. ` +
-    `Le geste qu'elle nomme : « ${action} » — son prix : ${price}. ` +
-    `Réponds-moi court, en quatre éléments dans cet ordre, sur un écran sans défiler : ` +
-    `1. ce qui se passe, en deux phrases au plus, sans jargon du runtime ; ` +
-    `2. la question à trancher, posée directement, avec les choix possibles en une ligne chacun ; ` +
-    `3. ta recommandation, en une phrase ; ` +
-    `4. une ligne qui me dit que je peux te demander le détail. ` +
-    `Le geste nommé ci-dessus, cite-le mot pour mot, sans en inventer un autre — mais seulement une fois que j'ai choisi, ou en une ligne s'il n'y a qu'un geste. ` +
-    `Tu ne développes que si je te demande le détail. Quand j'ai décidé, aide-moi à le faire ; n'agis pas avant mon accord.`;
-  return CONTROL.test(request) ? { refus: REFUSAL_CONTROL_ALERT } : { demande: request };
 }

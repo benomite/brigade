@@ -10,9 +10,9 @@ import { describe, test } from "node:test";
 import { forTheBar } from "../src/bar.ts";
 import { EXAMPLE, type Project } from "../src/config.ts";
 import { PALETTE } from "../src/colors.ts";
-import { BANNER } from "../src/facts.ts";
+
 import { EFFORTS, MODELS } from "../src/projects/projects.ts";
-import { TABS, HEADINGS } from "../src/tabs.ts";
+import { HEADINGS } from "../src/tabs.ts";
 import type { Terminal } from "../src/terminals.ts";
 import { type Fake, type Played, playTheVue, type Answers, openRead, repos } from "./helpers/false-vue.ts";
 
@@ -31,12 +31,10 @@ async function open(answers: Answers = {}, projects: Project[] = [PARADE, FANFAR
       configuration: forTheBar({ chemin: "/tmp/app.json", projets: projects }, () => true),
       palette: PALETTE,
       exemple: EXAMPLE,
-      onglets: TABS, rubriques: HEADINGS,
+      rubriques: HEADINGS,
       gestes: {},
-      banniere: BANNER,
       calibrage: { modeles: MODELS, efforts: EFFORTS },
-      code: undefined,
-    }),
+      }),
     espace: (project) => (project === "fanfare" ? [OTHER] : [SECOND]),
     machines: () => [{ id: "poste", titre: "this computer" }],
     shell: () => SHELL,
@@ -396,8 +394,6 @@ describe("l'écran principal ne garde que la bande, le rail et les terminaux ; l
     assert.equal(vue.element("contenu").hidden, true);
     assert.equal(vue.element("rail").hidden, false);
     assert.equal(vue.element("second").hidden, false);
-    // Rien du journal n'est lu tant que le geste n'est pas fait.
-    assert.equal(vue.dernier("onglet")[1], undefined);
   });
 
   test("Settings est une seule page, sans sous-pages ni lecture de `status` (#1700) ; recliqué, il se referme", async () => {
@@ -411,17 +407,14 @@ describe("l'écran principal ne garde que la bande, le rail et les terminaux ; l
     assert.throws(() => vue.element("lecture"));
     assert.deepEqual(vue.element("etat").dessous("pre"), []);
     assert.doesNotMatch(vue.element("etat").textContent, /sauvegarde|il y a 10 h/);
-    // Settings ne lit rien.
-    assert.equal(vue.dernier("onglet")[1], undefined);
     // Recliqué, il se referme.
     await click(vue, vue.element("onglets-du-projet"), "Settings");
     assert.equal(vue.element("etat").hidden, true);
     assert.equal(vue.element("contenu").hidden, true);
   });
 
-  test("une page s'ouvre par-dessus le rail, qui reste posé dessous ; fermée, elle le rend tel qu'il était — la bande d'alertes, elle, reste en tête", async () => {
+  test("une page s'ouvre par-dessus le rail, qui reste posé dessous ; fermée, elle le rend tel qu'il était", async () => {
     const vue = await open();
-    vue.dire("surAlertes", { projet: "parade", alertes: [{ sujet: "cuisine", verifie: false, ton: "orange", dit: "cuisine non vérifiée", pourquoi: "…", geste: "le lire : Paramètres", appel: { onglet: "parametres" }, prix: "une lecture" }] } as never);
     const rail = vue.element("rail");
     const before = rail.textContent;
     assert.equal(rail.inert, false);
@@ -432,7 +425,6 @@ describe("l'écran principal ne garde que la bande, le rail et les terminaux ; l
       // Couvert, pas défait : il est encore là, et rien de lui ne se clique au travers.
       assert.equal(rail.hidden, false, page);
       assert.equal(rail.inert, true, page);
-      assert.equal(vue.element("alertes").hidden, false, page);
       await click(vue, vue.element("onglets-du-projet"), page);
       assert.equal(vue.element("contenu").hidden, true, page);
       assert.equal(rail.inert, false, page);
@@ -451,16 +443,5 @@ describe("l'écran principal ne garde que la bande, le rail et les terminaux ; l
     assert.throws(() => vue.element("journal"));
     assert.doesNotMatch(readFileSync(join(VUE, "index.html"), "utf8"), /id="journal"/);
     assert.deepEqual(titles(vue), ["Rail", "Stations", "Agents", "Know-how", "Settings"]);
-  });
-
-  test("une ligne d'alerte dont la cause se règle dans Settings y mène en un clic", async () => {
-    const vue = await open();
-    vue.dire("surAlertes", { projet: "parade", alertes: [{ sujet: "cuisine", verifie: false, ton: "orange", dit: "cuisine non vérifiée", pourquoi: "…", geste: "le lire : Paramètres", appel: { onglet: "parametres" }, prix: "une lecture" }] } as never);
-
-    await click(vue, vue.element("alertes"), "le lire : Paramètres");
-
-    assert.equal(vue.dernier("onglet")[1], undefined);
-    assert.deepEqual(selected(vue), ["Settings"]);
-    assert.equal(vue.element("contenu").hidden, false);
   });
 });

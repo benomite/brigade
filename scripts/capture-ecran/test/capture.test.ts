@@ -93,8 +93,9 @@ describe("capturer un écran de l'app", { skip: SANS_NAVIGATEUR }, () => {
 
   test("l'étape survoler ouvre la bulle de l'élément : la capture change, et un sélecteur qui n'en trouve pas un seul échoue", async () => {
     const tous = await ecrans();
-    const bulle = tous.get("projet-sante-temps-perdu");
-    assert.ok(bulle !== undefined, "l'écran projet-sante-temps-perdu existe");
+    const station = tous.get("station-en-ligne");
+    assert.ok(station !== undefined, "l'écran station-en-ligne existe");
+    const bulle = { ...station, etapes: [...station.etapes, { survoler: "#station > header .aide" }] };
     const sans = { ...bulle, etapes: bulle.etapes.filter((etape) => !("survoler" in etape)) };
     assert.ok(!(await capturer(bulle)).equals(await capturer(sans)), "survolée ou non, la capture est la même");
 

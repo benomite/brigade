@@ -11,6 +11,7 @@
 /** @typedef {"recommande" | "secondaire" | "discret" | "danger"} Kind */
 /** @typedef {{ createElement(balise: string): any }} Fabrique */
 
+
 /** @type {readonly Kind[]} */
 export const KINDS = ["recommande", "secondaire", "discret", "danger"];
 

@@ -6,23 +6,17 @@
 // (`SuiviDuProjet`) et relus par `lireSuivi`, comme l'app relit le gist d'une station.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import type { Home } from "../../src/home.ts";
-import { forTheBar } from "../../src/bar.ts";
-import { EXAMPLE, type Project } from "../../src/config.ts";
-import { PALETTE } from "../../src/colors.ts";
-import { BANNER } from "../../src/facts.ts";
-import { TABS, HEADINGS } from "../../src/tabs.ts";
-import type { Outage } from "../../src/outages/outages.ts";
+import { type Project } from "../../src/config.ts";
+
 import { readTracking } from "../../src/projects/request.ts";
-import { calibrationRecommended, EFFORTS, machineProposed, MODELS, type ProjectSeen, type SeenOfProjects } from "../../src/projects/projects.ts";
+import { calibrationRecommended, machineProposed, type ProjectSeen, type SeenOfProjects } from "../../src/projects/projects.ts";
 import type { SeenOfStations } from "../../src/stations/stations.ts";
-import { COPIED, COPY, DETAILS, OPEN_ON_GITHUB, setRepositoryHeld } from "../../src/vue/onboarding/repository-held.js";
-import { Fake as Fabrique, type Fake, playTheVue, repos } from "../helpers/false-vue.ts";
+import { COPIED, COPY, DETAILS, OPEN_ON_GITHUB, setRepositoryHeld } from "../../src/vue/installation-project/repository-held.js";
+import { Fake as Fabrique, type Fake } from "../helpers/false-vue.ts";
 
 const A = "2026-10-19T12:00:00.000Z";
-const BOX = { id: "g1", nom: "parade-box", machine: "Linux 6.1.0", coeurs: 8, etat: "en-ligne", ligne: "online · version 1.4.0 · no project", pannes: [] as Outage[], dit: "online", version: "1.4.0", projets: [] as string[], max: null } as const;
+const BOX = { id: "g1", nom: "parade-box", machine: "Linux 6.1.0", coeurs: 8, etat: "en-ligne", ligne: "online · version 1.4.0 · no project", dit: "online", version: "1.4.0", projets: [] as string[], max: null } as const;
 const STATIONS: SeenOfStations = { a: A, stations: [BOX] };
-const HOME: Home = { projets: [], stations: [], sante: { ton: "vert", dit: "Max ✓  ·  GitHub ✓", survol: "" } };
 const PARADE: Project = { nom: "parade", dossier: "/tmp/parade", depot: "benomite/parade", base: "main" };
 
 // What the station wrote (formerly runtime/src/projets/acces.ts `AccesBloque` and echec-du-worktree.ts `EchecDuWorktree`), word for word.
@@ -61,20 +55,6 @@ const vue = (within: object | null): SeenOfProjects => {
   return { a: A, projets: [project], recommandee: "g1", avertissements: {}, machines: { g1: machineProposed(BOX) }, calibrage: calibrationRecommended([]) };
 };
 
-const startup = (projectsOfStations: SeenOfProjects) => ({
-  configuration: forTheBar({ chemin: "/tmp/app.json", projets: [PARADE] }),
-  palette: PALETTE,
-  exemple: EXAMPLE,
-  onglets: TABS,
-  rubriques: HEADINGS,
-  gestes: {},
-  banniere: BANNER,
-  calibrage: { modeles: MODELS, efforts: EFFORTS },
-  code: undefined,
-  stations: STATIONS,
-  accueil: HOME,
-  projetsDesStations: projectsOfStations,
-});
 
 // Ce qui se voit sous `ou` : ni l'élément, ni aucun de ses parents jusqu'à `ou` n'est caché.
 const visible = (or: Fake, element: Fake) => {
@@ -83,34 +63,7 @@ const visible = (or: Fake, element: Fake) => {
 };
 const said = (or: Fake) => or.dessous("p").filter((p) => visible(or, p)).map((p) => p.textContent);
 
-// Le projet « parade » est confié d'ici à sa box ; la page est ouverte, et la box n'a rien dit encore.
-async function thePage(initial: SeenOfProjects) {
-  const played = await playTheVue({
-    demarrage: () => startup(initial),
-    confierAUneStation: () => ({ ajoute: "parade" }),
-    depotsDuChef: () => ({ depots: [{ depot: "benomite/parade", base: "main" }] }),
-    espace: () => [],
-  });
-  (played.element("projets").children.at(1) ?? assert.fail("pas de case « parade »")).click();
-  await repos();
-  return { jouee: played, bloc: played.element("stations-du-projet") };
-}
 
-test("l'accès au dépôt refusé : une phrase donne la raison et le geste, sans « within a minute » ; le détail de git est au survol", async () => {
-  const { jouee: played, bloc: block } = await thePage(vue({ etat: "refuse", dit: "refused", acces: ACCESS }));
-  const [sentence, ...others] = said(block).filter((text) => /cannot fetch/.test(text));
-  assert.deepEqual(others, [], "une seule phrase");
-  assert.match(sentence ?? "", /^parade-box cannot fetch from benomite\/parade: github\.com asks for a username and no credential helper answers\. Run gh auth setup-git on parade-box, under the account that runs it\.$/);
-  const code = block.dessous("code").find((candidate) => candidate.textContent === "gh auth setup-git") ?? assert.fail("la commande n'est pas posée en code");
-  assert.equal(code.className, "mono");
-  assert.equal(block.dessous("p").find((p) => /cannot fetch/.test(p.textContent))?.title, "git: fatal: could not read Username for 'https://github.com'");
-  assert.doesNotMatch(block.textContent, /within a minute/);
-  assert.equal(played.appels.some(({ geste: action }) => action === "confierAUneStation"), false);
-  // Le geste se fait sur la machine de la station : l'écran offre un bouton, recommandé, qui en copie la commande.
-  const buttons = block.dessous("button").filter((b) => b.textContent === COPY);
-  assert.equal(buttons.length, 1, "un bouton « copy the command »");
-  assert.equal(buttons[0]?.className, "recommande");
-});
 
 test("« copy the command » copie la commande du geste seule, et le dit", () => {
   const copied: string[] = [];
@@ -165,43 +118,9 @@ test("un clone en échec : la cause et le compte de la station en clair, le gest
   assert.equal(setRepositoryHeld(doc, { clone: null, refus: null, maintenant: 0, copier: () => {} }), null);
 });
 
-test("un worktree impossible à préparer : la raison de l'échec et l'heure du prochain essai", async () => {
-  const { bloc: block } = await thePage(vue({ worktree: FAILURE }));
-  const lines = said(block);
-  assert.ok(lines.includes("The worktree of #433 could not be prepared: git fetch : fatal: No space left on device"), lines.join(" | "));
-  assert.ok(lines.some((line) => /^Next retry at \d{1,2}:\d{2} [AP]M, in \d+ min\.$/.test(line) || line === "Its retry is due now."), lines.join(" | "));
-  assert.doesNotMatch(block.textContent, /within a minute/);
-});
 
-test("un worktree impossible à préparer parce que l'accès est refusé : le geste, et l'heure du prochain essai", async () => {
-  const { bloc: block } = await thePage(vue({ worktree: { ...FAILURE, raison: ACCESS.raison, acces: ACCESS } }));
-  const lines = said(block);
-  assert.ok(lines.some((line) => /Run gh auth setup-git on parade-box/.test(line)), lines.join(" | "));
-  assert.ok(lines.some((line) => /^Next retry at /.test(line) || line === "Its retry is due now."), lines.join(" | "));
-});
 
-test("ni accès refusé ni worktree en échec : la phrase « prepares it within a minute » reste", async () => {
-  const { jouee: played, bloc: block } = await thePage(vue(null));
-  assert.equal(block.dessous("div").some((d) => d.className === "depot-retenu"), false);
-  // La page n'a pas encore de station qui cuit ? Elle en a une, servie : le message vient du geste de confier.
-  const without: SeenOfProjects = { ...vue(null), projets: [] };
-  played.dire("surProjetsDesStations", without);
-  await repos();
-  assert.equal(block.dessous("div").some((d) => d.className === "depot-retenu" && visible(block, d)), false);
-});
 
-test("le runtime efface l'état après le geste : la page relue revient au message, sans recharger l'app", async () => {
-  const { jouee: played, bloc: block } = await thePage(vue({ etat: "refuse", dit: "refused", acces: ACCESS }));
-  assert.match(block.textContent, /gh auth setup-git/);
-  played.dire("surProjetsDesStations", vue({ worktree: FAILURE }));
-  await repos();
-  assert.match(said(block).join(" | "), /The worktree of #433 could not be prepared/);
-  assert.doesNotMatch(said(block).join(" | "), /gh auth setup-git/);
-  played.dire("surProjetsDesStations", vue(null));
-  await repos();
-  assert.doesNotMatch(said(block).join(" | "), /gh auth setup-git|could not be prepared/);
-  assert.equal(block.dessous("div").some((d) => d.className === "depot-retenu" && visible(block, d)), false);
-});
 
 test("lireSuivi ne croit que ce qui a la forme : un accès sans geste, un échec sans raison ne disent rien", () => {
   const [readOne] = readTracking(tracking({ acces: { bloque: "fetch", raison: "x", geste: "" }, worktree: { ticket: 433, raison: "" } }));
@@ -222,23 +141,4 @@ const REFUSAL = {
   noRemedy: "The app cannot change the station's configuration for this project yet.",
 };
 
-test("un projet refusé par la station : la page dit pourquoi et ce que le chef fait, sans le texte brut ni chemin", async () => {
-  const raw = "BRIGADE_PROXY_PORT is set in /etc/brigade/en-service: refused";
-  const { bloc: block } = await thePage(vue({ etat: "refuse", dit: raw, refus: REFUSAL }));
-  const lines = said(block);
-  assert.ok(lines.some((line) => line.startsWith(REFUSAL.message)), lines.join(" | "));
-  assert.ok(lines.includes(REFUSAL.action), lines.join(" | "));
-  assert.doesNotMatch(block.textContent, /en-service|\/etc\//);
-  assert.doesNotMatch(block.textContent, /within a minute/);
-  // Le remède retiré, aucun bouton ne prétend lever le refus d'ici (#4503).
-  assert.equal(block.dessous("button").some((b) => b.textContent === REFUSAL.noRemedy), false);
-});
 
-test("sans refus, la page est inchangée ; un refus sans phrase ou sans action ne dit rien", async () => {
-  const { bloc: block } = await thePage(vue(null));
-  assert.equal(block.dessous("div").some((d) => d.className === "depot-retenu"), false);
-  const [readOne] = readTracking(tracking({ refus: { ...REFUSAL, action: "" } }));
-  assert.equal(readOne?.refus, null);
-  const [slip] = readTracking(tracking({ refus: REFUSAL }));
-  assert.equal(slip?.refus?.message, REFUSAL.message);
-});

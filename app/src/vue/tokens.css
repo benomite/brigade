@@ -46,7 +46,6 @@
   --bandeau: #16181c;
   --carte: #1a1d22;
   --case: #1e2126;
-  --bouton: #22262c;
 
   /* Les traits. */
   --trait-doux: #23272d;
@@ -95,20 +94,19 @@
      sauf un arrondi de moins de 4px, qui adoucissait un signe de quelques pixels : il tombe à 0, et le carré reste un
      carré. */
 
-  /* Les tailles de texte : le méta, le corps, l'intertitre, le titre, le chiffre. */
+  /* Les tailles de texte : le méta, le corps, l'intertitre, le titre. */
   --taille-meta: 11px;
   --taille-corps: 13px;
   --taille-intertitre: 15px;
   --taille-titre: 20px;
-  --taille-chiffre: 28px;
 
   /* Les pas d'espacement, de 4 à 32 : marges, retraits et écarts. */
+  --bouton: #22262c;
   --pas-1: 4px;
   --pas-2: 8px;
   --pas-3: 12px;
   --pas-4: 16px;
   --pas-5: 24px;
-  --pas-6: 32px;
 
   /* Les arrondis : une carte, un bouton ou un champ, un bon, et le rond complet d'une pastille. */
   --rayon-carte: 10px;

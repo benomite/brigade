@@ -1,9 +1,3 @@
-// Ce qui change d'un ordinateur à l'autre, réuni ici : le nom sous lequel l'app dit ce poste, le
-// shell qu'elle y ouvre, si ce shell y tient une session persistante, et comment elle arrête un
-// process et tout ce qu'il a lancé. Le reste de l'app est le même code sur un Mac, un PC sous
-// Windows ou un Linux de bureau : chaque module reçoit d'ici ce qui en dépend, et le process
-// principal (main.ts) le lit une fois, sur `process.platform`.
-import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { THIS_COMPUTER } from "./vue/lexicon.js";
@@ -41,26 +35,7 @@ export const persistentOn = (platform: string): boolean => platform !== "win32";
 // Ce que l'app dit d'un shell de ce poste qui ne tient pas de session.
 export const WITHOUT_SESSION = "not persistent: neither tmux nor screen runs on Windows, this shell ends with its terminal";
 
-// Arrête un process et ce qu'il a lancé. Sur un Mac ou un Linux, il a été lancé chef de son groupe
-// (`detached`) : le signal va au groupe. Windows n'a ni groupe ni signal : `taskkill /T /F` arrête
-// l'arbre du process, d'un coup — il n'y a pas de SIGTERM à attendre. Jamais d'exception : un
-// process déjà parti n'a plus personne à arrêter.
-export function stopTheTree(pid: number, signal: NodeJS.Signals, platform: string, kill: (pid: number, signal: NodeJS.Signals) => void = process.kill): void {
-  if (platform === "win32") {
-    const taskkill = spawn("taskkill", ["/pid", String(pid), "/T", "/F"], { stdio: "ignore", windowsHide: true });
-    taskkill.on("error", () => {});
-    taskkill.unref();
-    return;
-  }
-  try {
-    kill(-pid, signal);
-  } catch {
-    // Le groupe n'existe plus.
-  }
-}
 
-// Lancé chef de son groupe là où un groupe se signale ; sous Windows, `detached` ouvrirait une console à lui.
-export const inGroup = (platform: string): boolean => platform !== "win32";
 
 // Le nom de ce poste-ci, celui où l'app tourne. Lu sans supposer Node : la lecture du téléphone (app/android/web/
 // lecture.ts) charge ce module dans la WebView de l'app Android, où `process` n'existe pas.

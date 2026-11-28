@@ -7,9 +7,9 @@ import { forTheBar } from "../src/bar.ts";
 import { EXAMPLE, type Project } from "../src/config.ts";
 import { PALETTE } from "../src/colors.ts";
 import type { Kitchen } from "../src/box.ts";
-import { BANNER } from "../src/facts.ts";
+
 import { EFFORTS, MODELS } from "../src/projects/projects.ts";
-import { TABS, HEADINGS } from "../src/tabs.ts";
+import { HEADINGS } from "../src/tabs.ts";
 import type { Terminal } from "../src/terminals.ts";
 import { type Played, playTheVue, openRead, repos } from "./helpers/false-vue.ts";
 
@@ -23,13 +23,10 @@ async function open(answers = {}): Promise<Played> {
       configuration: forTheBar({ chemin: "/tmp/app.json", projets: [PARADE] }, () => true),
       palette: PALETTE,
       exemple: EXAMPLE,
-      onglets: TABS,
       rubriques: HEADINGS,
       gestes: {},
-      banniere: BANNER,
       calibrage: { modeles: MODELS, efforts: EFFORTS },
-      code: undefined,
-    }),
+      }),
     espace: () => [SECOND],
     machines: () => [{ id: "poste", titre: "this computer" }],
     ...answers,

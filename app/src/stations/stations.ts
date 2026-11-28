@@ -8,23 +8,20 @@
 // parmi les gists de station du compte, celui qui publie l'empreinte de ce
 // code, et y écrit l'appairage — la station le lit à son signe de vie suivant.
 // Un code mal formé, inconnu ou échu est refusé en une ligne, et rien n'est écrit.
-import type { PublishedConnection } from "../outages/states.ts";
 import { capacitiesRead } from "../projects/request.ts";
-import { outagesOf, type Outage } from "../outages/outages.ts";
-import { documentOfPairing, fingerprint, FILE_PAIRING, FILE_STATION, readPairing, readDocument, normalize, type DocumentPairing, type DocumentStation } from "./document.ts";
+import { documentOfPairing, fingerprint, FILE_PAIRING, FILE_STATION, readPairing, readDocument, normalize, type DocumentPairing, type DocumentStation, type PublishedConnection } from "./document.ts";
 import { followTheVersions, type VersionsViews } from "./versions.ts";
 import type { GistOfStation, GitHubOfStations } from "./github.ts";
 
 export type StateOfStation = "en-ligne" | "hors-ligne" | "illisible";
-// Une station telle que la home la montre. `id` : son gist. `pannes` : chacune en une ligne, avec
-// son bouton (outages/outages.ts) — sans celles que le chef a écartées. `cuisine` : faux d'un téléphone, qui ne fait tourner aucun cook ; `coeurs` : ceux de sa machine,
+// Une station telle que la home la montre. `id` : son gist. `cuisine` : faux d'un téléphone, qui ne fait tourner aucun cook ; `coeurs` : ceux de sa machine,
 // quand elle les publie. Et, pour la liste de l'accueil (home.ts), ce que la ligne dit déjà, en
 // morceaux : `dit`, son état en quelques mots
 // (« online », « offline for 12 min ») ; sa `version` ; les `projets` qu'elle porte ; sa connexion Max
 // telle qu'elle la publie — nulle quand elle n'en dit rien, ou qu'elle se tait ; `versionDit`, sa ligne de
 // mise à jour (`ligneDeVersion`), vide quand il n'y a rien à en dire. `fournit` : ce que son appairage
 // dit qu'elle fournit (document.ts, #1757) — absent quand il n'en dit rien.
-export type StationVue = { id: string; nom: string; machine: string; coeurs?: number; cuisine?: false; fournit?: string[]; etat: StateOfStation; ligne: string; pannes: Outage[]; dit: string; version: string; projets: string[]; max: PublishedConnection["etat"] | null; maxDepuis?: string | null; versionDit?: string };
+export type StationVue = { id: string; nom: string; machine: string; coeurs?: number; cuisine?: false; fournit?: string[]; etat: StateOfStation; ligne: string; dit: string; version: string; projets: string[]; max: PublishedConnection["etat"] | null; maxDepuis?: string | null; versionDit?: string };
 // `sans` : pourquoi la dernière lecture n'a pas abouti — la liste est alors celle d'avant.
 // `limite` : c'est GitHub qui limite les appels du compte, et `reprise`, l'heure où il les rend —
 // nulle quand il ne l'a pas dite.
@@ -62,8 +59,7 @@ export function stateOf(document: DocumentStation, now: number): { etat: StateOf
 }
 
 // La ligne de mise à jour de la page d'une station : « up to date · on this version for 3 days ».
-// Une station hors ligne n'est dite à jour de rien ; une mise à jour ratée est déjà dite par sa
-// panne (outages.ts) : la ligne ne la répète pas, et ne dit pas « up to date » par-dessus.
+// Une station hors ligne n'est dite à jour de rien ; une mise à jour ratée ne dit pas « up to date ».
 // `depuisLe` : l'instant où l'app a vu la station passer à cette version (`versions.ts`) — la
 // station ne publie pas cette date ; sans elle, la ligne ne dit pas depuis quand.
 export function lineOfVersion(document: DocumentStation, now: number, sinceThe: string | null = null): string {
@@ -100,8 +96,6 @@ export type Stations = {
   // Réécrit ce que l'appairage d'une station dit qu'elle fournit, s'il en dit autre chose — la station de cet
   // ordinateur, appairée avant que l'app ne l'y écrive. Rend vrai quand il a été réécrit.
   tenirCeQuElleFournit(id: string, provides: readonly string[]): Promise<boolean>;
-  // Écarte une panne de la ligne d'une station : elle n'y revient pas, tant que l'app est ouverte.
-  ecarter(id: string, key: string): SeenOfStations | undefined;
   // Retire la station de l'app : son appairage est ôté de son gist, elle n'est plus lue ni listée.
   // La station elle-même n'est pas touchée : un code neuf l'appaire de nouveau.
   retirer(id: unknown): Promise<RemovalOfStation>;
@@ -115,15 +109,13 @@ export function holdStations(options: OptionsStations): Stations {
   const readOnes = new Map<string, { misAJour: string; document: DocumentStation | { illisible: string }; appairage: DocumentPairing | null }>();
   let seenOne: SeenOfStations | undefined;
   let inProgress: Promise<SeenOfStations> | undefined;
-  // Les pannes écartées : `<gist> <clé>`.
-  const ecartees = new Set<string>();
   const versions = followTheVersions(options.versions);
 
   const show = (without?: string, limit?: SeenOfStations["limite"]): SeenOfStations => {
     const instant = now();
     const stations = [...readOnes].map(([id, { document, appairage: pairing }]): StationVue =>
       "illisible" in document
-        ? { id, nom: id, machine: "", etat: "illisible", ligne: `unreadable: ${document.illisible}`, pannes: [], dit: "unreadable", version: "", projets: [], max: null, versionDit: "" }
+        ? { id, nom: id, machine: "", etat: "illisible", ligne: `unreadable: ${document.illisible}`, dit: "unreadable", version: "", projets: [], max: null, versionDit: "" }
         : {
             id,
             nom: document.nom,
@@ -132,7 +124,6 @@ export function holdStations(options: OptionsStations): Stations {
             ...(document.coeurs === undefined ? {} : { coeurs: document.coeurs }),
             ...(pairing?.fournit === undefined ? {} : { fournit: pairing.fournit }),
             ...lineOf(document, instant),
-            pannes: outagesOf(document, instant).filter(({ cle: key }) => !ecartees.has(`${id} ${key}`)),
             dit: stateOf(document, instant).dit,
             version: document.version,
             projets: document.projets,
@@ -243,10 +234,6 @@ export function holdStations(options: OptionsStations): Stations {
     relire: reread,
     appairer: pair,
     tenirCeQuElleFournit: holdWhatItProvides,
-    ecarter(id, key) {
-      ecartees.add(`${id} ${key}`);
-      return seenOne === undefined ? undefined : show(seenOne.sans, seenOne.limite);
-    },
     retirer: remove,
     fermer: () => clearInterval(standby),
   };

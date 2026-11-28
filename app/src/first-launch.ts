@@ -36,7 +36,7 @@ export type Opening =
   | { state: "failed"; project: string; repository: string; cause: "not-added" | "busy"; reason: string; detail?: string }
   | { state: "login"; project: string; repository: string; cause: "login"; reason: string };
 
-// La connexion de Claude Code sur cet ordinateur, dite comme la station la publie (outages/states.ts).
+// La connexion de Claude Code sur cet ordinateur, dite comme la station la publie (stations/document.ts).
 export type ConnectionClaude = "connectee" | "perdue" | "inconnue";
 
 // Ce que `claude auth status` a dit (`Session`), en connexion : seul un « non » net la dit

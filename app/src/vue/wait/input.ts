@@ -1,10 +1,8 @@
-// Ce que le chef remplit dans « waiting for… » (vue/wait/wait.js), lu avant que rien ne parte : ce qu'il attend,
+// Ce que le chef remplit pour parquer un ticket, lu avant que rien ne parte : ce qu'il attend,
 // dans ses mots, de qui, et le jour de la relance, proposé à sept jours. Cette lecture sert le parking écrit sur GitHub
-// (wait-github.ts), sur le desktop comme sur le téléphone, et le second (second/parking.ts) : ce module n'importe rien
+// (wait-github.ts) et le second (second/parking.ts) : ce module n'importe rien
 // de Node.
 
-// La relance que le formulaire propose : dans sept jours — celle que le runtime prend sans elle.
-export const RELAUNCH_PROPOSED_DAYS = 7;
 
 // Ce que le chef remplit : ce qu'il attend, de qui, et le jour de la relance (`AAAA-MM-JJ`).
 export type Input = { quoi: string; qui: string; relance: string };
@@ -12,8 +10,6 @@ export type Input = { quoi: string; qui: string; relance: string };
 const two = (n: number) => String(n).padStart(2, "0");
 // Un jour du calendrier du poste, tel qu'un `<input type="date">` l'écrit.
 export const dayOf = (date: Date) => `${date.getFullYear()}-${two(date.getMonth() + 1)}-${two(date.getDate())}`;
-// La relance proposée, d'après le jour du poste.
-export const relaunchProposed = (today: Date) => dayOf(new Date(today.getFullYear(), today.getMonth(), today.getDate() + RELAUNCH_PROPOSED_DAYS));
 
 // Un caractère de contrôle (terminals.ts, `CONTROLE`) : un saut de ligne enverrait la commande avant son terme.
 const CONTROL = /[\x00-\x1f\x7f]/;

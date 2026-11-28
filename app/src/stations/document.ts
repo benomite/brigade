@@ -12,7 +12,6 @@
 // (projects/projects.ts) : c'est là que la station principale du projet le lit.
 // Une station appairée d'ailleurs, ou avant #1757, n'en dit rien.
 import { createHash } from "node:crypto";
-import { readStatesPublished, type StatesPublished } from "../outages/states.ts";
 import { capacitiesRead } from "../projects/request.ts";
 
 export const FILE_STATION = "brigade-station.json";
@@ -37,8 +36,34 @@ export type DocumentStation = {
   appairage: { empreinte: string; expireLe: string } | null;
   // Les empreintes de ses derniers codes échus.
   echus: string[];
-  // Sa mise à jour revenue en arrière et sa connexion Max : ses pannes (pannes/).
+  // Sa mise à jour revenue en arrière et sa connexion Max, telles qu'elle les publie.
 } & StatesPublished;
+
+export type UpdateBack = { visee: string; restauree: string; le: string; retourRate: boolean };
+export type PublishedConnection = { etat: "connectee" | "perdue" | "inconnue"; depuis: string | null };
+export type StatesPublished = { miseAJour: UpdateBack | null; connexionMax: PublishedConnection | null };
+
+// Une version telle que la mise à jour les nomme : rien d'autre ne se pose dans une ligne.
+const VERSION = /^[0-9][A-Za-z0-9.+~]{0,39}$/;
+const STATES = ["connectee", "perdue", "inconnue"] as const;
+const version = (value: unknown): value is string => typeof value === "string" && VERSION.test(value);
+
+// Ce que le document d'une station dit de sa mise à jour et de sa connexion Max. Une station d'avant ces champs, ou qui les
+// écrit mal, n'en dit rien.
+function readStatesPublished(readOne: Record<string, unknown>): StatesPublished {
+  const putting = readOne.miseAJour as Partial<Record<keyof UpdateBack, unknown>> | null | undefined;
+  const connection = readOne.connexionMax as Partial<Record<keyof PublishedConnection, unknown>> | null | undefined;
+  return {
+    miseAJour:
+      putting !== null && typeof putting === "object" && version(putting.visee) && version(putting.restauree) && date(putting.le)
+        ? { visee: putting.visee, restauree: putting.restauree, le: putting.le, retourRate: putting.retourRate === true }
+        : null,
+    connexionMax:
+      connection !== null && typeof connection === "object" && STATES.includes(connection.etat as (typeof STATES)[number])
+        ? { etat: connection.etat as PublishedConnection["etat"], depuis: date(connection.depuis) ? connection.depuis : null }
+        : null,
+  };
+}
 
 // Les huit signes d'un code, dans l'alphabet de Crockford.
 const ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";

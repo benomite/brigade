@@ -10,8 +10,8 @@ import { putAside } from "../src/awaiting.ts";
 import { forTheBar } from "../src/bar.ts";
 import { EXAMPLE } from "../src/config.ts";
 import { PALETTE } from "../src/colors.ts";
-import { BANNER, holdFacts, type Drawable, type Facts } from "../src/facts.ts";
-import { TABS, HEADINGS } from "../src/tabs.ts";
+import { holdFacts, type Drawable, type Facts } from "../src/facts.ts";
+import { HEADINGS } from "../src/tabs.ts";
 import { EFFORTS, MODELS } from "../src/projects/projects.ts";
 import type { Terminal } from "../src/terminals.ts";
 import { FakeStorage, type Fake, type Played, playTheVue, openRead, openTab, repos } from "./helpers/false-vue.ts";
@@ -29,30 +29,18 @@ const startup = () => ({
   configuration: forTheBar({ chemin: "/tmp/app.json", projets: PROJECTS }, () => true),
   palette: PALETTE,
   exemple: EXAMPLE,
-  onglets: TABS,
   rubriques: HEADINGS,
   gestes: {},
-  banniere: BANNER,
   calibrage: { modeles: MODELS, efforts: EFFORTS },
-  code: undefined,
-});
+  });
 
 // Un rail où chaque colonne a sa carte : #14 pris, #30 à la pass, #12 qui t'attend, #31 servi, #21 et #22 en attente.
 const FACTS: Facts = {
   etat: "ouverte",
   lu: "2026-10-20T10:04:11.000Z",
-  dernierTick: "2026-10-20T10:04:02.000Z",
   compteurs: { rail: 2, auTravail: 1, aLaPass: 1, attend: 1, livres24h: 1 },
-  dernierEvenement: null,
-  rail: [
-    { ticket: 14, etat: "pris", titre: "Le journal en ajout seul", url: "https://github.com/benomite/brigade/issues/14", activite: { fait: "écrit", cible: "app/src/bon.ts", depuis: "2026-10-20T10:02:11.000Z" } },
-    { ticket: 21, etat: "en attente", titre: "L'export du journal", url: "https://github.com/benomite/brigade/issues/21", activite: null },
-    { ticket: 22, etat: "en attente", titre: "Un ticket libre", url: "https://github.com/benomite/brigade/issues/22", activite: null },
-    { ticket: 30, etat: "en pass", titre: "La pass verte", url: "https://github.com/benomite/brigade/issues/30", activite: { fait: "gates en cours", cible: null, depuis: "2026-10-20T10:03:41.000Z" } },
-    { ticket: 31, etat: "servi", titre: "Servi hier", url: "https://github.com/benomite/brigade/issues/31", activite: null },
-    { ticket: 12, etat: "en pass", titre: "Validation SIRET", url: "https://github.com/benomite/brigade/issues/12", activite: null },
-  ],
-  cooks: [{ ticket: 14, titre: "Le journal en ajout seul", station: "box/claude" }],
+  
+  
   attend: [{ ticket: 12, titre: "Validation SIRET", url: "https://github.com/benomite/brigade/issues/12" }],
 };
 const STATUS = [
@@ -67,7 +55,7 @@ const STATUS = [
   "",
 ].join("\n");
 function drawable(): Drawable {
-  const heldOnes = holdFacts(() => new Map());
+  const heldOnes = holdFacts();
   heldOnes.recevoir({ projet: PARADE, demande: 0, a: A, sorties: [{ commande: "facts", texte: JSON.stringify(FACTS) }] });
   return heldOnes.attendre(putAside({ projet: PARADE, demande: 0, a: A, sorties: [{ commande: "status", texte: STATUS }] })) ?? assert.fail("rien à redessiner");
 }
@@ -103,7 +91,6 @@ const cards = (vue: Played) =>
 const cardOf = (vue: Played, number: number): Fake => center(vue).dessous("li").find((li) => li.className === "bon" && li.children[0]?.children[0]?.textContent === `#${number}`) ?? assert.fail(`pas de carte #${number} sur l'onglet montré`);
 const pose = (vue: Played, id: string) => vue.poses().some((element) => element.id === id && !element.hidden && center(vue).contains(element));
 // Les blocs du bandeau de santé, une section de Settings (#3014) : les plafonds, le closer, tous les projets.
-const blocksOfBanner = (vue: Played) => vue.element("bandeau-sante").dessous("section").map((pose) => pose.dataset.bloc).filter((block) => block !== undefined);
 const blocks = (vue: Played) => vue.element("rail").children.map((pose) => pose.dataset.bloc);
 
 describe("deux onglets, Rail et Stations, à côté du nom du projet", () => {
@@ -145,22 +132,6 @@ describe("deux onglets, Rail et Stations, à côté du nom du projet", () => {
 });
 
 describe("ce que chaque onglet montre", () => {
-  test("Rail : ce qui t'attend et son geste, le plan de la cuisine entier, dans son ordre — ni gates, ni worktrees, ni plafond, ni consommation", async () => {
-    const vue = await open();
-
-    assert.deepEqual(columns(vue), ["Backlog", "Manager", "Cooks", "Pass", "Served"]);
-    // Le rail dans son ordre (#2093) : #12, qui t'attend, rouge en tête de la colonne de son étape (#3458), avec son geste ;
-    // #31, servi, sans geste qui ouvre une page de son worktree (#1846) : l'app n'en ouvre aucune.
-    assert.deepEqual(cards(vue), ["#21", "#22", "#14", "#12", "#30", "#31"]);
-    assert.ok(cardOf(vue, 12).dessous("button").length > 0, "ce qui t'attend n'a pas de geste");
-    assert.ok(!cardOf(vue, 31).dessous("button").some((button) => /browser/.test(button.textContent)));
-    // Rien d'exécution : ni la carte du projet, ni `station`.
-    assert.doesNotMatch(center(vue).textContent, /cap of cooks|saturée|consommé/);
-    for (const id of ["carte", "lu-cuisine", "lecture-cuisine"]) assert.equal(pose(vue, id), false, id);
-    // Les stations du projet sont sur Stations ; rien n'est lu de `station` : aucune lecture ne court sur aucun onglet.
-    assert.equal(vue.element("stations-du-projet").hidden, true);
-    assert.equal(vue.appels.some(({ geste: action, args }) => action === "onglet" && args[1] !== undefined), false);
-  });
 });
 
 describe("le second reste à droite, le même, quel que soit l'onglet", () => {
@@ -261,26 +232,20 @@ describe("le menu de la page d'un projet (#2485, #2921)", () => {
     assert.equal(vue.poses().some((element) => element.id === "onglets-cuisine"), false);
   });
 
-  test("chaque bloc est monté dans son onglet, le bandeau de santé dans Settings seulement", async () => {
+  test("chaque bloc est monté dans son onglet, chacun dans son seul onglet", async () => {
     const vue = await open();
     // Sur Rail, au-dessus des colonnes, la seule bande des chiffres (#3013) : plus de ligne repliée.
-    assert.deepEqual(vue.element("bandeau-sante").children, []);
 
     await openTab(vue, "Stations");
     // L'onglet des stations, un seul composant (#3195) : toutes les stations et « + station » sont sur l'accueil.
     assert.deepEqual(blocks(vue), ["stations-tab"]);
-    // Plus en tête de Stations : les plafonds, le closer et les lignes de tous les projets sont dans Settings (#3014).
-    assert.deepEqual(vue.element("bandeau-sante").children, []);
 
     (tabs(vue).find((tab) => tab.textContent === "Settings") ?? assert.fail("pas d'entrée Settings")).click();
     await repos();
-    // Leur section de Settings : les plafonds, le closer, puis les lignes « Cost » et « Closer » de tous les projets (#2638).
     assert.equal(vue.element("etat").hidden, false);
-    assert.deepEqual(blocksOfBanner(vue), ["plafonds-duree", "closer", "temps-de-la-passe", "chiffres-autonomie", "post-mortems", "de-tous-les-projets"]);
 
     await openTab(vue, "Rail");
     assert.equal(vue.element("etat").hidden, true);
-    assert.deepEqual(vue.element("bandeau-sante").children, []);
   });
 
   test("l'onglet retenu est celui du projet ; un ancien « cooks » ou « sante » stocké ouvre Rail", async () => {

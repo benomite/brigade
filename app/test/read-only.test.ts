@@ -4,23 +4,19 @@
 // liens. L'accès gagné, la lecture suivante rend la vue ordinaire, sans rouvrir le projet. La vue est jouée telle qu'elle
 // est, devant un faux document et un faux pont ; les faits sont ceux que `facts` porte (board/read.ts, `lectureSeule`).
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { describe, test } from "node:test";
-import type { Facts as FactsOfRuntime } from "../src/facts.ts"; // the app's own Facts (the old runtime's etat.ts is gone)
 import { forTheBar } from "../src/bar.ts";
 import { EXAMPLE } from "../src/config.ts";
 import { PALETTE } from "../src/colors.ts";
-import { BANNER, holdFacts, type Facts } from "../src/facts.ts";
+import { holdFacts, type Facts } from "../src/facts.ts";
 import { actionsOfCard } from "../src/card-actions.ts";
 import { ACCESS_IN_WRITING, pageOfTheReadOnly } from "../src/read-only.ts";
-import { TABS, HEADINGS } from "../src/tabs.ts";
+import { HEADINGS } from "../src/tabs.ts";
 import { EFFORTS, MODELS } from "../src/projects/projects.ts";
 import type { Terminal } from "../src/terminals.ts";
 import { FORKER, READ_ONLY, GET_THE_ACCESS } from "../src/vue/read-only/read-only.js";
 import { CHOOSE } from "../src/vue/stations-tab/state.js";
 import { DISPLACE } from "../src/vue/stations-tab/stations-tab.js";
-import { discussionOf } from "./helpers/cards-said.ts";
 import { cardOfTicket, type Fake, type Played, playTheVue, openTab, type Answers, repos } from "./helpers/false-vue.ts";
 
 const PARADE = "parade";
@@ -32,13 +28,10 @@ const startup = () => ({
   configuration: forTheBar({ chemin: "/tmp/app.json", projets: [{ nom: PARADE, dossier: "/tmp/parade", depot: REPOSITORY }] }, () => true),
   palette: PALETTE,
   exemple: EXAMPLE,
-  onglets: TABS,
   rubriques: HEADINGS,
   gestes: {},
-  banniere: BANNER,
   calibrage: { modeles: MODELS, efforts: EFFORTS },
-  code: undefined,
-});
+  });
 
 // Le rail : #21 attend le chef d'une question à deux choix ; #22 n'est plus pris par aucun cook (Relaunch) ; #23, pris par
 // box/claude, son cook au travail.
@@ -52,21 +45,13 @@ const PRODUCT = {
 };
 // Sa carte du chef, telle que son issue la pose sur GitHub (board/todo-github.ts).
 const CHEF = { sorte: PRODUCT.type, texte: [PRODUCT.question, ...PRODUCT.choix.map(({ texte: text, suite }) => `- [${suite}] ${text}`)].join("\n") };
-type OfRuntime = NonNullable<FactsOfRuntime["stations"]>[number];
-const BOX: OfRuntime = { station: "box/claude", distante: false, plafond: 2, ordinaires: false, bacASable: null, prendOrdinaires: true, cuisson: "cooking", arreteeDepuis: null, refus: null, cooks: [] };
 const facts = (readOnly: boolean) => ({
   etat: "ouverte",
   lu: "2026-11-11T10:04:11.000Z",
-  dernierTick: "2026-11-11T10:04:11.000Z",
   compteurs: { rail: 3, auTravail: 1, aLaPass: 0, attend: 1, livres24h: 0 },
-  dernierEvenement: null,
-  rail: [
-    { ticket: 21, etat: "en attente", titre: "L'export du journal", url: ISSUE(21), activite: null },
-    { ticket: 22, etat: "86", titre: "Le ticket refusé", url: ISSUE(22), activite: null, attente: { raison: "off the kitchen after 3 cooks without a delivery", complete: "off the kitchen after 3 cooks without a delivery", label: "served-elsewhere", colonne: "en attente", retour: null } },
-    { ticket: 23, etat: "pris", titre: "La recherche", url: ISSUE(23), station: "box/claude", activite: null },
-  ],
-  cooks: [{ ticket: 23, titre: "La recherche", station: "box/claude" }],
-  stations: [BOX],
+  
+  
+  
   attend: [{ ticket: 21, titre: "L'export du journal", url: ISSUE(21), chef: CHEF }],
   ...(readOnly ? { lectureSeule: { depot: REPOSITORY } } : {}),
 }) satisfies Facts;
@@ -78,7 +63,7 @@ async function open(answers: Answers = {}): Promise<Played> {
   return vue;
 }
 async function read(vue: Played, readOnly: boolean): Promise<void> {
-  vue.dire("surFaits", { ...holdFacts(() => new Map()).recevoir({ projet: PARADE, demande: 0, a: A, sorties: [{ commande: "facts", texte: JSON.stringify(facts(readOnly)) }] }), demande: vue.dernier("faits")[0] as number });
+  vue.dire("surFaits", { ...holdFacts().recevoir({ projet: PARADE, demande: 0, a: A, sorties: [{ commande: "facts", texte: JSON.stringify(facts(readOnly)) }] }), demande: vue.dernier("faits")[0] as number });
   await repos();
 }
 const slip = (vue: Played, ticket: number): Fake => cardOfTicket(vue, ticket) ?? assert.fail(`pas de carte #${ticket}`);
@@ -103,55 +88,8 @@ describe("un projet en lecture seule", () => {
     assert.deepEqual(vue.dernier("ouvrirLectureSeule"), [PARADE, "acces"]);
   });
 
-  test("le rail, ses cartes et TODO se voient ; aucun choix, aucun champ, aucun « Relaunch » : absents, pas grisés", async () => {
-    const vue = await open();
-    await read(vue, true);
-    const cardItem = slip(vue, 21);
-    assert.ok(cardItem.dessous("p").some(({ textContent }) => textContent === PRODUCT.question), "la question se lit");
-    assert.deepEqual(cardItem.dessous("button").filter(({ className }) => className === "choix"), [], "aucun choix");
-    assert.equal(cardItem.dessous("textarea").length, 0, "aucun champ");
-    for (const absent of ["send", "answer in my own words", ...PRODUCT.choix.map(({ texte: text }) => text)]) assert.ok(!texts(cardItem).includes(absent), `${absent} : ${texts(cardItem).join(" | ")}`);
-    const refused = slip(vue, 22);
-    assert.ok(refused.dessous("p").some(({ textContent }) => textContent.startsWith("Will not start:")), "la carte refusée dit pourquoi");
-    for (const absent of ["Relaunch", "Close as already done"]) assert.ok(!texts(refused).includes(absent), absent);
-    assert.ok(cardOfTicket(vue, 23) !== undefined, "la carte prise se voit");
-    assert.ok(!vue.element("rail").dessous("button").some(({ disabled, textContent }) => disabled === true && ["Relaunch", "send", ...PRODUCT.choix.map(({ texte: text }) => text)].includes(textContent)), "rien de grisé à la place");
-  });
 
-  test("Stations : ses stations se voient, et pas « Choose who cooks it »", async () => {
-    const vue = await open();
-    await read(vue, true);
-    await openTab(vue, "Stations");
-    assert.ok(vue.element("rail").dessous("section").some(({ dataset }) => dataset.station === "box/claude"), "la station se voit");
-    assert.ok(!texts(vue.element("rail")).includes(CHOOSE), texts(vue.element("rail")).join(" | "));
-  });
 
-  test("Settings : ce qui se propose au dépôt par une pull request n'est pas posé", async () => {
-    const vue = await open();
-    await read(vue, true);
-    assert.equal("lectureSeule" in vue.element("etat").dataset, true);
-    const css = readFileSync(join(import.meta.dirname, "..", "src", "vue", "vue.css"), "utf8");
-    const rule = /#etat\[data-lecture-seule\] :is\(([^)]*)\) \{\s*display: none !important;/.exec(css)?.[1] ?? assert.fail("pas de règle pour Settings en lecture seule");
-    for (const block of ['[data-bloc="plafonds-duree"]', '[data-bloc="closer"]']) assert.ok(rule.includes(block), block);
-  });
-
-  test("l'accès gagné, la lecture suivante rend la vue ordinaire, sans rouvrir le projet ; perdu, elle redevient seule", async () => {
-    const vue = await open();
-    await read(vue, true);
-    assert.ok(line(vue) !== undefined);
-    await read(vue, false);
-    assert.equal(line(vue), undefined, "plus de ligne de lecture seule");
-    assert.equal("lectureSeule" in vue.element("etat").dataset, false);
-    assert.equal(slip(vue, 21).dessous("button").filter(({ className }) => className === "choix").length, PRODUCT.choix.length, "les choix reviennent");
-    assert.ok(texts(slip(vue, 22)).includes("Relaunch"));
-    // Sur Stations, la station qui le cuit garde ses gestes (#3195) : l'ajout d'une station ne s'offre que quand personne ne le cuit.
-    await openTab(vue, "Stations");
-    assert.ok(texts(vue.element("rail")).includes(DISPLACE));
-    await openTab(vue, "Rail");
-    await read(vue, true);
-    assert.ok(line(vue) !== undefined);
-    assert.ok(!texts(slip(vue, 22)).includes("Relaunch"));
-  });
 });
 
 describe("la fiche d'un ticket en lecture seule", () => {
@@ -159,7 +97,6 @@ describe("la fiche d'un ticket en lecture seule", () => {
   async function card(readOnly: boolean) {
     const vue = await open({
       gestesDeFiche: (cardItem) => actionsOfCard(cardItem),
-      lireDiscussion: () => discussionOf({ issue: { title: "La recherche", state: "open", body: { author: "chef", at: A, body: "Chercher." }, comments: [] } }),
     });
     await read(vue, readOnly);
     (cardOfTicket(vue, 23) ?? assert.fail("pas de carte #23")).click();
@@ -169,16 +106,6 @@ describe("la fiche d'un ticket en lecture seule", () => {
     return { gestes: setOne.dessous("section").find(({ className }) => className === "gestes-fiche")?.dessous("li").map(({ dataset }) => dataset.geste) ?? [], commentaire: setOne.dessous("button").some(({ dataset }) => dataset.geste === "commentaire"), champs: setOne.dessous("textarea").length };
   }
 
-  test("elle ne garde que ce qui ouvre ou demande au second : ni priorité, ni commentaire à poster", async () => {
-    const ordinary = await card(false);
-    assert.ok(ordinary.gestes.includes("priorite"), ordinary.gestes.join(" | "));
-    assert.equal(ordinary.commentaire, true);
-    const only = await card(true);
-    assert.deepEqual(only.gestes.filter((id) => !["issue", "pr", "second", "navigateur"].includes(id ?? "")), [], only.gestes.join(" | "));
-    assert.ok(only.gestes.includes("second"), "le second se demande toujours");
-    assert.equal(only.commentaire, false);
-    assert.equal(only.champs, 0);
-  });
 });
 
 describe("les pages que la ligne ouvre", () => {

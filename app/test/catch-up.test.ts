@@ -9,7 +9,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { prepare } from "../src/launch.ts";
-import { tellAtLaunch, catchUp, relaunchOf, holdPassage } from "../src/catch-up.ts";
+import { tellAtLaunch, catchUp, relaunchOf } from "../src/catch-up.ts";
 import { readDelay, type Settings } from "../src/delay.ts";
 import { WITHOUT_POSIX } from "./helpers/posix.ts";
 
@@ -188,45 +188,6 @@ describe("au clic, l'app se met à jour et repart sur la nouvelle version", () =
     assert.equal(relaunchOf({ npm_execpath: "", npm_node_execpath: "/opt/node/bin/node" }, "/chef/brigade/app"), undefined);
   });
 
-  test("en retard : le clone avance, puis elle se relance — une fois, même cliquée deux fois", async (t) => {
-    const { origine: origin, reglages: settings, cloner: cloneRepo } = trial(t);
-    const clone = cloneRepo("clone");
-    deliver(origin, 2);
-    let relaunches = 0;
-    const pass = holdPassage({ reglages: settings, app: join(clone, "app"), relancer: () => void relaunches++ });
 
-    const renderedOnes = await Promise.all([pass(), pass()]);
 
-    assert.deepEqual(renderedOnes, [undefined, undefined]);
-    assert.equal(relaunches, 1);
-    assert.equal(git(clone, "rev-parse", "HEAD"), git(origin, "rev-parse", "HEAD"));
-  });
-
-  test("ce qui l'empêche d'avancer est dit, et elle ne se relance pas : elle tourne sur son code", async (t) => {
-    const { origine: origin, reglages: settings, cloner: cloneRepo } = trial(t);
-    const clone = cloneRepo("clone");
-    deliver(clone, 1);
-    deliver(origin, 1);
-    let relaunches = 0;
-    const pass = holdPassage({ reglages: settings, app: clone, relancer: () => void relaunches++ });
-
-    const rendered = await pass();
-
-    assert.ok(rendered !== undefined);
-    assert.match(rendered.refus, /^this app was not updated: the clone .* has 1 commit that origin\/v2 does not have: .*\. It keeps running on the code it has\.$/);
-    assert.equal(relaunches, 0);
-  });
-
-  test("son clone a déjà avancé depuis son lancement : elle repart sur lui, même si l'origine ne répond pas", async (t) => {
-    const { racine: root, reglages: settings, cloner: cloneRepo } = trial(t);
-    const clone = cloneRepo("clone");
-    git(clone, "remote", "set-url", "origin", join(root, "partie"));
-    let relaunches = 0;
-    const pass = holdPassage({ reglages: settings, app: clone, relancer: () => void relaunches++ });
-
-    assert.match((await pass())?.refus ?? "", /the origin did not answer/);
-    assert.equal(relaunches, 0);
-    assert.equal(await pass(true), undefined);
-    assert.equal(relaunches, 1);
-  });
 });

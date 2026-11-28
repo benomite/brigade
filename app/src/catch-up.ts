@@ -65,20 +65,3 @@ export function relaunchOf(env: NodeJS.ProcessEnv, app: string): { execPath: str
   return { execPath: node, args: [npm, "--prefix", app, "start"] };
 }
 
-// Le clic sur la ligne qui dit le retard de l'app : elle se met à jour, puis `relancer` la fait
-// repartir sur la nouvelle version — elle se ferme, et rien n'est rendu. Ou elle dit pourquoi elle
-// ne bouge pas, et tourne sur son code. `quandMeme` : son clone a déjà avancé depuis son lancement
-// — elle repart sur lui, même si l'origine n'a pas répondu ; son lancement réessaiera. Une seule
-// mise à jour à la fois : un second clic pendant la première est la même.
-export function holdPassage(options: { reglages: Settings; app: string; relancer(): void }) {
-  let inProgress: Promise<{ refus: string } | undefined> | undefined;
-  return (whenSame = false): Promise<{ refus: string } | undefined> => {
-    inProgress ??= (async () => {
-      const catchesUp = await catchUp(options.reglages, options.app);
-      if ("raison" in catchesUp && !whenSame) return { refus: `this app was not updated: ${catchesUp.raison}. It keeps running on the code it has.` };
-      options.relancer();
-      return undefined;
-    })().finally(() => (inProgress = undefined));
-    return inProgress;
-  };
-}

@@ -16,8 +16,8 @@ import {
   WITHOUT_ANSWER,
   ITSELF_CONNECT,
   holdTheAccount,
-} from "../../src/vue/journey-project/account.js";
-import { CONNECTION_IN_ROUTE, REOPEN_THE_PAGE, tapeTheCode } from "../../src/vue/journey-project/connection.js";
+} from "../../src/vue/addition-project/account.js";
+import { CONNECTION_IN_ROUTE, REOPEN_THE_PAGE, tapeTheCode } from "../../src/vue/addition-project/connection.js";
 import { Fake, repos } from "../helpers/false-vue.ts";
 
 const doc = { createElement: (balise: string) => new Fake(balise) };

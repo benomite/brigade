@@ -10,8 +10,8 @@ import { forTheBar } from "../../../src/bar.ts";
 import { EXAMPLE, type Project } from "../../../src/config.ts";
 import type { StationRecorded } from "../../../src/stations-of-account.ts";
 import { PALETTE } from "../../../src/colors.ts";
-import { BANNER, holdFacts, type Facts } from "../../../src/facts.ts";
-import { TABS, HEADINGS } from "../../../src/tabs.ts";
+import { holdFacts, type Facts } from "../../../src/facts.ts";
+import { HEADINGS } from "../../../src/tabs.ts";
 import { EFFORTS, MODELS } from "../../../src/projects/projects.ts";
 import type { SeenOfStations } from "../../../src/stations/stations.ts";
 import type { Terminal } from "../../../src/terminals.ts";
@@ -151,40 +151,30 @@ const startup = (stations: SeenOfStations | undefined) => () => ({
   poste: { nom: "this computer", mac: false },
   palette: PALETTE,
   exemple: EXAMPLE,
-  onglets: TABS,
   rubriques: HEADINGS,
   gestes: {},
-  banniere: BANNER,
   calibrage: { modeles: MODELS, efforts: EFFORTS },
-  code: undefined,
   ...(stations === undefined ? {} : { stations }),
 });
 // Le rail de secondes, lu sur GitHub : ses tickets fire attendent, aucun cook.
 const facts = (): Facts => ({
   etat: "ouverte",
   lu: A,
-  dernierTick: A,
   compteurs: { rail: 9, auTravail: 0, aLaPass: 0, attend: 0, livres24h: 0 },
-  dernierEvenement: null,
-  rail: [],
-  cooks: [],
   attend: [],
 });
 const request = (vue: Played) => vue.element("installation-projet");
-const journey = (vue: Played) => vue.element("parcours-premier-projet");
 
-// « Add a project », le dépôt chef/secondes, sa page ouverte ; « qui le cuit » répondue par `machine` (`null` : une station
-// le sert déjà, elle n'est pas posée) ; sa mise en place
-// lue pas faite. `merger()` : la PR de mise en place mergée, la lecture suivante du rail la relit.
-async function seconds(machine: string | null, answers: Answers = {}, stations: SeenOfStations | null = NO_STATION) {
+// « Add a project », le dépôt chef/secondes, sa page ouverte, sa mise en place lue pas faite.
+// `merger()` : la PR de mise en place mergée, la lecture suivante du rail la relit.
+async function seconds(answers: Answers = {}, stations: SeenOfStations | null = NO_STATION) {
   let ready = false;
   let vue: Played | undefined;
   vue = await playTheVue({
     demarrage: startup(stations ?? undefined),
-    stationsDuChef: () => ({ state: "listed", stations: [], unreadable: [] }),
     compteGitHub: () => ({ login: "octo-chef" }),
-    stationsDuCompte: () => ({ state: "listed", stations: [ATELIER], unreadable: [] }),
-    choisirLesProjets: (_, repositories) => ({ selection: repositories }),
+    
+    
     depotsDuChef: () => ({ depots: [{ depot: REPOSITORY, base: "main" }] }),
     ouvrirDUneStation: (name, repository, base) => {
       vue?.dire("surConfiguration", forTheBar({ chemin: PATH, projets: [{ nom: name, dossier: `/home/chef/Brigade/${name}`, depot: repository, base: base ?? "main" } satisfies Project] }), []);
@@ -192,7 +182,6 @@ async function seconds(machine: string | null, answers: Answers = {}, stations: 
     },
     projetsServis: () => ({ depots: [] }),
     espace: () => [SECOND],
-    departDuProjet: () => ({ aucune: true }),
     checkRepoSetup: () => (ready ? READY : MISSING),
     ...answers,
   });
@@ -202,17 +191,12 @@ async function seconds(machine: string | null, answers: Answers = {}, stations: 
   await repos();
   const played = vue;
   const read = async () => {
-    played.dire("surFaits", { ...holdFacts(() => new Map()).recevoir({ projet: "secondes", demande: 0, a: A, sorties: [{ commande: "facts", texte: JSON.stringify(facts()) }] }), demande: played.dernier("faits")[0] as number });
+    played.dire("surFaits", { ...holdFacts().recevoir({ projet: "secondes", demande: 0, a: A, sorties: [{ commande: "facts", texte: JSON.stringify(facts()) }] }), demande: played.dernier("faits")[0] as number });
     await repos();
     await repos();
   };
   await read();
-  if (machine !== null) {
-    button(journey(vue), machine).click();
-    await repos();
-    await repos();
-  }
-  assert.equal(vue.element("main").dataset.parcours, "setup", "the setup question is asked");
+  assert.equal(request(vue).hidden, true, "nothing is asked while the setup is not done");
   return {
     vue,
     merger: async () => {
@@ -223,53 +207,22 @@ async function seconds(machine: string | null, answers: Answers = {}, stations: 
 }
 
 describe("la vue jouée : la mise en place mergée, aucune station ne le sert", () => {
-  test("la question vient aussitôt, cet ordinateur en tête ; un clic l'ajoute à la liste que sert cet ordinateur", async () => {
-    const servedOnes: [string, boolean][] = [];
-    const { vue, merger } = await seconds("atelier", { servirUnProjet: (repository, served) => (servedOnes.push([repository, served]), { depots: [repository] }) });
-    // Tant que la mise en place n'est pas faite, rien n'est demandé.
-    assert.equal(request(vue).hidden, true);
-
-    await merger();
-    assert.equal(vue.element("main").dataset.parcours, undefined, "the project is ready");
-    assert.equal(request(vue).hidden, false);
-    const card = request(vue).dessous("section")[0] ?? assert.fail("pas de question");
-    assert.equal(card.dessous("h2")[0]?.textContent, QUESTION(REPOSITORY));
-    assert.ok(card.dessous("p").some(({ textContent }) => textContent === NOBODY(REPOSITORY)));
-    assert.deepEqual(buttons(card), ["this computer", "atelier", LATER]);
-
-    button(card, "this computer").click();
-    await repos();
-    await repos();
-    assert.deepEqual(servedOnes, [[REPOSITORY, true]]);
-    const served = request(vue).dessous("section")[0] ?? assert.fail("pas de confirmation");
-    assert.equal(served.dataset.etape, "servi");
-    assert.equal(served.dessous("p")[0]?.textContent, SERVED_HERE(REPOSITORY));
-    button(served, CLOSE).click();
-    await repos();
-    assert.equal(request(vue).hidden, true);
-  });
 
   test("cet ordinateur le sert déjà : rien n'est demandé", async () => {
-    let servedOnes: string[] = [];
-    const { vue, merger } = await seconds("this computer", {
-      projetsServis: () => ({ depots: servedOnes }),
-      servirUnProjet: (repository) => ((servedOnes = [repository]), { depots: servedOnes }),
-    });
+    const { vue, merger } = await seconds({ projetsServis: () => ({ depots: [REPOSITORY] }) });
     await merger();
-    assert.equal(vue.element("main").dataset.parcours, undefined, "the project is ready");
     assert.equal(request(vue).hidden, true);
   });
 
   test("une station dit le servir : rien n'est demandé", async () => {
     const stations = { a: A, stations: [{ id: "g1", nom: "atelier", etat: "servi", dit: "", autoriser: [], projets: ["secondes"] }] } as unknown as SeenOfStations;
-    const { vue, merger } = await seconds(null, {}, stations);
+    const { vue, merger } = await seconds({}, stations);
     await merger();
-    assert.equal(vue.element("main").dataset.parcours, undefined, "the project is ready");
     assert.equal(request(vue).hidden, true);
   });
 
   test("« not now » range la question ; elle ne revient pas aux lectures suivantes", async () => {
-    const { vue, merger } = await seconds("atelier");
+    const { vue, merger } = await seconds();
     await merger();
     button(request(vue), LATER).click();
     await repos();
@@ -281,13 +234,13 @@ describe("la vue jouée : la mise en place mergée, aucune station ne le sert", 
   });
 
   test("la liste de cet ordinateur ne se lit pas : rien n'est décidé, ni demandé", async () => {
-    const { vue, merger } = await seconds("atelier", { projetsServis: () => ({ refus: "this station's served projects cannot be read" }) });
+    const { vue, merger } = await seconds({ projetsServis: () => ({ refus: "this station's served projects cannot be read" }) });
     await merger();
     assert.equal(request(vue).hidden, true);
   });
 
   test("les stations pas encore lues : rien n'est décidé ; lues, la question vient", async () => {
-    const { vue, merger } = await seconds("atelier", {}, null);
+    const { vue, merger } = await seconds({}, null);
     await merger();
     assert.equal(request(vue).hidden, true);
     vue.dire("surStations", NO_STATION);

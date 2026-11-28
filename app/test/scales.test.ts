@@ -1,4 +1,4 @@
-// Les échelles de la peau (#2909) : cinq tailles de texte, six pas d'espacement et les arrondis, posés dans tokens.css
+// Les échelles de la peau (#2909) : quatre tailles de texte, six pas d'espacement et les arrondis, posés dans tokens.css
 // et nulle part ailleurs. Une feuille de la vue ne donne une taille, un espacement ou un arrondi que par l'un de ces
 // jetons : un nombre suivi d'une unité (`12px`, `0.4rem`) y est une valeur hors de l'échelle. Restent permis le zéro nu,
 // `auto`, les pourcentages, les `em` (relatifs au texte autour) et ce qui ne compte que des jetons (`calc(-1 * var(--pas-3))`).
@@ -37,18 +37,17 @@ describe("les échelles : tailles, pas et arrondis sont des jetons", () => {
   const tokens = tokensOf(read("tokens.css"));
   const family = (prefix: string) => Object.fromEntries([...tokens].filter(([name]) => name.startsWith(prefix)));
 
-  test("tokens.css pose cinq tailles de texte : 11, 13, 15, 20 et 28", () => {
+  test("tokens.css pose quatre tailles de texte : 11, 13, 15 et 20", () => {
     assert.deepEqual(family("--taille-"), {
       "--taille-meta": "11px",
       "--taille-corps": "13px",
       "--taille-intertitre": "15px",
       "--taille-titre": "20px",
-      "--taille-chiffre": "28px",
     });
   });
 
-  test("tokens.css pose six pas d'espacement, de 4 à 32", () => {
-    assert.deepEqual(family("--pas-"), { "--pas-1": "4px", "--pas-2": "8px", "--pas-3": "12px", "--pas-4": "16px", "--pas-5": "24px", "--pas-6": "32px" });
+  test("tokens.css pose cinq pas d'espacement, de 4 à 24", () => {
+    assert.deepEqual(family("--pas-"), { "--pas-1": "4px", "--pas-2": "8px", "--pas-3": "12px", "--pas-4": "16px", "--pas-5": "24px" });
   });
 
   test("tokens.css pose les arrondis 10, 8 et 4, et le rond complet de la pastille", () => {
@@ -56,7 +55,7 @@ describe("les échelles : tailles, pas et arrondis sont des jetons", () => {
   });
 
   test("aucune feuille de la vue n'écrit une taille, un espacement ou un arrondi en dur", () => {
-    assert.ok(sheets.includes("vue.css") && sheets.includes(join("autonomy", "autonomy.css")), sheets.join(", "));
+    assert.ok(sheets.includes("vue.css"), sheets.join(", "));
     const found = sheets.flatMap((file) => literals(file, read(file)));
     assert.deepEqual(found, [], `des littéraux à remplacer par un jeton de tokens.css :\n${found.join("\n")}`);
   });

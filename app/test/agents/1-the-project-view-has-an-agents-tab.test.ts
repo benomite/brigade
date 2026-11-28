@@ -5,8 +5,8 @@ import { test } from "node:test";
 import { forTheBar } from "../../src/bar.ts";
 import { EXAMPLE } from "../../src/config.ts";
 import { PALETTE } from "../../src/colors.ts";
-import { BANNER } from "../../src/facts.ts";
-import { TABS, HEADINGS } from "../../src/tabs.ts";
+
+import { HEADINGS } from "../../src/tabs.ts";
 import { EFFORTS, MODELS } from "../../src/projects/projects.ts";
 import { playTheVue, repos, type Fake, type Played, type Answers } from "../helpers/false-vue.ts";
 
@@ -14,13 +14,10 @@ const startup = () => ({
   configuration: forTheBar({ chemin: "/tmp/app.json", projets: [{ nom: "parade", dossier: "/tmp/parade" }] }, () => true),
   palette: PALETTE,
   exemple: EXAMPLE,
-  onglets: TABS,
   rubriques: HEADINGS,
   gestes: {},
-  banniere: BANNER,
   calibrage: { modeles: MODELS, efforts: EFFORTS },
-  code: undefined,
-});
+  });
 
 // The bridge's `agentsAtWork`, which the main process answers from GitHub and the station (team-of-the-box.ts): what it says.
 const reading = (agents: unknown[] = [{ agent: "cook", ticket: 41, since: "2026-10-01T00:00:00.000Z", station: "box" }]) => ({ agents });

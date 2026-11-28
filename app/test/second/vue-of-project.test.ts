@@ -25,15 +25,6 @@ const board = {
   rail: { colonnes: [{ nom: "QUEUED", ton: "", compte: "1", cartes: [card], vide: "" }], hors: [] },
 } as unknown as Board;
 
-test("le tableau devient la vue : aucun bandeau, la carte #221 telle que le rail la dit, qui l'attend, et aucun geste", () => {
-  const vue = vueDropped(board);
-  assert.deepEqual(vue.banners, []);
-  assert.equal(vue.rail[0]!.number, 221);
-  assert.equal(vue.rail[0]!.displayed, "queued - ready, waits for a place in the kitchen");
-  assert.equal(vue.rail[0]!.real, vue.rail[0]!.displayed);
-  assert.equal(vue.rail[0]!.waitsOn, "the kitchen, which will take it");
-  assert.equal(vue.gesture, undefined);
-});
 
 test("la vue déposée par l'app est celle que le crochet rend", () => {
   const views = mkdtempSync(join(tmpdir(), "vue-4121-depot-"));

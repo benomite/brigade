@@ -10,8 +10,8 @@ import { forTheBar } from "../../src/bar.ts";
 import { EXAMPLE } from "../../src/config.ts";
 import type { StartOfConnection } from "../../src/connection-github.ts";
 import { PALETTE } from "../../src/colors.ts";
-import { BANNER } from "../../src/facts.ts";
-import { TABS, HEADINGS } from "../../src/tabs.ts";
+
+import { HEADINGS } from "../../src/tabs.ts";
 import { EFFORTS, MODELS } from "../../src/projects/projects.ts";
 import type { Phone } from "../../src/vue/bridge.d.ts";
 import { EXPECTED, ITSELF_CONNECT, TITLE } from "../../src/vue/connection-github.js";
@@ -25,12 +25,9 @@ const startup = (phone: Phone | null) => () => ({
   configuration: forTheBar({ chemin: "no projects file on this phone", projets: [] }),
   palette: PALETTE,
   exemple: EXAMPLE,
-  onglets: TABS,
   rubriques: HEADINGS,
   gestes: {},
-  banniere: BANNER,
   calibrage: { modeles: MODELS, efforts: EFFORTS },
-  code: undefined,
   ...(phone === null ? {} : { telephone: phone }),
 });
 
@@ -141,11 +138,12 @@ describe("hors d'une installation neuve", () => {
     assert.deepEqual(screen().dessous("button").filter((pose) => pose.parentElement?.className === "action"), []);
   });
 
-  test("le desktop, qui ne rend aucun `telephone` : rien n'est posé, et sans projet l'app s'ouvre sur les stations du chef (#1434)", async () => {
+  test("le desktop, qui ne rend aucun `telephone` : rien n'est posé, et sans projet l'app s'ouvre sur « Tous les projets » (#4799)", async () => {
     const { vue, ecran: screen } = await atLaunch({ telephone: null });
     assert.equal(screen().hidden, true);
     assert.equal(screen().children.length, 0);
     assert.equal(vue.element("cadre").hidden, false);
-    assert.ok(vue.element("tous").children[0]?.classList.contains("premier-lancement"));
+    assert.equal(vue.element("tous").hidden, false);
+    assert.equal(vue.element("ajout").hidden, true);
   });
 });

@@ -74,7 +74,7 @@ export function callByGh(gh: string, delayMs: number = DELAY_MS): CallGitHub {
 // Ce qui attend le chef dans ce dépôt, lu comme le TODO de l'app le lit, rendu dans le bloc `awaiting`.
 export async function readTheFile(call: CallGitHub, repository: string, now: () => Date = () => new Date()): Promise<Reading> {
   const instant = now();
-  const readEntry = await readWhatAwaitingTheChef({ depot: repository, appeler: call, maintenant: () => instant, enWaiting: true });
+  const readEntry = await readWhatAwaitingTheChef({ depot: repository, appeler: call, maintenant: () => instant });
   if (!readEntry.lue) return { lue: false, raison: readEntry.raison, ...(readEntry.horsLigne === undefined ? {} : { horsLigne: true as const }) };
   return { lue: true, depot: repository, lu: readEntry.lu, texte: blockOfChef(readEntry).join("\n") };
 }

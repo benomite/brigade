@@ -7,8 +7,8 @@ import { describe, test } from "node:test";
 import { forTheBar } from "../src/bar.ts";
 import { EXAMPLE } from "../src/config.ts";
 import { PALETTE } from "../src/colors.ts";
-import { BANNER, holdFacts, type Drawable } from "../src/facts.ts";
-import { TABS, HEADINGS } from "../src/tabs.ts";
+import { holdFacts, type Drawable } from "../src/facts.ts";
+import { HEADINGS } from "../src/tabs.ts";
 import { EFFORTS, MODELS } from "../src/projects/projects.ts";
 import { NO_STATION } from "../src/vue/cooks/without-station.js";
 import { holdReadsOfBoard } from "../src/board/rail.ts";
@@ -24,13 +24,10 @@ const startup = (served: boolean) => () => ({
   configuration: forTheBar({ chemin: "/tmp/app.json", projets: [{ nom: PARADE, dossier: "/tmp/parade" }] }, () => served),
   palette: PALETTE,
   exemple: EXAMPLE,
-  onglets: TABS,
   rubriques: HEADINGS,
   gestes: {},
-  banniere: BANNER,
   calibrage: { modeles: MODELS, efforts: EFFORTS },
-  code: undefined,
-});
+  });
 async function open(answers: Answers = {}, served = true): Promise<Played> {
   const vue = await playTheVue({ demarrage: startup(served), espace: () => [], ...answers });
   (vue.element("projets").children.at(1) ?? assert.fail("pas d'entrée")).click();
@@ -101,12 +98,10 @@ describe("le dernier rail lu survit au redémarrage (#4620)", () => {
 
   test("l'onglet Rail le dessine après le redémarrage, sous la pause : ses colonnes, l'heure de sa lecture, son âge et l'heure où GitHub reprend", async () => {
     const facts: Facts = {
-      etat: "ouverte", lu: a(0), dernierTick: a(0),
+      etat: "ouverte", lu: a(0),
       compteurs: { rail: 1, auTravail: 1, aLaPass: 0, attend: 0, livres24h: 0 },
-      dernierEvenement: null,
-      rail: [{ ticket: 14, etat: "pris", titre: "Le journal en ajout seul", url: "https://github.com/chef/parade/issues/14", activite: null }],
-      cooks: [{ ticket: 14, titre: "Le journal en ajout seul", station: "box/claude" }],
       attend: [],
+      kitchenBoard: { columns: (["backlog", "ready", "cooking", "pass", "parked", "served"] as const).map((key) => ({ key, title: key, cards: key === "cooking" ? [{ ticket: 14, title: "Le journal en ajout seul", url: "https://github.com/chef/parade/issues/14", tries: 0, pr: null }] : [] })) },
     };
     const vue = await open();
     // Ce que le main rend au premier tour après le redémarrage : le rail gardé, lu à 15:00, avec la pause.

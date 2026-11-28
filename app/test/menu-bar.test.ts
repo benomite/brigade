@@ -14,17 +14,12 @@ const A = "2026-11-11T10:00:00.000Z";
 const someFacts = (fields: Partial<Facts> = {}, counters: Partial<Facts["compteurs"]> = {}): Facts => ({
   etat: "ouverte",
   lu: A,
-  dernierTick: A,
   compteurs: { rail: 4, auTravail: 0, aLaPass: 0, attend: 0, livres24h: 0, ...counters },
-  dernierEvenement: null,
-  rail: [],
-  cooks: [],
   attend: [],
-  livres: [],
-  urgence: null,
+  
+ 
   ...fields,
 });
-const cook = (ticket: number) => ({ ticket, titre: `ticket ${ticket}`, station: "box/claude" });
 const QUESTION = { sorte: "product-question", texte: "Open the beta to everyone?\n\n- [resume] Yes\n- [drop] No" };
 // Une lecture de `facts`, telle que la veille la donne au process principal.
 const reading = (project: string, facts: Facts): Reading => ({ projet: project, demande: 1, a: A, sorties: [{ commande: "facts", texte: `${JSON.stringify(facts)}\n` }] });
@@ -32,8 +27,8 @@ const reading = (project: string, facts: Facts): Reading => ({ projet: project, 
 describe("la ligne d'un coup d'œil", () => {
   test("combien de cooks cuisent et combien de questions attendent le chef, sur tous les projets lus", () => {
     const heldOnes = holdFacts();
-    heldOnes.recevoir(reading("brigade", someFacts({ cooks: [cook(1), cook(2)], attend: [{ ticket: 7, titre: "Open the beta", url: null, chef: QUESTION }] }, { attend: 1, auTravail: 2 })));
-    heldOnes.recevoir(reading("parade", someFacts({ cooks: [cook(9)] }, { auTravail: 1 })));
+    heldOnes.recevoir(reading("brigade", someFacts({ attend: [{ ticket: 7, titre: "Open the beta", url: null, chef: QUESTION }] }, { attend: 1, auTravail: 2 })));
+    heldOnes.recevoir(reading("parade", someFacts({}, { auTravail: 1 })));
     const readOnes: ProjectRead[] = ["brigade", "parade"].map((name) => ({ nom: name, faits: heldOnes.dernier(name)?.faits }));
 
     const state = kitchenState(readOnes);
@@ -46,14 +41,10 @@ describe("la ligne d'un coup d'œil", () => {
   });
 
   test("un projet pas encore lu n'est compté pour rien, et la ligne dit combien ne le sont pas ; rien de lu, jamais « 0 »", () => {
-    assert.equal(lineOf(kitchenState([{ nom: "brigade", faits: someFacts({ cooks: [cook(1)] }) }, { nom: "parade", faits: undefined }])), "1 cooking · 0 for you · 1 not read");
+    assert.equal(lineOf(kitchenState([{ nom: "brigade", faits: someFacts({}, { auTravail: 1 }) }, { nom: "parade", faits: undefined }])), "1 cooking · 0 for you · 1 not read");
     assert.equal(lineOf(kitchenState([{ nom: "brigade", faits: undefined }])), "not read yet");
   });
 
-  test("un runtime d'avant la liste des cooks : ses cooks au travail sont comptés", () => {
-    const { cooks: _cooks, ...withoutCooks } = someFacts({}, { auTravail: 2 });
-    assert.equal(lineOf(kitchenState([{ nom: "brigade", faits: withoutCooks }])), "2 cooking · 0 for you");
-  });
 
   test("un runtime d'avant `attend` : ses décisions sont comptées, et son menu ouvre le projet", () => {
     const { attend: _awaiting, ...withoutAwaiting } = someFacts({}, { attend: 2 });
@@ -102,7 +93,7 @@ describe("l'icône tenue", () => {
     return { poser: (line, questions) => void log.poses.push([line, questions]), menu: (entries) => void log.menus.push(entries), retirer: () => void log.retirees++ };
   };
   const fresh = (): Log => ({ poses: [], menus: [], retirees: 0, creees: 0 });
-  const ONE: ProjectRead[] = [{ nom: "brigade", faits: someFacts({ cooks: [cook(1)], attend: [{ ticket: 7, titre: "Open the beta", url: null }] }, { attend: 1 }) }];
+  const ONE: ProjectRead[] = [{ nom: "brigade", faits: someFacts({ attend: [{ ticket: 7, titre: "Open the beta", url: null }] }, { attend: 1, auTravail: 1 }) }];
 
   test("allumée, elle se pose avec sa ligne et son menu, et ne se redit que lorsque ce qu'elle dit change", () => {
     const log = fresh();

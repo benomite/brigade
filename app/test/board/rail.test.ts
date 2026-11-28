@@ -10,7 +10,6 @@ import { syncBuiltinESMExports } from "node:module";
 import { dirname, join, relative, resolve } from "node:path";
 import { test, type TestContext } from "node:test";
 import { putAside, ticketsOf } from "../../src/awaiting.ts";
-import { see as seeUpstream } from "../../src/upstream.ts";
 import { holdFacts, titleOfFailure, type Drawable } from "../../src/facts.ts";
 import { withWhatAwaitingTheChef } from "../../src/board/wait-of-chef.ts";
 import type { CallGitHub, AnswerGitHub } from "../../src/board/client.ts";
@@ -188,10 +187,6 @@ test("ce qui est avant le rail n'est pas lu : l'amont n'est ni compté ni dit «
   const launched = withoutProcess(t);
   const reading = readOfBoard(await readOne(), "brigade", 1, [UPSTREAM]);
   assert.ok("erreur" in reading && reading.duTableau === true && reading.pasPublie === true);
-  const seenOne = seeUpstream(reading);
-  assert.ok("nonPublie" in seenOne);
-  assert.ok(!("sans" in seenOne) && !("compte" in seenOne));
-  assert.equal(seenOne.vide, "nothing on the rail");
   assert.deepEqual(launched, []);
 });
 
@@ -309,15 +304,13 @@ test("aucun chemin qui dessine le rail ne lance de processus : ses veilles lisen
     assert.ok(!imported.includes("node:child_process"), `${module} : ${imported.join(", ")}`);
     assert.ok(!imported.some((path) => /app\/src\/(box|terminals|pty)\.ts$/.test(path)), `${module} : ${imported.join(", ")}`);
   }
-  // Dans le process principal, les trois veilles qui dessinent le rail — `status`, les faits, l'amont — sont celles de
+  // Dans le process principal, les deux veilles qui dessinent le rail — `status` et les faits — sont celles de
   // GitHub : aucune ne lance de processus.
   const main = readFileSync(join(ROOT, "app/src/main.ts"), "utf8");
-  for (const standby of ["standby", "factsWatch", "standbyOfTheUpstream"]) {
+  for (const standby of ["standby", "factsWatch"]) {
     const declaration = new RegExp(`^const ${standby} = (\\w+)\\(\\{([\\s\\S]*?)^\\}\\);`, "m").exec(main);
     assert.equal(declaration?.[1], "openStandbyOfBoard", standby);
   }
-  // Les gestes du rail qui ont un fait sur GitHub visent la dernière lecture réussie ; seule la carte du chef lue de GitHub
-  // se répond, sur son issue (#2434) — toute autre carte ne part pas.
-  assert.match(main, /ipcMain\.handle\("gesteDeFiche"[\s\S]*?removeTheLabel\(boards\.dernier/);
+  // Seule la carte du chef lue de GitHub se répond, sur son issue (#2434) — toute autre carte ne part pas.
   assert.match(main, /ipcMain\.handle\("repondreCarte"[\s\S]*?if \(chef === undefined\) return \{ refus: WITHOUT_DONE\.carte[\s\S]*?answerOnGithub\(/);
 });

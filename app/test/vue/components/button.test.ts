@@ -124,7 +124,7 @@ describe("sa feuille", () => {
     const drawing = /^(padding(-\w+)?|font(-size|-weight)?|line-height|color|background(-color)?|border(-[\w-]+)?|min-height|height|opacity|box-shadow)$/;
     // Toutes les feuilles de la vue, sous-dossiers compris, sauf celle du bouton et les jetons.
     const sheets = (readdirSync(VUE, { recursive: true }) as string[]).filter((file) => file.endsWith(".css") && !file.endsWith("button.css") && file !== "tokens.css");
-    assert.ok(["vue.css", join("autonomy", "autonomy.css")].every((file) => sheets.includes(file)), sheets.join(", "));
+    assert.ok(["vue.css"].every((file) => sheets.includes(file)), sheets.join(", "));
     for (const file of sheets) {
       for (const [, head = "", body = ""] of read(file).matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
         const selectors = head.split(/,(?![^(]*\))/).map((selector) => selector.trim().replace(/\s+/g, " ")).filter((selector) => /\bbutton\b/.test(selector) && !others.test(selector));

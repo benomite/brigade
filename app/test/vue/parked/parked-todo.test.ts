@@ -9,7 +9,7 @@ import { Fake } from "../../helpers/false-vue.ts";
 const doc = { createElement: (balise: string) => new Fake(balise) };
 const rec = (ticket: number, more: object = {}) => ({ ticket, who: "chef", what: `thing ${ticket}`, until: "2026-12-01", step: "Cooks", ...more });
 const headOf = (n: number) => `TODO (${n})`;
-const [NO_WHAT, NO_UNTIL, OPEN_PARK] = ["for what: not given", "no date set", "park or unpark…"];
+const [NO_WHAT, NO_UNTIL] = ["for what: not given", "no date set"];
 const items = (todo: Fake) => todo.dessous("li").filter(({ dataset }) => dataset.ticket !== undefined);
 const head = (todo: Fake) => todo.dessous("p").find(({ className }) => className === "tete-du-todo")?.textContent;
 const line = (item: Fake) => item.dessous("span").find(({ className }) => className === "qui-jusqua")?.textContent;
@@ -47,8 +47,8 @@ test("each item can have its own buttons, the recommended one filled; without an
   assert.deepEqual(calls, [[7, "No"]]);
 });
 
-test("read-only, an item is listed without any button or park control", () => {
-  const todo = parkedTodo(doc, { records: [rec(9)], chef: "chef", choices: ["go"], answer: () => {}, readOnly: "no write access", control: () => new Fake("div") }) as unknown as Fake;
+test("read-only, an item is listed without any button", () => {
+  const todo = parkedTodo(doc, { records: [rec(9)], chef: "chef", choices: ["go"], answer: () => {}, readOnly: "no write access" }) as unknown as Fake;
   assert.equal(items(todo).length, 1);
   assert.equal(todo.dessous("button").length, 0);
 });
@@ -65,27 +65,4 @@ test("with `open`, an item's number and title open its card in one click, its ti
   const readOne = parkedTodo(doc, { records: [rec(13, { title: "Le menu" })], chef: "chef", choices: [], answer: () => {} }) as unknown as Fake;
   assert.equal(readOne.dessous("strong")[0]?.textContent, "#13 Le menu");
   assert.equal(readOne.dessous("button").length, 0);
-});
-
-test("« park or unpark… » opens the control under its item, closes it, and an opened one stays open on the next render", () => {
-  const opened = new Set<number>();
-  const control = (r: { ticket: number }) => Object.assign(new Fake("div"), { className: `control-${r.ticket}` });
-  const set = () => parkedTodo(doc, { records: [rec(14), rec(15)], chef: "chef", choices: [], answer: () => {}, control, opened }) as unknown as Fake;
-  const controls = (todo: Fake) => todo.dessous("div").filter(({ className }) => className.startsWith("control-")).map(({ className }) => className);
-  const todo = set();
-  assert.deepEqual(controls(todo), []);
-  const open = (t: Fake, n: number) => items(t)[n]!.dessous("button").find(({ dataset }) => dataset.action === "open-park")!.click();
-  assert.deepEqual(items(todo)[0]!.dessous("button").map(({ textContent }) => textContent), [OPEN_PARK]);
-  open(todo, 1);
-  assert.deepEqual(controls(todo), ["control-15"]);
-  assert.deepEqual([...opened], [15]);
-  assert.deepEqual(controls(set()), ["control-15"]);
-  open(todo, 1);
-  assert.deepEqual(controls(todo), []);
-  assert.deepEqual([...opened], []);
-  const reopened = set();
-  open(reopened, 0);
-  assert.deepEqual(controls(reopened), ["control-14"]);
-  open(reopened, 0);
-  assert.deepEqual(controls(reopened), []);
 });

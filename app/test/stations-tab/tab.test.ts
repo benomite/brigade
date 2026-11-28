@@ -9,9 +9,8 @@ import type { Home } from "../../src/home.ts";
 import { forTheBar } from "../../src/bar.ts";
 import { EXAMPLE, type Project } from "../../src/config.ts";
 import { PALETTE } from "../../src/colors.ts";
-import { BANNER } from "../../src/facts.ts";
-import { TABS, HEADINGS } from "../../src/tabs.ts";
-import type { Outage } from "../../src/outages/outages.ts";
+
+import { HEADINGS } from "../../src/tabs.ts";
 import { calibrationRecommended, EFFORTS, machineProposed, MODELS, type Move, type ProjectSeen, type SeenOfProjects } from "../../src/projects/projects.ts";
 import type { StationVue, SeenOfStations } from "../../src/stations/stations.ts";
 import { ADD, STOP, DISPLACE, DETAILS } from "../../src/vue/stations-tab/stations-tab.js";
@@ -19,9 +18,9 @@ import { CHOOSE, NOBODY, TO_HERE } from "../../src/vue/stations-tab/state.js";
 import { type Fake, type Played, playTheVue, openTab, repos } from "../helpers/false-vue.ts";
 
 const A = "2026-11-11T10:00:00.000Z";
-const BOX: StationVue = { id: "gbox", nom: "parade-box", machine: "Linux 6.1.0", coeurs: 8, etat: "en-ligne", ligne: "online", pannes: [] as Outage[], dit: "online", version: "2.4.0", projets: ["parade"], max: "connectee" };
-const MAC: StationVue = { id: "gmac", nom: "macbook", machine: "macOS 25.0.0", coeurs: 12, etat: "en-ligne", ligne: "online", pannes: [] as Outage[], dit: "online", version: "2.4.0", projets: [], max: "connectee" };
-const HOME: Home = { projets: [], stations: [], sante: { ton: "vert", dit: "Max ✓  ·  GitHub ✓", survol: "" } };
+const BOX: StationVue = { id: "gbox", nom: "parade-box", machine: "Linux 6.1.0", coeurs: 8, etat: "en-ligne", ligne: "online", dit: "online", version: "2.4.0", projets: ["parade"], max: "connectee" };
+const MAC: StationVue = { id: "gmac", nom: "macbook", machine: "macOS 25.0.0", coeurs: 12, etat: "en-ligne", ligne: "online", dit: "online", version: "2.4.0", projets: [], max: "connectee" };
+const HOME: Home = { projets: [] };
 const PARADE: Project = { nom: "parade", dossier: "/tmp/parade", depot: "benomite/parade", base: "main" };
 const station = (id: string, name: string) => ({ id, nom: name, etat: "servi" as const, dit: "", autoriser: [] });
 // parade, confié depuis l'app à sa box, où il cuit.
@@ -34,12 +33,9 @@ async function thePage(stations: StationVue[], seenOne: SeenOfProjects, relocate
       configuration: forTheBar({ chemin: "/tmp/app.json", projets: [PARADE] }),
       palette: PALETTE,
       exemple: EXAMPLE,
-      onglets: TABS,
       rubriques: HEADINGS,
       gestes: {},
-      banniere: BANNER,
       calibrage: { modeles: MODELS, efforts: EFFORTS },
-      code: undefined,
       stations: { a: A, stations } satisfies SeenOfStations,
       accueil: HOME,
       projetsDesStations: seenOne,
@@ -63,7 +59,7 @@ describe("l'onglet Stations : une ligne en tête, une carte par station qui sert
   test("servi par la box : « Cooked by parade-box · online · idle… », vert ; une seule carte ; le Mac, qui ne le sert pas, nulle part", async () => {
     const vue = await thePage([BOX, MAC], seenOf(ON_THE_BOX));
     assert.equal(tab(vue).dessous("div").filter(({ className }) => className === "haut-des-stations").length, 1);
-    assert.equal(sentence(vue), "Cooked by parade-box · online · idle, nothing on the rail");
+    assert.equal(sentence(vue), "Cooked by parade-box · online");
     assert.equal(top(vue).dataset.ton, "vert");
     assert.deepEqual(cards(vue).map(({ ariaLabel }) => ariaLabel), ["parade-box"]);
     const text = tab(vue).textContent;
@@ -140,7 +136,7 @@ describe("« Move to another station » : le choix, puis la ligne du haut suit l
     vue.dire("surStations", { a: A, stations: [{ ...BOX, projets: [] }, { ...MAC, projets: ["parade"] }] });
     vue.dire("surProjetsDesStations", seenOf({ ...ON_THE_BOX, cuitSur: { id: "gmac", nom: "macbook", ici: true } }));
     await repos();
-    assert.equal(sentence(vue), "Cooked by macbook · online · idle, nothing on the rail");
+    assert.equal(sentence(vue), "Cooked by macbook · online");
     assert.equal(top(vue).dataset.ton, "vert");
     assert.deepEqual(cards(vue).map(({ ariaLabel }) => ariaLabel), ["macbook"]);
   });
@@ -152,7 +148,7 @@ describe("« Move to another station » : le choix, puis la ligne du haut suit l
     tab(vue).dessous("li")[0]?.dessous("button")[0]?.click();
     await repos();
     await repos();
-    assert.equal(sentence(vue), "Cooked by parade-box · online · idle, nothing on the rail");
+    assert.equal(sentence(vue), "Cooked by parade-box · online");
     assert.match(tab(vue).textContent, /parade stays on parade-box: this computer has no sandbox/);
   });
 });

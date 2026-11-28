@@ -38,10 +38,6 @@
 .confirmation > small {
   color: var(--discret);
 }
-.confirmation .nombres {
-  font-weight: 600;
-  color: var(--jaune);
-}
 .confirmation pre {
   flex: 1 1 100%;
   max-height: 96px;

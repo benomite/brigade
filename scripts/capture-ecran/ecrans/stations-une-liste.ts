@@ -2,7 +2,7 @@
 // publie sa présence, et s'est aussi enregistrée sous le compte GitHub. parade-box fait la cuisine de cinq projets, mais
 // rien ne lui est choisi dans l'app ; macbook-air-de-benoit ne fait la cuisine d'aucun, mais un dépôt lui est choisi ;
 // nas n'est qu'enregistrée. Avant #1778, la section les listait deux fois, et les deux lectures se contredisaient.
-import { type Home, lineOfStation } from "../../../app/src/home.ts";
+import type { Home } from "../../../app/src/home.ts";
 import type { StationVue, SeenOfStations } from "../../../app/src/stations/stations.ts";
 import type { StationRecorded, StationsOfAccount } from "../../../app/src/stations-of-account.ts";
 import { configuration, cuisine, demarrage, type Ecran, type Etape, MAINTENANT } from "./commun.ts";
@@ -12,8 +12,8 @@ const INSTANT = Date.parse(MAINTENANT);
 const IL_Y_A = (minutes: number) => new Date(INSTANT - minutes * 60_000).toISOString();
 
 // Ce que les gists de présence disent, tel que l'app le lit (stations/stations.ts).
-const BOX: StationVue = { id: "f0a1", nom: "parade-box", machine: "Debian 12 · 8 cores", coeurs: 8, etat: "en-ligne", ligne: "", pannes: [], dit: "online", version: "2.4.0", projets: ["brigade", "calculus-workspace", "espace", "mirrorscreen", "mirrorlab"], max: null };
-const MAC: StationVue = { id: "f0b2", nom: "macbook-air-de-benoit", machine: "macOS 15 · 8 cores", coeurs: 8, etat: "en-ligne", ligne: "", pannes: [], dit: "online", version: "2.4.0", projets: [], max: null };
+const BOX: StationVue = { id: "f0a1", nom: "parade-box", machine: "Debian 12 · 8 cores", coeurs: 8, etat: "en-ligne", ligne: "", dit: "online", version: "2.4.0", projets: ["brigade", "calculus-workspace", "espace", "mirrorscreen", "mirrorlab"], max: null };
+const MAC: StationVue = { id: "f0b2", nom: "macbook-air-de-benoit", machine: "macOS 15 · 8 cores", coeurs: 8, etat: "en-ligne", ligne: "", dit: "online", version: "2.4.0", projets: [], max: null };
 const STATIONS: SeenOfStations = { a: MAINTENANT, stations: [MAC, BOX] };
 
 // Ce que les gists d'enregistrement disent, tel que l'app le reçoit (`StationRecorded`) : chacune vue il y a une minute,
@@ -47,7 +47,7 @@ export function stationsDuChef(dit: string, etapes: Etape[] = [], depots: { depo
     hauteur: 900,
     etapes,
     donnees: () => {
-      const accueil: Home = { projets: [], stations: STATIONS.stations.map((station) => lineOfStation(station, 0, [])), sante: { ton: "vert", dit: "Max ✓  ·  GitHub ✓", survol: "" } };
+      const accueil: Home = { projets: [] };
       return { maintenant: MAINTENANT, reponses: { demarrage: { ...demarrage(configuration(PROJETS)), stations: STATIONS, accueil }, stationsDuCompte: DU_COMPTE, depotsDuChef: depots }, envois: cuisine(RENDUS) };
     },
   };

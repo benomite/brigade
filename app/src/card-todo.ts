@@ -1,18 +1,15 @@
 // La carte de TODO (#1281, épique #1277) : une carte du chef lue de GitHub — un ticket parqué pour lui (`parked:chef`,
-// runtime/src/kitchen/), une question du manager, une validation de design — porte une seule question,
-// ses choix et, pour un écran, ses captures avant et après. La carte du rail la montre telle quelle : la question, un bouton
-// par choix, un champ pour répondre en texte libre, et les captures quand il y en a.
+// runtime/src/kitchen/), une question du manager — porte une seule question,
+// ses choix. La carte du rail la montre telle quelle : la question, un bouton
+// par choix, un champ pour répondre en texte libre.
 //
 // Un clic sur un choix, ou le texte envoyé, est la réponse du chef : elle est lue ici (`reponseLue`). Aucune box ne lit
 // plus de tableau de la cuisine (#2061) : seule la carte du chef lue de GitHub (#2434, `carteDuChefDeTodo`) se répond, sur
 // son issue, par le `gh` du chef (board-actions/answer-github.ts). La vue nomme le ticket, la question qu'elle montre, et
 // le rang du choix ou le texte.
-import type { CapturesOfCard } from "./captures.ts";
 import { LENGTH_MAX } from "./discussion.ts";
 import { KIND_PARKED_CHEF } from "./board/parked-chef-github.ts";
 import { shapeOfChef, type CardOfChef } from "./board/todo-github.ts";
-import { capturesOfTheValidation, KIND_OF_VALIDATION } from "./vue/validation-design/validation-design-github.ts";
-import { tellThePrByItsTicket } from "./vue/pr-of-ticket.js";
 
 // La carte telle que la réponse du chef se contrôle : sa sorte, sa question, ses choix — chacun son texte et sa suite
 // (`resume`, `merge`, `drop`, `close`), numérotés à partir de 1.
@@ -26,22 +23,12 @@ export type SendSeen = { commentaire: number; reponse: string; le: string } & ({
 
 // La carte telle que la vue la pose : sa sorte, ce qui se passe, sa question — nulle sur une carte à un
 // seul geste —, ses choix — chacun avec son prix, qui passe au survol —, le prix d'une réponse en texte
-// libre, ses captures, absentes sans écran.
+// libre.
 export type ChoiceOfCard = { texte: string; prix: string };
 // `contexte` : ce que le commentaire d'une carte du chef lue de GitHub dit après sa question (#2434) — absent ailleurs.
-// `validation` : la carte « Validate its screen » (vue/validation-design/, ticket 3185) — la PR qu'elle valide, ou pourquoi
-// son issue ne la dit pas (`illisible`) — absente ailleurs.
-export type ValidationOfCard = { pr: number; ticket: number } | { illisible: string };
-// `brief` : en tête du détail en grand d'une carte « Validate its screen » (ticket 3330), ce que le ticket demandait et ce
-// que le cook a changé à l'écran — `fait` nul, il n'en a rien dit.
-export type BriefOfCard = { demande: string; fait: string[] | null };
-// `recommandation` : sur la carte d'un écart du manager (#3434), le rang — à partir de 1 — du choix qu'il recommande, et
-// pourquoi en une ligne ; nulle, il n'en recommande aucun : aucun choix n'est mis en avant. Absente ailleurs : le premier
-// choix est la réponse recommandée (ticket 2922).
-export type RecommendationOfCard = { rang: number; pourquoi: string };
 // `repondre` : le libellé du bouton de la réponse libre, quand ce n'est pas « send » ; `surGithub` : la carte a son bouton
 // « Open on GitHub » — celle d'un ticket que la nouvelle cuisine parque pour le chef (#4474), absents ailleurs.
-export type CardOfTodo = { sorte: string; resume?: string; question: string | null; contexte?: string; choix: ChoiceOfCard[]; prixDuTexte: string; repondre?: string; surGithub?: true; recommandation?: RecommendationOfCard | null; captures?: CapturesOfCard; envoi?: SendSeen; validation?: ValidationOfCard; brief?: BriefOfCard };
+export type CardOfTodo = { sorte: string; resume?: string; question: string | null; contexte?: string; choix: ChoiceOfCard[]; prixDuTexte: string; repondre?: string; surGithub?: true; envoi?: SendSeen };
 
 // Ce que la vue envoie : la question qu'elle montre — nulle sur une carte à un seul geste ; rien ne part
 // sur une carte qui a changé sous les yeux du chef —, et le rang d'un choix, à partir de 1, ou le texte
@@ -57,15 +44,19 @@ export type Rendered = { repondue: true; dit: string; commentaire?: number } | {
 // du chef (board-actions/answer-github.ts) — aucune box, aucune station ne le joue.
 const POSTED = "your answer is posted on the issue from your GitHub account";
 const PRICE_ON_GITHUB: Readonly<Record<string, string>> = {
-  resume: `${POSTED}, and the app removes what holds the ticket (\`chef-todo\`, \`parked\`, \`served-elsewhere\`): it resumes exactly where it was and its cook reads your answer`,
+  resume: `${POSTED}, and the app removes what holds the ticket: it resumes exactly where it was and its cook reads your answer`,
   merge: `${POSTED}, and the app merges the PR the card names under your GitHub account — a merge is not undone from the app`,
-  drop: `${POSTED}, and the app removes \`fire\`: the ticket is off the rail, no cook takes it, its issue stays open`,
-  close: `${POSTED}, and the app closes the issue: the ticket is not cooked`,
-  rail: `${POSTED}, and the app puts the \`prio:\` label the choice names on the issue: a stranger's issue goes on the rail`,
-  wait: `${POSTED}, and the app parks the ticket for the one the choice names, until a date seven days away, and it leaves your TODO: nothing takes it before they answer or that date comes`,
 };
 // Answer, sur la carte d'un ticket parqué pour le chef par la nouvelle cuisine (#4474).
 const PRICE_PARKED_CHEF = `${POSTED}, and the app removes \`parked:chef\`: the ticket goes back on the rail, and its cook reads your answer`;
+
+// La carte du chef dans la forme de toute carte de TODO : sa question, un bouton par choix — chacun son prix —, le champ
+// libre, qui joue `resume`, et ce que le commentaire dit d'autre. Rien pour une issue sans commentaire marqué, ni pour un
+// commentaire vide : il n'y a rien à quoi répondre.
+// La question d'une carte du chef telle que le chef la lit.
+export function questionOfChef({ texte: text }: CardOfChef): string | null {
+  return shapeOfChef(text).question;
+}
 
 // La situation d'une carte du chef, en une ligne (#3086) : la première phrase de ce que son commentaire dit après la question,
 // entière — jamais coupée en son milieu. Le reste du commentaire est derrière « details ». Rien quand il ne dit rien.
@@ -75,35 +66,11 @@ function situationOf(context: string): string | undefined {
   return line.split(/(?<=[.!?])\s+/)[0];
 }
 
-// La carte du chef dans la forme de toute carte de TODO : sa question, un bouton par choix — chacun son prix —, le champ
-// libre, qui joue `resume`, et ce que le commentaire dit d'autre. Rien pour une issue sans commentaire marqué, ni pour un
-// commentaire vide : il n'y a rien à quoi répondre.
-// La question d'une carte du chef telle que le chef la lit : celle d'une validation de design nomme sa PR par son numéro —
-// la carte la dit par son ticket (ticket 3716).
-export function questionOfChef({ texte: text, design }: CardOfChef): string | null {
-  const { question } = shapeOfChef(text);
-  return question === null || design === undefined ? question : tellThePrByItsTicket(question, design.ticket, design.pr);
-}
-
 export function cardOfChefOfTodo(card: CardOfChef): CardOfTodo | undefined {
-  const { sorte: kind, texte: text, design, recommandee: recommended } = card;
+  const { sorte: kind, texte: text } = card;
   const { choix: choice, contexte: context } = shapeOfChef(text);
   const question = questionOfChef(card);
   if (question === null) return undefined;
-  // La carte « Validate its screen » (ticket 3185) : sa question, ses captures et sa PR, et ses deux gestes — valider, ou
-  // renvoyer en cuisine avec un commentaire —, ni choix ni réponse libre. Son lien de PR est dit sur la carte, pas en
-  // contexte. Une issue dont le corps ne dit pas sa PR ne se valide pas d'ici : la carte le dit.
-  if (kind === KIND_OF_VALIDATION) {
-    return {
-      sorte: kind,
-      question,
-      choix: [],
-      prixDuTexte: "",
-      ...(design === undefined
-        ? { validation: { illisible: "its issue does not say which pull request it validates: validate it on GitHub" } }
-        : { validation: { pr: design.pr, ticket: design.ticket }, captures: capturesOfTheValidation(design), ...(design.brief === undefined ? {} : { brief: design.brief }) }),
-    };
-  }
   // Un ticket que la nouvelle cuisine parque pour le chef (#4474) : ce qu'elle en dit, un seul geste — Answer, qui poste le
   // texte du chef et retire `parked:chef` —, et « Open on GitHub ». Aucun choix : le commentaire de la cuisine n'en propose pas.
   // Une PR que la passe approuve et qui touche une zone à risque (#4489) a son choix `merge`.
@@ -111,9 +78,6 @@ export function cardOfChefOfTodo(card: CardOfChef): CardOfTodo | undefined {
     return { sorte: kind, question, ...(context === "" ? {} : { contexte: context }), choix: choice.map(({ texte: wording, suite }) => ({ texte: wording, prix: PRICE_ON_GITHUB[suite] as string })), prixDuTexte: PRICE_PARKED_CHEF, repondre: "Answer", surGithub: true };
   }
   const situation = situationOf(context);
-  // Le choix que le manager recommande, par son rang : un libellé qui n'est plus parmi les choix n'en recommande aucun.
-  const rank = recommended == null ? 0 : choice.findIndex(({ texte: wording }) => wording === recommended.texte) + 1;
-  const recommendation = recommended === undefined ? {} : { recommandation: recommended === null || rank === 0 ? null : { rang: rank, pourquoi: recommended.pourquoi } };
   return {
     sorte: kind,
     ...(situation === undefined ? {} : { resume: situation }),
@@ -121,15 +85,13 @@ export function cardOfChefOfTodo(card: CardOfChef): CardOfTodo | undefined {
     ...(context === "" ? {} : { contexte: context }),
     choix: choice.map(({ texte: wording, suite }) => ({ texte: wording, prix: PRICE_ON_GITHUB[suite] as string })),
     prixDuTexte: PRICE_ON_GITHUB.resume as string,
-    ...recommendation,
   };
 }
 
 // La même carte telle que la réponse du chef se contrôle (`reponseLue`) : sa question et ses choix, chacun son geste.
 export function cardReadOfChef({ sorte: kind, texte: text }: CardOfChef): CardRead | undefined {
   const { question, choix: choice } = shapeOfChef(text);
-  // La carte « Validate its screen » ne se répond pas : ses deux gestes sont la commande du runtime (vue/validation-design/).
-  return question === null || kind === KIND_OF_VALIDATION ? undefined : { type: kind, question, choix: choice };
+  return question === null ? undefined : { type: kind, question, choix: choice };
 }
 
 const text = (value: unknown): value is string => typeof value === "string";

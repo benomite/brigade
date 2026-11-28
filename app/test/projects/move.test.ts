@@ -3,17 +3,15 @@
 // suivi de ses stations, pas dans la demande ; et un déménagement en cours, écrit par le runtime
 // dans la demande (`remise`, `reprise`), survit à toute réécriture de l'app.
 import assert from "node:assert/strict";
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { describe, test, type TestContext } from "node:test";
-import { documentOfRequest, FILE_PROJECTS, FILE_TRACKING, readRequest, type ProjectRequest } from "../../src/projects/request.ts";
+import { describe, test } from "node:test";
+import { documentOfRequest, FILE_PROJECTS, FILE_TRACKING, type ProjectRequest } from "../../src/projects/request.ts";
 import { type Mover } from "../../src/projects/move.ts";
 import { holdProjects, type SeenOfProjects } from "../../src/projects/projects.ts";
 import type { Files, GitHubOfStations } from "../../src/stations/github.ts";
 import type { StationVue } from "../../src/stations/stations.ts";
-import { CACHE_OF_COMPILATION } from "../helpers/cache-of-compilation.ts";
 
-const BOX: StationVue = { id: "gbox", nom: "parade-box", machine: "Linux 6.1.0", etat: "en-ligne", ligne: "online", pannes: [], dit: "online", version: "1.4.0", projets: [], max: null };
-const MAC: StationVue = { id: "gmac", nom: "macbook", machine: "macOS 25.0.0", etat: "en-ligne", ligne: "online", pannes: [], dit: "online", version: "1.4.0", projets: [], max: null };
+const BOX: StationVue = { id: "gbox", nom: "parade-box", machine: "Linux 6.1.0", etat: "en-ligne", ligne: "online", dit: "online", version: "1.4.0", projets: [], max: null };
+const MAC: StationVue = { id: "gmac", nom: "macbook", machine: "macOS 25.0.0", etat: "en-ligne", ligne: "online", dit: "online", version: "1.4.0", projets: [], max: null };
 const REQUEST_THE = "2026-10-20T10:00:00.000Z";
 const PARADE: ProjectRequest = { nom: "parade", depot: "benomite/parade", base: "main", principale: true, cooks: 2, manager: { modele: "sonnet", effort: "medium" }, reviewer: { modele: "sonnet", effort: "medium" }, ouvertLe: null, demandeLe: REQUEST_THE };
 
@@ -98,21 +96,6 @@ test("déménager passe par l'opération du runtime, vers une station appairée,
   assert.equal(calls.length, 1);
 });
 
-test("un déménagement en cours, écrit par le runtime dans la demande, survit à toute réécriture de l'app", async () => {
-  const putBackOne = { vers: "macbook", gist: "gmac", demandeLe: REQUEST_THE };
-  const resumption = { de: "parade-box", gist: "gbox", demandeLe: REQUEST_THE };
-  const cantine = { ...PARADE, nom: "cantine", depot: "benomite/cantine" };
-  assert.deepEqual(readRequest(documentOfRequest([{ ...PARADE, principale: false, remise: putBackOne }]))?.[0]?.remise, putBackOne);
-  const gists: Record<string, Files> = {
-    gbox: { [FILE_PROJECTS]: documentOfRequest([{ ...PARADE, principale: false, remise: putBackOne }, cantine]) },
-    gmac: { [FILE_PROJECTS]: documentOfRequest([{ ...PARADE, reprise: resumption }, cantine]) },
-  };
-  const { projets: projects } = theProjects(gists);
-  // Retirer un autre projet réécrit les deux demandes : celle de parade y reste telle quelle.
-  assert.deepEqual(await projects.retirer("cantine"), { retire: "cantine" });
-  assert.deepEqual(readRequest(gists.gbox?.[FILE_PROJECTS]), [{ ...PARADE, principale: false, remise: putBackOne }]);
-  assert.deepEqual(readRequest(gists.gmac?.[FILE_PROJECTS]), [{ ...PARADE, reprise: resumption }]);
-});
 
 // « Continue without sandbox » (#1113) : la décision se note pour la station qui cuit le projet, la seule
 // que l'app atteigne.
@@ -126,22 +109,6 @@ describe("continuer sans bac à sable", () => {
     return projects;
   };
 
-  test("la principale est ailleurs, le runtime absent ou en échec : un refus en une phrase, rien n'est noté", async () => {
-    let notes = 0;
-    const elsewhere = theProjectsWithoutSandbox("gbox", async () => void notes++);
-    await elsewhere.relire();
-    assert.match(((await elsewhere.continuerSansBac("parade")) as { refus: string }).refus, /parade-box cooks parade, not this computer/);
-    assert.equal(notes, 0);
-    const without = theProjectsWithoutSandbox("gmac");
-    await without.relire();
-    assert.match(((await without.continuerSansBac("parade")) as { refus: string }).refus, /no runtime beside it/);
-    const broken = theProjectsWithoutSandbox("gmac", async () => {
-      throw new Error("disk full");
-    });
-    await broken.relire();
-    assert.deepEqual(await broken.continuerSansBac("parade"), { refus: "the choice could not be recorded: nothing was changed", detail: "disk full" });
-    assert.deepEqual(await broken.continuerSansBac(""), { refus: "which project? none was named" });
-  });
 });
 
 test("deux stations servent le projet (#2714) : déménagé vers une troisième, l'app nomme celle où la page le dit cuire", async () => {
