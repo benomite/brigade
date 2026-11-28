@@ -6,31 +6,10 @@
 //
 // Toute cause de refus du runtime a ici son entrée : `CAUSES` est typé par
 // `CodeDeRefus`, et un test relit le catalogue.
+import { CODES_DE_REFUS, type CodeDeRefus } from "./codes-de-refus.ts";
 import { decrire, REMEDES, type CoteRemede, type Registre } from "../remedes/registre.ts";
 
-export const CODES_DE_REFUS = [
-  // La cuisine du projet refuse de s'ouvrir.
-  "sandbox-unusable",
-  "configuration-invalid",
-  "clone-missing",
-  "already-served",
-  "door-not-open",
-  "proxy-port-set",
-  // La station ne peut pas préparer le projet.
-  "clone-failed",
-  "fetch-blocked",
-  "push-blocked",
-  "decisions-not-written",
-  "hand-written-line",
-  "handed-over-elsewhere",
-  "kitchen-not-joinable",
-  // Ni sa cuisine ni son service GitHub seul ne prend les tickets du projet.
-  "not-served",
-  // Tout le reste.
-  "unexpected",
-] as const;
-
-export type CodeDeRefus = (typeof CODES_DE_REFUS)[number];
+export { CODES_DE_REFUS, type CodeDeRefus };
 
 export type Cause = { message: string; action: string };
 

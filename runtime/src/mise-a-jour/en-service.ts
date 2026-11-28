@@ -8,13 +8,13 @@
 // suffit pas — il faut que la station l'ait dit.
 import { readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { CODES_DE_REFUS, refus, type CodeDeRefus, type Refus } from "../projets/refus.ts";
+import { CODES_DE_REFUS, type CodeDeRefus } from "../projets/codes-de-refus.ts";
 
 export const EN_SERVICE = "en-service";
 
 // `refuses` : les projets de la configuration que la station n'a pas pu
 // ouvrir, et pourquoi. `causes` : la cause de chacun pour le chef
-// (`projets/refus.ts`) — absent quand aucun n'est refusé, et d'une station
+// (`projets/codes-de-refus.ts`) — absent quand aucun n'est refusé, et d'une station
 // d'avant ce champ.
 export type EnService = { version: string; pid: number; depuis: string; servis: string[]; refuses: Record<string, string>; causes?: Record<string, CodeDeRefus> };
 
@@ -49,16 +49,6 @@ export function lireEnService(racine: string): EnService | null {
   } catch {
     return null;
   }
-}
-
-// Pourquoi la station de cette machine refuse ce projet, pour le chef — ou
-// null : elle le sert, ou rien ne se lit. Une station d'avant `causes` n'en dit
-// pas la cause : `unexpected`.
-export function refusDuProjet(racine: string | undefined, projet: string | undefined): Refus | null {
-  if (!racine || !projet) return null;
-  const lu = lireEnService(racine);
-  if (lu === null || !Object.hasOwn(lu.refuses, projet) || lu.servis.includes(projet)) return null;
-  return refus(lu.causes?.[projet] ?? "unexpected");
 }
 
 // La station annonce qu'elle est en service, puis réannonce dès que ce qu'elle

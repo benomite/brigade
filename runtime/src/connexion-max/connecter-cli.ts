@@ -23,7 +23,7 @@ import { accessSync, chmodSync, constants, existsSync, lstatSync, mkdirSync, sta
 import { userInfo } from "node:os";
 import { delimiter, dirname, join } from "node:path";
 import { enProcess, Sortie, type Appel } from "../appel.ts";
-import { PATH_DE_SYSTEMD } from "../installateur.ts";
+import { PATH_DE_SYSTEMD } from "../path-de-systemd.ts";
 import { COMPTE } from "./connexion.ts";
 import { connecterMax, ConnexionNonFaite, MasqueDuJeton, type Lancement, type ModeDeLancement } from "./connecter.ts";
 import { FICHIER_DU_JETON, fichierDeCreation } from "../jeton-claude.ts";
