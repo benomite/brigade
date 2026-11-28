@@ -140,7 +140,7 @@ describe("la bande du haut : une carte du supervisor et une du closer, sur une l
   ];
   const NOW = Date.parse("2026-11-25T09:00:00Z");
   const band = (more: Partial<Parameters<typeof setTheBandOfTop>[1]> = {}) =>
-    setTheBandOfTop(doc, { roles: ROLES, montre: () => false, alerte: undefined, maintenant: NOW, deplies: new Set(), ...more }) as unknown as Fake;
+    setTheBandOfTop(doc, { roles: ROLES, alerte: undefined, maintenant: NOW, deplies: new Set(), ...more }) as unknown as Fake;
   const cards = (setOne: Fake) => setOne.dessous("button").map((one) => [one.dataset.agent, one.textContent]);
   const tones = (setOne: Fake) => setOne.dessous("span").filter(({ className }) => className === "pastille").map(({ dataset }) => dataset.ton);
 
@@ -170,11 +170,6 @@ describe("la bande du haut : une carte du supervisor et une du closer, sur une l
     supervisor?.click();
     assert.deepEqual(setOne.dessous("p"), []);
     assert.deepEqual([...unfoldedOnes], []);
-  });
-
-  test("un agent que l'équipe lue montre déjà n'a pas de carte ici", () => {
-    const setOne = band({ montre: (name) => name === "supervisor" });
-    assert.deepEqual(cards(setOne), [["closer", "closertidied 3 h ago"]]);
   });
 });
 

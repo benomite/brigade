@@ -1,4 +1,4 @@
-// Ce que les lectures de GitHub partagent (board/read.ts, vue/autonomy/) : le ticket qu'une PR livre, et les lectures
+// Ce que les lectures de GitHub partagent (board/read.ts, scripts/autonomy-page/) : le ticket qu'une PR livre, et les lectures
 // conditionnelles (`If-None-Match`) — un 304 ne coûte rien au quota, la réponse gardée est reprise.
 import type { CallGitHub } from "./client.ts";
 

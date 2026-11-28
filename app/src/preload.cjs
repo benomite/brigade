@@ -38,8 +38,6 @@ const bridge = {
   creerLePremierTicket: (project, draft) => ipcRenderer.invoke("creerLePremierTicket", project, draft),
   gesteDeFiche: (project, id, ticket, value) => ipcRenderer.invoke("gesteDeFiche", project, id, ticket, value),
   lireHistoire: (project, ticket) => ipcRenderer.invoke("lireHistoire", project, ticket),
-  lireAutonomie: (projects, days) => ipcRenderer.invoke("lireAutonomie", projects, days),
-  ouvrirTicketDAutonomie: (url) => ipcRenderer.invoke("ouvrirTicketDAutonomie", url),
   lireDiscussion: (project, ticket) => ipcRenderer.invoke("lireDiscussion", project, ticket),
   commenter: (project, ticket, text) => ipcRenderer.invoke("commenter", project, ticket, text),
   demanderAuSecond: (project, ticket, context) => ipcRenderer.invoke("demanderAuSecond", project, ticket, context),
@@ -92,8 +90,6 @@ const bridge = {
   autoriserSurGitHub: (url) => ipcRenderer.invoke("autoriserSurGitHub", url),
   panne: (id, key) => ipcRenderer.invoke("panne", id, key),
   agentsAtWork: (project) => ipcRenderer.invoke("agentsAtWork", project),
-  // What changed since the chef last opened the project (ticket 4649, since-last-looked/): this opening becomes the last look.
-  sinceYouLastLooked: (project) => ipcRenderer.invoke("sinceYouLastLooked", project),
   // La fiche du projet, sous Settings (ticket 4240) : lue et écrite dans le dossier du projet (card-project/card-project-folder.ts).
   lireUnFichierDuProjet: (project, path) => ipcRenderer.invoke("lireUnFichierDuProjet", project, path),
   ecrireUnFichierDuProjet: (project, path, text) => ipcRenderer.invoke("ecrireUnFichierDuProjet", project, path, text),

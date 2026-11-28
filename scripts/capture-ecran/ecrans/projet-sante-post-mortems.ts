@@ -1,4 +1,4 @@
-// La page de « parade », Settings et sa section « Caps, closer and all projects » (#4023), haute assez pour montrer les
+// La page de « parade », Settings et sa section « Caps and closer » (#4023), haute assez pour montrer les
 // post-mortems de panne que la box donne : trois, dont deux vus d'abord par le chef — l'un dans la semaine, l'autre il y a
 // plus de 7 jours —, le plus récent d'abord, et le compte des pannes vues d'abord par le chef sur les 7 derniers jours.
 import type { Ecran } from "./commun.ts";
