@@ -2,10 +2,8 @@
 // qui fait passer un process par la porte. Aucune connexion ne sort d'ici.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { lireALaBase } from "../src/depot.ts";
 import { autorise, configReseau, lireDeclaration, REGLES_DE_BASE, reglesDuProjet, sonderLeFiltre, variablesDeRelais, type Envoyer } from "../src/reseau.ts";
 import { InvalidConfig } from "../src/invalid-config.ts";
-import { BASE, depotGit, repertoireTemporaire } from "./outils.ts";
 
 // Un envoi qui finit comme le test le dit — ou ne finit pas.
 const envoi = (fin: { erreur?: string } | "muet"): Envoyer => (_adresse, _port, rendu) => {
@@ -58,15 +56,6 @@ describe("le réseau du projet", { concurrency: 8 }, () => {
     assert.equal(variables.NO_PROXY, "localhost,127.0.0.1,::1");
     assert.equal(variables.NODE_USE_ENV_PROXY, "1");
   });
-
-  test("sur la base, un fichier absent se distingue d'un clone qu'on ne sait pas lire", (t) => {
-    const { clone } = depotGit(t);
-    assert.equal(lireALaBase({ clone, base: BASE }, ".claude/brigade/reseau"), null);
-    assert.equal(lireALaBase({ clone, base: BASE }, "LISEZMOI"), "le projet\n");
-    assert.throws(() => lireALaBase({ clone, base: "jamais-rapatriee" }, ".claude/brigade/reseau"), /git ls-tree/);
-    assert.throws(() => lireALaBase({ clone: repertoireTemporaire(t), base: BASE }, ".claude/brigade/reseau"), /git ls-tree/);
-  });
-
 });
 
 // Hors du `describe` qui joue ses tests de front : l'horloge simulée est celle

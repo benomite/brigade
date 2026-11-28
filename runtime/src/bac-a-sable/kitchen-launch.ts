@@ -1,5 +1,5 @@
 // How the new kitchen launches an agent: `claude` in `kitchen-sandbox.ts`'s enclosure, or no launcher without one.
-import { argumentsClaude, environnementCook } from "../claude.ts";
+import { argumentsClaude, environnementCook } from "../claude-launch.ts";
 import { kitchenEnclosure, type EnclosurePlace } from "./kitchen-sandbox.ts";
 import { environnementClaude } from "../jeton-claude.ts";
 import { variablesDeRelais } from "../reseau.ts";
