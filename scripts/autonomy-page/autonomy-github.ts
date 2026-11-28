@@ -13,7 +13,7 @@
 import { chiffresDAutonomie, commitsRevertes, LABEL_BUG, PERIODES, type ChiffresDAutonomie, type Defauts, type DonneesDuDepot } from "./compute.ts";
 import type { CallGitHub } from "../../app/src/board/client.ts";
 import { ticketOfThePR } from "../../app/src/board/rail-github.ts";
-import { readTheServedOnTheWindow, allThePages } from "../../app/src/vue/rail/github.ts";
+import { readTheServedOnTheWindow, allThePages } from "./served-github.ts";
 
 const DAY_MS = 24 * 3600 * 1000;
 // Les lectures d'issues en vol à la fois, par dépôt.

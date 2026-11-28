@@ -14,7 +14,7 @@
 import { writeFileSync } from "node:fs";
 import { API_GITHUB, byFetch, clientGitHub, postByFetch, type CallGitHub } from "../../app/src/board/client.ts";
 import { readTheAutonomyOfRepository, type IssuesRead } from "./autonomy-github.ts";
-import { readTheServedOnTheWindow } from "../../app/src/vue/rail/github.ts";
+import { readTheServedOnTheWindow } from "./served-github.ts";
 import { chiffresDAutonomie } from "./compute.ts";
 
 export const REPOSITORY = "benomite/brigade";
