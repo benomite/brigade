@@ -31,7 +31,6 @@ const bridge = {
   demanderAuSecond: (project, ticket) => ipcRenderer.invoke("demanderAuSecond", project, ticket),
   passerAuSecond: (project, ticket, question) => ipcRenderer.invoke("passerAuSecond", project, ticket, question),
   lireTitre: (project, ticket) => ipcRenderer.invoke("lireTitre", project, ticket),
-  relireLesStations: () => ipcRenderer.invoke("relireLesStations"),
   relireBox: (request) => ipcRenderer.send("relireBox", request),
   repondreQuestion: (project, ticket, answer) => ipcRenderer.invoke("repondreQuestion", project, ticket, answer),
   // La mise à jour de l'app installée (update/state.ts) : `miseAJour` rend son état
@@ -47,7 +46,6 @@ const bridge = {
   avisDeVersion: () => ipcRenderer.invoke("avisDeVersion"),
   surAvisDeVersion: (receive) => void ipcRenderer.on("avisDeVersion", (_, opinion) => receive(opinion)),
   telechargerVersion: (url) => ipcRenderer.invoke("telechargerVersion", url),
-  appairer: (code) => ipcRenderer.invoke("appairer", code),
   depotsDuChef: () => ipcRenderer.invoke("depotsDuChef"),
   lireUnDepot: (repository) => ipcRenderer.invoke("lireUnDepot", repository),
   // Le dépôt choisi dans « Add a project » est-il prêt pour brigade, puis sa préparation (#2627) : le constat
@@ -71,7 +69,6 @@ const bridge = {
   savoirDuProjet: (project) => ipcRenderer.invoke("savoirDuProjet", project),
   changerLeSavoir: (project, change) => ipcRenderer.invoke("changerLeSavoir", project, change),
   ouvrirLaProposition: (url) => ipcRenderer.invoke("ouvrirLaProposition", url),
-  retirerLaStation: (id) => ipcRenderer.invoke("retirerLaStation", id),
   // Les GitHub Apps de la station de cet ordinateur (ticket 2317) : ce qu'elle en a, et en ranger une — jamais la clé en retour.
   // Les projets que la station de cet ordinateur sert (ticket 2359) : sa liste, et un projet ajouté ou retiré.
   projetsServis: () => ipcRenderer.invoke("projetsServis"),
@@ -81,14 +78,11 @@ const bridge = {
   ouvrirDUneStation: (name, repository, base) => ipcRenderer.invoke("ouvrirDUneStation", name, repository, base),
   seConnecterAGitHub: () => ipcRenderer.invoke("seConnecterAGitHub"),
   // Installe la station de cet ordinateur, depuis le bloc de l'accueil (ticket 2640).
-  installerLaStation: () => ipcRenderer.invoke("installerLaStation"),
   // Le compte GitHub de cet ordinateur, que dit l'étape du compte du parcours d'ajout (ticket 2475).
   compteGitHub: () => ipcRenderer.invoke("compteGitHub"),
   ouvrirLaPage: (url) => ipcRenderer.invoke("ouvrirLaPage", url),
   // Les stations enregistrées sous le compte GitHub du chef (ticket 1706), et les projets que chacune sert, écrits dans
   // son gist.
-  stationsDuCompte: () => ipcRenderer.invoke("stationsDuCompte"),
-  choisirLesProjets: (id, repositories) => ipcRenderer.invoke("choisirLesProjets", id, repositories),
   repondreCarte: (project, ticket, answer) => ipcRenderer.invoke("repondreCarte", project, ticket, answer),
   ouvrirLectureSeule: (project, page) => ipcRenderer.invoke("ouvrirLectureSeule", project, page),
   regarder: (project, request) => ipcRenderer.send("regarder", project, request),

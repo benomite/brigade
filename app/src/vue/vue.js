@@ -86,7 +86,6 @@ import { levelOf, LEVELS_SAID } from "./levels.js";
 import { lineOfAlert } from "./stations-of-cooking.js";
 import { displacementTracking, isOneComputer, topOf, servingOf, ONE_MINUTE_MS } from "./stations-tab/state.js";
 import { choiceOfDisplacement } from "./stations-tab/choice.js";
-import { serverSeen } from "./add-server/add-server.js";
 import { keyOf, OR_DISPLACE, setTheTabOfStations, WHO_COOKED as WHO_COOKED_TAB, WHO_OF_OTHER } from "./stations-tab/stations-tab.js";
 import { BY_DEFAULT as ENGINE_BY_DEFAULT } from "./engine/engines.js";
 import { holdTheAccount } from "./addition-project/account.js";
@@ -96,14 +95,13 @@ import { choiceOfStation, HERE } from "./stations-tab/choice.js";
 import { setTheRequestOfStation, holdTheRequestsOfStation, addTheStation } from "./installation-project/installation-project.js";
 import { repositoryPastesBy, NOT_ONE_REPOSITORY } from "./addition-project/step-project.js";
 import { buttonOfAddition, stateOfTheLine, linesOfProjects, nowOfTheLine } from "./home/projects/projects.js";
-import { additionsOfProject as additionsOfRecorded, issueOfTheAddition } from "./stations-of-account.js";
 import { tellTheRead, setTheRead } from "./rail-read-stale.js";
 import { NO_STATION } from "./cooks/without-station.js";
 import { setThePause } from "./cooks/github-pause.js";
 import { waitExhausted, RAIL_NOT_READ } from "./wait-of-rail.js";
 import { AGENTS, MENU, KNOW_HOW, STATIONS } from "./project/menu/menu.js";
 import { toggleSwitch as switchOfTheApp } from "./components/switch/switch.js";
-import { DONE_SAYS, stationsAPropose, holdTheAdditionOfStation } from "./project/stations/AddStation.js";
+import { DONE_SAYS, holdTheAdditionOfStation } from "./project/stations/AddStation.js";
 import { haltStation, actionOfStop, WITHOUT_ACTION } from "./project/stations/StopStation.js";
 import { connectionAtTheStation, linesOfTheStationLocale } from "./project/stations/LocalStation.js";
 import { mountThePanel } from "./project/panel-second/panel-second.js";
@@ -269,7 +267,6 @@ function servedByThisComputer(project) {
 // se repose, s'il est montré.
 const additionOfStation = holdTheAdditionOfStation({
   servirIci: (repository) => serveHereTheRepository(repository),
-  choisir: (id, repositories) => chooseForOneRecorded(id, repositories),
   rendre: () => restTheTabStations(),
 });
 // La station de cet ordinateur sert un dépôt : il entre dans sa liste — puis la liste se relit. « Add a station » le fait.
@@ -282,60 +279,6 @@ async function serveHereTheRepository(repository) {
 function restTheTabStations() {
   if (current !== undefined && tabOf(current) === STATIONS) setRail(current);
 }
-// « Add a server » (ticket 4347, add-server/) : son panneau, ouvert pour un projet — sur son onglet Stations ou sa page
-// « who cooks it ». `connues` : les stations du compte qu'il avait à son ouverture — une qui n'y était pas est le serveur
-// neuf, qui s'enregistre seul sous le compte ; pas encore lues, elles le sont à la première lecture. `copiee` : la ligne
-// d'installation vient d'être copiée.
-/** @type {{ projet: string, connues?: ReadonlySet<string>, copiee: boolean } | undefined} */
-let serverExpected;
-/** @param {import("../stations-of-account.ts").StationsOfAccount | undefined} readEntries */
-const idsOfAccount = (readEntries) => (readEntries?.state === "listed" ? new Set(readEntries.stations.map(({ id }) => id)) : undefined);
-// Le panneau se repose là où il est montré : l'onglet Stations.
-function restTheServer() {
-  restTheTabStations();
-}
-// Ce que le panneau montre pour un projet. `confiable` : l'écran sait lui confier le projet — il le nomme alors.
-/** @param {string} project @param {boolean} confiable @returns {import("./add-server/add-server.js").StateOfServer} */
-function serverOf(project, confiable) {
-  const opened = serverExpected?.projet === project;
-  const seenOne = serverSeen(opened ? serverExpected?.connues : undefined, recordedAbsent ? undefined : stateOfRecorded.stations);
-  return { ouvert: opened, vu: seenOne, copiee: opened && serverExpected?.copiee === true, ...(confiable ? { projet: project } : {}) };
-}
-// « check again » : les stations du compte se relisent — celles d'avant sont prises à la première lecture qui réussit.
-async function rereadTheServer() {
-  await readTheRecorded();
-  const known = idsOfAccount(recordedAbsent ? undefined : stateOfRecorded.stations);
-  if (serverExpected !== undefined && serverExpected.connues === undefined && known !== undefined) serverExpected.connues = known;
-  restTheServer();
-}
-// Les gestes du panneau pour un projet. `confier` : le geste de l'écran qui donne le projet à une station du compte.
-/** @param {string} project @param {(station: import("../stations-of-account.ts").StationRecorded) => void} entrust @returns {import("./add-server/add-server.js").ActionsOfServer} */
-function actionsOfServer(project, entrust) {
-  return {
-    basculer: (opened) => {
-      if (!opened) {
-        serverExpected = undefined;
-        return restTheServer();
-      }
-      const known = idsOfAccount(recordedAbsent ? undefined : stateOfRecorded.stations);
-      serverExpected = { projet: project, copiee: false, ...(known === undefined ? {} : { connues: known }) };
-      restTheServer();
-      void rereadTheServer();
-    },
-    copier: (command) => {
-      void navigator.clipboard?.writeText(command)?.catch(() => {});
-      if (serverExpected?.projet === project) serverExpected.copiee = true;
-      restTheServer();
-    },
-    verifier: () => void rereadTheServer(),
-    // Confié, le panneau se ferme : l'écran dit, par le geste de « Choose who cooks it », à qui le projet est allé.
-    confier: (station) => {
-      serverExpected = undefined;
-      entrust(station);
-      restTheServer();
-    },
-  };
-}
 const opinion = element("avis");
 const alertOfKitchen = document.createElement("div");
 alertOfKitchen.id = "alerte-de-cuisine";
@@ -347,10 +290,6 @@ const projectsOfTheHome = document.createElement("section");
 projectsOfTheHome.id = "accueil-projets";
 projectsOfTheHome.className = "liste";
 projectsOfTheHome.ariaLabel = "Projects";
-/** @type {import("./stations-of-account.js").StateOfAccount} */
-const stateOfRecorded = {};
-let recordedAbsent = true;
-let readOfRecorded = 0;
 const blockOfProjects = setBlockOfProjects(document, projectsOfTheHome);
 
 // La cuisine d'un projet de l'app (ticket 983), en tête de son espace : les stations qui la font, en une
@@ -465,14 +404,11 @@ moveSays.className = "demenagement-dit";
 moveSays.ariaLive = "polite";
 // Une station du compte à qui le chef a choisi le projet alors qu'une autre le servait déjà, et qui ne peut pas en
 // rejoindre la cuisine (ticket 1790) : sa phrase, sous la ligne — la ligne ne la compte pas parmi ses stations.
-const stationRefused = document.createElement("div");
-stationRefused.ariaLive = "polite";
-stationRefused.hidden = true;
 // Ce qui retient la cuisine du projet (ticket 1119) : l'accès au dépôt refusé, avec son geste, ou un worktree
 // impossible à préparer, avec sa raison et l'heure du prochain essai — à la place de « prepares it within a minute ».
 const repositoryHeld = document.createElement("div");
 repositoryHeld.hidden = true;
-stationsOfProject.append(lineOfStationsOfProject, openTheMove, openTheTrust, choiceOfMove, formOfTrust, moveSays, stationRefused, repositoryHeld, trustSaid);
+stationsOfProject.append(lineOfStationsOfProject, openTheMove, openTheTrust, choiceOfMove, formOfTrust, moveSays, repositoryHeld, trustSaid);
 
 /** @type {Map<number, { terminal: Terminal, xterm: Xterm, ajuste: FitAddon, cadre: HTMLDivElement }>} */
 const views = new Map();
@@ -1064,7 +1000,6 @@ function showARight(id) {
 function chooseTab(id) {
   if (current === undefined) return;
   retain(current.nom, id);
-  if (id === STATIONS) recordedAReread = true;
   if (id === AGENTS) agentsOfProject.lire(current.nom);
   leaves.delete(current.nom);
   notWritten = "";
@@ -1883,7 +1818,6 @@ function setCooking(project) {
 // retrait d'une station que le projet déclare (project/stations/StopStation.js) ; le bloc des projets servis, caché avec
 // ce qui était sous « This machine » (ticket 2494), la lit sans la changer. Les stations du compte se relisent à chaque
 // ouverture de l'onglet. Sur un écran étroit, l'onglet se lit sans rien régler (ticket 1186).
-let recordedAReread = true;
 // Par projet : les stations dont « Details » est déplié — la lecture suivante le garde déplié.
 /** @type {Map<string, Set<string>>} */
 const detailsOpen = new Map();
@@ -1904,10 +1838,6 @@ let minuteOfDisplacement;
 // stations du compte se relisent à chaque ouverture de l'onglet : elles disent celles qui servent le projet.
 /** @param {Project} project */
 function setTabStations(project) {
-  if (recordedAReread) {
-    recordedAReread = false;
-    void readTheRecorded();
-  }
   rail.replaceChildren(tabOfStations(project));
 }
 
@@ -1983,7 +1913,7 @@ function tabOfStations(project) {
   if (!reading && move?.projet === project.nom && or !== undefined) {
     choice = { titre: OR_DISPLACE(project.nom, or.ici && or.nom === "" ? WORKSTATION.nom : or.nom), choix: moveChoice, deplacement: true, ...(move.vers === undefined ? {} : { enCours: move.vers }) };
   } else if (!reading && addition !== undefined && stateOfTheAddition.ouvert) {
-    const offered = choiceOfStation({ ici: addition.donnees.iciOffert, hote: itsOwnHere?.nom ?? "", stations: addition.donnees.stations, maintenant: now });
+    const offered = choiceOfStation({ ici: addition.donnees.iciOffert, hote: itsOwnHere?.nom ?? "" });
     choice = { titre: servingOnes.length > 0 ? WHO_OF_OTHER(project.nom) : WHO_COOKED_TAB(project.nom), choix: offered, deplacement: false, ...(stateOfTheAddition.enCours === undefined ? {} : { enCours: stateOfTheAddition.enCours }), ...(stateOfTheAddition.refus === undefined ? {} : { refus: stateOfTheAddition.refus }) };
   }
 
@@ -2026,7 +1956,6 @@ function tabOfStations(project) {
       quiCuit: addition !== undefined,
       ...(held !== undefined && "tableau" in held && held.tableau.quotaGithub !== undefined ? { quota: held.tableau.quotaGithub } : {}),
       ...(stationLocaleRead.projet === project.nom && stationLocaleRead.moteur !== undefined ? { moteurIci: stationLocaleRead.moteur } : {}),
-      serveur: serverOf(project.nom, addition !== undefined),
     },
     {
       choisirQuiCuit: () => addition?.gestes.ouvrir(),
@@ -2052,8 +1981,6 @@ function tabOfStations(project) {
         }
         if (addition === undefined) return;
         if (oneOf.cle === HERE) return addition.gestes.servirIci();
-        const station = addition.donnees.stations.find(({ id }) => id === oneOf.cle);
-        if (station !== undefined) addition.gestes.confier(station);
       },
       annuler: () => {
         if (move?.projet === project.nom) {
@@ -2073,12 +2000,6 @@ function tabOfStations(project) {
         restTheTabStations();
       },
       basculer: (key, opened) => void (opened ? openOnes.add(key) : openOnes.delete(key)),
-      // Le serveur arrivé reçoit le projet par le geste de « Choose who cooks it » : l'étape s'ouvre, et le confie.
-      serveur: actionsOfServer(project.nom, (station) => {
-        if (addition === undefined) return;
-        addition.gestes.ouvrir();
-        addition.gestes.confier(station);
-      }),
     },
   );
   return pose;
@@ -2092,8 +2013,6 @@ function tabOfStations(project) {
 async function stopTheStation(project, station) {
   if (station === undefined || stopRequest?.projet !== project.nom || stopRequest.enCours) return;
   const repository = project.depot ?? projectsSeen?.projets.find(({ nom: name }) => name === project.nom)?.depot ?? "";
-  const readEntries = recordedAbsent ? undefined : stateOfRecorded.stations;
-  const recordedOne = readEntries?.state === "listed" ? readEntries.stations.find(({ id }) => id === station.id) : undefined;
   const readEntry = servedOnes.etat?.lecture;
   const servedHere = readEntry !== undefined && "depots" in readEntry ? readEntry.depots : undefined;
   const gesture = actionOfStop(
@@ -2102,11 +2021,9 @@ async function stopTheStation(project, station) {
       depot: repository,
       station: { nom: station.nom, ici: station.ici },
       ...(servedHere === undefined ? {} : { liste: servedHere }),
-      ...(recordedOne === undefined ? {} : { selection: { id: recordedOne.id, depots: recordedOne.selection ?? [] } }),
     },
     {
       retirerIci: async (oneOf) => (await brigade.servirUnProjet?.(oneOf, false)) ?? { refus: NOT_REACHED(`${THIS_COMPUTER}'s station`) },
-      choisir: async (id, repositories) => (await brigade.choisirLesProjets?.(id, repositories)) ?? { refus: "the app gave no answer" },
     },
   );
   if (gesture === undefined) {
@@ -2120,7 +2037,6 @@ async function stopTheStation(project, station) {
   stopRequest = undefined;
   stopSaysFor = { projet: project.nom, ...said };
   void servedOnes.lire();
-  void readTheRecorded();
   if (current?.nom === project.nom) restTheTabStations();
 }
 
@@ -2909,36 +2825,24 @@ function additionOfStationOf(project) {
   if (narrow() || repository === "" || readOnlyOf(project) !== undefined) return {};
   const reading = servedOnes.etat?.lecture;
   const servedHere = reading !== undefined && "depots" in reading ? reading.depots : undefined;
-  const readEntries = recordedAbsent ? undefined : stateOfRecorded.stations;
   return {
     ajout: {
       donnees: {
         projet: project.nom,
         ici: WORKSTATION.nom,
         iciOffert: servedHere !== undefined && !servedHere.some((served) => served.toLowerCase() === repository.toLowerCase()),
-        stations: readEntries?.state === "listed" ? stationsAPropose(readEntries.stations, repository, projectsSeen?.locale) : [],
       },
       etat: additionOfStation.etatDe(project.nom),
       gestes: {
         ouvrir: () => {
           additionOfStation.ouvrir(project.nom);
-          void Promise.all([servedOnes.lire(), readTheRecorded()]).then(restTheTabStations);
+          void servedOnes.lire().then(restTheTabStations);
         },
         annuler: () => additionOfStation.annuler(project.nom),
         servirIci: () => additionOfStation.servirIci(project.nom, repository, WORKSTATION.nom),
-        /** @param {import("../stations-of-account.ts").StationRecorded} station */
-        confier: (station) => additionOfStation.confier(project.nom, repository, station),
       },
     },
   };
-}
-
-// Ce que les stations du compte ont fait du dépôt du projet, choisi pour elles alors qu'une autre le servait déjà (ticket
-// 1790, stations-of-account.js).
-/** @param {Project} project */
-function additionsOfProject(project) {
-  const repository = project.depot ?? projectsSeen?.projets.find(({ nom: name }) => name === project.nom)?.depot ?? "";
-  return additionsOfRecorded(recordedAbsent ? undefined : stateOfRecorded.stations, { nom: project.nom, depot: repository });
 }
 
 // Où cuit un projet de l'app : la station que ses stations disent le servir (projects.ts, `cuitSur`) —
@@ -3124,12 +3028,6 @@ function setStationsOfProject() {
   if (stations.length > 0 || or !== undefined || named.length > 0) lineOfStationsOfProject.replaceChildren(...(inProgress !== null && inProgress.etape !== "refusee" ? [inMovement(inProgress)] : []));
   else lineOfStationsOfProject.textContent = readEntries ? `No station cooks ${project.nom} yet.` : READ_OF("your stations on GitHub");
   setTheMove(project, or, inProgress, readEntries);
-  // Une station du compte qui refuse de l'avoir (ticket 1790) : son nom et sa phrase, une ligne chacune.
-  const { refusees: refused } = additionsOfProject(project);
-  stationRefused.replaceChildren(
-    ...refused.map(({ station, phrase: sentence }) => lineError(document, `${station.name} was not added: ${sentence}`, "", { classe: "ajout-refuse" })),
-  );
-  stationRefused.hidden = refused.length === 0;
   setTheChoice(project);
   setTheBlockages(project);
   setTheDelay(project);
@@ -3156,15 +3054,15 @@ function setStationsOfProject() {
   // de sa machine restent en tête.
   const onStations = tabOf(project) === STATIONS;
   lineOfStationsOfProject.hidden = onStations || lineOfStationsOfProject.childElementCount === 0;
-  if (onStations) for (const pose of [stationRefused, moveSays, choiceOfMove, openTheMove, openTheTrust]) pose.hidden = true;
+  if (onStations) for (const pose of [moveSays, choiceOfMove, openTheMove, openTheTrust]) pose.hidden = true;
   // « move the kitchen » n'est plus sur Rail (ticket 3523) : le déménagement se demande dans l'onglet Stations.
   openTheMove.hidden = true;
   stationsOfProject.hidden =
     rows ||
-    (itselfLit(project) && (repositoryHeld.hidden || saysByTheAlert) && stationRefused.hidden && trust === undefined && move?.projet !== project.nom) ||
+    (itselfLit(project) && (repositoryHeld.hidden || saysByTheAlert) && trust === undefined && move?.projet !== project.nom) ||
     (onStations && repositoryHeld.hidden && trust === undefined && trustSaid.textContent === "") ||
     // Sur Rail, rien au-dessus des colonnes qu'un bouton (ticket 3523) : « move the kitchen » est dans l'onglet Stations, qui le dit.
-    ((repositoryHeld.hidden || saysByTheAlert) && stationRefused.hidden && trust === undefined && move?.projet !== project.nom && moveSays.hidden && lineOfStationsOfProject.hidden && openTheTrust.hidden && trustSaid.textContent === "");
+    ((repositoryHeld.hidden || saysByTheAlert) && trust === undefined && move?.projet !== project.nom && moveSays.hidden && lineOfStationsOfProject.hidden && openTheTrust.hidden && trustSaid.textContent === "");
   if (trust === undefined) return;
   setTheTrust(trust, project, { exclues: stations.map(({ id }) => id), demande: request, tenue: heldOne });
 }
@@ -3646,7 +3544,6 @@ function openAll() {
   setHome();
   all.replaceChildren(blockOfProjects);
   brigade.tous(++request);
-  void readTheRecorded();
 }
 
 
@@ -3655,85 +3552,8 @@ function openAll() {
 /** @type {unknown} */
 let statusOfTheStationSeen;
 
-// Les stations du compte, lues par le process principal (stations-of-account.ts du runtime). Une relecture garde ce qui
-// est posé jusqu'à sa réponse : le bloc ne clignote pas. Seule la dernière demandée est posée.
-async function readTheRecorded() {
-  const requested = ++readOfRecorded;
-  /** @type {import("../stations-of-account.ts").StationsOfAccount | undefined} */
-  let readOne;
-  try {
-    readOne = await brigade.stationsDuCompte?.();
-  } catch (error) {
-    readOne = { state: "unavailable", cause: "github", reason: "Your stations could not be read: the app failed while reading them.", detail: error instanceof Error ? error.message : String(error) };
-  }
-  if (requested !== readOfRecorded) return;
-  recordedAbsent = readOne === undefined;
-  if (readOne !== undefined) stateOfRecorded.stations = readOne;
-  followTheExpected();
-  // La page d'un projet dit les stations du compte qui refusent de l'avoir (ticket 1790).
-  if (current !== undefined) {
-    setStationsOfProject();
-    setCooking(current);
-  }
-}
 
-// Un dépôt que le chef vient de cocher pour une station : elle le lit dans les 30 s, et dit ce qu'elle en fait — elle le
-// sert, ou refuse (ticket 1790). Jusqu'à ce qu'elle l'ait dit, les stations
-// du compte se relisent toutes les `ATTENTE_D_UN_AJOUT_MS`, au plus `RELECTURES_D_UN_AJOUT` fois : sa réponse se lit sous la
-// case au moment de l'ajout, sans que le chef ait à relire.
-const WAIT_OF_A_ADDITION_MS = 15_000;
-const REVIEWS_OF_A_ADDITION = 8;
-let reviewsOfAAddition = 0;
-/** @type {ReturnType<typeof setTimeout> | undefined} */
-let reviewOfAAddition;
-function followTheExpected() {
-  clearTimeout(reviewOfAAddition);
-  const expected = stateOfRecorded.attendus;
-  if (expected === undefined) return;
-  const readEntries = stateOfRecorded.stations;
-  const station = readEntries?.state === "listed" ? readEntries.stations.find(({ id }) => id === expected.id) : undefined;
-  const remaining = expected.depots.filter((repository) => (station?.selection ?? []).includes(repository) && issueOfTheAddition(station, repository) === undefined);
-  if (remaining.length === 0 || reviewsOfAAddition >= REVIEWS_OF_A_ADDITION) {
-    delete stateOfRecorded.attendus;
-    return;
-  }
-  stateOfRecorded.attendus = { id: expected.id, depots: remaining };
-  reviewOfAAddition = setTimeout(() => {
-    reviewsOfAAddition += 1;
-    void readTheRecorded();
-  }, WAIT_OF_A_ADDITION_MS);
-}
 
-// Une case cochée ou décochée : la sélection entière de la station s'écrit dans son gist. Ses cases attendent la
-// réponse ; écrite, la ligne de la station dit ce qu'elle sert — sinon, pourquoi rien n'a changé.
-/** @param {string} id @param {string[]} repositories @returns {Promise<import("../stations-of-account.ts").Choice>} */
-async function chooseForOneRecorded(id, repositories) {
-  stateOfRecorded.envoi = id;
-  delete stateOfRecorded.refus;
-  /** @type {import("../stations-of-account.ts").Choice} */
-  let rendered;
-  try {
-    rendered = (await brigade.choisirLesProjets?.(id, repositories)) ?? { refus: "not saved: the app gave no answer" };
-  } catch (error) {
-    rendered = { refus: "not saved: the app failed while saving", detail: error instanceof Error ? error.message : String(error) };
-  }
-  delete stateOfRecorded.envoi;
-  const readEntries = stateOfRecorded.stations;
-  if ("refus" in rendered) stateOfRecorded.refus = { id, ...rendered };
-  else if (readEntries?.state === "listed") {
-    const { selection } = rendered;
-    const before = readEntries.stations.find((station) => station.id === id)?.selection ?? [];
-    stateOfRecorded.stations = { ...readEntries, stations: readEntries.stations.map((station) => (station.id === id ? { ...station, selection } : station)) };
-    // Les dépôts cochés à l'instant : la station va dire ce qu'elle en fait.
-    const ticks = selection.filter((repository) => !before.includes(repository));
-    if (ticks.length > 0) {
-      stateOfRecorded.attendus = { id, depots: [...new Set([...(stateOfRecorded.attendus?.id === id ? stateOfRecorded.attendus.depots : []), ...ticks])] };
-      reviewsOfAAddition = 0;
-      followTheExpected();
-    }
-  }
-  return rendered;
-}
 
 // L'ouverture d'un projet, depuis « Add a project » : sa copie se fait, chaque étape se dit sous la liste, puis il entre
 // dans le fichier, et son espace s'ouvre. La connexion à GitHub qui manque se fait d'un bouton, de l'accueil comme de
@@ -3759,8 +3579,6 @@ const actionsOfFirst = {
 // Reposé à chaque changement : la connexion lancée se dit sur l'accueil, et l'écran « Add a project » dit aussi le compte,
 // la connexion en route et le dépôt qui s'ouvre.
 function setTheFirst() {
-  if (first.connexion === undefined) delete stateOfRecorded.connexion;
-  else stateOfRecorded.connexion = first.connexion;
   if (adds) setTheAddition();
 }
 
@@ -3812,16 +3630,11 @@ function setTheRequestOfStationHere() {
   if (state.etape === "a-juger") {
     if (servedHere === undefined || stationsViews === undefined) return close();
     const served = servedByOneStation(project, repository, servedHere);
-    // Posée : les stations du compte se proposent après cet ordinateur — relues, la question se repose.
-    if (!served) void readTheRecorded().then(() => setTheRequestOfStationHere());
     return requestsOfStation.juger(name, served);
   }
-  const readEntries = recordedAbsent ? undefined : stateOfRecorded.stations;
   const choice = choiceOfStation({
     ici: servedHere !== undefined,
     hote: WORKSTATION.nom === THIS_COMPUTER ? "" : WORKSTATION.nom,
-    stations: readEntries?.state === "listed" ? stationsAPropose(readEntries.stations, repository, projectsSeen?.locale) : [],
-    maintenant: Date.now(),
   });
   sectionOfTheRequest.replaceChildren(
     setTheRequestOfStation(
@@ -3832,12 +3645,7 @@ function setTheRequestOfStationHere() {
         choisir: async (oneOf) => {
           if (requestsOfStation.de(name)?.etape === "enCours") return;
           requestsOfStation.choisir(name, oneOf.cle);
-          const pairedOne = readEntries?.state === "listed" ? readEntries.stations.find(({ id }) => id === oneOf.cle) : undefined;
-          const rendered = await addTheStation(oneOf.nom, () =>
-            oneOf.cle === HERE ? serveHereTheRepository(repository)
-            : pairedOne === undefined ? Promise.resolve({ refus: `${oneOf.nom} is no longer one of your stations` })
-            : chooseForOneRecorded(pairedOne.id, [...(pairedOne.selection ?? []), repository]),
-          );
+          const rendered = await addTheStation(oneOf.nom, () => (oneOf.cle === HERE ? serveHereTheRepository(repository) : Promise.resolve({ refus: `${oneOf.nom} is no longer one of your stations` })));
           requestsOfStation.choisi(name, rendered, { nom: oneOf.nom, ici: oneOf.cle === HERE, absente: oneOf.horsLigne });
         },
         ecarter: () => requestsOfStation.ecarter(name),
@@ -3898,7 +3706,6 @@ function connectedAGitHub() {
   delete first.connexion;
   accountOfJourney.apresLaConnexion();
   const retainedOne = first.ouverture?.echec?.cause === "sign-in-required" ? first.ouverture : undefined;
-  if (!recordedAbsent) void readTheRecorded();
   // Les dépôts de l'écran « Add a project » se lisent du compte qui vient de se connecter.
   if (adds) void readTheRepositoriesOfTheAddition();
   if (retainedOne !== undefined) void openOfAStation(retainedOne.station, retainedOne.projet, retainedOne.depot, retainedOne.base);
@@ -4029,7 +3836,6 @@ async function pasteOneRepository(text) {
 /** @param {Project} project */
 async function open(project) {
   current = project;
-  recordedAReread = true;
   notWritten = notWrittenSecond = "";
   adds = false;
   mark();

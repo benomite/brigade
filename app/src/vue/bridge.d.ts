@@ -102,9 +102,6 @@ export type Bridge = {
   // qui tourne ici, la dernière publiée, et si elle est en retard. Absents tant que le pont ne le lit pas : la vue dit
   // alors sa version inconnue (station-version/station-version.js).
   statutDeLaStation?(): Promise<unknown>;
-  // Installe la station de cet ordinateur (ticket 2640, home/station/) : rien quand elle est installée, ou pourquoi elle ne
-  // l'est pas, en une ligne et son détail. Absent, le bouton de l'accueil dit que cet appareil ne l'installe pas.
-  installerLaStation?(): Promise<{ refus: string; detail?: string } | undefined>;
   surStatutDeLaStation?(receive: (status: unknown) => void): void;
   // L'app Android seule (le ticket 2501) : la liste des projets vient d'être lue sur GitHub, ou ne l'a pas été — `liste`
   // dit laquelle. Les projets eux-mêmes arrivent par `surConfiguration`.
@@ -114,9 +111,6 @@ export type Bridge = {
   surOuvrirCarte?(receive: (project: string, ticket: number) => void): void;
   // GitHub refuse la connexion de ce téléphone : le pont efface son jeton, et la vue revient à la connexion à GitHub.
   oublierLeTelephone?(): Promise<void>;
-  // Le code qu'une station affiche, tapé par le chef : rend le nom de la station appairée, ou le
-  // refus en une ligne — code mal formé, inconnu, expiré, ou GitHub muet. Rien n'est écrit alors.
-  appairer(code: string): Promise<Pairing>;
   // « Add a project » : les dépôts que le `gh` du poste peut lire, chacun avec sa branche par
   // défaut — ou pourquoi ils ne sont pas lus.
   depotsDuChef(): Promise<{ depots: RepositoryOfChef[] } | { refus: string }>;
@@ -148,8 +142,6 @@ export type Bridge = {
   // Ouvre dans le navigateur une page où autoriser brigade sur GitHub — une de celles qu'une station a publiées —,
   // ou une page que le parcours d'un projet neuf montre (ticket 1111) : son geste, son ticket de préparation, sa PR.
   autoriserSurGitHub(url: string): Promise<boolean>;
-  // « check again » d'une station qui ne cuit pas encore : GitHub est relu tout de suite (stations/stations.ts).
-  relireLesStations(): Promise<void>;
   ouvrirLaProposition(url: string): Promise<boolean>;
   // La fiche du projet, sous Settings (ticket 4240) : un fichier du projet, le chemin relatif à son dossier — seul
   // `.brigade/fiche-projet.json` (card-project/card-project-folder.ts). `null` : il n'y est pas. Optionnels : un pont qui
@@ -158,8 +150,6 @@ export type Bridge = {
   ecrireUnFichierDuProjet?(project: string, path: string, text: string): Promise<void>;
   savoirDuProjet(project: string): Promise<import("./know-how/know-how-github.ts").ReadOfKnowledge>;
   changerLeSavoir(project: string, change: import("./know-how/know-how-github.ts").ChangeOfKnowledge): Promise<import("./know-how/know-how-github.ts").RenderedOfKnowledge>;
-  // « Retirer la station », confirmé : son appairage est ôté de son gist (stations/stations.ts) ; la station n'est plus lue.
-  retirerLaStation(id: string): Promise<RemovalOfStation>;
   // Les projets que la station de cet ordinateur sert sur GitHub seul (ticket 2359, projets-servis/) : la liste qu'elle
   // tient, et un projet ajouté ou retiré — chaque écriture rend la liste écrite. Absents, ou rien de rendu : pas de station.
   projetsServis?(): Promise<import("./projects-served/projects-served.js").ReadOfProjectsServed | undefined>;
@@ -180,13 +170,6 @@ export type Bridge = {
   ouvrirLaPage?(url: string): Promise<boolean>;
   // Les agents au travail d'un projet (ticket 4569, agents/source.js) : lus sur GitHub et sur sa station.
   agentsAtWork?(project: string): Promise<unknown>;
-  // Les stations enregistrées sous le compte GitHub du chef (ticket 1706, stations-of-account.ts) : listées — chacune
-  // disponible ou non, avec les projets qu'elle sert —, une connexion à GitHub qui manque, ou pourquoi elles ne se
-  // lisent pas. Le téléphone ne les porte pas.
-  stationsDuCompte?(): Promise<StationsOfAccount>;
-  // Écrit, dans le gist d'une station du compte, les projets qu'elle sert : la sélection entière — ou pourquoi elle
-  // n'est pas écrite, en une ligne, son détail à part.
-  choisirLesProjets?(id: string, repositories: string[]): Promise<Choice>;
   // La réponse du chef à la carte de TODO d'un ticket (card-todo.ts) : un choix par son rang, ou son texte. Rien pour un projet sans box.
   repondreCarte(project: string, ticket: number, answer: import("../card-todo.ts").Answer): Promise<import("../card-todo.ts").Rendered | undefined>;
   // Un lien de la ligne d'un projet en lecture seule (ticket 3163, vue/read-only/) : comment obtenir l'écriture sur son

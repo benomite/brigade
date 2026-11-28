@@ -10,7 +10,6 @@
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément (bricks.js), et rend des éléments.
 
 import { THIS_COMPUTER } from "../lexicon.js";
-import { durationInClear } from "../project/delay.js";
 
 /** @typedef {import("../bricks.js").Fabrique} Fabrique */
 /** @typedef {import("../../stations/stations.ts").StationVue} StationVue */
@@ -27,12 +26,6 @@ export const BRING_BACK = (name, computer) =>
 /** @param {string} since @param {string} name @param {boolean} computer */
 export const OUTSIDE_LINE_SINCE = (since, name, computer) => `${since.charAt(0).toUpperCase()}${since.slice(1)}: ${BRING_BACK(name, computer)}`;
 
-// Une station du compte hors ligne : depuis que le process principal l'a dite telle (stations-of-account.ts,
-// `offlineSince`), sinon depuis le dernier signe de vie de son enregistrement.
-/** @param {{ name: string, platform: string, lastSeen: string, offlineSince?: string }} station @param {number} now */
-export function outsideLineOfAccount({ name, platform, lastSeen, offlineSince }, now) {
-  return OUTSIDE_LINE_SINCE(`offline for ${durationInClear(now - Date.parse(offlineSince ?? lastSeen))}`, name, platform === "macos" || platform === "windows");
-}
 
 // Choisie hors ligne : ce que la page en dit, en clair.
 /** @param {string} name @param {string} project */

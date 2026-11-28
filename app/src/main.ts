@@ -74,7 +74,6 @@ import { holdAnswered } from "./answered.ts";
 import { openTurns } from "./input.ts";
 import { holdRemovals } from "./removal.ts";
 import { FOLDER as FOLDER_OF_SETUP, setTheSetup } from "./setup/setup.ts";
-import { installerTheStation } from "./workstation/installer.ts";
 import { memoriesInFile } from "./memories.ts";
 import { githubOfStations } from "./stations/github.ts";
 import { holdStations, type SeenOfStations } from "./stations/stations.ts";
@@ -643,9 +642,6 @@ ipcMain.handle("repondreQuestion", async (_, name: unknown, ticket: unknown, ans
   } else if (!renderedOne.poste && renderedOne.lue !== undefined) holdRead(aims.nom, ticket, renderedOne.lue);
   return renderedOne;
 });
-// Le code qu'une station affiche, tapé par le chef : la station qui le publie sur GitHub est
-// appairée — ou le refus dit en une ligne pourquoi rien ne l'est (stations/stations.ts).
-ipcMain.handle("appairer", (_, code: unknown) => stations.appairer(code));
 // « Add a project » : les dépôts du chef, lus par le `gh` du poste, entre lesquels il choisit.
 ipcMain.handle("depotsDuChef", () => projectsOfStations.depots());
 // Un dépôt quelconque, lu par son nom — public et pas au chef compris : sa branche par défaut, ou le refus.
@@ -693,8 +689,6 @@ ipcMain.handle("autoriserSurGitHub", (_, url: unknown) => {
     () => false,
   );
 });
-// « Retirer la station » : son appairage quitte son gist, elle disparaît de l'accueil.
-ipcMain.handle("retirerLaStation", (_, id: unknown) => stations.retirer(id));
 // La connexion à GitHub, par le geste du `gh` de ce poste (connection-github.ts). Le runtime est à côté de l'app, du
 // dépôt comme du paquet (locations.ts) : seule la cuisine s'y lit (runtime/src/kitchen/).
 const ghHere = process.env.BRIGADE_GH_BIN || "gh";
@@ -749,9 +743,6 @@ ipcMain.handle("projetsServis", async () => {
 // cuisine (runtime/src/kitchen/) n'en a rien, et un dépôt n'a rien à préparer pour elle. Les écrans qui les demandent
 // encore reçoivent ce qu'ils disent quand il n'y a rien ; ils partent avec leurs tickets (#4503, #4505).
 const NOT_PAIRED = "Stations are no longer paired nor registered on GitHub: a station's kitchen serves the projects of its kitchen/projects file.";
-const NOT_DONE = { refus: "nothing was done: stations are no longer paired", detail: NOT_PAIRED };
-ipcMain.handle("stationsDuCompte", () => ({ state: "listed", stations: [], unreadable: [], reason: NOT_PAIRED }));
-ipcMain.handle("choisirLesProjets", () => NOT_DONE);
 // « This computer » sur un projet (#4568) : sa ligne entre dans le fichier des projets de la cuisine de cet ordinateur
 // (serve-here.ts), que la station relit seule. Le retirer ne se fait pas d'ici.
 ipcMain.handle("servirUnProjet", async (_, repository: unknown, served: unknown) => {
@@ -774,11 +765,6 @@ ipcMain.handle("defautsDeStation", () => ({ refus: "this computer could not be r
 const READY = { ready: true, missingBindings: false, missingLabels: [] };
 ipcMain.handle("checkRepoSetup", () => READY);
 ipcMain.handle("runRepoSetup", () => READY);
-// Le bloc de la station de l'accueil (ticket 2640) : installer celle de cet ordinateur (workstation/installer.ts).
-ipcMain.handle("installerLaStation", () => installerTheStation(stationLocale, () => stations.relire()));
-// Le « log in » d'une ouverture que Claude Code retient (#4057) : le login de cette machine.
-// La page où taper le code se rouvre depuis l'écran.
-ipcMain.handle("relireLesStations", async () => void (await stations.relire()));
 ipcMain.handle("seConnecterAGitHub", async () => {
   const start = await connectionGitHub();
   if ("page" in start) pagesOfFirst.add(start.page);

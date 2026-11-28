@@ -11,10 +11,9 @@
 import { buttonAction } from "../bricks.js";
 import { lineError } from "../components/line-error/line-error.js";
 import { THIS_COMPUTER, RECORDING } from "../lexicon.js";
-import { OUTSIDE_LINE_SINCE, outsideLineOfAccount } from "../choice-station/choice-station.js";
+import { OUTSIDE_LINE_SINCE } from "../choice-station/choice-station.js";
 
 /** @typedef {import("../bricks.js").Fabrique} Fabrique */
-/** Une station appairée du compte, telle que sa lecture la rend. @typedef {import("../../stations-of-account.ts").StationRecorded} StationOfAccount */
 /** @typedef {import("../../stations/stations.ts").StationVue} StationVue */
 // Un choix de station : `cle` — `ICI`, ou l'id de la station appairée —, son nom, si elle est hors ligne, et si c'est le
 // choix recommandé. `hote` : le nom d'hôte de cet ordinateur, dit après « this computer ». `absente` : hors ligne, depuis
@@ -23,25 +22,10 @@ import { OUTSIDE_LINE_SINCE, outsideLineOfAccount } from "../choice-station/choi
 
 export const HERE = "ici";
 
-// Les choix de « qui le cuit » : cet ordinateur d'abord — s'il a une station (`ici`), son nom d'hôte (`hote`) après
-// lui —, puis les stations du compte, en ligne d'abord. Le recommandé peut cuire maintenant : la première station du compte en ligne,
-// sinon cet ordinateur ; une station hors ligne ne l'est jamais, et sans aucune, rien ne l'est. `stations` : celles du
-// compte à qui le dépôt n'est pas encore choisi, hors celle de cet ordinateur (`stationsAProposer`,
-// project/stations/AddStation.js). `maintenant` : l'instant d'où se compte le temps hors ligne.
-/** @param {{ ici: boolean, hote?: string, stations: readonly StationOfAccount[], maintenant?: number }} offerts @returns {Choice[]} */
-export function choiceOfStation({ ici: here, hote: host = "", stations, maintenant: now = Date.now() }) {
-  const inLine = stations.find(({ available }) => available)?.id;
-  /** @type {Choice[]} */
-  const paired = [...stations.filter(({ available }) => available), ...stations.filter(({ available }) => !available)].map((station) => ({
-    cle: station.id,
-    nom: station.name,
-    horsLigne: !station.available,
-    recommande: station.id === inLine,
-    ...(station.available ? {} : { absente: outsideLineOfAccount(station, now) }),
-  }));
-  /** @type {Choice[]} */
-  const thisComputer = here ? [{ cle: HERE, nom: THIS_COMPUTER, horsLigne: false, recommande: inLine === undefined, ...(host === "" ? {} : { hote: host }) }] : [];
-  return [...thisComputer, ...paired];
+// Les choix de « qui le cuit » : cet ordinateur — s'il a une station (`ici`), son nom d'hôte (`hote`) après lui —, recommandé.
+/** @param {{ ici: boolean, hote?: string, maintenant?: number }} offerts @returns {Choice[]} */
+export function choiceOfStation({ ici: here, hote: host = "" }) {
+  return here ? [{ cle: HERE, nom: THIS_COMPUTER, horsLigne: false, recommande: true, ...(host === "" ? {} : { hote: host }) }] : [];
 }
 
 // Les choix d'un déménagement : les stations où la cuisine peut aller, cet ordinateur d'abord — « this computer », son nom
