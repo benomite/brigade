@@ -12,7 +12,7 @@ const doc = { createElement: (balise: string) => new Fake(balise) };
 const set = (text: string, actions: Record<string, unknown> = {}) => {
   const card = cardOfChefOfTodo({ sorte: "blocked", texte: text }) ?? assert.fail("pas de carte");
   const nothing = { repondre: () => {}, ecrire: () => {}, demander: () => {}, ...actions };
-  return (setCardOfTodo(doc, 3132, card, REPOS, { captures: [], brouillon: "", cle: "p#3132" }, nothing as never) as Fake[])[0] ?? assert.fail("rien de posé");
+  return (setCardOfTodo(doc, 3132, card, REPOS, { brouillon: "", cle: "p#3132" }, nothing as never) as Fake[])[0] ?? assert.fail("rien de posé");
 };
 const WITH_ACTION = `**Gesture for the chef:** From a machine with GitHub access, run: ${COMMAND}\n\nStation \`x\`: the cook stopped, blocked.`;
 

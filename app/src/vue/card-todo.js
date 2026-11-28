@@ -1,7 +1,7 @@
 // @ts-check
 // La carte de TODO (ticket 1281, épique 1277), sur le bon d'un ticket qui t'attend, dans la forme
 // unique de toute carte de TODO (épique 1764, ticket 1767), dans cet ordre : ce qui se passe, en deux
-// phrases au plus ; la question ; ses captures avant et après quand il y en a ; un bouton par choix ;
+// phrases au plus ; la question ; un bouton par choix ;
 // un champ pour répondre dans tes mots, avec son bouton « send » ; et, dessous, « ask the second ».
 // Une carte à un seul geste — merger à la main une livraison verte — n'a rien à demander : son bouton,
 // sans question. Le premier choix est la réponse recommandée, le seul bouton plein d'accent (ticket 2922) — ou celui que la
@@ -20,8 +20,7 @@
 //
 // Tout est rangé dans le process principal (app/src/card-todo.ts) : la carte pose. La réponse part
 // par lui aussi (`rail choose` ou `rail answer` sur la box). Ce module tient le geste en route —
-// `Etat` — et ne touche pas `document` : il reçoit de quoi créer un élément (bricks.js), les
-// captures déjà posées et ce que chaque geste appelle, et rend un élément.
+// `Etat` — et ne touche pas `document` : il reçoit de quoi créer un élément (bricks.js) et ce que chaque geste appelle, et rend un élément.
 
 import { buttonAction, priceSays, recommendationOf, hover } from "./bricks.js";
 import { button as buttonOfTheFamily } from "./components/button/button.js";
@@ -133,8 +132,7 @@ function created(doc, balise, text) {
   return pose;
 }
 
-// La carte de TODO d'un ticket, dans son état. `captures` : celles que la vue a posées pour elle —
-// aucune sur une carte sans écran, et rien n'en tient la place. `brouillon` : ce que le chef a déjà
+// La carte de TODO d'un ticket, dans son état. `brouillon` : ce que le chef a déjà
 // tapé ; `cle` marque le champ, pour qu'un rail redessiné lui rende le clavier. `second` : la demande
 // au second de ce ticket, partie de la carte ou de sa fiche — absente, rien n'est parti. Envoyée ou
 // jouée, elle ne pose plus ses choix ni son champ : la réponse rappelée, et où elle en est. `lectureSeule` : le projet est
@@ -144,10 +142,10 @@ function created(doc, balise, text) {
  * @param {number} ticket
  * @param {CardOfTodo} card
  * @param {State} state
- * @param {{ captures: any[], brouillon: string, cle: string, second?: { envoi: true } | { parti: string } | { refus: string }, lectureSeule?: boolean }} posees
+ * @param {{ brouillon: string, cle: string, second?: { envoi: true } | { parti: string } | { refus: string }, lectureSeule?: boolean }} posees
  * @param {{ repondre: (answer: Answer) => void, ecrire: (text: string) => void, demander: () => void, copier?: (text: string) => Promise<unknown> | undefined, ouvrir?: () => void }} actions
  */
-export function setCardOfTodo(doc, ticket, card, state, { captures, brouillon: draft, cle: key, second, lectureSeule: readOnly = false }, actions) {
+export function setCardOfTodo(doc, ticket, card, state, { brouillon: draft, cle: key, second, lectureSeule: readOnly = false }, actions) {
   const seenOne = seenOfTheCard(card, state);
   const inRoute = seenOne.vu === "envoi";
   const answerInRoute = state.etape === "envoi" ? state.reponse : undefined;
@@ -242,9 +240,9 @@ export function setCardOfTodo(doc, ticket, card, state, { captures, brouillon: d
     const or = created(doc, "p");
     or.className = "ou-en-est";
     or.append(created(doc, "span", seenOne.vu === "attente" ? QUEUED : PLAYED), hover(doc, seenOne.vu === "attente" ? QUEUED_DETAIL : seenOne.dit));
-    root.append(...head, ...captures, reminder, or, ...onGithub, ...remains);
-  } else if (readOnly) root.append(...head, ...captures, ...onGithub, ...remains);
-  else root.append(...head, ...captures, choice, openTheField, sentence, ...onGithub, ...remains);
+    root.append(...head, reminder, or, ...onGithub, ...remains);
+  } else if (readOnly) root.append(...head, ...onGithub, ...remains);
+  else root.append(...head, choice, openTheField, sentence, ...onGithub, ...remains);
   if (inRoute) {
     const sending = created(doc, "span", IN_ROUTE);
     sending.className = "en-route";

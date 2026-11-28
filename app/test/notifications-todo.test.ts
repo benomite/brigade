@@ -138,18 +138,3 @@ describe("la notification d'une carte de TODO", () => {
     assert.equal(notifications.size, 1);
   });
 });
-
-// Ticket 3716 : GitHub numérote issues et PR d'une seule suite — la PR 3710 de #3709 se lirait comme un ticket. La
-// notification d'une carte qui nomme une PR la dit par son ticket.
-describe("la notification dit la PR par son ticket (ticket 3716)", () => {
-  test("la validation du design de #3709, sa PR 3710 : « the PR of #3709 », jamais « #3710 »", async () => {
-    world["chef/parade"]![3709] = {
-      labels: ["chef-todo"],
-      commentaires: ["<!-- brigade:todo kind=design-validation pr=3710 ticket=3709 sha=abcdef1 -->\nValidate the screen of PR #3710 before it is merged."],
-    };
-    await prober();
-    const text = shown.find(({ ticket }) => ticket === 3709)?.texte ?? assert.fail("#3709 is not notified");
-    assert.match(text, /Validate the screen of the PR of #3709 before it is merged/);
-    assert.doesNotMatch(text, /#3710/);
-  });
-});

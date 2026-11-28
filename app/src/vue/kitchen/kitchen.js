@@ -19,7 +19,6 @@ import { NOT_STILL } from "../lexicon.js";
 import { parkedTodo } from "../parked/parked-todo.js";
 import { CHEF, chefRecords } from "../parked/records.js";
 import { isRed } from "../todo/todo.js";
-import { isOneValidation, VALIDATE } from "../validation-design/validation-design.js";
 
 /** @typedef {import("../../facts.ts").Card} Card */
 /** @typedef {import("../../facts.ts").Column} Column */
@@ -130,9 +129,9 @@ export function lineParked(doc, parked) {
   return line;
 }
 
-// Les gestes qui tranchent une carte du TODO d'un clic, chacun par son nom (vue.js les joue) : répondre d'un choix, valider
-// un écran, reprendre une carte de WAITING ou dire arrivé ce qu'elle attendait.
-/** @typedef {"repondre" | "valider" | "attente-reprendre" | "attente-arrivee"} KindOfAction */
+// Les gestes qui tranchent une carte du TODO d'un clic, chacun par son nom (vue.js les joue) : répondre d'un choix,
+// reprendre une carte de WAITING ou dire arrivé ce qu'elle attendait.
+/** @typedef {"repondre" | "attente-reprendre" | "attente-arrivee"} KindOfAction */
 /** @typedef {{ texte: string, recommande: boolean, sorte: KindOfAction, reponse?: import("../../card-todo.ts").Answer, ouvre?: true }} ActionOfTodo */
 /**
  * Ce que le TODO sait de la vue pour trancher ses cartes : où en est la réponse d'une carte (`etat`), les gestes de WAITING
@@ -147,16 +146,13 @@ const DECIDE = ["attente-reprendre", "attente-arrivee"];
 const READ_ONLY = "read-only: nothing is decided from here";
 
 /**
- * Les boutons d'une carte du TODO, ceux de sa carte (ticket 4261) : « Validate » d'un écran à valider,
- * un par choix d'une question — le recommandé plein d'accent —, tant que sa réponse n'est pas partie d'ici ; ou les gestes de
+ * Les boutons d'une carte du TODO, ceux de sa carte (ticket 4261) : un par choix d'une question — le recommandé plein d'accent —, tant que sa réponse n'est pas partie d'ici ; ou les gestes de
  * WAITING qu'elle a. Aucun sur une carte qui ne se tranche qu'en mots : un clic sur son entrée ouvre sa carte et son champ.
  * @param {Card} card @param {ActionsOfTodo} actions @returns {ActionOfTodo[]}
  */
 export function actionsOfTodo(card, actions) {
   const { todo } = card;
   if (todo === undefined) return actions.attente.filter(({ id }) => DECIDE.includes(id) && card.gestes?.includes(/** @type {never} */ (id))).map(({ id, libelle: wording }) => ({ texte: wording, recommande: false, sorte: /** @type {KindOfAction} */ (id) }));
-  // Un écran à valider : son bouton, quand sa carte dit la PR qu'il tranche — sinon aucun, comme sur sa carte.
-  if (isOneValidation(todo)) return "pr" in (todo.validation ?? {}) ? [{ texte: VALIDATE, recommande: true, sorte: "valider" }] : [];
   if (!["repos", "refus"].includes(seenOfTheCard(todo, actions.etat(card.ticket, todo)).vu)) return [];
   // Une carte qui ne se répond qu'en mots (`parked:chef`) : son bouton ouvre sa carte, où le chef écrit sa réponse.
   if (todo.choix.length === 0 && todo.repondre !== undefined) return [{ texte: todo.repondre, recommande: true, sorte: "repondre", ouvre: true }];
@@ -179,7 +175,7 @@ export function setTheTodo(doc, { cartes: cards, ouvrir: open, gestes: actions, 
   const present = new Set(cards.map(({ ticket }) => ticket));
   for (const ticket of [...answered.keys(), ...later]) if (!present.has(ticket)) void (answered.delete(ticket), later.delete(ticket));
   for (const { ticket, todo } of cards) {
-    if (actions === undefined || todo === undefined || isOneValidation(todo)) continue;
+    if (actions === undefined || todo === undefined) continue;
     const state = actions.etat(ticket, todo);
     const seen = seenOfTheCard(todo, state);
     if (seen.vu === "refus") answered.delete(ticket);
