@@ -1,11 +1,6 @@
 // Ce que les modules de la cuisine, des portes et du bac à sable partagent pour
-// refuser une configuration : l'erreur qui empêche de démarrer, le nom de
-// projet qu'elle exige, et la lecture d'une variable d'environnement. Aucun
+// refuser une configuration : l'erreur qui empêche de démarrer et la lecture d'une variable d'environnement. Aucun
 // import : rien ici ne tire le journal de l'ancienne station.
-
-// Le nom de projet s'écrit dans le nom de l'unité systemd et dans le chemin
-// d'état : un identifiant court, sans rien à échapper.
-export const NOM_DE_PROJET = /^[a-z0-9][a-z0-9-]*$/;
 
 export class ConfigInvalide extends Error {
   // La cause du refus pour le chef (`sandbox-unusable`…), quand elle est connue.

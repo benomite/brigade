@@ -5,7 +5,7 @@
 // Une ligne : le nom du projet, son dépôt GitHub, puis, au besoin, des
 // réglages `BRIGADE_…=valeur` propres à ce projet. La branche d'intégration
 // vient du projet — celle que son dépôt déclare, sinon sa branche par défaut
-// (`reglages-projet/en-vigueur.ts`) —, jamais de la ligne : une branche qu'une
+// du dépôt —, jamais de la ligne : une branche qu'une
 // ancienne ligne a gardée est ignorée.
 //
 //   # projet  dépôt              réglages
@@ -18,8 +18,8 @@
 import { readFileSync } from "node:fs";
 import { isAbsolute, join, resolve, sep } from "node:path";
 import { LECTURES_INTERDITES } from "../bac-a-sable/configuration.ts";
-import { avecLaBrancheDuDepot } from "../reglages-projet/en-vigueur.ts";
-import { NOM_DE_PROJET } from "../config-invalide.ts";
+import { PROJECT_NAME } from "../project-name.ts";
+import { DECISIONS } from "../decision-names.ts";
 
 // Ce que la station porte sous son répertoire (`BRIGADE_STATION_DIR`).
 export const CONFIGURATION = "projets";
@@ -102,29 +102,6 @@ const TENUS: Record<string, string> = {
 // Les décisions du chef qu'une ligne a pu porter quand elles étaient encore
 // des réglages : la ligne n'est pas refusée pour elles, et le projet est
 // servi — son runtime les dit ignorées, avec le geste qui les remplace.
-// Les décisions du chef, nommées par la variable qu'elles remplacent : la
-// configuration de la station ne les porte pas.
-const DECISIONS: readonly string[] = [
-  "BRIGADE_STATIONS",
-  "BRIGADE_DRIFT_TICKET_TOKENS",
-  "BRIGADE_DRIFT_LOST_TOKENS",
-  "BRIGADE_GATES_BUDGET_SECONDS",
-  "BRIGADE_GATES_BUDGET_CPU_SECONDS",
-  "BRIGADE_GATES_BASE_BUDGET_SECONDS",
-  "BRIGADE_GATES_BASE_BUDGET_CPU_SECONDS",
-  "BRIGADE_MANAGER_MODEL",
-  "BRIGADE_MANAGER_EFFORT",
-  "BRIGADE_REVIEWER_MODEL",
-  "BRIGADE_REVIEWER_EFFORT",
-  "BRIGADE_CLOSING_MODEL",
-  "BRIGADE_CLOSING_EFFORT",
-  "BRIGADE_CLOSING_COOKS",
-  "BRIGADE_CLOSING_MAX_TOKENS",
-  "BRIGADE_CLOSING_MAX_REMOVED_LINES",
-  "BRIGADE_CEILING_MODEL",
-  "BRIGADE_CEILING_EFFORT",
-];
-
 const DEVENUES_DECISIONS: readonly string[] = ["BRIGADE_CEILING_MODEL", "BRIGADE_CEILING_EFFORT"];
 
 // Lit le texte de la configuration. Une ligne illisible n'est que la sienne :
@@ -141,7 +118,7 @@ export function lireConfiguration(texte: string): Configuration {
     // Un réglage n'est pas une branche : la ligne n'en dit alors aucune.
     const base = reste[0] !== undefined && !REGLAGE.test(reste[0]) ? reste[0] : null;
     const suite = base === null ? reste : reste.slice(1);
-    if (!NOM_DE_PROJET.test(nom)) return refuser(`nom de projet invalide — attendu un identifiant court en minuscules, chiffres et tirets (brigade, compta)`);
+    if (!PROJECT_NAME.test(nom)) return refuser(`nom de projet invalide — attendu un identifiant court en minuscules, chiffres et tirets (brigade, compta)`);
     // La même ligne répétée est le même projet : il n'est lu qu'une fois.
     if (projets.some((projet) => projet.nom === nom && projet.ligne === champs.join(" "))) return;
     if (projets.some((projet) => projet.nom === nom)) return refuser(`le projet « ${nom} » a déjà sa ligne`);
@@ -150,7 +127,7 @@ export function lireConfiguration(texte: string): Configuration {
       const [, cle, valeur] = REGLAGE.exec(champ) ?? [];
       if (cle === undefined || valeur === undefined) return refuser(`« ${champ.slice(0, 40)} » n'est pas un réglage — attendu BRIGADE_…=valeur`);
       if (cle in TENUS) return refuser(`${cle} ne se règle pas sur la ligne : ${TENUS[cle]}`);
-      if (DECISIONS.includes(cle) && !DEVENUES_DECISIONS.includes(cle)) return refuser(`${cle} est une décision du chef : elle vit au journal du projet, pas dans la configuration`);
+      if ((DECISIONS as readonly string[]).includes(cle) && !DEVENUES_DECISIONS.includes(cle)) return refuser(`${cle} est une décision du chef : elle vit au journal du projet, pas dans la configuration`);
       if (cle in reglages) return refuser(`${cle} est réglé deux fois`);
       reglages[cle] = valeur;
     }
@@ -188,10 +165,3 @@ export function environnementDuProjet(racine: string, projet: ProjetConfigure, e
     BRIGADE_WORKTREES_DIR: worktrees,
   };
 }
-
-// L'environnement où une commande du chef lit un projet de la station — le
-// geste de la station (`geste.ts`), par où l'app lit ce que la station sert sur
-// la box : celui du projet, avec la branche d'intégration que son dépôt déclare, celle que sa
-// cuisine lit.
-export const environnementDeLaCommande = (racine: string, projet: ProjetConfigure, env: Record<string, string | undefined>): Record<string, string | undefined> =>
-  avecLaBrancheDuDepot(environnementDuProjet(racine, projet, env));
