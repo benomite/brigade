@@ -48,7 +48,7 @@ describe("l'app n'importe rien de l'ancien runtime", () => {
     assert.deepEqual(forbiddenOfRuntime(`import { LABELS } from "../../runtime/src/kitchen/decide.ts";`, allowed), []);
     assert.deepEqual(forbiddenOfRuntime(`// lu dans runtime/src/kitchen/), voir runtime/src/kitchen/projects.ts`, allowed), []);
     assert.deepEqual(forbiddenOfRuntime(`await ofRuntime<typeof import("x")>("kitchen", "projects.ts");`, allowed), []);
-    assert.deepEqual(forbiddenOfRuntime(`import { lire } from "../../runtime/src/profils/definition.ts";`, allowed), ["profils/definition.ts"]);
+    assert.deepEqual(forbiddenOfRuntime(`import { lire } ${"from"} "../../runtime/src/profils/definition.ts";`, allowed), ["profils/definition.ts"]);
     assert.deepEqual(forbiddenOfRuntime(`const m = await ${"import"}("../../runtime/src/carnet/carnet.ts");`, allowed), ["carnet/carnet.ts"]);
     assert.deepEqual(forbiddenOfRuntime(`await ofRuntime<M>("profils/definition.ts");`, allowed), ["profils/definition.ts"]);
   });

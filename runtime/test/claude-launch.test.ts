@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { test } from "node:test";
-import { argumentsClaude, environnementCook, SETTING_SOURCES } from "../src/claude-launch.ts";
+import { argumentsClaude, cookEnvironment, SETTING_SOURCES } from "../src/claude-launch.ts";
 import { ENV_ENFANT, FAUX_CLAUDE, lancementsDuFauxClaude, repertoireTemporaire } from "./outils.ts";
 import { posixOnly } from "./support/plateforme.ts";
 
@@ -46,7 +46,7 @@ test("le binaire reçoit ces arguments tels quels, la liste vide des sources com
 });
 
 test("le cook ne reçoit ni l'état du runtime ni une clé d'API, et pas la mémoire du compte", () => {
-  const env = environnementCook({
+  const env = cookEnvironment({
     PATH: "/usr/bin",
     HOME: "/home/brigade",
     BRIGADE_STATE_DIR: "/var/lib/brigade/x",

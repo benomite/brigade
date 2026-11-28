@@ -5,7 +5,7 @@
 // (runtime/src/validation-design/commande.ts) sont supprimés avec lui (#4499). Aucun runtime ne tourne, aucun `gh` n'est lancé.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { corpsDeCeQuiEstFait } from "../../../runtime/src/validation-design/brief.ts";
+const corpsDeCeQuiEstFait = (points: readonly string[]) => ["<!-- brigade:a-l-ecran -->", "**What was done on the screen**, by the cook:", "", ...points.map((point) => `- ${point}`)].join("\n");
 import { postTheCard } from "./card-posted.ts";
 import { cardOfChefOfTodo } from "../../src/card-todo.ts";
 import { holdFacts } from "../../src/facts.ts";

@@ -44,7 +44,7 @@ export function argumentsClaude(calibration: { model: string; effort: string }, 
 // A cook's environment: the runtime's, without its state (a cook working on brigade would otherwise start a runtime on
 // the journal that runs it) and without anything that diverts `claude` from the Max connection. Automatic memory is
 // off: it lives under the account, per repository, and a cook would read what another left there.
-export function environnementCook(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+export function cookEnvironment(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   const kept = Object.entries(env).filter(([name]) => !name.startsWith("BRIGADE_") && !TOKEN_VARIABLES.includes(name));
   return { ...Object.fromEntries(kept), CLAUDE_CODE_DISABLE_AUTO_MEMORY: "1" };
 }
