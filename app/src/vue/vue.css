@@ -893,17 +893,6 @@ main > header,
   border-top: 1px solid var(--trait-doux);
   border-bottom: 1px solid var(--trait-doux);
 }
-/* La page des chiffres d'autonomie de tous les projets (ticket 3222), à la place de l'accueil : le retour à l'accueil,
-   puis les chiffres. */
-#cout {
-  flex: none;
-  display: flex;
-  flex-direction: column;
-  gap: var(--pas-2);
-}
-#cout .retour {
-  align-self: flex-start;
-}
 #lecture-onglet {
   display: flex;
   flex-direction: column;
@@ -958,7 +947,7 @@ main > header,
   color: var(--discret);
 }
 /* Une ligne : toute la ligne s'ouvre d'un clic — pastille, nom, ce qui s'y passe, et la flèche. */
-:is(#tous, #toutes-les-stations, #de-tous-les-projets) .ligne {
+:is(#tous, #toutes-les-stations) .ligne {
   display: flex;
   align-items: baseline;
   gap: var(--pas-3);
@@ -967,21 +956,21 @@ main > header,
   text-align: left;
   border-radius: var(--rayon-bouton);
 }
-:is(#tous, #toutes-les-stations, #de-tous-les-projets) .ligne:hover {
+:is(#tous, #toutes-les-stations) .ligne:hover {
   background: var(--case);
 }
-:is(#tous, #toutes-les-stations, #de-tous-les-projets) .ligne strong {
+:is(#tous, #toutes-les-stations) .ligne strong {
   flex: none;
   min-width: 9em;
   font-weight: 700;
 }
-:is(#tous, #toutes-les-stations, #de-tous-les-projets) .ligne span:not(.pastille) {
+:is(#tous, #toutes-les-stations) .ligne span:not(.pastille) {
   flex: 1;
   min-width: 0;
   color: var(--texte-doux);
   overflow-wrap: anywhere;
 }
-:is(#tous, #toutes-les-stations, #de-tous-les-projets) .ligne span.ouvrir {
+:is(#tous, #toutes-les-stations) .ligne span.ouvrir {
   flex: none;
   color: var(--discret);
 }
@@ -1466,14 +1455,6 @@ main > header,
   font-size: var(--taille-corps);
   font-weight: 700;
 }
-/* Les plafonds, le closer et les lignes de tous les projets (ticket 3014) : leurs blocs s'alignent sur les rangées des
-   autres groupes, et le dernier ne double pas le bord de la carte. */
-#etat #bandeau-sante > .bloc-du-projet {
-  padding-inline: 0;
-}
-#etat #bandeau-sante > .bloc-du-projet:last-child {
-  border-bottom: 0;
-}
 /* Les couleurs du projet : une pastille ronde par couleur de la palette, sur la ligne de chaque rôle. Celle que le
    projet porte est cerclée. */
 #couleurs .rangee {
@@ -1699,14 +1680,14 @@ main > header,
 /* La première ligne du bloc des stations (ticket 3189) : qui cuit le projet, ou que personne ne le cuit, avec son bouton. */
 /* Un bloc replié derrière une ligne, fermé par défaut : son titre, puis ce qu'il contient en quelques mots — l'ouvrir
    montre le reste. Un bloc qui n'a rien à dire tient sur une ligne de la même forme, sans rien à ouvrir. */
-:is(#rail, #bandeau-sante) .replie {
+#rail .replie {
   margin: var(--pas-3) var(--pas-4) 0;
   padding: var(--pas-2) var(--pas-4);
   background: var(--bandeau);
   border: 1px solid var(--trait-doux);
   border-radius: var(--rayon-carte);
 }
-:is(#rail, #bandeau-sante) .replie > summary,
+#rail .replie > summary,
 #rail .une-ligne {
   display: flex;
   flex-wrap: wrap;
@@ -1716,43 +1697,43 @@ main > header,
   font-size: var(--taille-corps);
   color: var(--texte);
 }
-:is(#rail, #bandeau-sante) .replie > summary {
+#rail .replie > summary {
   list-style: none;
   cursor: pointer;
   user-select: none;
 }
 /* La flèche dit qu'il s'ouvre, et s'il l'est. */
-:is(#rail, #bandeau-sante) .replie > summary::before {
+#rail .replie > summary::before {
   content: "";
   flex: none;
   border-left: 6px solid var(--discret);
   border-top: 4px solid transparent;
   border-bottom: 4px solid transparent;
 }
-:is(#rail, #bandeau-sante) .replie[open] > summary::before {
+#rail .replie[open] > summary::before {
   transform: rotate(90deg);
 }
-:is(#rail, #bandeau-sante) .replie > summary strong,
+#rail .replie > summary strong,
 #rail .une-ligne strong {
   font-weight: 600;
   color: var(--discret);
 }
-:is(#rail, #bandeau-sante) .replie > summary .resume,
+#rail .replie > summary .resume,
 #rail .une-ligne .resume {
   min-width: 0;
   overflow-wrap: anywhere;
 }
-:is(#rail, #bandeau-sante) .replie[open] > summary {
+#rail .replie[open] > summary {
   margin-bottom: var(--pas-2);
 }
 /* Ouvert, le bloc montre son contenu sans en répéter le cadre ni le titre : la ligne le porte déjà. */
-:is(#rail, #bandeau-sante) .replie > :is(section, div) {
+#rail .replie > :is(section, div) {
   margin: 0;
   padding: 0;
   background: none;
   border: 0;
 }
-:is(#rail, #bandeau-sante) .replie > :is(section, div) > :is(h2, h3, h4):first-child {
+#rail .replie > :is(section, div) > :is(h2, h3, h4):first-child {
   display: none;
 }
 /* Ce que chaque station déclarée fournit, sous les stations (ticket 1509) : une ligne chacune — son nom et où elle
@@ -2769,7 +2750,7 @@ main > header {
   user-select: all;
 }
 /* Pourquoi une station installée ne cuit pas encore (ticket 1758) : une phrase à côté de sa pastille grise, qui nomme le geste. */
-:is(#tous, #toutes-les-stations, #de-tous-les-projets) .ligne span.pourquoi {
+:is(#tous, #toutes-les-stations) .ligne span.pourquoi {
   color: var(--discret);
 }
 
@@ -2918,18 +2899,13 @@ main > header {
   color: var(--discret);
 }
 
-/* Les blocs du projet (tickets 2490, 2921) : les plafonds de durée, le closer, les lignes de tous les projets. */
+/* Les blocs du projet (ticket 2490). */
 .bloc-du-projet h3,
 #rail .bloc-du-projet h3 {
   display: flex;
   align-items: center;
   gap: var(--pas-2);
   padding: 0;
-}
-.bloc-du-projet[data-bloc="de-tous-les-projets"] {
-  display: flex;
-  flex-direction: column;
-  gap: var(--pas-3);
 }
 .bloc-du-projet :is(p, table) {
   margin: 0;

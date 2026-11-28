@@ -87,10 +87,6 @@ export type Bridge = {
   creerLePremierTicket(project: string, draft: import("../first-ticket.ts").Draft): Promise<import("../first-ticket.ts").Creation>;
   // L'histoire d'un ticket et son coût, lus par `pass <ticket> --json` sur la box (story.ts).
   lireHistoire(project: string, ticket: number): Promise<import("../story.ts").Story | undefined>;
-  // Les chiffres d'autonomie des projets nommés, ensemble, sur les `jours` derniers jours, lus de GitHub
-  // (vue/autonomy/autonomy-github.ts) ; puis l'issue d'un ticket qu'ils nomment, ouverte dans le navigateur.
-  lireAutonomie(projects: string[], days: number): Promise<import("./autonomy/autonomy-github.ts").ReadOfAutonomy>;
-  ouvrirTicketDAutonomie(url: string): Promise<boolean>;
   // L'issue d'un ticket et sa discussion (discussion.ts), lues sur la box du projet à l'ouverture de
   // sa fiche : le corps, puis les commentaires dans l'ordre, le markdown rendu — ou pourquoi on n'en
   // lit rien. Rien, pour un projet qui a quitté le fichier.
@@ -275,12 +271,6 @@ export type Bridge = {
   telephoneConnecte?(): Promise<{ connecte: boolean } | { illisible: string }>;
   // Les agents au travail d'un projet (ticket 4569, agents/source.js) : lus sur GitHub et sur sa station.
   agentsAtWork?(project: string): Promise<unknown>;
-  // What changed since the chef last opened the project (ticket 4649, since-last-looked/), read from GitHub: this opening
-  // becomes the last look.
-  sinceYouLastLooked?(project: string): Promise<import("../since-last-looked.ts").SinceLastLooked>;
-  // Le niveau d'autonomie d'un agent, réglé ; un geste en attente, approuvé. Le côté runtime vient d'un autre ticket.
-  reglerLAutonomie?(project: string, agent: string, level: import("./autonomy/source.js").Level): Promise<void>;
-  approuverLeGeste?(project: string, agent: string, id: string): Promise<void>;
   // La cuisine que la visite montre (ticket 4087, visit.ts) : son rail, lu sur GitHub en lectures seules — rien n'est
   // cloné ni ajouté —, ou pourquoi il ne se lit pas. Seule benomite/brigade se visite.
   lireLaCuisineVisitee?(repository: string): Promise<import("../visit.ts").KitchenVisited>;

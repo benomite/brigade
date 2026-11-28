@@ -235,13 +235,12 @@ const itYA = (ms) => {
 /**
  * La bande du haut (ticket 4354) : une carte pour le supervisor, une pour le closer, sur une ligne — son nom, un point d'état
  * (au travail, au repos, en alerte) et deux ou trois mots. Un clic sur une carte déplie son détail dessous : ce qu'il fait,
- * sa dernière action et son heure ; `deplies` garde ce qui est déplié d'un rendu à l'autre. Un agent que l'équipe lue montre
- * déjà (autonomy/team.js, `montre`) n'a pas de carte ici : son badge est la sienne. `alerte` : l'issue que la cuisine a
+ * sa dernière action et son heure ; `deplies` garde ce qui est déplié d'un rendu à l'autre. `alerte` : l'issue que la cuisine a
  * ouverte sur elle-même, que le supervisor dit. Le message du haut, s'il y en a un, se pose juste dessous (vue.js).
  * @param {Fabrique} doc
- * @param {{ roles: readonly RoleOfKitchen[] | undefined, montre: (name: string) => boolean, alerte: number | undefined, maintenant: number, deplies: Set<string> }} bande
+ * @param {{ roles: readonly RoleOfKitchen[] | undefined, alerte: number | undefined, maintenant: number, deplies: Set<string> }} bande
  */
-export function setTheBandOfTop(doc, { roles, montre: shows, alerte: alert, maintenant: now, deplies: unfoldedOnes }) {
+export function setTheBandOfTop(doc, { roles, alerte: alert, maintenant: now, deplies: unfoldedOnes }) {
   const frame = doc.createElement("div");
   frame.className = "bande-du-haut";
   const line = doc.createElement("div");
@@ -276,9 +275,9 @@ export function setTheBandOfTop(doc, { roles, montre: shows, alerte: alert, main
     line.append(setOne);
     if (unfoldedOnes.has(name)) frame.append(detail);
   };
-  if (!shows("supervisor")) card("supervisor", alert === undefined ? "gris" : "rouge", alert === undefined ? "ok" : `alert: #${alert}`);
+  card("supervisor", alert === undefined ? "gris" : "rouge", alert === undefined ? "ok" : `alert: #${alert}`);
   const cleanup = role("closer")?.latest ?? null;
-  if (!shows("closer")) card("closer", "gris", cleanup === null ? NOT_STILL("tidy") : `tidied ${itYA(now - Date.parse(cleanup.at))}`);
+  card("closer", "gris", cleanup === null ? NOT_STILL("tidy") : `tidied ${itYA(now - Date.parse(cleanup.at))}`);
   return frame;
 }
 

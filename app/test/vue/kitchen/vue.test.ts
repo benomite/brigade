@@ -12,12 +12,9 @@ import { actionsOfCard } from "../../../src/card-actions.ts";
 import { TABS, HEADINGS } from "../../../src/tabs.ts";
 import { EFFORTS, MODELS } from "../../../src/projects/projects.ts";
 import type { Terminal } from "../../../src/terminals.ts";
-import { holdTheTeam } from "../../../src/vue/autonomy/team.js";
-import { source } from "../../../src/vue/autonomy/source.js";
 import { linesOfRefusal } from "../../../src/vue/project/rail/refusal-of-station.js";
 import { isRed } from "../../../src/vue/todo/todo.js";
 import { type Fake, Fake as Element, type Played, playTheVue, repos } from "../../helpers/false-vue.ts";
-import { TEAM } from "../../autonomy/team-fixture.ts";
 
 const PARADE = "parade";
 const A = "2026-11-25T09:00:00.000Z";
@@ -133,33 +130,6 @@ describe("chaque message du haut offre un geste", () => {
     assert.equal(openEntries, 1);
     const [without] = linesOfRefusal(doc, [{ station: "box/claude", etat: "refused", dit: "No access.", survol: "Give it access." }]) as unknown as Fake[];
     assert.deepEqual(without?.dessous("button"), []);
-  });
-});
-
-describe("la bande du haut et l'équipe (#4354)", () => {
-  test("le bloc de l'équipe : l'agent du projet lu, rien d'un autre ; une lecture qui change l'équipe le dit, une qui ne change rien, non", async () => {
-    const readOne: string[] = [];
-    const before = { ...source };
-    let renderedOnes: unknown[] = structuredClone(TEAM);
-    Object.assign(source, { lire: async () => renderedOnes });
-    try {
-      const team = holdTheTeam(doc, new Element("section"), (project) => void readOne.push(project));
-      team.lire(PARADE);
-      await repos();
-      assert.deepEqual(readOne, [PARADE]);
-      assert.equal(team.agent(PARADE, "closer")?.nextRun.text, "closer: next pass in 3 h");
-      assert.equal(team.agent("cantine", "closer"), undefined);
-      assert.equal(team.agent(PARADE, "personne"), undefined);
-      team.lire(PARADE);
-      await repos();
-      assert.deepEqual(readOne, [PARADE]);
-      renderedOnes = [];
-      team.lire(PARADE);
-      await repos();
-      assert.deepEqual(readOne, [PARADE, PARADE]);
-    } finally {
-      Object.assign(source, before);
-    }
   });
 });
 

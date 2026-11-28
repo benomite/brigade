@@ -20,7 +20,6 @@ import { lineAtWork, lineBaseRed, lineOfHead, queuedLine, lineInWaiting, lineUnr
 import type { FactsStation } from "./ordinary.ts";
 import type { Failure, Reading } from "./box.ts";
 import type { PauseOfReads } from "./board/read.ts";
-import { learningOf, learningInforms, learningRead, type Learning, type LearningRead } from "./learning.ts";
 import { engineRead, type EngineOfDelivery } from "./vue/delivery-engine/engine.ts";
 import { withoutQuestion } from "./handover-second.ts";
 import { header, type Header } from "./card.ts";
@@ -232,9 +231,6 @@ export type Facts = {
   // Les rôles de la cuisine du projet, chacun avec sa ligne et sa dernière action (ticket 1274) ; absent d'un runtime
   // d'avant ce champ.
   rolesCuisine?: RoleOfKitchen[];
-  // Ce que les cooks ont appris au projet, ses leçons et ses profils (learning.ts) : absent quand il
-  // n'a ni leçon ni profil, et d'un runtime d'avant ce champ.
-  apprentissage?: LearningRead;
 };
 
 // Ce que la vue dessine d'un projet, prêt à poser : elle n'y calcule rien.
@@ -329,9 +325,6 @@ export type Board = {
   stations?: CookingOfProject;
   // Les rôles de la cuisine du projet, sur l'onglet Cooks — absent d'un runtime qui ne les donne pas.
   rolesCuisine?: RoleOfKitchen[];
-  // Ce que les cooks ont appris au projet (learning.ts) : ses leçons et ses profils, que la page
-  // Reliability pose sous les causes corrigées — vides, elle le dit en une phrase.
-  apprentissage: Learning;
   // Où en est chaque ticket pris, en pass ou servi, que le récit du premier ticket suit (ticket 3302,
   // vue/first-ticket/) — absent d'un tableau qui ne vient pas d'ici (un souvenir d'avant ce champ).
   etapesDesTickets?: StepOfTicket[];
@@ -360,7 +353,7 @@ function except<T>(readOne: Record<string, unknown>, which: string, render: () =
   try {
     return render();
   } catch (error) {
-    if (error instanceof Informs || learningInforms(error)) return sinon(base, error.message);
+    if (error instanceof Informs) return sinon(base, error.message);
     throw error;
   }
 }
@@ -521,7 +514,7 @@ function sizeOfPrRead(said: Record<string, unknown>): SizeOfPr {
 // Rien n'y est complété : un champ qui manque refuse la forme entière — sauf
 // `cooks`, `attend`, `livres` et l'`activite`,
 // l'`attente` et les `tiers` d'un ticket, qu'un runtime d'avant eux ne rend pas,
-// et qui manquent alors ici aussi — et `apprentissage`, absent quand le projet n'a ni leçon ni profil,
+// et qui manquent alors ici aussi — et `github` quand GitHub ne limite pas le compte,
 // et `attendAutres` quand rien n'attend un autre humain.
 // Un champ de plus est laissé de côté, un mot d'état inconnu est gardé.
 export function understand(output: string): Facts | { informe: string } {
@@ -649,10 +642,9 @@ export function understand(output: string): Facts | { informe: string } {
       ...(agentsRead(root.agents) === undefined ? {} : { agents: agentsRead(root.agents) }),
       ...(cadenceRead(root.cadence) === undefined ? {} : { cadence: cadenceRead(root.cadence) }),
       ...(rolesKitchenRead(root.rolesCuisine) === undefined ? {} : { rolesCuisine: rolesKitchenRead(root.rolesCuisine) }),
-      ...(root.apprentissage === undefined ? {} : { apprentissage: learningRead(root.apprentissage) }),
     };
   } catch (error) {
-    if (error instanceof Informs || learningInforms(error)) return { informe: error.message };
+    if (error instanceof Informs) return { informe: error.message };
     throw error;
   }
 }
@@ -1210,7 +1202,6 @@ export function board(facts: Facts, awaiting?: BlockRead, status?: StatusRead, a
     ...(facts.kitchenBoard === undefined ? {} : { kitchenBoard: facts.kitchenBoard }),
     ...(facts.stations === undefined ? {} : { stations: { ...cookingOf(facts.stations, facts.cooks, facts.lu, facts.agents, facts.rail), ...(facts.stationsSurGithub === undefined ? {} : { surGithub: facts.stationsSurGithub }) } }),
     ...(facts.rolesCuisine === undefined ? {} : { rolesCuisine: facts.rolesCuisine }),
-    apprentissage: learningOf(facts.apprentissage),
     etapesDesTickets: stepsOfTickets(facts),
   };
 }

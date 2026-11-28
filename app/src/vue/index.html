@@ -39,12 +39,9 @@
     <link rel="stylesheet" href="card-project/card-project.css" />
     <link rel="stylesheet" href="identities-github.css" />
     <link rel="stylesheet" href="projects-served/projects-served.css" />
-    <link rel="stylesheet" href="autonomy/figures.css" />
-    <link rel="stylesheet" href="autonomy/team.css" />
     <link rel="stylesheet" href="agents/agents.css" />
     <link rel="stylesheet" href="kitchen/kitchen.css" />
     <link rel="stylesheet" href="parked/parked.css" />
-    <link rel="stylesheet" href="since-last-looked/since-last-looked.css" />
     <link rel="stylesheet" href="visit/visit.css" />
     <link rel="stylesheet" href="journey-first-project/journey-first-project.css" />
     <link rel="stylesheet" href="first-ticket/first-ticket.css" />
@@ -100,10 +97,6 @@
         <!-- La station du projet et son état — cooking, stopped, paused —, à côté de l'onglet Stations (ticket 3523). -->
         <span id="etiquette-de-station" hidden></span>
       </header>
-      <!-- L'équipe du projet (ticket 4029, autonomy/team.js) : un badge par agent — supervisor et closer d'abord —, son état,
-           son dernier geste et sa prochaine passe ; un clic ouvre son fil, son niveau d'autonomie et ce qui attend l'OK du chef.
-           Vide, et cachée, tant que le runtime ne publie aucun agent. -->
-      <section id="equipe-du-projet" aria-label="The agents" aria-live="polite" hidden></section>
       <!-- Tant que le projet qu'« Add a project » vient d'ouvrir n'est pas prêt (ticket 3166) : à la place du rail, une question
            à la fois — qui le cuit, puis sa mise en place s'il le faut —, ce qui est attendu et de qui. Prêt, une ligne au-dessus
            du rail propose d'écrire son premier ticket avec le second. -->
@@ -152,12 +145,6 @@
             <div id="barre-de-menus" aria-label="The kitchen's state in the menu bar" hidden></div>
             <div id="fiche-du-projet" hidden></div>
             <div id="retrait" aria-label="Remove this project from the app's sidebar" hidden></div>
-          </section>
-          <!-- Les plafonds de durée, le closer et les lignes de tous les projets (tickets 2921, 3013, 3014) : leur section à eux
-               de Settings, qui les a repris de la ligne repliée en tête de Stations. -->
-          <section id="reglages-sante" class="groupe" aria-label="Caps, closer and all projects">
-            <h2 id="titre-sante" class="niveau-du-groupe">Caps, closer and all projects</h2>
-            <div id="bandeau-sante"></div>
           </section>
         </section>
         <!-- Ce qui était sous « This machine » (ticket 2494) n'est plus dans Settings, qui ne tient que les réglages du

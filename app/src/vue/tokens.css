@@ -95,12 +95,11 @@
      sauf un arrondi de moins de 4px, qui adoucissait un signe de quelques pixels : il tombe à 0, et le carré reste un
      carré. */
 
-  /* Les tailles de texte : le méta, le corps, l'intertitre, le titre, le chiffre. */
+  /* Les tailles de texte : le méta, le corps, l'intertitre, le titre. */
   --taille-meta: 11px;
   --taille-corps: 13px;
   --taille-intertitre: 15px;
   --taille-titre: 20px;
-  --taille-chiffre: 28px;
 
   /* Les pas d'espacement, de 4 à 32 : marges, retraits et écarts. */
   --pas-1: 4px;

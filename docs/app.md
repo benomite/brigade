@@ -716,62 +716,6 @@ rail is this same view, in the same order. Captures (in git history): `docs/capt
 `espace-projet-apres.png` (the rail view of the same project), and `espace-projet-gestes-apres.png` (the
 sheet of a TODO ticket, offering its gestures). A TODO sheet offers the gestures every card has, nothing more.
 
-### The agents at the top of the project view (#4029, epic #4024)
-
-The top of the project view, under its menu, shows one badge per agent: supervisor and closer first, then the
-manager, the pass and each cook, in the same form (spec `docs/superpowers/specs/2026-11-23-autonomy-trust-control.md`,
-C1, C2, C4). **Each badge is one line** (#4354): a state dot — grey idle, blue at work, red broken —, the agent's name,
-its state as the runtime words it (`idle`, `working on #4031`, `broken`), and how many of its gestures await your OK.
-A click on a badge opens the agent's thread under the badges: its last gesture with its time, its next run as the
-runtime words it (`closer: next pass in 3 h`), its last gestures, one line each with its reason and its outcome, its two counters
-`fixed by itself` and `handed to the chef`, its level as three buttons — `observe`, `propose`, `act`, the current one
-pressed, its meaning on hover — the counter toward the next level move (#4381), and each gesture that awaits your OK with one `OK` button. A level click sets the level
-once; an `OK` approves the gesture once and removes it. A gesture that fails changes nothing and says it in one line,
-its detail on hover. The counter reads the agent's `progress` in `facts`: `2 of 5 toward act` for an agent at `propose`, and `—` for an
-agent at `act`, which has no move left (`progress: null`); a record without `progress` shows no counter. An agent whose
-`pinned` is true shows `level pinned` next to it. A second click on the badge closes the thread. A click on a badge also opens the project's
-**Agents** tab (#4224, below).
-
-The view reads the agents through one module, `app/src/vue/autonomy/source.js` (`lire`, `regler`, `approuver`), which
-calls the bridge (`reglerLAutonomie`, `approuverLeGeste`). Since #4569 the bridge has no `lireLesAgents`
-(it ran `facts`, which the new kitchen does not have): the source reads no team and shows no badge. `reglerLAutonomie` and `approuverLeGeste` are not carried yet. A reading that
-fails says `The agents not reached.`, and a record missing a field says the reading is not readable: no value is made
-up. When the team is read, the supervisor and the closer have no card of the Rail tab's top band: their badge is theirs
-(#4354). Captures (in git history): `docs/captures/4029/` — `projet-avant.png`, `projet-apres.png` (the badges, from the fixture
-`app/test/autonomy/team-fixture.ts`), and `projet-fil-du-closer-apres.png` (the closer's thread open, on
-`propose`, with a gesture awaiting its `OK`).
-
-### Since you last looked, at the top of the project view (#4649, epic #4647)
-
-The app remembers, per project, when the chef last opened its view: the time of each opening is kept in
-`last-looked.json`, beside the app's configuration. At the next opening, a card at the very top of the Rail view,
-**Since you last looked**, says what changed on GitHub since then, in three groups, always all three:
-
-- **Merged** — the tickets whose pull request was merged since then (by its branch `cook/<n>-…` or its `Closes #n`); a
-  revert is not counted here;
-- **Sent back or reverted** — the deliveries the kitchen sent back (its comment `Sent back to a cook`, or `Parked for the
-  supervisor: refused` when the tries ran out, written by an owner, member or collaborator of the repository), and the
-  tickets a merged revert undid (`Revert …` in its title, or GitHub's `revert-<pr>-cook/<n>-…` branch); each entry says
-  which (`— sent back`, `— reverted`);
-- **Parked for you** — the open issues that carry `parked:chef` now and got it since then (the `labeled` event of their
-  timeline).
-
-Each heading counts everything its group holds, one per ticket (`Merged · 12`); the group shows its three latest
-tickets, an empty one says `nothing`. A click on an entry opens its issue on GitHub; the time of the last look is on
-the card's hover. The first opening of a project has no card (there is no last look to compare with): it only sets the
-time. A reading GitHub refuses says why in one line in the card, and keeps the last look where it was, so the next
-opening still compares with the last one the chef got. Lists longer than ten pages are cut, and the card says the counts
-stop there.
-
-Nothing is read but GitHub: the open issues by the very path the board reads, the closed pull requests back to the last
-look, the repository's issue comments since then, the timeline of each `parked:chef` issue, and the issue of a shown entry
-whose title the lists did not give — all through the board's conditional memory, so a reread unchanged costs nothing. The
-card is read once per opening, never at the rail's reads.
-
-*Code: `app/src/since-last-looked.ts` (the reading and the last looks), `app/src/vue/since-last-looked/` (the card),
-`sinceYouLastLooked` in `app/src/main.ts`. Tests: `app/test/since-last-looked/reading.test.ts` (the groups and their counts
-from a fake GitHub), `app/test/since-last-looked/vue.test.ts` (the view opened twice, and an entry clicked).*
-
 ### The Know-how tab (#4570, epic #4135)
 
 The project's menu has a **Know-how** tab, between Agents and Settings; the project remembers it like the other tabs. It
@@ -1378,40 +1322,6 @@ ticket that repairs it, the cause of a held kitchen, since when the oldest decis
 expiry of the Max token. The stations and their Max connection come from their gists,
 on GitHub. A `status` that the home no longer reads is dropped: the row says again what `facts` alone says of it.
 
-### Autonomy figures
-
-*Ticket: #3222, epic #3213.* Brigade's goal is autonomy (CLAUDE.md); **three figures say whether it holds**, over the
-**last 7 days** or the **last 30 days**, chosen by two buttons: **served without a human** — the share of the tickets merged
-in the period whose path from `fire` to merge never asked the chef anything (no TODO card, no `blocked-on-human`) —,
-**lead time** — the median time from `fire` to merge —, and **send-back rate** — the share of those deliveries the pass sent
-back at least once (sent back twice counts once). **A project's figures** are a block of the
-section of Settings, above the rows of all projects; **those of all projects together**, their tickets pooled, sit on the
-page that the "Autonomy" row of a project's health strip opens, in place of the home — "‹ All projects" brings you back. **"served with a human" unfolds the tickets that asked the chef something**, each with
-the question it asked and a button that opens its issue: each is a failure to fix. A period with no merged ticket says so
-in one line, with no figure; a reading that fails says so in one line, its detail on hover; a project that could not be
-read is named under the figures of all projects. A ticket merged with no `fire` before its merge is left out.
-
-**Everything is read from GitHub** — the merged pull requests, then the events and comments of each served ticket's issue —
-with the token of this computer's `gh`, under the rail's budget and conditional reads; nothing is read from the machine, so a
-new computer shows the same figures. One reading covers 30 days and both periods, kept ten minutes per repository, and reads every closed pull request of the
-period (up to 10,000), not only the latest 1,000. The issues already read are kept beyond those ten minutes, so opening the
-block again only reads the pull requests and tickets served since (#3379). **When GitHub stops a reading** (quota, error, more
-than 10,000 pull requests), the figures are computed on the part read, and a line above them says from when each project is
-counted: never figures presented as the whole period over a shorter span. The
-computation is `app/src/vue/autonomy/compute.ts` (#4505: pure, with no import, so the `pages` workflow can run it too); the reading is `app/src/vue/autonomy/autonomy-github.ts`,
-the block `app/src/vue/autonomy/figures.js`.
-
-**What the pass let through** (#3515): after the three figures, two counts on the same tickets — those merged in the
-period with `fire`. **escaped bugs**: the `bug`-labelled issues created after one of those tickets was merged and citing its
-number in their title or body (`#12`, or its issue's address); a bug citing none of them is not counted, one citing two
-counts once; a bug also cites a ticket as `owner/repo#12` of the same repository. **reverts**: the commits of the default branch carrying git's `This reverts commit <sha>` trailer whose
-reverted commit belongs to one of those tickets — a merged pull request of the ticket holds it, as GitHub says; a revert of
-another commit is not counted. Under each count, what makes it: `#12 (bug #50)`, `4f2c9e1 (#30)` — the revert's sha, short,
-and the tickets of the commits it reverts. With none, `0` and `none`. They are read in the same reading as the figures: the
-`bug` issues updated in the 30 days, GitHub's commit search for the trailer (it searches the default branch only, up to
-1,000 commits), and the pull requests of each reverted commit. When that reading fails, both counts say `not read`, with
-the project and the reason, never `0`, and the other figures still count; the reading is not kept, the next one redoes it.
-Captures (in git history): `docs/captures/3515/`.
 
 ### The app's code: up to date, or behind
 
@@ -2769,7 +2679,8 @@ from the rail.
 ### The rail
 
 **The view draws the plan of the kitchen (#4238,
-[`2026-11-24-simplified-process.md`](superpowers/specs/2026-11-24-simplified-process.md)).** Left to right: **Backlog** —
+[`2026-11-24-simplified-process.md`](superpowers/specs/2026-11-24-simplified-process.md), which replaces the process parts of
+[`2026-11-23-autonomy-trust-control.md`](superpowers/specs/2026-11-23-autonomy-trust-control.md)).** Left to right: **Backlog** —
 its top is the rail, `Rail — ready to cook`, the queued tickets set apart; under it, `Not ready yet`, what is in the
 backlog without being ready (awaiting you, parked, blocked) —, then **Manager** (its question before splitting an epic,
 asked or answered), **Cooks**, **Pass** and **Served**. Each card sits in the column of the step it is at
@@ -2789,8 +2700,7 @@ ticket, an answer kept from a card that left and **Awaiting others** are next to
 replaces the fault banners**: on one line (#4354), a small card for the supervisor and one for the closer — a state dot,
 the name and two or three words: `ok`, or `alert: #N` in red when the kitchen opened an issue on itself; `tidied 2 h
 ago`, or `no tidy yet`. A click on a card unfolds its detail under the line — what the
-agent does, its last action and its time —; a second click folds it. When the team is read, the supervisor's and the
-closer's badges stand at the top of the view instead, with no card for them (#4029). Under the line, at
+agent does, its last action and its time —; a second click folds it. Under the line, at
 most one message, the
 first cause that offers the chef an action: a message with none is not shown; a stale reading reads
 again; the line of an issue the kitchen opened on itself opens that issue. Where the paragraphs below
@@ -3166,7 +3076,7 @@ section. With the section laid, `right now` is not repeated under it.
 
 The kanban starts right under the tabs. Above its columns, the Rail tab shows **no paragraph**:
 
-- **One line**: the supervisor's and the closer's cards (see "the top band" above); when the team is read, its badges, one line too, stand at the top of the view instead of the two cards.
+- **One line**: the supervisor's and the closer's cards (see "the top band" above).
 - **The TODO line**, only when something waits for the chef: `2 wait for you`, its entries on click (above).
 - **One status line, only when something holds the kitchen**, the first of these causes, never two stacked: an issue the kitchen filed about itself (`Kitchen idle: …`); a
   stale or offline reading.
@@ -3191,8 +3101,8 @@ The phone's cards are unchanged.
 `foldsOfTodo` and `renderTheKeyboard` in `app/src/vue/vue.js`. Test: `app/test/vue/parked/todo-keyboard.test.ts`.*
 
 Captures (in git history): `docs/captures/4354/` — `rail-avant.png` / `rail-apres.png` (a project read on GitHub with its backlog),
-`rail-equipe-avant.png` / `rail-equipe-apres.png` (its team read: the badges, one line), `rail-todo-avant.png` /
-`rail-todo-ouvert-apres.png` (no team read: the two cards, and `2 wait for you` unfolded).
+`rail-todo-avant.png` /
+`rail-todo-ouvert-apres.png` (the two cards, and `2 wait for you` unfolded).
 
 *Code: `poserLaBandeDuHaut` and `poserLeTodo` in `app/src/vue/kitchen/kitchen.js`, `ligne-de-statut/ligne-de-statut.js`,
 the `poserLeRail` block of `app/src/vue/vue.js`, `etiquetteDeStation`. Tests: `app/test/vue/kitchen/`,
@@ -3466,7 +3376,7 @@ The app has one visual language, and only one: the mockup's (`docs/maquettes/app
   computer, 44 px at phone width and on first launch, whatever its label: a TODO card's answer or a project choice's
   issue too long for one line stays on it, cut by an ellipsis, whole on hover (`title`) and for a screen reader
   (`aria-label`). A project's name that opens it, a link to a page, the lost-tokens
-  figure that unfolds its list and the three positions of an autonomy row are buttons of the family too (quiet, or
+  figure that unfolds its list are buttons of the family too (quiet, or
   secondary and pressed). A tab, a tile of the icon bar, a color swatch, a switch, the edge that resizes the second's panel, a
   clickable row or a ticket number that opens its issue is not a button of the family: each keeps its own shape.
 - **One voucher and one awaiting card** (#2918, `Components.dc.html` of the mockup): a ticket's slip is the voucher of
