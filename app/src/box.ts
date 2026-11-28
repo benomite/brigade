@@ -1,6 +1,5 @@
-// Ce que l'app sait d'un projet, tel qu'elle l'a lu : une lecture a des sorties, ou une erreur, et l'heure
-// où elle a fini. Plus aucune commande n'est lancée par la station de cet ordinateur (#4684) : les lectures
-// viennent de GitHub (board/rail.ts).
+// Ce que l'app dit d'une lecture : ses sorties ou son échec, rendues mot pour mot. L'app ne lance rien du runtime
+// que la cuisine (`runtime/src/kitchen/main.ts`) : ces lectures viennent de GitHub (board/rail.ts).
 import type { PauseOfReads } from "./board/read.ts";
 
 export type Output = { commande: string; texte: string };
@@ -22,14 +21,11 @@ export type Failure = { erreur: string; atteinte: boolean; cas: Case | null; duT
 // erreur — jamais les deux.
 export type Reading = { projet: string; demande: number; a: string } & ({ sorties: Output[] } | Failure);
 
-// La station de cet ordinateur, telle que l'app la lance : le `node` qui le joue,
-// le dossier du runtime et le répertoire de la station (`BRIGADE_STATION_DIR`) — ceux avec
-// lesquels l'app la lance (workstation/station.ts).
+// La station de cet ordinateur : le `node` qui la joue, le dossier du runtime et le répertoire de la
+// station (`BRIGADE_STATION_DIR`) — ceux avec lesquels l'app la lance (workstation/station.ts).
 export type Locale = { node: string; runtime: string; racine: string; env: Record<string, string | undefined> };
 // Où se lit la cuisine d'un projet : la station de cet ordinateur.
 export type Kitchen = { locale: Locale };
-// Un projet tel qu'il se lit : son nom, et là où sa cuisine tourne à cet instant.
-export type Read = { nom: string; cuisine: Kitchen };
 
 // Ce que dit une proposition de réglage qui ouvre une pull request.
 export const PROPOSES = "proposed as a pull request — it applies once merged";

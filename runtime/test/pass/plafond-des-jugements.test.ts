@@ -8,7 +8,7 @@ import { brancherGardeFous, lireReglages, type Reglages } from "../../src/garde-
 import { ouvrirJournal } from "../../src/journal.ts";
 import { plafondDesJugements } from "../../src/projections/guardrails.ts";
 import { ConfigInvalide, demarrer } from "../../src/runtime.ts";
-import { appeler, repertoireTemporaire } from "../outils.ts";
+import { repertoireTemporaire } from "../outils.ts";
 
 const REGLAGES: Reglages = { plafonds: { durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 }, seuilDisjoncteur: 3, graceMs: 2000 };
 

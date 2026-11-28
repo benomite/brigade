@@ -1,10 +1,8 @@
 // La session qui prépare un dépôt pour Brigade (#2595, #4632) : l'onglet Second l'ouvre (terminals.ts) avec ses
 // instructions dans le prompt système, comme il donne `role.md` au second (second/launch.ts) — aucune commande du
-// plugin n'est tapée ni montrée. Ce qu'elle écrit, elle le fait écrire par `init.sh`, à côté de ce module, que la
-// commande du runtime `second-init/pr-de-setup.ts` joue puis suit jusqu'à la carte de sa PR (#3169).
+// plugin n'est tapée ni montrée. Ce qu'elle écrit, elle le fait écrire par `init.sh`, à côté de ce module.
 //
-// Les instructions (`instructions.md`) nomment ce que la session lance par des marques — `@NODE@`, `@SETUP_PR@`,
-// `@SCRIPT@` — que l'app remplace par leurs chemins sur ce poste : elle les pose, rendues, dans un dossier à elle
+// Les instructions (`instructions.md`) nomment ce que la session lance par des marques — `@SCRIPT@` — que l'app remplace par leurs chemins sur ce poste : elle les pose, rendues, dans un dossier à elle
 // (à côté du fichier des projets), avec le script et son catalogue de labels. Le script y est exécutable, quel que
 // soit le mode que le paquet lui a laissé. Un fichier déjà tel quel n'est pas réécrit.
 //
@@ -22,11 +20,6 @@ export const SCRIPT = "init.sh";
 export const CATALOG_OF_LABELS = "labels.tsv";
 // Le dossier où l'app pose la préparation rendue, à côté du fichier des projets.
 export const FOLDER = "setup";
-// La commande du runtime qui lance le script, pose la carte de sa PR dans le TODO et rend le mot de fin (#3169).
-export const PR_OF_SETUP = ["src", "second-init", "pr-de-setup.ts"] as const;
-// Où sont le runtime et son `node` (locations.ts) ; par défaut, le runtime à côté de l'app et le `node` du PATH.
-export type Places = { node: string; runtime: string };
-export const PLACES_BY_DEFAULT: Places = { node: "node", runtime: join(import.meta.dirname, "..", "..", "..", "runtime") };
 
 // Le premier message de la session, sur une ligne : il la met en route, les instructions disent le reste.
 export const START_OF_SETUP = "Set this repository up for Brigade as your setup instructions say.";
@@ -34,8 +27,8 @@ export const START_OF_SETUP = "Set this repository up for Brigade as your setup 
 // système, il les lit dans le fichier.
 export const setupInWords = (instructions: string): string => `Set this repository up for Brigade: read ${instructions} and follow it.`;
 
-// Pose la préparation dans `folder`, ses marques remplacées par les chemins de `places` ; rend le chemin des instructions.
-export function setTheSetup(folder: string, places: Places = PLACES_BY_DEFAULT, own = OWN): string {
+// Pose la préparation dans `folder`, sa marque remplacée par le chemin du script ; rend le chemin des instructions.
+export function setTheSetup(folder: string, own = OWN): string {
   // Les chemins en barres obliques : la session les passe à `bash` et `node`, Git Bash compris.
   const slashes = (path: string) => path.replaceAll("\\", "/");
   const script = join(folder, SCRIPT);
@@ -46,9 +39,8 @@ export function setTheSetup(folder: string, places: Places = PLACES_BY_DEFAULT, 
   write(
     instructions,
     readFileSync(join(own, INSTRUCTIONS), "utf8")
-      .replaceAll("@SCRIPT@", slashes(script))
-      .replaceAll("@SETUP_PR@", slashes(join(places.runtime, ...PR_OF_SETUP)))
-      .replaceAll("@NODE@", slashes(places.node)),
+      .replaceAll("@SCRIPT@", slashes(script)),
+
   );
   return instructions;
 }

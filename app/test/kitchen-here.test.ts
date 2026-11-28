@@ -1,6 +1,5 @@
 // Un projet qui cuit sur cet ordinateur (#1122) : la station de ce poste le sert — il a sa ligne
-// dans sa configuration —, et l'app le lit ici, par le geste de cette station, à la cadence de la
-// veille. Le lieu vivant est celui de la station, jamais `app.json` : une cuisine qui arrive sur
+// dans sa configuration —, et l'app le sait ici. Le lieu vivant est celui de la station, jamais `app.json` : une cuisine qui arrive sur
 // cet ordinateur est lue dès la lecture suivante. Aucun test n'attend une durée — il attend une lecture.
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
@@ -11,13 +10,12 @@ import { forTheBar } from "../src/bar.ts";
 import type { Locale } from "../src/box.ts";
 import { servedBy, holdKitchensHere } from "../src/workstation/kitchen-here.ts";
 
-// Un poste d'essai : le répertoire de sa station et un `node` qui ne sera pas lancé.
+
+// Un poste d'essai : le répertoire de sa station, que le test écrit comme la station le fait.
 function trial(t: TestContext) {
   const root = mkdtempSync(join(tmpdir(), "brigade-app-ici-"));
   const station = join(root, "station");
-  const node = join(root, "node");
-  const locale: Locale = { node, runtime: join(root, "runtime"), racine: station, env: { PATH: process.env.PATH } };
-  mkdirSync(locale.runtime);
+  const locale: Locale = { node: process.execPath, runtime: join(root, "runtime"), racine: station, env: { PATH: process.env.PATH } };
   // Les lignes de la configuration de la station, telles qu'elle les écrit : aucune, sans fichier.
   const serve = (...lines: string[]) => {
     rmSync(station, { recursive: true, force: true });
@@ -27,10 +25,7 @@ function trial(t: TestContext) {
   };
   const changes: (readonly string[])[] = [];
   const kitchens = holdKitchensHere({ locale, surChangement: (servedOnes) => changes.push(servedOnes) });
-
-  t.after(() => {
-    rmSync(root, { recursive: true, force: true });
-  });
+  t.after(() => rmSync(root, { recursive: true, force: true }));
   return { servir: serve, cuisines: kitchens, changes, locale, station };
 }
 

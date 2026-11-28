@@ -9,7 +9,7 @@ import type { Fait } from "../../src/evenements.ts";
 import { livraisonsCoincees, toursDeLaPass, tourAttendu } from "../../src/file-de-la-pass.ts";
 import { ouvrirJournal } from "../../src/journal.ts";
 import { ouvrirRail } from "../aides/rail-du-journal.ts";
-import { aArreter, appeler, JOUR_HORLOGE, repertoireTemporaire } from "../outils.ts";
+import { aArreter, JOUR_HORLOGE, repertoireTemporaire } from "../outils.ts";
 
 const STATION = "box/claude";
 const LIMITES = { durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };

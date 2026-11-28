@@ -76,7 +76,6 @@ import { machineChosen, machinesOf } from "./machines.ts";
 import { TABS, HEADINGS } from "./tabs.ts";
 import { playOutage } from "./outages/actions.ts";
 import { gistLocal, holdLogin } from "./outages/login.ts";
-import { moverOfRuntime } from "./projects/move.ts";
 import { repositoriesOfChef, readOneRepository } from "./projects/github.ts";
 import { writeSettingsOfTheStation, readSettingsOfTheStation as readTheSettingsOfStation, type Change } from "./settings-of-the-station.ts";
 import { EFFORTS, MODELS, servedElsewhere, holdProjects, type FoldersOfTheStation, type SeenOfProjects } from "./projects/projects.ts";
@@ -210,7 +209,7 @@ const terminals = openTerminals({
   souvenirs: memoriesInFile(join(dirname(pathConfiguration()), "shells.json")),
   node: locations.node,
   // La session qui prépare un dépôt : ses instructions, posées à côté du fichier des projets (setup/setup.ts, #4632).
-  preparation: () => setTheSetup(join(dirname(pathConfiguration()), FOLDER_OF_SETUP), { node: locations.node, runtime: locations.runtime }),
+  preparation: () => setTheSetup(join(dirname(pathConfiguration()), FOLDER_OF_SETUP)),
   // La file que le second lit à son ouverture vient de GitHub seul, par le `gh` du poste (second/file.ts, #2460).
   gh: process.env.BRIGADE_GH_BIN || "gh",
   // La même doublure que le runtime : jamais posée hors des essais.
@@ -278,9 +277,6 @@ const boards = holdReadsOfBoard<Project>({ lire: readTheBoard, fraicheurMs: FRES
 
 // Seul ce qui est affiché est lu — un projet, ou chacun dans « Tous les projets » : toutes
 // les cinq secondes, sur GitHub. Ce qui attend le chef en est mis à part ici, avant la vue.
-// Les veilles des onglets (Cooks, Settings) et les gestes qui partent sur la box se partagent le
-// passage de chaque projet : à eux tous, un projet ne lance qu'une commande à la fois.
-const passage = new Map<string, Promise<unknown>>();
 const standby = openStandbyOfBoard({
   lire: boards.lire,
   surLecture: (reading) => {
@@ -544,9 +540,6 @@ const projectsOfStations = holdProjects({
   depots: repositoriesOfChef({ gh: process.env.BRIGADE_GH_BIN || "gh", delaiMs: 30_000 }),
   // La station de cet ordinateur : c'est elle que la page d'un projet appelle « this computer ».
   locale: () => (role.role === "station" ? gistLocal(rootOfTheStation) : null),
-  // Déménager une cuisine, c'est l'opération du runtime, lancée ici avec le répertoire de la station
-  // de cet ordinateur (projects/move.ts) : un téléphone, qui n'a pas de runtime, n'en lance aucune.
-  ...(role.role === "station" ? { demenager: moverOfRuntime({ node: locations.node, runtime: locations.runtime, racine: rootOfTheStation, env: process.env, delaiMs: 60_000 }) } : {}),
   // Le dépôt et la branche d'un projet, lus par `git` dans son clone sur cet ordinateur (#1306, addition.ts) : une
   // station de plus les en prend quand la première ne les dit pas.
   leClone: async (name) => {

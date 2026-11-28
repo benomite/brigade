@@ -15,7 +15,7 @@ import { gardesDuTour } from "../../src/github-seul/garde-fous/garde-fous.ts";
 import { etatStation } from "../../src/projections/stations.ts";
 import { activeEngine, direLeStatut, moteursDeLaStation, VARIABLE_DU_MOTEUR } from "../../src/repli/moteur-actif.ts";
 import { demarrer } from "../../src/runtime.ts";
-import { appeler, ENV_ENFANT, FAUX_CLAUDE, repertoireTemporaire } from "../outils.ts";
+import { ENV_ENFANT, FAUX_CLAUDE, repertoireTemporaire } from "../outils.ts";
 
 const STATION = "box/claude";
 

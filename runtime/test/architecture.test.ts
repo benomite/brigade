@@ -29,7 +29,6 @@ const RESEAU = /from "node:(net|http|https|http2|tls|dgram|dns)"|\bfetch\(|\bWeb
 const VERS = {
   "arbitrage.ts": "l'arbitre entre projets, sur 127.0.0.1",
   "arbitre.ts": "n'ouvre rien : il écoute, sur 127.0.0.1",
-  "fermeture-alerte-publication.ts": "l'API de GitHub, pour fermer les alertes de publication dont la release est publiée (#3089) — jouée par le workflow publier-app, pas par la station",
   "identites.ts": "l'API de GitHub, pour les jetons des rôles",
   "installateur.ts": "n'ouvre rien : il cherche un port libre sur la machine",
   "mise-a-jour/publications.ts": "les releases du dépôt de brigade sur GitHub, pour la mise à jour de la station",
@@ -47,10 +46,10 @@ test("la déclaration d'une station distante ne porte aucune adresse : la box ne
   }
 });
 
-test("`runtime/src` : seuls neuf modules touchent au réseau, aucun vers une station — et plus aucun ne sert les stations distantes", () => {
+test("`runtime/src` : seuls sept modules touchent au réseau, aucun vers une station — et plus aucun ne sert les stations distantes", () => {
   const fichiers = sources();
   assert.deepEqual(fichiers.filter((fichier) => RESEAU.test(lire(fichier))).map(nom).sort(), Object.keys(VERS).sort());
-  // Aucun de ces neuf ne connaît les stations distantes : ni leurs modules, ni
+  // Aucun de ces sept ne connaît les stations distantes : ni leurs modules, ni
   // leur déclaration, ni leurs demandes.
   for (const fichier of Object.keys(VERS)) {
     assert.doesNotMatch(lire(join(SRC, fichier)), /distante|remote\.|tirer\.ts|stations-declarees/i, fichier);

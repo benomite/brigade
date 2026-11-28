@@ -173,7 +173,7 @@ export function poserLaVue(demarrage: Demarrage, www = WWW, app = APP): void {
 // comme dans l'app —, ses imports réécrits vers ces fichiers. Les modules de Node qu'ils importent pour le
 // desktop (un `ssh`, un fichier) n'existent pas dans la WebView : chacun est remplacé par un module inerte, aux mêmes
 // noms, que rien n'appelle sur le téléphone — le pont n'en lit que ce qui calcule. Un module du runtime que l'app
-// partage avec lui (le lecteur du tableau de la cuisine, runtime/src/tableau/rendu/bloc.ts) est posé à
+// partage avec lui (un fichier de `runtime/src/`) est posé à
 // `runtime/src/<chemin>.js` : à côté de l'app, comme dans le paquet du desktop. Rend les fichiers posés, relatifs à `www`.
 // Et ceux du sondage des cartes de TODO (#2747) : `src/notifications-todo.js`, que le pont (la réponse retire la notification)
 // et android/sonde.html chargent, et le client de GitHub que sonde.html compose.

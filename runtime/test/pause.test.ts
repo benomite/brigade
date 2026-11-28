@@ -10,7 +10,7 @@ import { ouvrirJournal } from "../src/journal.ts";
 import { demanderPause, leverPause, pauseAccordee, pauseEnCours, repondre } from "../src/pause/pause.ts";
 import { lireRail } from "../src/projections/rail.ts";
 import { sansMotFrancais } from "./aides/glossaire.ts";
-import { appeler, JOUR_HORLOGE, jourDecale, repertoireTemporaire } from "./outils.ts";
+import { JOUR_HORLOGE, jourDecale, repertoireTemporaire } from "./outils.ts";
 
 const STATION = "box/claude";
 const LIMITES = { durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };

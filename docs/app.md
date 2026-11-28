@@ -145,7 +145,7 @@ that is the project's kitchen, the state — not the screen.
 A single file, outside the repo: `~/.config/brigade/app.json`. A name and a folder per project (and the repository
 and branch it follows). **You do not have to write it to begin**: the app creates it, and you add a project in
 it from the app. The runtime creates it too, on its first start (`{ "projets": [] }`: no path), and adds the keys a
-file lacks without changing any value it has (`runtime/src/app-par-defaut.ts`). Where a project cooks is not in this
+file lacks without changing any value it has. Where a project cooks is not in this
 file: it is read from the project's issues on GitHub (the claim comments of its stations) and from the stations you
 paired.
 
@@ -2072,8 +2072,7 @@ carries one of the app's brands, including the one from before the English renam
   it, `station/app.pid` names the process that holds it, which removes it when it stops; a mark written before the
   system started does not count, its pid may have gone to another process — and never starts a second one: same process, same pid
   after an app restart. A second background station started anyway says the first runs and leaves, and the station
-  itself refuses to start (code 2) on a directory another station process holds
-  (`runtime/src/station-fond/seule.ts`).
+  itself refuses to start (code 2) on a directory another station process holds.
 - **Every project is served here (#4286).** The app sets no project aside for another station: tickets are
   claimed on GitHub, so two stations serving one project never cook the same ticket. A line an older version
   had turned into a `# held-back (served by <station>): …` comment is put back as it was at the next launch
@@ -2147,7 +2146,7 @@ station takes them from the first station, or from what the app asked before, or
 clone on this computer (its `origin`, and the branch its repository declares), and the calibration
 already requested. `Add <station> to the kitchen` with nothing touched adds it: its request carries its
 own cooks and its ticked capabilities (`fournit`), which the station declares in its own journal, never in
-the repository. **The station then serves the project** (#1830): the station opens the project's kitchen on its computer and takes the tickets it can cook, whatever other stations serve it (#2713) — a ticket only that computer can cook leaves for it on its own; there is no second gesture (`runtime/src/projets/tenir.ts`). **A value nobody says** — neither the first
+the repository. **The station then serves the project** (#1830): the station opens the project's kitchen on its computer and takes the tickets it can cook, whatever other stations serve it (#2713) — a ticket only that computer can cook leaves for it on its own; there is no second gesture. **A value nobody says** — neither the first
 station nor the clone — is read in one sentence above the button; no field appears after the click.
 
 **The flow of a new project** (#1111), under that line, in place of the empty space: the four steps
@@ -2325,20 +2324,14 @@ runtime beside it to record the choice: it says so in one sentence, and nothing 
   other paired station (`this Mac` for this computer's station), the one the app recommends
   (always on) set apart, what each implies on hover, and **the price in one line**:
   `Its cooks in flight stop and their tickets go back to the rail; its whole log follows it.`
-  A click on a machine moves the kitchen — to this Mac, to its box, to another station —,
-  **without removal or re-adding**. The app runs the runtime's operation on this computer
-  (`runtime/src/demenagement/demenager.ts`, with its station's directory and your
-  stations' gists): it writes the two requests, and the rest happens between the two stations.
-- **Once launched**, the line below says so (`<projet>'s kitchen moves to this Mac: parade-box hands it over
-  as soon as this Mac is ready — until then it cooks on parade-box`); while it is under way, the
-  line says `· moving to this Mac…`, its step on hover, and no other move can be requested
-  once the target station has accepted it.
+  **The move is now refused** (#4712): the runtime operation that carried it out no longer exists, so
+  the app has nothing to run and every click ends on the refusal below — nothing is written, and the
+  project keeps cooking where it was.
 - **Refused, the reason is read in one sentence under the line, in red**, and the line does not change:
-  `parade stays on parade-box: <the runtime's reason>` — to this Mac without a sandbox, what it
-  lacks (`la configuration du bac à sable ne tient pas sur ce Mac — …`). A refusal from the target
-  station, after the fact, is stated the same way (`… : this Mac refused to take it over — …`); the choice then offers
-  `keep it on parade-box`, which takes the request back. GitHub unreachable, or a runtime that does not
-  start, are stated in one line, their detail on hover: nothing fails silently.
+  `<projet> stays on <station>: <reason>`. Today the reason is always that the move is no longer
+  carried out by the runtime (#4712), whatever the target; the choice offers nothing to take back, because
+  nothing was requested. A runtime that does not start is stated in one line, its detail on hover:
+  nothing fails silently.
 - **The gesture is offered only for a project handed over from the app**, that cooks on one of your paired
   stations: it is the app's request that the operation rewrites. A project served by a station without the app having asked it, has none — the operation would
   refuse it (`add it rather than move it`). An app with no runtime next to it (a phone) launches
@@ -2567,8 +2560,8 @@ The app sets a repository up for Brigade on the GitHub-only path — no box, no 
 session it opens in the project's second, with **no slash command**: the session gets its instructions the way the
 second gets its role, appended to its system prompt (`--append-system-prompt-file`), and a one-line first message
 starts it. The instructions are `app/src/setup/instructions.md`; the app renders them next to the projects file
-(`~/.config/brigade/setup/`), their `@NODE@`, `@SETUP_PR@` and `@SCRIPT@` marks replaced by this computer's `node`,
-the runtime's `pr-de-setup.ts` and the setup script copied there, executable (`app/src/setup/setup.ts`).
+(`~/.config/brigade/setup/`), their `@SCRIPT@` mark replaced by the setup script copied there, executable
+(`app/src/setup/setup.ts`).
 
 - The session deduces the test and install commands (and asks only for what it cannot deduce), then the script
   (`app/src/setup/init.sh`, its label catalogue `labels.tsv` beside it) does the writing: the rail's labels on the
@@ -2577,12 +2570,9 @@ the runtime's `pr-de-setup.ts` and the setup script copied there, executable (`a
   **a pull request you merge**, its commit and body saying they were written by the Brigade app's repository setup;
   the chef is also asked once whether to add a "Cooked by Brigade" badge at the top of the README (`--badge`, see
   `docs/logo/README.md`). Your own checkout is never touched. Replayed once merged, it says `unchanged`.
-- The session runs that script through the runtime's `runtime/src/second-init/pr-de-setup.ts` (#3169), which then
-  puts the pull request in your TODO — an issue `Merge the setup pull request` with the `chef-todo` label and a
-  card whose choice merges it; the pull request says `Closes #<that issue>`, so merging it lifts the card — and
-  gives the session its last message: the pull request's address, why you are the one to merge it (it sets what
-  will judge every future delivery: the integration branch, the checks, the file zones), and that the project
-  shows as ready once it is merged. Replayed on the same pull request, it adds no second issue or card.
+- The session runs that script with `bash`; its last line says `pr <url>`, and the session gives the pull
+  request's address, why you are the one to merge it (it sets what will judge every future delivery: the
+  integration branch, the checks, the file zones), and that the project shows as ready once it is merged.
 - The packaged app carries `src/` whole, so `src/setup/` ships with it (`app/packaging/construire.ts`, `linux.ts`,
   `windows.ts`).
 
@@ -3959,13 +3949,12 @@ instructions (`rôle : …`).
 - **No test launches Electron.** What can be proven lives in twenty modules run by
   `node --test`: `config.ts` (the projects file: reading it, creating it, adding a project to it,
   moving one to another place in it — a legacy key naming a host, boxes or played stations is read and ignored),
-  `nom.ts` (the shape of the name, held against the rule of the installation action: the test calls
-  `lireDemande` of `runtime/src/installateur.ts`), `ajout.ts` (adding a project: the fields
+  `nom.ts` (the shape of the name), `ajout.ts` (adding a project: the fields
   with no default, the repository and the branch read from the chosen clone, and the project written to the real projects file),
   `service.ts` (the
   commissioning: its states — init not merged, check incomplete, all ready —, what `Check` launches
   and what it does with each exit code, through the local station's gesture; and that `Start` writes nothing —
-  the verdict line is compared with `runtime/src/installation-cli.ts`), `removal.ts` (removing a project:
+  the verdict line is the one the station's check prints), `removal.ts` (removing a project:
   that "Remove this project from the app" only takes the project out of the projects file and sends nothing to its station),
   `tracking.ts` (the same file read again when it changes, on real files and the system's real
   watch), `lancement.ts` (what `start` sets up before Electron — the commands are collected there,
