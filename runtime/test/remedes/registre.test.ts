@@ -4,6 +4,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { REFUSAL_CODES } from "../../src/projets/refusal-codes.ts";
+import { refusal, REFUSAL_CAUSES } from "../../src/projets/refusal.ts";
 import { creerRegistre, decrire, REMEDES, SANS_REMEDE, type Remede } from "../../src/remedes/registre.ts";
 
 // Le remède des tests : il ne fait rien d'autre que se compter.
@@ -24,15 +25,18 @@ test("un refus qu'aucun remède ne lève porte pourquoi il n'y a pas de bouton, 
     assert.doesNotMatch(pourquoi.slice(0, -1), /[.!?] [A-Z]/, `${code} : une seule phrase`);
     assert.doesNotMatch(pourquoi, /[/\\`]|\.(ts|json)\b|BRIGADE_/, `${code} : ni chemin ni terme de code`);
   }
-  const servi = decrire("hand-written-line", creerRegistre());
-  assert.deepEqual(servi, { noRemedy: SANS_REMEDE["hand-written-line"] });
+  const servi = refusal("hand-written-line", creerRegistre());
+  assert.deepEqual(servi, { status: "refused", code: "hand-written-line", ...REFUSAL_CAUSES["hand-written-line"], noRemedy: SANS_REMEDE["hand-written-line"] });
   assert.equal("remedy" in servi, false);
 });
 
 test("un refus qu'un remède lève porte son descripteur — description, drapeau destructif, identifiant — et plus de raison sans bouton", () => {
   const registre = creerRegistre([unRemede()]);
-  const servi = decrire("hand-written-line", registre);
+  const servi = refusal("hand-written-line", registre);
   assert.deepEqual(servi, {
+    status: "refused",
+    code: "hand-written-line",
+    ...REFUSAL_CAUSES["hand-written-line"],
     remedy: { id: "remove-hand-written-line", description: "Removes the hand-written line for this project from the station's configuration.", destructive: true },
   });
   assert.equal("noRemedy" in servi, false);
@@ -44,7 +48,7 @@ test("un refus qu'un remède lève porte son descripteur — description, drapea
 
 test("un remède enregistré après coup paraît dans le refus servi, sans autre retouche ; un remède non destructif le dit", () => {
   const registre = creerRegistre();
-  assert.equal("remedy" in decrire("proxy-port-set", registre), false);
+  assert.equal("remedy" in refusal("proxy-port-set", registre), false);
   registre.enregistrer(unRemede({ id: "drop-port-setting", leve: ["proxy-port-set", "configuration-invalid"], description: "Removes the port setting from this project's line.", destructif: false }));
   assert.deepEqual(decrire("proxy-port-set", registre), { remedy: { id: "drop-port-setting", description: "Removes the port setting from this project's line.", destructive: false } });
   assert.deepEqual(decrire("configuration-invalid", registre), { remedy: { id: "drop-port-setting", description: "Removes the port setting from this project's line.", destructive: false } });
@@ -68,7 +72,7 @@ test("le registre refuse, en le disant, un identifiant pris ou mal formé, un re
 
 test("les remèdes du runtime sont bien formés, et le refus servi par défaut porte l'un des deux", () => {
   for (const code of REFUSAL_CODES) {
-    const servi = decrire(code);
+    const servi = refusal(code);
     assert.equal("remedy" in servi !== "noRemedy" in servi, true, code);
     const remede = REMEDES.pour(code);
     if (remede !== null) assert.equal(REMEDES.parId(remede.id), remede);
