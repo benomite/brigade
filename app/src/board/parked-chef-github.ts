@@ -24,5 +24,23 @@ export function whyParked(comments: readonly Comment[]): { texte: string; le: st
   return { texte: (said.body as string).trim(), le: the };
 }
 
-// La carte d'une issue `parked:chef` : ce que la cuisine en dit, ou `SANS_POURQUOI`.
-export const parkedChefCard = (comments: readonly Comment[]): CardOfChef => ({ sorte: KIND_PARKED_CHEF, texte: whyParked(comments)?.texte ?? WITHOUT_WHY });
+// Le commentaire d'une PR que la passe approuve mais qui touche une zone à risque (`riskZoneComment`, runtime/src/epics.ts,
+// #4489) : le chef la merge, par le geste `merge`. Il dit la PR et ses fichiers.
+const OF_THE_RISK_ZONE = /^\s*The pass approves PR #(\d+), but /;
+const isTrusted = ({ body, author_association }: Comment) => typeof body === "string" && OF_TRUST.includes(String(author_association));
+
+// Le dernier commentaire de la cuisine qui attend le chef : la PR à merger et son texte ; nul si le dernier mot de la cuisine
+// est un autre (« Parked for the chef », renvoi) ou s'il n'y en a pas.
+export function riskZoneWaiting(comments: readonly Comment[]): { pr: number; texte: string } | null {
+  const last = [...comments].reverse().find((one) => isTrusted(one) && (OF_THE_RISK_ZONE.test(one.body as string) || OF_THE_KITCHEN.test(one.body as string)));
+  const found = last === undefined ? null : OF_THE_RISK_ZONE.exec(last.body as string);
+  return found === null || last === undefined ? null : { pr: Number(found[1]), texte: (last.body as string).trim() };
+}
+
+// La carte d'une issue `parked:chef` : ce que la cuisine en dit, ou `SANS_POURQUOI`. Une PR qui attend le chef pour une zone
+// à risque a son geste : Merge.
+export function parkedChefCard(comments: readonly Comment[]): CardOfChef {
+  const risk = riskZoneWaiting(comments);
+  if (risk !== null) return { sorte: KIND_PARKED_CHEF, texte: `${risk.texte}\n- [merge] Merge PR #${risk.pr}` };
+  return { sorte: KIND_PARKED_CHEF, texte: whyParked(comments)?.texte ?? WITHOUT_WHY };
+}
