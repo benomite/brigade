@@ -1,6 +1,6 @@
-// Les codes de refus d'une station, seuls : `projets/refus.ts` leur donne
-// phrase et remède, le fichier `en-service` ne garde que le code.
-export const CODES_DE_REFUS = [
+// Les codes de refus d'une station, seuls : le fichier `en-service` ne garde
+// que le code.
+export const REFUSAL_CODES = [
   // La cuisine du projet refuse de s'ouvrir.
   "sandbox-unusable",
   "configuration-invalid",
@@ -22,4 +22,4 @@ export const CODES_DE_REFUS = [
   "unexpected",
 ] as const;
 
-export type CodeDeRefus = (typeof CODES_DE_REFUS)[number];
+export type RefusalCode = (typeof REFUSAL_CODES)[number];

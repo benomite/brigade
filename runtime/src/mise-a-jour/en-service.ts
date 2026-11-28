@@ -8,15 +8,15 @@
 // suffit pas — il faut que la station l'ait dit.
 import { readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { CODES_DE_REFUS, type CodeDeRefus } from "../projets/codes-de-refus.ts";
+import { REFUSAL_CODES, type RefusalCode } from "../projets/refusal-codes.ts";
 
 export const EN_SERVICE = "en-service";
 
 // `refuses` : les projets de la configuration que la station n'a pas pu
 // ouvrir, et pourquoi. `causes` : la cause de chacun pour le chef
-// (`projets/codes-de-refus.ts`) — absent quand aucun n'est refusé, et d'une station
+// (`projets/refusal-codes.ts`) — absent quand aucun n'est refusé, et d'une station
 // d'avant ce champ.
-export type EnService = { version: string; pid: number; depuis: string; servis: string[]; refuses: Record<string, string>; causes?: Record<string, CodeDeRefus> };
+export type EnService = { version: string; pid: number; depuis: string; servis: string[]; refuses: Record<string, string>; causes?: Record<string, RefusalCode> };
 
 // La version du runtime qui tourne : celle que la construction du paquet
 // écrit dans son package.json. Hors du paquet — un clone, le poste de dev —,
@@ -37,7 +37,7 @@ export function lireEnService(racine: string): EnService | null {
     const lu = JSON.parse(readFileSync(join(racine, EN_SERVICE), "utf8")) as Partial<EnService>;
     if (typeof lu.version !== "string" || typeof lu.pid !== "number" || typeof lu.depuis !== "string" || !Array.isArray(lu.servis)) return null;
     const refuses = typeof lu.refuses === "object" && lu.refuses !== null ? lu.refuses : {};
-    const causes = typeof lu.causes === "object" && lu.causes !== null ? Object.entries(lu.causes).filter(([, code]) => (CODES_DE_REFUS as readonly unknown[]).includes(code)) : [];
+    const causes = typeof lu.causes === "object" && lu.causes !== null ? Object.entries(lu.causes).filter(([, code]) => (REFUSAL_CODES as readonly unknown[]).includes(code)) : [];
     return {
       version: lu.version.slice(0, 100),
       pid: lu.pid,
@@ -56,7 +56,7 @@ export function lireEnService(racine: string): EnService | null {
 // N'empêche jamais le process de sortir.
 export function annoncerEnService(
   racine: string,
-  lire: () => { servis: string[]; refuses: Record<string, string>; causes?: Record<string, CodeDeRefus> },
+  lire: () => { servis: string[]; refuses: Record<string, string>; causes?: Record<string, RefusalCode> },
   options: { version?: string; pid?: number; maintenant?: () => Date; intervalleMs?: number; dire?: (ligne: string) => void } = {},
 ): () => void {
   const version = options.version ?? versionDuRuntime();
