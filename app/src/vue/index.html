@@ -37,7 +37,6 @@
     <link rel="stylesheet" href="card-diagram/card-diagram.css" />
     <link rel="stylesheet" href="vue.css" />
     <link rel="stylesheet" href="know-how/know-how.css" />
-    <link rel="stylesheet" href="first-launch/opinion-of-background.css" />
     <link rel="stylesheet" href="card-project/card-project.css" />
     <link rel="stylesheet" href="identities-github.css" />
     <link rel="stylesheet" href="projects-served/projects-served.css" />
@@ -47,10 +46,6 @@
     <link rel="stylesheet" href="kitchen/kitchen.css" />
     <link rel="stylesheet" href="parked/parked.css" />
     <link rel="stylesheet" href="since-last-looked/since-last-looked.css" />
-    <link rel="stylesheet" href="visit/visit.css" />
-    <link rel="stylesheet" href="journey-first-project/journey-first-project.css" />
-    <link rel="stylesheet" href="first-ticket/first-ticket.css" />
-    <link rel="stylesheet" href="story-first-ticket/story-first-ticket.css" />
     <link rel="stylesheet" href="installation-project/installation-project.css" />
     <link rel="stylesheet" href="choice-station/choice-station.css" />
     <link rel="stylesheet" href="stations-tab/stations-tab.css" />
@@ -82,7 +77,6 @@
     <section id="connexion-github" aria-label="Sign in to GitHub" hidden></section>
     <!-- L'écran du premier lancement sur un Mac neuf, avant l'avis de macOS (ticket 4081) : vide, et caché, sauf au
          premier lancement, où l'app derrière reste cachée jusqu'à son bouton. -->
-    <section id="avis-de-fond" aria-label="Brigade runs in the background" hidden></section>
     <div id="cadre">
     <nav id="projets" aria-label="Projects"></nav>
     <section id="tous" aria-label="All projects" hidden></section>
@@ -91,7 +85,7 @@
     <!-- Le détail en grand d'une carte « Validate its screen » (ticket 3212) : un clic sur la carte l'ouvre par-dessus l'app,
          en plein écran sur le téléphone ; fermé — son bouton, Échap, ou l'un de ses deux gestes —, il rend ce qui était dessous. -->
     <section id="detail-de-validation" role="dialog" aria-modal="true" aria-label="A design validation, in large" tabindex="-1" hidden></section>
-    <!-- L'écran « Add a project » (ticket 3181, journey-project/addition.js) : le choix du dépôt, et rien d'autre. -->
+    <!-- L'écran « Add a project » (ticket 3181, addition-project/addition.js) : le choix du dépôt, et rien d'autre. -->
     <section id="ajout" aria-label="Add a project" hidden></section>
     <main>
       <!-- La bande d'alertes : est-ce que ça peut tourner ? Vide quand tout va bien — elle ne prend alors aucune place. -->
@@ -112,13 +106,11 @@
       <!-- Tant que le projet qu'« Add a project » vient d'ouvrir n'est pas prêt (ticket 3166) : à la place du rail, une question
            à la fois — qui le cuit, puis sa mise en place s'il le faut —, ce qui est attendu et de qui. Prêt, une ligne au-dessus
            du rail propose d'écrire son premier ticket avec le second. -->
-      <section id="parcours-premier-projet" aria-label="Until the project is ready" aria-live="polite" hidden></section>
       <!-- Le premier ticket du premier projet du chef (ticket 3302) : une ligne à chaque vraie étape, à mesure qu'elle se passe —
            pris, PR ouverte, en pass, renvoyé et pourquoi, servi avec le lien de sa PR. Rangé d'un geste, il ne revient plus. -->
       <!-- Un projet dont la mise en place vient de passer, qu'aucune station ne sert (ticket 3400) : au-dessus du rail, la
            question — quelle station le sert —, cet ordinateur en tête. -->
       <section id="installation-projet" aria-label="Which station serves this project" aria-live="polite" hidden></section>
-      <section id="recit-premier-ticket" aria-label="Your first ticket, step by step" aria-live="polite" hidden></section>
       <!-- Les stations qui font la cuisine du projet (ticket 983) : nommées en une ligne, avec de quoi en ajouter
            une ; s'il n'en a aucune, une phrase le dit, et le geste qui la lui confie est à côté. Elles sont de
            l'onglet Cooks (ticket 1184) — sauf tant que le projet ne cuit nulle part : elles sont alors ce qui t'attend. -->
@@ -131,7 +123,6 @@
       <!-- Le temps de l'ajout au premier ticket servi (ticket 1401) : court tant qu'aucun n'est servi, figé ensuite. -->
       <section id="delai-du-projet" aria-label="Time to its first served ticket" hidden></section>
       <!-- L'offre du téléphone (ticket 3303) : sur le premier projet, juste après son premier ticket servi. -->
-      <section id="offre-telephone" aria-label="Your phone" hidden></section>
       <section id="blocages-du-projet" aria-label="What blocks it" aria-live="polite" hidden></section>
       <p id="note" aria-live="polite" hidden></p>
       <!-- Le centre : l'onglet montré (ticket 1184). Rail : ce qui t'attend, puis On the rail, TODO, WAITING, Served ;
@@ -197,6 +188,5 @@
     </div>
     <p id="relecture" aria-live="polite" hidden></p>
     <section id="avis" aria-live="polite" hidden></section>
-    <section id="visite" aria-label="Visit of a real kitchen" aria-live="polite" hidden></section>
   </body>
 </html>

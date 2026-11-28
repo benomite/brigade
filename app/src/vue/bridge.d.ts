@@ -79,14 +79,6 @@ export type Bridge = {
   // second où l'écrire — le téléphone (ticket 1164) —, le pont joue l'action sur la station et rend ce qu'elle a fait,
   // comme `panne` : `fait`, une phrase, et ce que la station a répondu en `detail`.
   gesteDeFiche(project: string, id: string, ticket: number, value?: string): Promise<Terminal | { refus: string; detail?: string } | { fait: string; detail?: string }>;
-  // Le départ d'un projet qu'« Add a project » vient d'ouvrir (ticket 3268, departure-of-project.ts) : ses issues ouvertes et ce que le
-  // second en propose, puis la mise sur le rail des lignes que le chef a gardées, avec leurs priorités.
-  departDuProjet(project: string): Promise<import("../departure-of-project.ts").Departure>;
-  mettreSurLeRail(project: string, lines: { ticket: number; priorite: number }[]): Promise<import("../departure-of-project.ts").Putting | { refus: string; detail?: string }>;
-  // Le premier ticket d'un projet prêt (ticket 3306, first-ticket.ts) : le second l'écrit d'après la réponse du chef —
-  // ou le réécrit avec ses changements —, et rien n'est créé ; sur le « oui » seul, l'issue est créée avec ses labels, `fire` compris.
-  redigerLePremierTicket(project: string, request: import("../first-ticket.ts").Request): Promise<import("../first-ticket.ts").Redaction>;
-  creerLePremierTicket(project: string, draft: import("../first-ticket.ts").Draft): Promise<import("../first-ticket.ts").Creation>;
   // L'histoire d'un ticket et son coût, lus par `pass <ticket> --json` sur la box (story.ts).
   lireHistoire(project: string, ticket: number): Promise<import("../story.ts").Story | undefined>;
   // Les chiffres d'autonomie des projets nommés, ensemble, sur les `jours` derniers jours, lus de GitHub
@@ -182,11 +174,6 @@ export type Bridge = {
   // Le chef a touché la notification d'une carte de TODO sur le téléphone (le ticket 2747), ou cliqué une question dans le
   // menu de la barre des menus sur un ordinateur (ticket 3269) — sa fiche s'ouvre.
   surOuvrirCarte?(receive: (project: string, ticket: number) => void): void;
-  // L'écran du premier lancement avant l'avis de macOS (ticket 4081, first-launch/opinion-of-background.js) : le process
-  // principal l'attend-il déjà, le demande plus tard, et son bouton pressé. Pas sur le téléphone.
-  avisDeFond?(): Promise<boolean>;
-  surAvisDeFond?(receive: () => void): void;
-  continuerLePremierLancement?(): Promise<void>;
   // GitHub refuse la connexion de ce téléphone : le pont efface son jeton, et la vue revient à la connexion à GitHub.
   oublierLeTelephone?(): Promise<void>;
   // Le code qu'une station affiche, tapé par le chef : rend le nom de la station appairée, ou le
@@ -222,9 +209,6 @@ export type Bridge = {
   retirerDUneStation(name: string): Promise<RemovalOfAStation>;
   // Déménage la cuisine d'un projet vers une station appairée — son gist (projects/move.ts).
   demenagerLaCuisine(name: string, to: string): Promise<Move>;
-  // « Continue without sandbox », devant une station sans bac à sable (ticket 1113) : le chef décide pour la
-  // station du projet, et la retenue du rail se lève. Rend ce qui est fait, ou pourquoi rien.
-  continuerSansBacASable(name: string): Promise<{ fait: string } | { refus: string; detail?: string }>;
   // Une issue de la carte d'un besoin qui manque à la principale du projet (ticket 1400) : le choix — sa clé —, l'issue
   // retenue. Elle s'écrit dans la demande de la principale, qui la pose à son journal. Rend ce qui est fait, ou pourquoi rien.
   choisirUneIssue(name: string, choice: string, issue: string): Promise<Chosen>;
@@ -269,10 +253,6 @@ export type Bridge = {
   // tient, et un projet ajouté ou retiré — chaque écriture rend la liste écrite. Absents, ou rien de rendu : pas de station.
   projetsServis?(): Promise<import("./projects-served/projects-served.js").ReadOfProjectsServed | undefined>;
   servirUnProjet?(repository: string, served: boolean): Promise<import("./projects-served/projects-served.js").ReadOfProjectsServed>;
-  // Le premier lancement, sur un ordinateur neuf (ticket 1434, first-launch.ts) : les stations que le chef a
-  // appairées et leurs projets, tels que le runtime les lit sur GitHub — listées, une connexion à GitHub qui manque,
-  // ou pourquoi elles ne se lisent pas. Le téléphone ne les porte pas.
-  stationsDuChef?(): Promise<StationsOfChef>;
   // Ouvre un projet qu'une station porte, ou un dépôt choisi dans « Add a project », sans dossier à choisir : sa copie
   // reprise ou clonée par le runtime, puis le projet ajouté au fichier des projets — il arrive par `surConfiguration` —,
   // ou pourquoi il ne l'est pas. `base` : la branche par défaut que GitHub a donnée du dépôt, sa branche d'intégration.
@@ -293,12 +273,6 @@ export type Bridge = {
   // Ouvre une page qu'un échec du runtime a nommée (installer `gh`, demander l'accès), ou celle qui dit comment obtenir
   // un outil qui manque au second (ticket 1435) ; rend faux pour toute autre.
   ouvrirLaPage?(url: string): Promise<boolean>;
-  // Le lien de l'app Android que l'offre du téléphone montre (ticket 3303, update/android.ts) : l'`apkUrl` de la
-  // dernière version publiée, ou la page des versions de brigade s'il ne se lit pas ; `ouvrirLaPage` l'ouvre ensuite.
-  lienDeLApk?(): Promise<string>;
-  // Un téléphone déjà connecté au compte GitHub de cet ordinateur (ticket 3303, phone-connected.ts) : la trace que
-  // l'app Android pose dans un gist ; `illisible` quand la liste des gists ne se lit pas.
-  telephoneConnecte?(): Promise<{ connecte: boolean } | { illisible: string }>;
   // Les agents au travail d'un projet (ticket 4569, agents/source.js) : lus sur GitHub et sur sa station.
   agentsAtWork?(project: string): Promise<unknown>;
   // What changed since the chef last opened the project (ticket 4649, since-last-looked/), read from GitHub: this opening
@@ -307,9 +281,6 @@ export type Bridge = {
   // Le niveau d'autonomie d'un agent, réglé ; un geste en attente, approuvé. Le côté runtime vient d'un autre ticket.
   reglerLAutonomie?(project: string, agent: string, level: import("./autonomy/source.js").Level): Promise<void>;
   approuverLeGeste?(project: string, agent: string, id: string): Promise<void>;
-  // La cuisine que la visite montre (ticket 4087, visit.ts) : son rail, lu sur GitHub en lectures seules — rien n'est
-  // cloné ni ajouté —, ou pourquoi il ne se lit pas. Seule benomite/brigade se visite.
-  lireLaCuisineVisitee?(repository: string): Promise<import("../visit.ts").KitchenVisited>;
   // Les stations enregistrées sous le compte GitHub du chef (ticket 1706, stations-of-account.ts) : listées — chacune
   // disponible ou non, avec les projets qu'elle sert —, une connexion à GitHub qui manque, ou pourquoi elles ne se
   // lisent pas. Le téléphone ne les porte pas.

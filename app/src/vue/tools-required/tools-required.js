@@ -8,9 +8,8 @@
 // rien n'est relancé à la place du chef. Un outil toujours absent se dit en une ligne, et l'offre reste.
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément (bricks.js), et rend des éléments.
 
-import { buttonAction } from "../bricks.js";
-import { sentence } from "../onboarding/journey.js";
-import { actions } from "../journey-project/connection.js";
+import { buttonAction, sentence } from "../bricks.js";
+import { actions } from "../addition-project/connection.js";
 import { lineError } from "../components/line-error/line-error.js";
 import { THIS_COMPUTER } from "../lexicon.js";
 

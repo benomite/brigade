@@ -396,15 +396,7 @@ export type Board = {
   // Ce que les cooks ont appris au projet (learning.ts) : ses leçons et ses profils, que la page
   // Reliability pose sous les causes corrigées — vides, elle le dit en une phrase.
   apprentissage: Learning;
-  // Où en est chaque ticket pris, en pass ou servi, que le récit du premier ticket suit (ticket 3302,
-  // vue/first-ticket/) — absent d'un tableau qui ne vient pas d'ici (un souvenir d'avant ce champ).
-  etapesDesTickets?: StepOfTicket[];
 };
-
-// Un ticket tel que le récit du premier ticket le suit (ticket 3302) : son mot d'état (`pris`, `en pass`, `base rouge`,
-// `servi`…), la PR qui le livre — `numero` nul quand l'adresse ne le dit pas ; nulle sans PR, ou quand son adresse n'est
-// pas en https et ne s'ouvre pas —, et son dernier renvoi à un cook — nul sans renvoi.
-export type StepOfTicket = { ticket: number; etat: string; pr: { numero: number | null; url: string } | null; renvoi: { n: number; raison: string } | null };
 
 // Ce qu'une lecture de `faits` donne à la vue : le tableau ; ou, sous un `titre`
 // qui dit lequel, ce que la box a `rendu` à la place des faits, mot pour mot, et
@@ -1357,17 +1349,7 @@ export function board(facts: Facts, awaiting?: BlockRead, status?: StatusRead, a
     ...(facts.rolesCuisine === undefined ? {} : { rolesCuisine: facts.rolesCuisine }),
     ...(facts.postMortems === undefined ? {} : { postMortems: vueOfPostMortems(facts.postMortems, new Date(facts.lu)) }),
     apprentissage: learningOf(facts.apprentissage),
-    etapesDesTickets: stepsOfTickets(facts),
   };
-}
-
-// Où en est chaque ticket que `faits` rend, pour le récit du premier ticket (ticket 3302) : ceux du rail, puis les servis
-// des 24 h — leur PR mergée. Un ticket illisible n'en est pas : rien n'y est deviné.
-export function stepsOfTickets(facts: Facts): StepOfTicket[] {
-  const prOf = (url: string, number?: number) => (openable(url) ? { numero: number ?? (Number(/\/pull\/(\d+)\/?$/.exec(url)?.[1]) || null), url } : null);
-  const ofRail = facts.rail.flatMap(({ ticket, etat: state, pr, renvoi: sendBack, illisible: unreadable }) => (unreadable !== undefined ? [] : [{ ticket, etat: state, pr: pr === undefined ? null : prOf(pr.url, pr.numero), renvoi: sendBack ?? null }]));
-  const servedOnes = (facts.livres ?? []).flatMap(({ ticket, pr, illisible: unreadable }) => (unreadable !== undefined ? [] : [{ ticket, etat: "servi", pr: pr === null ? null : prOf(pr), renvoi: null }]));
-  return [...ofRail, ...servedOnes];
 }
 
 // La bannière d'arrêt : posée sur le « stop » du chef, avec ce qu'il implique

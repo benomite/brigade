@@ -2,7 +2,7 @@
 // reste recommandé par défaut, et le recommandé l'emporte sur la sorte. Joué devant un faux document.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { connectionSaid } from "../../src/vue/journey-project/connection.js";
+import { connectionSaid } from "../../src/vue/addition-project/connection.js";
 import { Fake } from "../helpers/false-vue.ts";
 
 const doc = { createElement: (balise: string) => new Fake(balise) };

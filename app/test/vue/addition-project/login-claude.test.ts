@@ -41,12 +41,11 @@ const facts = (): Facts => ({
   attend: [],
 });
 
-test("Add a project, not logged in: once the login ends and the project opens, its guided page comes as for any opening", async () => {
+test("Add a project, not logged in: once the login ends and the project opens, its page opens as for any opening", async () => {
   let trials = 0;
   let vue: Played | undefined;
   vue = await playTheVue({
     demarrage: startup,
-    stationsDuChef: () => ({ state: "listed", stations: [], unreadable: [] }),
     compteGitHub: () => ({ login: "octo-chef" }),
     stationsDuCompte: () => ({ state: "listed", stations: [], unreadable: [] }),
     choisirLesProjets: (_, repositories) => ({ selection: repositories }),
@@ -59,7 +58,6 @@ test("Add a project, not logged in: once the login ends and the project opens, i
     seConnecterAClaude: () => ({ fait: "the login page opens in your browser" }),
     projetsServis: () => ({ depots: [] }),
     espace: () => [SECOND],
-    departDuProjet: () => ({ aucune: true }),
     checkRepoSetup: () => ({ ready: false, missingBindings: ["Gates"], missingLabels: ["fire"] }),
   });
   (vue.poses().find((pose) => pose.id === "entree-ajout") ?? assert.fail("no « + »")).click();
@@ -74,5 +72,5 @@ test("Add a project, not logged in: once the login ends and the project opens, i
   played.dire("surFaits", { ...holdFacts(() => new Map()).recevoir({ projet: "secondes", demande: 0, a: A, sorties: [{ commande: "facts", texte: JSON.stringify(facts()) }] }), demande: played.dernier("faits")[0] as number });
   await repos();
   await repos();
-  assert.notEqual(vue.element("main").dataset.parcours, undefined, "the guided page of the project is open");
+  assert.equal(vue.element("espace").textContent, "secondes", "the page of the project is open");
 });

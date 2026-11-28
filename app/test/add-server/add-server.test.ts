@@ -1,15 +1,8 @@
 // « Add a server » (#4347, add-server/) : la ligne d'installation d'un serveur, à côté de la liste des stations — l'onglet
-// Stations, son choix « Who cooks <projet>? », et la page « who cooks it » d'un projet neuf —, puis le serveur vu arriver
-// sous le compte (`stationsDuCompte`), et le projet qui lui est confié par le geste de « Choose who cooks it ».
+// Stations et son choix « Who cooks <projet>? », puis le serveur vu arriver sous le compte (`stationsDuCompte`).
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, test } from "node:test";
-import { forTheBar } from "../../src/bar.ts";
-import { EXAMPLE, type Project } from "../../src/config.ts";
-import { PALETTE } from "../../src/colors.ts";
-import { BANNER, holdFacts, type Facts } from "../../src/facts.ts";
-import { TABS, HEADINGS } from "../../src/tabs.ts";
-import { EFFORTS, MODELS } from "../../src/projects/projects.ts";
 import type { StationRecorded, StationsOfAccount } from "../../src/stations-of-account.ts";
 import {
   ADD_A_SERVER,
@@ -25,9 +18,8 @@ import {
   CHECK_AGAIN,
   type StateOfServer,
 } from "../../src/vue/add-server/add-server.js";
-import { setJourneyFirstProject } from "../../src/vue/journey-first-project/journey-first-project.js";
 import { setTheTabOfStations } from "../../src/vue/stations-tab/stations-tab.js";
-import { Fake, playTheVue, type Played, type Answers, repos } from "../helpers/false-vue.ts";
+import { Fake } from "../helpers/false-vue.ts";
 
 const doc = { createElement: (balise: string) => new Fake(balise) };
 const station = (id: string, name: string, available = true): StationRecorded => ({
@@ -158,98 +150,5 @@ describe("aucune autre commande, aucune page d'installation, sur chaque écran q
     const root = setTheTabOfStations(doc as never, { ...BASE, choix: choice, serveur: OPEN } as never, ACTIONS as never) as Fake;
     assert.deepEqual(buttons(root), ["this computer", "Cancel", ADD_A_SERVER, "copy", CHECK_AGAIN]);
     withoutOther(root);
-  });
-
-  test("la page « who cooks it » d'un projet neuf : sous ses choix", () => {
-    const root = setJourneyFirstProject(
-      doc as never,
-      { depot: "chef/parade", vu: { etape: "station" }, progression: "1 of 2: who cooks it", station: "a-faire", choix: [{ cle: "ici", nom: "this computer", horsLigne: false, recommande: true }], serveur: OPEN },
-      { choisir() {}, relire() {}, preparer() {}, ouvrirLaCarte() {} },
-    ) as Fake;
-    assert.deepEqual(buttons(root), ["this computer", ADD_A_SERVER, "copy", CHECK_AGAIN]);
-    withoutOther(root);
-  });
-});
-
-// La page d'un projet neuf, jouée : « Add a project », le dépôt chef/cantine, puis « who cooks it ».
-const PATH = "/home/chef/.config/brigade/app.json";
-const A = "2026-11-26T10:04:12.000Z";
-const REPOSITORY = "chef/cantine";
-const FACTS: Facts = { etat: "ouverte", lu: A, dernierTick: A, compteurs: { rail: 0, auTravail: 0, aLaPass: 0, attend: 0, livres24h: 0 }, dernierEvenement: null, rail: [], cooks: [], attend: [] } as never;
-async function thePageOfCantine(answers: Answers) {
-  let vue: Played | undefined;
-  vue = await playTheVue({
-    demarrage: () => ({
-      configuration: forTheBar({ chemin: PATH, projets: [] }),
-      poste: { nom: "this computer", mac: false },
-      palette: PALETTE,
-      exemple: EXAMPLE,
-      onglets: TABS,
-      rubriques: HEADINGS,
-      gestes: {},
-      banniere: BANNER,
-      calibrage: { modeles: MODELS, efforts: EFFORTS },
-      code: undefined,
-    }),
-    stationsDuChef: () => ({ state: "listed", stations: [], unreadable: [] }),
-    compteGitHub: () => ({ login: "chef" }),
-    depotsDuChef: () => ({ depots: [{ depot: REPOSITORY, base: "main" }] }),
-    ouvrirDUneStation: (name, repository, base) => {
-      vue?.dire("surConfiguration", forTheBar({ chemin: PATH, projets: [{ nom: name, dossier: `/home/chef/Brigade/${name}`, depot: repository, base: base ?? "main" } satisfies Project] }), []);
-      return { state: "open", project: name, repository: repository, folder: `/home/chef/Brigade/${name}`, cloned: true };
-    },
-    projetsServis: () => ({ depots: [] }),
-    espace: () => [],
-    departDuProjet: () => ({ aucune: true }),
-    checkRepoSetup: () => ({ ready: false, missingBindings: ["Gates"], missingLabels: ["fire"] }),
-    ...answers,
-  });
-  (vue.poses().find((pose) => pose.id === "entree-ajout") ?? assert.fail("pas de « + »")).click();
-  await repos();
-  button(vue.element("ajout"), REPOSITORY).click();
-  await repos();
-  vue.dire("surFaits", { ...holdFacts(() => new Map()).recevoir({ projet: "cantine", demande: 0, a: A, sorties: [{ commande: "facts", texte: JSON.stringify(FACTS) }] }), demande: vue.dernier("faits")[0] as number });
-  await repos();
-  return vue;
-}
-const question = (vue: Played) => vue.element("parcours-premier-projet");
-
-describe("la page « who cooks it » d'un projet neuf, jouée", () => {
-  test("« Add a server », le serveur vu arriver à « check again », puis confié d'un clic : la page passe à la mise en place", async () => {
-    let stations = [station("g1", "atelier", false)];
-    const chosen: [string, string[]][] = [];
-    const vue = await thePageOfCantine({ stationsDuCompte: () => LISTED(stations), choisirLesProjets: (id, repositories) => (chosen.push([id, repositories]), { selection: repositories }) });
-    button(question(vue), ADD_A_SERVER).click();
-    await repos();
-    assert.ok(text(question(vue)).includes(INSTALL_COMMAND));
-    assert.ok(text(question(vue)).includes(WAITING));
-    stations = [...stations, station("g9", "parade-box")];
-    button(question(vue), CHECK_AGAIN).click();
-    await repos();
-    assert.ok(text(question(vue)).includes(PAIRED("parade-box")));
-    assert.ok(!text(question(vue)).includes(PAIRED("atelier")), "a station known before is not the new server");
-    // La liste du haut le propose aussi, relue ; le panneau le confie.
-    const panel = question(vue).dessous("section").find(({ className }) => className === "ajout-de-serveur") ?? assert.fail("pas de panneau");
-    button(panel, "parade-box").click();
-    await repos();
-    assert.deepEqual(chosen, [["g9", [REPOSITORY]]]);
-    assert.equal(vue.element("main").dataset.parcours, "setup");
-  });
-
-  test("la lecture du compte qui échoue se dit dans le panneau : rien n'est dit arrivé", async () => {
-    let fails = false;
-    const vue = await thePageOfCantine({
-      stationsDuCompte: () => {
-        if (fails) throw new Error("gh: dial tcp: i/o timeout");
-        return LISTED([]);
-      },
-    });
-    button(question(vue), ADD_A_SERVER).click();
-    await repos();
-    fails = true;
-    button(question(vue), CHECK_AGAIN).click();
-    await repos();
-    assert.match(text(question(vue)), /your stations could not be read: Your stations could not be read/);
-    assert.ok(!text(question(vue)).includes("checked in"));
   });
 });
