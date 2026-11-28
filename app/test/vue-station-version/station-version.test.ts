@@ -19,8 +19,8 @@ import { Fake, playTheVue, openAllTheStations, repos } from "../helpers/false-vu
 const doc = { createElement: (balise: string) => new Fake(balise) };
 const A = "2026-11-03T20:00:00.000Z";
 
-const BOX: StationVue = { id: "g1", nom: "parade-box", machine: "Linux 6.1.0", etat: "en-ligne", ligne: "", pannes: [], dit: "online", version: "2.4.0", projets: ["parade"], max: null, versionDit: "up to date · on this version for 3 days" };
-const MAC: StationVue = { id: "g2", nom: "macbook", machine: "macOS 15", etat: "en-ligne", ligne: "", pannes: [], dit: "online", version: "2.3.1", projets: [], max: null, versionDit: "up to date" };
+const BOX: StationVue = { id: "g1", nom: "parade-box", machine: "Linux 6.1.0", etat: "en-ligne", ligne: "", dit: "online", version: "2.4.0", projets: ["parade"], max: null, versionDit: "up to date · on this version for 3 days" };
+const MAC: StationVue = { id: "g2", nom: "macbook", machine: "macOS 15", etat: "en-ligne", ligne: "", dit: "online", version: "2.3.1", projets: [], max: null, versionDit: "up to date" };
 const IN_DELAY = { stationVersion: "2.3.1", latestStationVersion: "2.4.0", behind: true };
 const A_DAY = { stationVersion: "2.4.0", latestStationVersion: "2.4.0", behind: false };
 

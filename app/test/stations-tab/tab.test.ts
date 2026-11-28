@@ -11,7 +11,6 @@ import { EXAMPLE, type Project } from "../../src/config.ts";
 import { PALETTE } from "../../src/colors.ts";
 import { BANNER } from "../../src/facts.ts";
 import { TABS, HEADINGS } from "../../src/tabs.ts";
-import type { Outage } from "../../src/outages/outages.ts";
 import { calibrationRecommended, EFFORTS, machineProposed, MODELS, type Move, type ProjectSeen, type SeenOfProjects } from "../../src/projects/projects.ts";
 import type { StationVue, SeenOfStations } from "../../src/stations/stations.ts";
 import { ADD, STOP, DISPLACE, DETAILS } from "../../src/vue/stations-tab/stations-tab.js";
@@ -19,8 +18,8 @@ import { CHOOSE, NOBODY, TO_HERE } from "../../src/vue/stations-tab/state.js";
 import { type Fake, type Played, playTheVue, openTab, repos } from "../helpers/false-vue.ts";
 
 const A = "2026-11-11T10:00:00.000Z";
-const BOX: StationVue = { id: "gbox", nom: "parade-box", machine: "Linux 6.1.0", coeurs: 8, etat: "en-ligne", ligne: "online", pannes: [] as Outage[], dit: "online", version: "2.4.0", projets: ["parade"], max: "connectee" };
-const MAC: StationVue = { id: "gmac", nom: "macbook", machine: "macOS 25.0.0", coeurs: 12, etat: "en-ligne", ligne: "online", pannes: [] as Outage[], dit: "online", version: "2.4.0", projets: [], max: "connectee" };
+const BOX: StationVue = { id: "gbox", nom: "parade-box", machine: "Linux 6.1.0", coeurs: 8, etat: "en-ligne", ligne: "online", dit: "online", version: "2.4.0", projets: ["parade"], max: "connectee" };
+const MAC: StationVue = { id: "gmac", nom: "macbook", machine: "macOS 25.0.0", coeurs: 12, etat: "en-ligne", ligne: "online", dit: "online", version: "2.4.0", projets: [], max: "connectee" };
 const HOME: Home = { projets: [], stations: [], sante: { ton: "vert", dit: "Max ✓  ·  GitHub ✓", survol: "" } };
 const PARADE: Project = { nom: "parade", dossier: "/tmp/parade", depot: "benomite/parade", base: "main" };
 const station = (id: string, name: string) => ({ id, nom: name, etat: "servi" as const, dit: "", autoriser: [] });

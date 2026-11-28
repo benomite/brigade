@@ -12,7 +12,6 @@ import { EXAMPLE, type Project } from "../../src/config.ts";
 import { PALETTE } from "../../src/colors.ts";
 import { BANNER } from "../../src/facts.ts";
 import { TABS, HEADINGS } from "../../src/tabs.ts";
-import type { Outage } from "../../src/outages/outages.ts";
 import { readTracking } from "../../src/projects/request.ts";
 import { calibrationRecommended, EFFORTS, machineProposed, MODELS, type ProjectSeen, type SeenOfProjects } from "../../src/projects/projects.ts";
 import type { SeenOfStations } from "../../src/stations/stations.ts";
@@ -20,7 +19,7 @@ import { COPIED, COPY, DETAILS, OPEN_ON_GITHUB, setRepositoryHeld } from "../../
 import { Fake as Fabrique, type Fake, playTheVue, repos } from "../helpers/false-vue.ts";
 
 const A = "2026-10-19T12:00:00.000Z";
-const BOX = { id: "g1", nom: "parade-box", machine: "Linux 6.1.0", coeurs: 8, etat: "en-ligne", ligne: "online · version 1.4.0 · no project", pannes: [] as Outage[], dit: "online", version: "1.4.0", projets: [] as string[], max: null } as const;
+const BOX = { id: "g1", nom: "parade-box", machine: "Linux 6.1.0", coeurs: 8, etat: "en-ligne", ligne: "online · version 1.4.0 · no project", dit: "online", version: "1.4.0", projets: [] as string[], max: null } as const;
 const STATIONS: SeenOfStations = { a: A, stations: [BOX] };
 const HOME: Home = { projets: [], stations: [], sante: { ton: "vert", dit: "Max ✓  ·  GitHub ✓", survol: "" } };
 const PARADE: Project = { nom: "parade", dossier: "/tmp/parade", depot: "benomite/parade", base: "main" };

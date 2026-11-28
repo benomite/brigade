@@ -8,14 +8,13 @@
 // box injoignable ; jaune quand une décision attend le chef ; vert sinon ; gris tant que rien n'en
 // est lu. Sa phrase dit, dans cet ordre, ce qui bloque, ce qui attend le chef — combien, depuis
 // quand —, puis ce qui cuit ; et, quand la fiabilité de ses cooks a dérivé, d'un mot : « drifting » (#987).
-// Une station : son état (« online », « offline for 12 min »), ce qu'elle fait — ses cooks,
-// une mise à jour ratée, sa connexion Max perdue —, et les projets qu'elle porte. Sa machine et sa
+// Une station : son état (« online », « offline for 12 min »), ce qu'elle fait — ses cooks —, et les projets qu'elle porte. Sa machine et sa
 // version ne se lisent qu'au survol.
 //
 // Ce module ne lance rien et ne demande rien de neuf à personne : il dit, d'après ce que les veilles
 // ont déjà lu — `faits` de chaque projet, son `status` quand il est lu, les stations et leurs
 // projets sur GitHub. Un état qui n'a pas été lu n'est jamais dit sain.
-import { CONNECTION, KITCHEN, headsOf } from "./alerts.ts";
+import { CONNECTION, KITCHEN, headsOf } from "./status-heads.ts";
 import type { Shown } from "./awaiting.ts";
 import type { Reading } from "./box.ts";
 import { COMMAND as FACTS, understand, isOutsideLine, type CallsGithub, type Facts } from "./facts.ts";
@@ -60,7 +59,7 @@ const inEnglish = (duration: string) => duration.replace(/ j$/, " d");
 
 // --- Un projet -------------------------------------------------------------------
 
-// Ce qui retient la cuisine, d'après les lignes de tête de `status` (alerts.ts lit les mêmes).
+// Ce qui retient la cuisine, d'après les lignes de tête de `status` .
 function causes(status: string): string[] {
   return headsOf(status).flatMap(({ titre: title, valeur: value }) => {
     if (KITCHEN.includes(title) && /disjoncteur OUVERT|breaker OPEN/.test(value)) return ["breaker open"];
@@ -104,13 +103,12 @@ const since = (awaiting: string | undefined): string | undefined => {
   return duration === undefined ? undefined : inEnglish(duration.trim());
 };
 
-// Ce qui attend le chef : combien de décisions, depuis quand ; et, quand toute la cuisine les attend, que rien ne cuit d'ici là.
+// Ce qui attend le chef : combien de décisions, depuis quand.
 function awaiting(facts: Facts, status: StatusRead | undefined): string[] {
   const howMany = facts.compteurs.attend;
   if (howMany === 0) return [];
   const duration = since(status?.attend);
-  const said = `${howMany} decision${s(howMany)} await${howMany === 1 ? "s" : ""} you${duration === undefined ? "" : `, for ${duration}`}`;
-  return [facts.urgence == null ? said : `${said} — nothing cooks until then`];
+  return [`${howMany} decision${s(howMany)} await${howMany === 1 ? "s" : ""} you${duration === undefined ? "" : `, for ${duration}`}`];
 }
 
 // Ce qui cuit : les tickets de ses cooks — la réparation de la base est déjà dite —, sinon ce qui est à la pass.
@@ -184,13 +182,11 @@ export function lineOfStation(station: StationVue, cooks: number, elsewhere: rea
   if (station.cuisine === false) return lineOfPhone(station, hover);
   const projects = withoutKitchen ? "no project" : station.projets.join(", ");
   if (station.etat !== "en-ligne") return { id, nom: name, ton: "gris", dit: [station.dit, ...(station.etat === "illisible" ? [] : [projects])].join(" · "), phrase: station.dit, raison: reasonOf(station.etat === "illisible" ? "illisible" : "hors-ligne", name), survol: hover === "" ? "its state on GitHub cannot be read — open it to see why" : hover };
-  const max = station.pannes.some(({ sujet: subject }) => subject === "connexion-max");
-  const update = station.pannes.some(({ sujet: subject }) => subject === "mise-a-jour");
-  const done = [...(max ? ["Max connection lost"] : []), ...(update ? ["update failed"] : []), ...(cooks > 0 ? [`${cooks} cook${s(cooks)}`] : [])];
+  const done = cooks > 0 ? [`${cooks} cook${s(cooks)}`] : [];
   return {
     id,
     nom: name,
-    ton: max ? "rouge" : update ? "jaune" : "vert",
+    ton: "vert",
     dit: [station.dit, ...(done.length === 0 ? ["idle"] : done), withoutKitchen ? "runs no kitchen" : projects].join(" · "),
     phrase: `${station.dit} · ${cooks === 0 ? "no cook running" : `${cooks} cook${s(cooks)} running`}`,
     ...(withoutKitchen && elsewhere.length === 0 ? { raison: reasonOf("sans-projet", name) } : {}),

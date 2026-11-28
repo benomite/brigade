@@ -16,7 +16,7 @@ import type { StationVue } from "../../src/stations/stations.ts";
 import { type Fake, playTheVue, openAllTheStations, type Answers, repos } from "../helpers/false-vue.ts";
 
 const A = "2026-10-16T12:00:00.000Z";
-const IN_LINE: StationVue = { id: "g1", nom: "box", machine: "Linux 6.1.0-47-amd64", etat: "en-ligne", ligne: "online · version 1.4.0 · 1 project: parade", pannes: [], dit: "online", version: "1.4.0", projets: ["parade"], max: "connectee" };
+const IN_LINE: StationVue = { id: "g1", nom: "box", machine: "Linux 6.1.0-47-amd64", etat: "en-ligne", ligne: "online · version 1.4.0 · 1 project: parade", dit: "online", version: "1.4.0", projets: ["parade"], max: "connectee" };
 const OUTSIDE_LINE: StationVue = { ...IN_LINE, id: "g2", nom: "mac", machine: "macOS 25.0.0", etat: "hors-ligne", ligne: "offline for 12 min · version 1.4.0 · 1 project: parade", dit: "offline for 12 min", max: null };
 const ATELIER: StationVue = { ...IN_LINE, id: "g3", nom: "atelier", machine: "Debian 12 · 8 cores" };
 const STATIONS = [IN_LINE, OUTSIDE_LINE, ATELIER];

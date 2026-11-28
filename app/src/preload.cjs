@@ -28,13 +28,13 @@ const bridge = {
   shell: (project, machine) => ipcRenderer.invoke("shell", project, machine),
   fermerShell: (id) => ipcRenderer.invoke("fermerShell", id),
   demander: (project, ticket) => ipcRenderer.invoke("demander", project, ticket),
-  demanderAlerte: (project, subject, said) => ipcRenderer.invoke("demanderAlerte", project, subject, said),
   lireQuestion: (project, ticket) => ipcRenderer.invoke("lireQuestion", project, ticket),
   gestesDeFiche: (card) => ipcRenderer.invoke("gestesDeFiche", card),
   demanderAuSecond: (project, ticket) => ipcRenderer.invoke("demanderAuSecond", project, ticket),
   passerAuSecond: (project, ticket, question) => ipcRenderer.invoke("passerAuSecond", project, ticket, question),
   lireTitre: (project, ticket) => ipcRenderer.invoke("lireTitre", project, ticket),
   lireFeu: (project) => ipcRenderer.invoke("lireFeu", project),
+  relireLesStations: () => ipcRenderer.invoke("relireLesStations"),
   relireBox: (request) => ipcRenderer.send("relireBox", request),
   repondreQuestion: (project, ticket, answer) => ipcRenderer.invoke("repondreQuestion", project, ticket, answer),
   refus: (project, id, ticket) => ipcRenderer.invoke("refus", project, id, ticket),
@@ -72,18 +72,12 @@ const bridge = {
   signaler: (request) => ipcRenderer.invoke("signaler", request),
   demenagerLaCuisine: (name, to) => ipcRenderer.invoke("demenagerLaCuisine", name, to),
   autoriserSurGitHub: (url) => ipcRenderer.invoke("autoriserSurGitHub", url),
-  panne: (id, key) => ipcRenderer.invoke("panne", id, key),
   agentsAtWork: (project) => ipcRenderer.invoke("agentsAtWork", project),
   // La fiche du projet, sous Settings (ticket 4240) : lue et écrite dans le dossier du projet (card-project/card-project-folder.ts).
   lireUnFichierDuProjet: (project, path) => ipcRenderer.invoke("lireUnFichierDuProjet", project, path),
   ecrireUnFichierDuProjet: (project, path, text) => ipcRenderer.invoke("ecrireUnFichierDuProjet", project, path, text),
   // Les plafonds de durée du projet, sur Kitchen > Health (ticket 2490) : lus et écrits dans son dépôt, sur GitHub.
-  plafondsDuree: (project) => ipcRenderer.invoke("plafondsDuree", project),
-  changerPlafondDuree: (project, key, input) => ipcRenderer.invoke("changerPlafondDuree", project, key, input),
   // Le closer du projet, sur Kitchen > Health (ticket 2491) : ses passes, ses vérifications en plus et ses réglages, sur GitHub.
-  closerDeSante: (project) => ipcRenderer.invoke("closerDeSante", project),
-  changerReglageDuCloser: (project, key, input) => ipcRenderer.invoke("changerReglageDuCloser", project, key, input),
-  changerVerificationDuCloser: (project, action, input) => ipcRenderer.invoke("changerVerificationDuCloser", project, action, input),
   savoirDuProjet: (project) => ipcRenderer.invoke("savoirDuProjet", project),
   changerLeSavoir: (project, change) => ipcRenderer.invoke("changerLeSavoir", project, change),
   ouvrirLaProposition: (url) => ipcRenderer.invoke("ouvrirLaProposition", url),
@@ -97,7 +91,6 @@ const bridge = {
   // Un projet ouvert d'un clic — chaque étape de sa copie arrive par `surOuverture` — ; la connexion à
   // GitHub, dont la fin arrive par `surConnexionGitHub` ; une page qu'un échec a nommée.
   ouvrirDUneStation: (name, repository, base) => ipcRenderer.invoke("ouvrirDUneStation", name, repository, base),
-  seConnecterAClaude: () => ipcRenderer.invoke("seConnecterAClaude"),
   seConnecterAGitHub: () => ipcRenderer.invoke("seConnecterAGitHub"),
   outilsManquants: (tools) => ipcRenderer.invoke("outilsManquants", tools),
   // Installe la station de cet ordinateur, depuis le bloc de l'accueil (ticket 2640).
@@ -110,7 +103,6 @@ const bridge = {
   stationsDuCompte: () => ipcRenderer.invoke("stationsDuCompte"),
   choisirLesProjets: (id, repositories) => ipcRenderer.invoke("choisirLesProjets", id, repositories),
   repondreCarte: (project, ticket, answer) => ipcRenderer.invoke("repondreCarte", project, ticket, answer),
-  ouvrirBilan: (project, url) => ipcRenderer.invoke("ouvrirBilan", project, url),
   ouvrirLectureSeule: (project, page) => ipcRenderer.invoke("ouvrirLectureSeule", project, page),
   regarder: (project, request) => ipcRenderer.send("regarder", project, request),
   tous: (request) => ipcRenderer.send("tous", request),
@@ -127,9 +119,8 @@ const bridge = {
   surActivites: (receive) => void ipcRenderer.on("activites", (_, published) => receive(published)),
   surContenu: (receive) => void ipcRenderer.on("contenu", (_, reading) => receive(reading)),
   surFaits: (receive) => void ipcRenderer.on("faits", (_, receivedOne) => receive(receivedOne)),
-  surAlertes: (receive) => void ipcRenderer.on("alertes", (_, band) => receive(band)),
-  surUrgence: (receive) => void ipcRenderer.on("urgence", (_, project) => receive(project)),
   // Une question cliquée dans le menu de la barre des menus (menu-bar.ts) : sa carte s'ouvre.
+  surOuvrirProjet: (receive) => void ipcRenderer.on("ouvrirProjet", (_, project) => receive(project)),
   surOuvrirCarte: (receive) => void ipcRenderer.on("ouvrirCarte", (_, project, ticket) => receive(project, ticket)),
   surAmont: (receive) => void ipcRenderer.on("amont", (_, seenOne) => receive(seenOne)),
   surCode: (receive) => void ipcRenderer.on("code", (_, seenOne) => receive(seenOne)),
@@ -139,7 +130,6 @@ const bridge = {
   surAccueil: (receive) => void ipcRenderer.on("accueil", (_, seenOne) => receive(seenOne)),
   surOuverture: (receive) => void ipcRenderer.on("ouverture", (_, repository, step) => receive(repository, step)),
   surConnexionGitHub: (receive) => void ipcRenderer.on("connexionGitHub", (_, end) => receive(end)),
-  surLoginClaude: (receive) => void ipcRenderer.on("loginClaude", () => receive()),
   surConfiguration: (receive) => void ipcRenderer.on("configuration", (_, configuration, closed) => receive(configuration, closed)),
 };
 contextBridge.exposeInMainWorld("brigade", bridge);

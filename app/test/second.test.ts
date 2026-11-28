@@ -419,9 +419,8 @@ describe("l'écran principal ne garde que la bande, le rail et les terminaux ; l
     assert.equal(vue.element("contenu").hidden, true);
   });
 
-  test("une page s'ouvre par-dessus le rail, qui reste posé dessous ; fermée, elle le rend tel qu'il était — la bande d'alertes, elle, reste en tête", async () => {
+  test("une page s'ouvre par-dessus le rail, qui reste posé dessous ; fermée, elle le rend tel qu'il était", async () => {
     const vue = await open();
-    vue.dire("surAlertes", { projet: "parade", alertes: [{ sujet: "cuisine", verifie: false, ton: "orange", dit: "cuisine non vérifiée", pourquoi: "…", geste: "le lire : Paramètres", appel: { onglet: "parametres" }, prix: "une lecture" }] } as never);
     const rail = vue.element("rail");
     const before = rail.textContent;
     assert.equal(rail.inert, false);
@@ -432,7 +431,6 @@ describe("l'écran principal ne garde que la bande, le rail et les terminaux ; l
       // Couvert, pas défait : il est encore là, et rien de lui ne se clique au travers.
       assert.equal(rail.hidden, false, page);
       assert.equal(rail.inert, true, page);
-      assert.equal(vue.element("alertes").hidden, false, page);
       await click(vue, vue.element("onglets-du-projet"), page);
       assert.equal(vue.element("contenu").hidden, true, page);
       assert.equal(rail.inert, false, page);
@@ -451,16 +449,5 @@ describe("l'écran principal ne garde que la bande, le rail et les terminaux ; l
     assert.throws(() => vue.element("journal"));
     assert.doesNotMatch(readFileSync(join(VUE, "index.html"), "utf8"), /id="journal"/);
     assert.deepEqual(titles(vue), ["Rail", "Stations", "Agents", "Know-how", "Settings"]);
-  });
-
-  test("une ligne d'alerte dont la cause se règle dans Settings y mène en un clic", async () => {
-    const vue = await open();
-    vue.dire("surAlertes", { projet: "parade", alertes: [{ sujet: "cuisine", verifie: false, ton: "orange", dit: "cuisine non vérifiée", pourquoi: "…", geste: "le lire : Paramètres", appel: { onglet: "parametres" }, prix: "une lecture" }] } as never);
-
-    await click(vue, vue.element("alertes"), "le lire : Paramètres");
-
-    assert.equal(vue.dernier("onglet")[1], undefined);
-    assert.deepEqual(selected(vue), ["Settings"]);
-    assert.equal(vue.element("contenu").hidden, false);
   });
 });

@@ -4,7 +4,7 @@
 //
 // Ce module rend cette lecture sous la forme de ce que le rail lisait jusqu'ici sur la box — une lecture de la veille
 // (box.ts, `Lecture`) dont chaque sortie est celle de la commande qu'elle remplace — pour que ce qui la reçoit (facts.ts,
-// awaiting.ts, slip.ts, alerts.ts, home.ts) dessine le même rail sans rien changer :
+// awaiting.ts, slip.ts, home.ts) dessine le même rail sans rien changer :
 //   - `facts`   l'objet `faits` de la lecture ;
 //   - `status`  ses rubriques, le bloc `awaiting` de ce qui attend le chef, et la ligne `rail` suivie de la ligne de
 //               chaque ticket (`lignesDuRail`) — ce que `status` écrit, sans ce qui ne se lit que sur la box.

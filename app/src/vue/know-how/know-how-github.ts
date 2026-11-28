@@ -1,17 +1,26 @@
 // The project know-how file, read and changed from Settings (ticket 4239, epic 4135): `.brigade/know-how.md` of the project's
-// repository, on its integration branch, read on GitHub with the token of this computer's `gh` — like the closer's extra
-// checks (closer-health.ts). Its entries are parsed by entries.ts. An entry
+// repository, on its integration branch, read on GitHub with the token of this computer's `gh`. Its entries are parsed by entries.ts. An entry
 // edited or removed is never written in place: the new file is proposed by a pull request towards the integration
 // branch (`proposerLeFichier`, caps-duration.ts, ticket 2920), which the pass reviews like any other change, and nothing
 // changes on the branch until it is merged. This module composes the requests; what carries them is given
 // (`ClientDeLaPriorite`).
 import { editEntry, entryText, KNOW_HOW_DIR, KNOW_HOW_FILE, parseKnowHow, removeEntry, type KnowHowEntry } from "./entries.ts";
-import { readTheMarkdown } from "../../closer-health.ts";
 import { refusalOf } from "../../board/client.ts";
 import { proposeTheFile, type PrOpen } from "../../caps-duration.ts";
 import type { ClientOfThePriority } from "../../priority.ts";
 import { PROPOSES } from "../../box.ts";
 import { NOT_REACHED } from "../lexicon.js";
+
+// A text file of the repository (`path`) on its branch: its text and its `sha`, or null when the branch does not have it.
+type MarkdownRead = { texte: string; sha: string } | { texte: null; sha: null };
+async function readTheMarkdown(client: ClientOfThePriority, repository: string, branch: string | null, path: string): Promise<MarkdownRead> {
+  const readOne = await client.lire(`/repos/${repository}/contents/${path}${branch === null ? "" : `?ref=${encodeURIComponent(branch)}`}`);
+  if (readOne.status === 404) return { texte: null, sha: null };
+  if (readOne.status !== 200) throw refusalOf(`the reading of ${path}`, readOne);
+  const { content, sha } = typeof readOne.data === "object" && readOne.data !== null && !Array.isArray(readOne.data) ? (readOne.data as Record<string, unknown>) : {};
+  if (typeof content !== "string" || typeof sha !== "string") throw new Error(`GitHub gave ${path} without its content`);
+  return { texte: Buffer.from(content, "base64").toString("utf8"), sha };
+}
 
 // `file`: the file of the repository an entry lives in — `.brigade/know-how.md` or one `.brigade/know-how/<n>.md`.
 export type KnowledgeEntry = KnowHowEntry & { file: string };

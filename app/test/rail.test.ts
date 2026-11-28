@@ -333,16 +333,6 @@ describe("hors ligne (#1818)", () => {
     receive(vue, outsideLine());
     assert.equal(rail.dataset.lecture, undefined);
     assert.equal(signs(vue).length, 1);
-    // « try again » relit la box : le haut du rail bat jusqu'à la réponse.
-    const trial = { sujet: "injoignable", verifie: true, ton: "rouge", dit: "station unreachable since 13:35", geste: "try again", bouton: "try again", appel: { relire: true }, prix: "none" } as const;
-    vue.dire("surAlertes", { projet: PARADE, alertes: [trial], signal: { etat: "injoignable", dit: trial.dit } });
-    await repos();
-    const button = vue.element("alertes").dessous("button").find(({ textContent }) => textContent === "try again") ?? assert.fail("pas de « try again »");
-    button.click();
-    await repos();
-    assert.ok(vue.appels.some(({ geste: action }) => action === "relireBox"));
-    assert.equal(rail.dataset.lecture, "");
-    assert.doesNotMatch(rail.textContent, /reading|in progress/);
     receive(vue);
     assert.equal(rail.dataset.lecture, undefined);
   });

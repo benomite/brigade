@@ -9,7 +9,7 @@ import { readTheProjectsOfAccount } from "../../src/read-github-phone.ts";
 import type { AnswerGitHub } from "../../src/board/client.ts";
 
 const SRC = join(import.meta.dirname, "..", "..", "src");
-const SCOPE = ["home.ts", "notification.ts", "setup/init.sh", "read-github-phone.ts", "actions-github.ts", "name.ts", "ordinary.ts", "cooking.ts", "caps-duration.ts", "closer-health.ts", "reliability.ts", "terminals.ts", "alerts.ts"];
+const SCOPE = ["home.ts", "setup/init.sh", "read-github-phone.ts", "actions-github.ts", "name.ts", "ordinary.ts", "cooking.ts", "caps-duration.ts", "reliability.ts", "terminals.ts"];
 
 describe("#4510 — the shell's small modules read nothing from the old runtime", () => {
   test("no file of the ticket names a path of runtime/src other than runtime/src/kitchen/", () => {

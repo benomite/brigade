@@ -6,7 +6,6 @@ import { describe, test } from "node:test";
 import { lineOfProject, lineOfStation, health, holdHome, type ReadFacts, type ProjectOfTheHome } from "../src/home.ts";
 import type { Facts } from "../src/facts.ts";
 import { hourShort } from "../src/format.ts";
-import type { Outage } from "../src/outages/outages.ts";
 import type { StationVue, SeenOfStations } from "../src/stations/stations.ts";
 
 const A = "2026-10-16T12:00:00.000Z";
@@ -23,7 +22,7 @@ const someFacts = (fields: Partial<Facts> = {}, counters: Partial<Facts["compteu
   cooks: [],
   attend: [],
   livres: [],
-  urgence: null,
+ 
   ...fields,
 });
 const readOnes = (facts: Facts): ReadFacts => ({ a: A, faits: facts });
@@ -93,9 +92,6 @@ describe("la ligne d'un projet : sa pastille, et ce qui bloque, ce qui attend le
   test("dans l'ordre : ce qui bloque, ce qui attend le chef, puis ce qui cuit", () => {
     const line = lineOfProject(PROJECT, readOnes(someFacts({ etat: "retenue", cooks: [cook(655), cook(870)] }, { attend: 2 })), { texte: BASE_RED, attend: FIVE.replace("5 décisions", "2 décisions") });
     assert.deepEqual([line.ton, line.dit], ["rouge", "base red · #655 being repaired · 2 decisions await you, for 2 d · #870 cooking"]);
-    // Toute la cuisine attend le chef : la décision le dit.
-    const emergency = { decision: "#867", ticket: 867, cause: "merge", geste: "merger", url: null, depuis: A, retenus: [867], autres: [] };
-    assert.equal(lineOfProject(PROJECT, readOnes(someFacts({ urgence: emergency }, { attend: 1 })), undefined).dit, "1 decision awaits you — nothing cooks until then");
   });
 
   test("rien de lu n'est dit sain : gris, sans station, pas encore lu, ou une lecture que l'app ne comprend pas", () => {
@@ -111,15 +107,13 @@ const station = (fields: Partial<StationVue> = {}): StationVue => ({
   machine: "Linux 6.1.0-47-amd64",
   etat: "en-ligne",
   ligne: "",
-  pannes: [],
+ 
   dit: "online",
   version: "code 0123456789ab",
   projets: ["brigade", "espace", "calculus"],
   max: "connectee",
   ...fields,
 });
-const UPDATE: Outage = { cle: "mise-a-jour:x", sujet: "mise-a-jour", ligne: "update to version 1.5.0 failed — stayed on version 1.4.0", survol: "", bouton: { libelle: "dismiss", geste: "ecarter" } };
-const MAX_LOST: Outage = { cle: "connexion-max:x", sujet: "connexion-max", ligne: "Max connection lost", survol: "", bouton: { libelle: "log in", geste: "login" } };
 
 describe("la ligne d'une station : son état, ce qu'elle fait, ses projets — sa machine et sa version au survol seulement", () => {
   test("en ligne, ses cooks et ses projets", () => {
@@ -176,13 +170,11 @@ describe("la ligne d'une station : son état, ce qu'elle fait, ses projets — s
     assert.equal(lineOfStation(station({ projets: [] }), 0).dit, "online · idle · runs no kitchen");
   });
 
-  test("hors ligne : depuis quand, en gris ; une mise à jour ratée, jaune ; sa connexion Max perdue, rouge", () => {
+  test("hors ligne : depuis quand, en gris", () => {
     assert.deepEqual(
       [lineOfStation(station({ etat: "hors-ligne", dit: "offline for 12 min", projets: [], max: null }), 0)].map(({ ton: your, dit: said }) => ({ ton: your, dit: said })),
       [{ ton: "gris", dit: "offline for 12 min · no project" }],
     );
-    assert.deepEqual([lineOfStation(station({ pannes: [UPDATE] }), 0)].map(({ ton: your, dit: said }) => [your, said]), [["jaune", "online · update failed · brigade, espace, calculus"]]);
-    assert.deepEqual([lineOfStation(station({ pannes: [MAX_LOST], max: "perdue" }), 0)].map(({ ton: your, dit: said }) => [your, said]), [["rouge", "online · Max connection lost · brigade, espace, calculus"]]);
   });
 
   test("l'état en une phrase, en tête de sa page : en ligne et ses cooks, hors ligne depuis quand — ni machine, ni version, ni projets", () => {

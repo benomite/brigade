@@ -11,8 +11,8 @@ const INSTANT = Date.parse(MAINTENANT);
 const IL_Y_A = (minutes: number) => new Date(INSTANT - minutes * 60_000).toISOString();
 const PARADE = RENDUS.parade as Rendu;
 
-export const BOX: StationVue = { id: "gbox", nom: "parade-box", machine: "Debian 12 · 8 cores", coeurs: 8, etat: "en-ligne", ligne: "online · 1 project: parade", pannes: [], dit: "online", version: "2.4.0", projets: ["parade"], max: "connectee" };
-export const MAC: StationVue = { id: "gmac", nom: "macbook", machine: "macOS 15 · 10 cores", coeurs: 10, etat: "en-ligne", ligne: "online · no project", pannes: [], dit: "online", version: "2.4.0", projets: [], max: "connectee" };
+export const BOX: StationVue = { id: "gbox", nom: "parade-box", machine: "Debian 12 · 8 cores", coeurs: 8, etat: "en-ligne", ligne: "online · 1 project: parade", dit: "online", version: "2.4.0", projets: ["parade"], max: "connectee" };
+export const MAC: StationVue = { id: "gmac", nom: "macbook", machine: "macOS 15 · 10 cores", coeurs: 10, etat: "en-ligne", ligne: "online · no project", dit: "online", version: "2.4.0", projets: [], max: "connectee" };
 const station = (id: string, nom: string) => ({ id, nom, etat: "servi" as const, dit: `served by ${nom}`, autoriser: [] });
 export const CONFIE: ProjectSeen = { nom: "parade", depot: "chef/parade", base: "main", suiviPar: { id: "gbox", nom: "parade-box" }, stations: [station("gbox", "parade-box")], servi: null, cuitSur: { id: "gbox", nom: "parade-box", ici: false }, demenagement: null };
 // Le déménagement vers ce Mac, demandé il y a trois minutes et resté sans réponse.

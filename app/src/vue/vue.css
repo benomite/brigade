@@ -1091,13 +1091,6 @@ main > header,
   font-size: var(--taille-corps);
   color: var(--discret);
 }
-/* Une panne, sur la page de sa station : en alerte, son bouton à la suite, et ce qu'il a rendu. */
-#station .panne {
-  display: flex;
-  align-items: baseline;
-  gap: var(--pas-2);
-  color: var(--jaune);
-}
 /* Le plafond de cooks de la page d'une station : ce que sa box en dit, ce qui la retient — en alerte, comme une
    panne —, et le champ qui le règle, avec ses boutons à la suite. */
 #station .plafond-de-station p {
@@ -1272,14 +1265,6 @@ main > header,
   font-size: var(--taille-corps);
   font-weight: 700;
 }
-/* Les plafonds, le closer et les lignes de tous les projets (ticket 3014) : leurs blocs s'alignent sur les rangées des
-   autres groupes, et le dernier ne double pas le bord de la carte. */
-#etat #bandeau-sante > .bloc-du-projet {
-  padding-inline: 0;
-}
-#etat #bandeau-sante > .bloc-du-projet:last-child {
-  border-bottom: 0;
-}
 /* Les couleurs du projet : une pastille ronde par couleur de la palette, sur la ligne de chaque rôle. Celle que le
    projet porte est cerclée. */
 #couleurs .rangee {
@@ -1352,41 +1337,6 @@ main > header,
 }
 #avis button {
   margin-top: var(--pas-2);
-}
-/* Le signal d'une bande : au coin haut de la case, il se clique et mène à « Tous les projets ».
-   Une alerte est rouge ; un état non vérifié est en pointillé, sans couleur d'état — jamais sain. */
-#projets .signal {
-  position: absolute;
-  top: -4px;
-  right: -4px;
-  min-width: 14px;
-  font-size: var(--taille-meta);
-  font-weight: 700;
-  line-height: 14px;
-  text-align: center;
-  border-radius: var(--rayon-bouton);
-  box-shadow: 0 0 0 2px var(--barre);
-  cursor: pointer;
-}
-#projets .signal[data-etat="alerte"] {
-  color: var(--fond);
-  background: var(--rouge);
-}
-/* L'urgence : toute la cuisine du projet attend le chef. Pas la rougeur d'une alerte : son signe
-   doublé, cerné du ton clair — elle se voit d'abord, même parmi des cases en alerte. */
-#projets .signal[data-etat="urgence"] {
-  min-width: 18px;
-  color: var(--fond);
-  background: var(--rouge);
-  box-shadow:
-    0 0 0 2px var(--barre),
-    0 0 0 4px var(--rouge-clair);
-}
-#projets .signal[data-etat="non-verifie"] {
-  color: var(--texte);
-  background: var(--barre);
-  border: 1px dotted var(--texte);
-  line-height: 12px;
 }
 /* La carte de projet : son état, ses cinq compteurs, ses cooks en cours, son dernier événement. */
 .carte {
@@ -1514,64 +1464,6 @@ main > header,
   font-size: var(--taille-meta);
   color: var(--discret);
 }
-/* La tête du rail, la cuisine oisive avec des cartes dessus (#1863) : une panne — rouge, épaisse, sur le fond chaud de
-   ce qui attend le chef, marquée FAULT comme l'urgence l'est URGENT. Elle se voit avant les colonnes. */
-#rail .panne-du-rail {
-  display: flex;
-  align-items: center;
-  gap: var(--pas-3);
-  margin: var(--pas-2) var(--pas-4) 0;
-  padding: var(--pas-2) var(--pas-3);
-  background: var(--attend);
-  border: 1px solid var(--rouge);
-  border-left-width: 6px;
-  border-radius: var(--rayon-bouton);
-}
-#rail .panne-du-rail strong {
-  color: var(--rouge-clair);
-}
-#rail .panne-du-rail .marque {
-  flex: none;
-  padding: 0 var(--pas-2);
-  font-size: var(--taille-meta);
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  color: var(--fond);
-  background: var(--rouge);
-  border-radius: 0;
-}
-/* La ligne du disjoncteur, à côté de l'entrée TODO, hors des colonnes (tickets 2140, 3458) : la cuisine retenue — rouge, comme la panne du rail, sur le fond chaud
-   de ce qui attend le chef —, ce qui ne va pas en une phrase, ce que la station en écrit au survol. Une information, sans bouton (ticket 3911). Elle est la même en tête de la liste « Awaiting you » du téléphone (ticket 3371). */
-#rail .ligne-disjoncteur,
-#cartes-du-chef .ligne-disjoncteur {
-  display: flex;
-  flex-direction: column;
-  gap: var(--pas-2);
-  margin: 0 0 var(--pas-2);
-  padding: var(--pas-2) var(--pas-3);
-  background: var(--attend);
-  border: 1px solid var(--rouge);
-  border-left-width: 6px;
-  border-radius: var(--rayon-bouton);
-}
-#rail .ligne-disjoncteur p.dit,
-#cartes-du-chef .ligne-disjoncteur p.dit {
-  display: flex;
-  align-items: baseline;
-  gap: var(--pas-2);
-  margin: 0;
-}
-#rail .ligne-disjoncteur p.dit strong,
-#cartes-du-chef .ligne-disjoncteur p.dit strong {
-  color: var(--rouge-clair);
-  font-weight: 600;
-  line-height: 1.35;
-}
-#cartes-du-chef .ligne-disjoncteur p.pourquoi {
-  margin: 0;
-  font-size: var(--taille-corps);
-  color: var(--texte-doux);
-}
 /* Six colonnes, côte à côte, qui tiennent dans la fenêtre à sa taille d'ouverture ; plus
    étroite, la zone défile. La quatrième, TODO, est plus large : ses cartes portent une ligne du bloc ;
    la cinquième, WAITING, un peu aussi : ses cartes disent ce qu'elles attendent, sans clic. */
@@ -1598,14 +1490,14 @@ main > header,
 /* La première ligne du bloc des stations (ticket 3189) : qui cuit le projet, ou que personne ne le cuit, avec son bouton. */
 /* Un bloc replié derrière une ligne, fermé par défaut : son titre, puis ce qu'il contient en quelques mots — l'ouvrir
    montre le reste. Un bloc qui n'a rien à dire tient sur une ligne de la même forme, sans rien à ouvrir. */
-:is(#rail, #bandeau-sante) .replie {
+#rail .replie {
   margin: var(--pas-3) var(--pas-4) 0;
   padding: var(--pas-2) var(--pas-4);
   background: var(--bandeau);
   border: 1px solid var(--trait-doux);
   border-radius: var(--rayon-carte);
 }
-:is(#rail, #bandeau-sante) .replie > summary,
+#rail .replie > summary,
 #rail .une-ligne {
   display: flex;
   flex-wrap: wrap;
@@ -1615,43 +1507,43 @@ main > header,
   font-size: var(--taille-corps);
   color: var(--texte);
 }
-:is(#rail, #bandeau-sante) .replie > summary {
+#rail .replie > summary {
   list-style: none;
   cursor: pointer;
   user-select: none;
 }
 /* La flèche dit qu'il s'ouvre, et s'il l'est. */
-:is(#rail, #bandeau-sante) .replie > summary::before {
+#rail .replie > summary::before {
   content: "";
   flex: none;
   border-left: 6px solid var(--discret);
   border-top: 4px solid transparent;
   border-bottom: 4px solid transparent;
 }
-:is(#rail, #bandeau-sante) .replie[open] > summary::before {
+#rail .replie[open] > summary::before {
   transform: rotate(90deg);
 }
-:is(#rail, #bandeau-sante) .replie > summary strong,
+#rail .replie > summary strong,
 #rail .une-ligne strong {
   font-weight: 600;
   color: var(--discret);
 }
-:is(#rail, #bandeau-sante) .replie > summary .resume,
+#rail .replie > summary .resume,
 #rail .une-ligne .resume {
   min-width: 0;
   overflow-wrap: anywhere;
 }
-:is(#rail, #bandeau-sante) .replie[open] > summary {
+#rail .replie[open] > summary {
   margin-bottom: var(--pas-2);
 }
 /* Ouvert, le bloc montre son contenu sans en répéter le cadre ni le titre : la ligne le porte déjà. */
-:is(#rail, #bandeau-sante) .replie > :is(section, div) {
+#rail .replie > :is(section, div) {
   margin: 0;
   padding: 0;
   background: none;
   border: 0;
 }
-:is(#rail, #bandeau-sante) .replie > :is(section, div) > :is(h2, h3, h4):first-child {
+#rail .replie > :is(section, div) > :is(h2, h3, h4):first-child {
   display: none;
 }
 /* Ce que chaque station déclarée fournit, sous les stations (ticket 1509) : une ligne chacune — son nom et où elle
@@ -2070,11 +1962,7 @@ main > header,
   margin: 0;
   color: var(--vert);
 }
-/* La bande d'alertes : en tête de l'espace, une ligne par chose à faire, bordée du ton de sa
-   panne — une ligne « non vérifié » est grise, en pointillé. Vide, elle est cachée. Chaque alerte tient
-   en une ligne (#907) : sa pastille, ce qui ne va pas — jamais coupé —, « detail », et son
-   contrôle, à droite. Déplié, le détail passe dessous ; ce que la box a écrit y reste un `pre`, entier :
-   il défile plutôt que d'être coupé. */
+/* La bande de l'espace : en tête, la ligne de lecture seule et l'avis sur le dépôt. Vide, elle est cachée. */
 #alertes {
   flex: none;
   max-height: 40%;
@@ -2082,9 +1970,6 @@ main > header,
   background: var(--bandeau);
   border-bottom: 1px solid var(--trait);
   user-select: text;
-}
-#alertes .alerte {
-  border-left: 3px solid var(--ton);
 }
 /* Un projet en lecture seule (ticket 3163) : sa ligne, en tête de la bande, et ses deux liens à côté. */
 #alertes .lecture-seule {
@@ -2100,70 +1985,6 @@ main > header,
 }
 #alertes .lecture-seule > p {
   margin: 0;
-}
-/* Settings d'un projet en lecture seule : ce qui se propose à son dépôt par une pull request n'est pas posé. */
-#etat[data-lecture-seule] :is([data-bloc="plafonds-duree"], [data-bloc="closer"]) {
-  display: none !important;
-}
-#alertes .alerte + .alerte {
-  border-top: 1px solid var(--trait-doux);
-}
-/* L'urgence, au-dessus de tout : plus épaisse, sur le fond de ce qui attend le chef, et marquée en tête. */
-#alertes .alerte[data-sujet="urgence"] {
-  border-left-width: 6px;
-  background: var(--attend);
-}
-#alertes .alerte[data-sujet="urgence"] strong {
-  color: var(--rouge-clair);
-}
-/* La ligne d'urgence ouverte par la notification : cernée, c'est elle que le chef vient trancher. */
-#alertes .alerte[data-choisie="oui"] {
-  outline: 2px solid var(--rouge);
-  outline-offset: -2px;
-}
-#alertes .urgent {
-  padding: 0 var(--pas-2);
-  font-size: var(--taille-meta);
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  color: var(--fond);
-  background: var(--rouge);
-  border-radius: 0;
-}
-#alertes .alerte[data-verifie="non"] {
-  border-left-style: dotted;
-}
-#alertes .alerte > .ligne {
-  display: flex;
-  align-items: center;
-  gap: var(--pas-2);
-  min-height: 36px;
-  margin: 0;
-  padding: var(--pas-1) var(--pas-4);
-}
-#alertes .ligne > strong {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-#alertes .ligne > button {
-  flex: none;
-}
-/* « detail » : un mot discret, pas un geste — le contrôle de la ligne reste le seul bouton marqué. */
-#alertes .alerte > .detail {
-  padding: 0 var(--pas-4) var(--pas-2) var(--pas-6);
-  color: var(--texte-doux);
-}
-#alertes .alerte > .detail > p {
-  margin: 0 0 var(--pas-1);
-}
-#alertes .alerte > .detail pre {
-  margin: 0 0 var(--pas-1);
-  overflow-x: auto;
-}
-#alertes .alerte > .consignes {
-  margin: 0;
-  padding: 0 var(--pas-4) var(--pas-2) var(--pas-6);
-  color: var(--texte-doux);
 }
 /* La bannière d'arrêt : au-dessus de tout l'espace, tant que la box dit la cuisine arrêtée. */
 #arret {
@@ -2595,10 +2416,6 @@ main > header {
   font-size: var(--taille-meta);
   color: var(--discret);
 }
-/* En tête du rail, au bout de la ligne de la panne. */
-#rail .panne-du-rail .signaler {
-  margin-left: auto;
-}
 
 /* La version de chaque station, côte à côte sous la liste de l'accueil (ticket 2191) : la box, puis cet ordinateur,
    dits de la même façon ; en retard, la case de ce poste se lit en jaune, sa pastille en losange. */
@@ -2639,7 +2456,7 @@ main > header {
   color: var(--discret);
 }
 
-/* Les blocs du projet (tickets 2490, 2921) : les plafonds de durée, le closer, les lignes de tous les projets. */
+/* Les blocs du projet (ticket 2490). */
 .bloc-du-projet h3,
 #rail .bloc-du-projet h3 {
   display: flex;
@@ -2647,207 +2464,8 @@ main > header {
   gap: var(--pas-2);
   padding: 0;
 }
-.bloc-du-projet[data-bloc="plafonds-duree"],
-.bloc-du-projet[data-bloc="closer"] {
-  display: flex;
-  flex-direction: column;
-  gap: var(--pas-3);
-}
 .bloc-du-projet :is(p, table) {
   margin: 0;
-}
-/* Le temps de la pass (ticket 3512) : la part qui pèse le plus en tête, puis une rangée par phase — son nom, sa médiane et
-   son p75 —, puis la phase la plus lourde, les runs relancés et les renvois, à voix basse. */
-.bloc-du-projet[data-bloc="temps-de-la-passe"] {
-  display: flex;
-  flex-direction: column;
-  gap: var(--pas-2);
-}
-[data-bloc="temps-de-la-passe"] :is(.plus-lourde, .sans-mesure, .note) {
-  font-size: var(--taille-corps);
-  color: var(--texte-doux);
-}
-[data-bloc="temps-de-la-passe"] .plus-lourde strong {
-  color: var(--texte);
-}
-[data-bloc="temps-de-la-passe"] .parts {
-  display: grid;
-  grid-template-columns: max-content 1fr;
-  gap: var(--pas-1) var(--pas-5);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  font-size: var(--taille-corps);
-}
-[data-bloc="temps-de-la-passe"] .parts li {
-  display: contents;
-}
-[data-bloc="temps-de-la-passe"] .parts .nom {
-  color: var(--texte-doux);
-}
-[data-bloc="temps-de-la-passe"] .parts .valeur {
-  color: var(--texte);
-}
-:is([data-bloc="plafonds-duree"], [data-bloc="closer"]) .plafonds-lecture {
-  font-size: var(--taille-corps);
-  color: var(--discret);
-}
-:is(#rail, #bandeau-sante) :is([data-bloc="plafonds-duree"], [data-bloc="closer"]) .replie {
-  margin: 0;
-  padding: var(--pas-2) 0 0;
-  background: none;
-  border: 0;
-  border-top: 1px solid var(--trait-doux);
-  border-radius: 0;
-}
-:is([data-bloc="plafonds-duree"], [data-bloc="closer"]) .replie > summary {
-  display: flex;
-  align-items: center;
-  gap: var(--pas-1) var(--pas-3);
-  list-style: none;
-  cursor: pointer;
-  font-size: var(--taille-corps);
-}
-:is([data-bloc="plafonds-duree"], [data-bloc="closer"]) .replie > summary::before {
-  content: "";
-  border-left: 6px solid var(--discret);
-  border-top: 4px solid transparent;
-  border-bottom: 4px solid transparent;
-}
-:is([data-bloc="plafonds-duree"], [data-bloc="closer"]) .replie[open] > summary::before {
-  transform: rotate(90deg);
-}
-:is([data-bloc="plafonds-duree"], [data-bloc="closer"]) .replie > summary strong {
-  font-weight: 600;
-  color: var(--discret);
-}
-:is([data-bloc="plafonds-duree"], [data-bloc="closer"]) .replie > summary .resume {
-  color: var(--texte-doux);
-}
-/* Le closer, sur Kitchen > Health (ticket 2491) : quatre parties sous son titre — ce qu'il a fait, ce qu'il vérifie en
-   premier, ce qu'il vérifie en plus, ses réglages. Une passe est une ligne : son issue et sa date, ce qu'elle a retiré, sa
-   PR ; un réglage chiffré est la ligne d'un plafond de durée, le calibrage ses deux listes. */
-.closer-partie {
-  display: flex;
-  flex-direction: column;
-  gap: var(--pas-1);
-  padding-top: var(--pas-3);
-}
-.closer-partie > h4,
-#rail .closer-partie > h4 {
-  display: flex;
-  justify-content: flex-start;
-  align-items: center;
-  gap: var(--pas-2);
-  margin: 0;
-  padding: 0;
-  font-size: var(--taille-corps);
-  font-weight: 600;
-  color: var(--discret);
-}
-/* Son aide n'est ni la pastille ni le monospace d'un titre de colonne du rail. */
-#rail .closer-partie > h4 span:first-child::before {
-  content: none;
-}
-#rail .closer-partie > h4 span:last-child {
-  font-family: var(--police-interface);
-}
-[data-bloc="closer"] :is(small, .closer-partie > p) {
-  color: var(--texte-doux);
-}
-[data-bloc="closer"] small {
-  font-size: var(--taille-corps);
-}
-[data-bloc="closer"] .passe {
-  display: grid;
-  grid-template-columns: 220px minmax(0, 260px) minmax(0, 1fr);
-  align-items: center;
-  gap: var(--pas-1) var(--pas-3);
-  padding: var(--pas-2) 0;
-  border-top: 1px solid var(--trait-doux);
-}
-[data-bloc="closer"] .passe > p {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--pas-1) var(--pas-3);
-}
-[data-bloc="closer"] .passe > .retire strong {
-  font-weight: 600;
-  color: var(--texte);
-}
-[data-bloc="closer"] p.verification {
-  display: grid;
-  grid-template-columns: 220px auto 1fr;
-  align-items: center;
-  justify-items: start;
-  gap: 0 var(--pas-3);
-  padding: var(--pas-1) 0;
-  color: var(--texte);
-  border-top: 1px solid var(--trait-doux);
-}
-[data-bloc="closer"] p.verification > .nom {
-  color: var(--discret);
-}
-[data-bloc="closer"] ol.candidats {
-  display: flex;
-  flex-direction: column;
-  gap: var(--pas-1);
-  margin: var(--pas-2) 0 0;
-  padding: 0;
-  list-style: none;
-  font-size: var(--taille-corps);
-}
-[data-bloc="closer"] ol.candidats li {
-  display: grid;
-  grid-template-columns: 4ch 1fr;
-  gap: var(--pas-2);
-  color: var(--texte-doux);
-  overflow-wrap: anywhere;
-}
-[data-bloc="closer"] ul.en-plus {
-  display: flex;
-  flex-direction: column;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-[data-bloc="closer"] ul.en-plus li {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--pas-3);
-  max-width: 640px;
-  padding: var(--pas-1) 0;
-  border-top: 1px solid var(--trait-doux);
-}
-[data-bloc="closer"] .champ.ajouter {
-  display: flex;
-  align-items: center;
-  gap: var(--pas-2);
-  max-width: 640px;
-  padding-top: var(--pas-1);
-}
-[data-bloc="closer"] .champ.ajouter input[type="text"] {
-  padding: var(--pas-1) var(--pas-2);
-  font: inherit;
-  color: var(--texte);
-  background: var(--fond);
-  border: 1px solid var(--trait);
-  border-radius: var(--rayon-bouton);
-}
-[data-bloc="closer"] .champ.ajouter input[type="text"] {
-  flex: 1;
-}
-[data-bloc="closer"] :is(.en-plus, .champ.ajouter) .action > button {
-  white-space: nowrap;
-}
-[data-bloc="closer"] .closer-partie > p.dit {
-  font-size: var(--taille-corps);
-  color: var(--discret);
-}
-[data-bloc="closer"] .pas-sur-github {
-  color: var(--jaune);
 }
 /* La liste des stations, dans l'onglet Stations (ticket 2487) : celle de Cooks, telle quelle, sous le titre ; dessous,
    « Add a station », et l'étape qu'il ouvre sur place — ce qu'on attend du chef en tête, cet ordinateur d'abord. Alignés
@@ -2971,9 +2589,6 @@ main > header {
 /* La section « Connections » de la page d'une station (ticket 2643) : ses rangées sont celles de components/setting. */
 .connexions .ailleurs { margin: var(--pas-2) 0 0; opacity: 0.7; }
 
-/* Les post-mortems de panne du projet (ticket 4023) : une panne par rangée, ses cinq champs l'un sous l'autre. */
-.post-mortems-liste { list-style: none; margin: 0; padding: 0; }
-.post-mortems-liste li { margin-top: var(--pas-3); }
 /* L'écran de l'outil manquant (ticket 4059, outils-requis/) : à la place du pas qu'il retient — le compte du premier
    lancement, ou l'avis —, l'outil nommé, pourquoi, le lien de sa page d'installation et « I installed it ». */
 #tous .ecran-outil-manquant h3,

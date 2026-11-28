@@ -27,9 +27,9 @@ const SOURCES = join(import.meta.dirname, "../../src/projects");
 const NOW = Date.parse("2026-10-15T12:01:00Z");
 const OPEN = "2026-10-15T12:00:00.000Z";
 
-const BOX: StationVue = { id: "g1", nom: "box", machine: "Linux 6.1.0", etat: "en-ligne", ligne: "online · version 1.4.0 · no project", pannes: [], dit: "online", version: "1.4.0", projets: [], max: null };
-const MAC: StationVue = { id: "g2", nom: "macbook", machine: "macOS 25.0.0", etat: "en-ligne", ligne: "online · version 1.4.0 · no project", pannes: [], dit: "online", version: "1.4.0", projets: [], max: null };
-const OFF: StationVue = { id: "g3", nom: "vieux", machine: "Linux 5.10", etat: "hors-ligne", ligne: "offline for 3 min · version 1.3.0 · no project", pannes: [], dit: "offline for 3 min", version: "1.3.0", projets: [], max: null };
+const BOX: StationVue = { id: "g1", nom: "box", machine: "Linux 6.1.0", etat: "en-ligne", ligne: "online · version 1.4.0 · no project", dit: "online", version: "1.4.0", projets: [], max: null };
+const MAC: StationVue = { id: "g2", nom: "macbook", machine: "macOS 25.0.0", etat: "en-ligne", ligne: "online · version 1.4.0 · no project", dit: "online", version: "1.4.0", projets: [], max: null };
+const OFF: StationVue = { id: "g3", nom: "vieux", machine: "Linux 5.10", etat: "hors-ligne", ligne: "offline for 3 min · version 1.3.0 · no project", dit: "offline for 3 min", version: "1.3.0", projets: [], max: null };
 
 const INPUT = {
   depot: "benomite/parade",
@@ -81,7 +81,7 @@ test("la station recommandée est un serveur en ligne ; un ordinateur choisi se 
   assert.equal(warning(MAC), "macbook is a computer's app: this project's kitchen stops whenever you close the app there. A server station, always on, is recommended.");
 });
 
-const PHONE: StationVue = { id: "g4", nom: "pixel", machine: "Android 15", cuisine: false, etat: "en-ligne", ligne: "online · version 1.4.0 · no project", pannes: [], dit: "online", version: "1.4.0", projets: [], max: null };
+const PHONE: StationVue = { id: "g4", nom: "pixel", machine: "Android 15", cuisine: false, etat: "en-ligne", ligne: "online · version 1.4.0 · no project", dit: "online", version: "1.4.0", projets: [], max: null };
 
 test("un téléphone ne cuit rien : jamais recommandé, et refusé de toute saisie qui le choisit", () => {
   assert.equal(stationRecommended([PHONE]), undefined);

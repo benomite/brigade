@@ -73,7 +73,7 @@ test("une station du compte : sa sélection, sans le dépôt", async () => {
 });
 
 describe("la carte de cet ordinateur suit sa liste", () => {
-  const MAC: StationVue = { id: "gmac", nom: "macbook", machine: "macOS 25.0.0", etat: "en-ligne", ligne: "online", pannes: [], dit: "online", version: "", projets: ["parade"], max: null };
+  const MAC: StationVue = { id: "gmac", nom: "macbook", machine: "macOS 25.0.0", etat: "en-ligne", ligne: "online", dit: "online", version: "", projets: ["parade"], max: null };
   const BOX: StationVue = { ...MAC, id: "gbox", nom: "parade-box", machine: "Linux 6.1.0" };
   const base = { projet: "parade", stations: [MAC, BOX], locale: "gmac", maintenant: 0 };
 

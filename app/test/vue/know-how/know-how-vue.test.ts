@@ -362,12 +362,6 @@ const FACTS_OF_RAIL = holdFacts(() => new Map()).recevoir({
 const blockOf = (vue: Played) => vue.element("rail").dessous("section").find(({ dataset }) => dataset.bloc === "know-how") ?? assert.fail("no know-how block in the Know-how tab");
 
 describe("the know-how, in the view", () => {
-  test("Settings no longer shows the know-how block", async () => {
-    const { vue } = await play(READING);
-    await openRead(vue, "Settings");
-    assert.equal(vue.element("bandeau-sante").dessous("section").some(({ dataset }) => dataset.bloc === "know-how"), false);
-  });
-
   test("the Know-how tab reads the project's know-how from the main process and lists every entry with its section and ticket", async () => {
     const { vue } = await play(READING);
     assert.deepEqual(vue.dernier("savoirDuProjet"), ["parade"]);

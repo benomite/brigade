@@ -10,14 +10,13 @@ import { EXAMPLE, type Project } from "../../../src/config.ts";
 import { PALETTE } from "../../../src/colors.ts";
 import { BANNER, holdFacts, type Drawable, type Facts } from "../../../src/facts.ts";
 import { TABS, HEADINGS } from "../../../src/tabs.ts";
-import type { Outage } from "../../../src/outages/outages.ts";
 import { calibrationRecommended, EFFORTS, machineProposed, MODELS, type SeenOfProjects } from "../../../src/projects/projects.ts";
 import { MARKER } from "../../../src/report/report/report.ts";
 import type { StationVue, SeenOfStations } from "../../../src/stations/stations.ts";
 import type { Terminal } from "../../../src/terminals.ts";
 import { IN_PROGRESS, OPEN, REPORT, HOVER } from "../../../src/vue/report/action.js";
 import { openTheReport, type Request } from "../../../src/vue/report/opening.ts";
-import { cardOfTicket, type Fake, type Played, playTheVue, openAllTheStations, openRead, type Answers, repos } from "../../helpers/false-vue.ts";
+import { cardOfTicket, type Fake, type Played, playTheVue, openRead, type Answers, repos } from "../../helpers/false-vue.ts";
 
 const A = "2026-11-02T09:00:00.000Z";
 const PARADE: Project = { nom: "parade", dossier: "/tmp/parade", depot: "benomite/parade", base: "main" };
@@ -153,32 +152,10 @@ describe("les cartes du rail", () => {
   });
 });
 
-describe("une station en panne", () => {
-  const UPDATE: Outage = { cle: "mise-a-jour:2026-11-02T08:56:00.000Z", sujet: "mise-a-jour", ligne: "update to version 1.5.0 failed", survol: "box stayed on version 1.4.0", bouton: { libelle: "dismiss", geste: "ecarter" } };
-  const BOX: StationVue = { id: "g1", nom: "box", machine: "Linux 6.1.0", etat: "en-ligne", ligne: "online · version 1.4.0 · parade", pannes: [UPDATE], dit: "online", version: "1.4.0", projets: ["parade"], max: "connectee" };
-  const home = (station: StationVue): Home => ({ ...HOME, stations: [{ id: station.id, nom: station.nom, ton: station.pannes.length > 0 ? "rouge" : "vert", dit: "online", phrase: "online · no cook running", survol: "Linux 6.1.0" }] });
-  async function pageOf(station: StationVue, answers: Answers = {}) {
-    const vue = await playTheVue({ demarrage: () => startup({ stations: { a: A, stations: [station] }, accueil: home(station) }), espace: () => [], ...answers });
-    await openAllTheStations(vue);
-    (vue.element("toutes-les-stations").dessous("button").find(({ className }) => className === "ligne") ?? assert.fail("pas de ligne de station")).click();
-    await repos();
-    return vue;
-  }
-
-  test("sa page porte le bouton à la suite de chaque panne ; le clic nomme la station et un projet qu'elle sert", async () => {
-    const vue = await pageOf(BOX);
-    const outage = vue.element("station").dessous("p").find(({ className }) => className === "panne") ?? assert.fail("pas de panne");
-    (report(outage)[0] ?? assert.fail("pas de bouton sur la panne")).click();
-    await repos();
-    assert.deepEqual(vue.dernier("signaler"), [{ projet: "parade", reference: { station: "box" }, panne: "station box: update to version 1.5.0 failed" }]);
-  });
-
-  test("sans panne, sa page n'en porte aucun", async () => {
-    const vue = await pageOf({ ...BOX, pannes: [] });
-    assert.deepEqual(report(vue.element("station")), []);
-  });
-
-  // La station du projet, refusée : la barre « Cooks on » n'existe plus, le geste reste sur la page de la station (pannes).
+describe("une station", () => {
+  const BOX: StationVue = { id: "g1", nom: "box", machine: "Linux 6.1.0", etat: "en-ligne", ligne: "online · version 1.4.0 · parade", dit: "online", version: "1.4.0", projets: ["parade"], max: "connectee" };
+  const home = (station: StationVue): Home => ({ ...HOME, stations: [{ id: station.id, nom: station.nom, ton: "vert", dit: "online", phrase: "online · no cook running", survol: "Linux 6.1.0" }] });
+  // La station du projet, refusée : la barre « Cooks on » n'existe plus, 
   const projects = (state: "refuse" | "servi"): SeenOfProjects => ({
     a: A,
     projets: [{ nom: "parade", depot: "benomite/parade", base: "main", suiviPar: { id: "g1", nom: "box" }, stations: [{ id: "g1", nom: "box", etat: state, dit: state === "refuse" ? "box cannot clone benomite/parade" : "", autoriser: [] }], servi: null, acces: null, refus: null, worktree: null }],
@@ -187,7 +164,7 @@ describe("une station en panne", () => {
     machines: { g1: machineProposed({ nom: BOX.nom, machine: BOX.machine, coeurs: 8 }) },
     calibrage: calibrationRecommended([]),
   });
-  const withIt = (state: "refuse" | "servi"): With => ({ stations: { a: A, stations: [{ ...BOX, pannes: [], projets: [] }] }, accueil: HOME, projetsDesStations: projects(state) });
+  const withIt = (state: "refuse" | "servi"): With => ({ stations: { a: A, stations: [{ ...BOX, projets: [] }] }, accueil: HOME, projetsDesStations: projects(state) });
 
   test("la barre « Cooks on » est partie (#3523) : une station refusée n'y porte plus de bouton, le projet n'a plus de ligne des stations au-dessus du rail", async () => {
     const red = await openParade({}, withIt("refuse"));

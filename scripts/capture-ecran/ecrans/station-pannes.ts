@@ -1,8 +1,7 @@
-// La page d'une station en panne, ouverte d'un clic sur sa ligne de « All stations », sur l'accueil (#3195) : ce que la station
-// publie sur GitHub (un document figé) passe par les modules de l'app (stations.ts, outages.ts,
-// accueil.ts) — la vue reçoit ce qu'elle recevrait, la panne et ses mots sont ceux du code.
+// La page d'une station, ouverte d'un clic sur sa ligne de « All stations », sur l'accueil (#3195) : ce que la station
+// publie sur GitHub (un document figé) passe par les modules de l'app (stations.ts,
+// accueil.ts) — la vue reçoit ce qu'elle recevrait, ses mots sont ceux du code.
 import { type Home, type LineOfStation, lineOfStation } from "../../../app/src/home.ts";
-import { outagesOf } from "../../../app/src/outages/outages.ts";
 import type { DocumentStation } from "../../../app/src/stations/document.ts";
 import { stateOf, lineOf, lineOfVersion, type StationVue } from "../../../app/src/stations/stations.ts";
 import { configuration, cuisine, demarrage, type Ecran, type Etape, MAINTENANT } from "./commun.ts";
@@ -25,23 +24,20 @@ const EN_LIGNE: DocumentStation = {
   connexionMax: { etat: "connectee", depuis: il_y_a(180) },
 };
 
-// Une station en ligne, puis les trois pannes, chacune sur sa station.
+// Une station en ligne, puis hors ligne.
 export const DOCUMENTS = {
   "en-ligne": EN_LIGNE,
   "hors-ligne": { ...EN_LIGNE, signeDeVie: il_y_a(12), connexionMax: null },
-  "mise-a-jour": { ...EN_LIGNE, miseAJour: { visee: "1.5.0", restauree: "1.4.0", le: il_y_a(4), retourRate: false } },
-  "connexion-max": { ...EN_LIGNE, connexionMax: { etat: "perdue", depuis: il_y_a(12) } },
 } satisfies Record<string, DocumentStation>;
 
 // `plus` : ce que le `status` d'un projet ajoute à la ligne de la station (son plafond de cooks, ce qui la retient).
-export function pageDeStation(panne: keyof typeof DOCUMENTS, dit: string, etapes: Etape[] = [], plus: Partial<LineOfStation> = {}): Ecran {
-  const document = DOCUMENTS[panne];
+export function pageDeStation(etat: keyof typeof DOCUMENTS, dit: string, etapes: Etape[] = [], plus: Partial<LineOfStation> = {}): Ecran {
+  const document = DOCUMENTS[etat];
   const station: StationVue = {
     id: "box",
     nom: document.nom,
     machine: document.machine,
     ...lineOf(document, instant),
-    pannes: outagesOf(document, instant),
     dit: stateOf(document, instant).dit,
     version: document.version,
     projets: document.projets,

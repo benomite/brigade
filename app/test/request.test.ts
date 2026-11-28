@@ -1,10 +1,8 @@
-// La demande qu'une carte de T'attend — ou une ligne de la bande d'alertes dont le geste
-// demande du jugement — écrit dans le second : une phrase qui nomme ce que la file en dit,
+// La demande qu'une carte de T'attend écrit dans le second : une phrase qui nomme ce que la file en dit,
 // jamais envoyée, jamais un caractère de contrôle.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import type { Alert } from "../src/alerts.ts";
-import { requestOf, requestOfTheAlert, noteOfTheRequest, REFUSAL_CONTROL, REFUSAL_CONTROL_ALERT } from "../src/request.ts";
+import { requestOf, noteOfTheRequest, REFUSAL_CONTROL } from "../src/request.ts";
 import { openTerminals } from "../src/terminals.ts";
 
 const QUESTION = "depuis 2 h  question du manager avant de découper l'épique — à répondre : sur l'issue, il la relit et la découpe ; ou fermer l'issue";
@@ -109,53 +107,5 @@ describe("la demande d'une carte de T'attend", () => {
     assert.deepEqual(fresh.ecrits, []);
     assert.match(said.note, /is not written into a second that is starting/);
     assert.deepEqual(writtenOnes, []);
-  });
-});
-
-describe("la demande d'une ligne de la bande d'alertes : le geste avec jugement", () => {
-  const FROZEN: Alert = {
-    sujet: "cuisine",
-    verifie: true,
-    ton: "rouge",
-    dit: "aucune station déclarée : aucun cook ne part, la cuisine est gelée",
-    releve: "AUCUNE DÉCLARÉE depuis 1 h 00\n  déclarer une station sur la box",
-    geste: "déclarer une station, puis redémarrer le runtime",
-    appel: { demande: true },
-    prix: "un redémarrage du runtime : aucun cook en vol à cette lecture, rien n'est interrompu",
-  };
-
-  test("elle nomme le projet, ce que la ligne dit, ce que la box en écrit mot pour mot, le geste et son prix — et demande d'attendre l'accord du chef", () => {
-    const written = requestOfTheAlert("parade", FROZEN);
-
-    assert.ok("demande" in written);
-    assert.match(written.demande, /^La bande d'alertes de parade dit : « aucune station déclarée : aucun cook ne part, la cuisine est gelée »/);
-    // Les lignes de la box, bout à bout : un retour à la ligne aurait envoyé la demande.
-    assert.ok(written.demande.includes("« AUCUNE DÉCLARÉE depuis 1 h 00 ;   déclarer une station sur la box »"));
-    assert.ok(written.demande.includes(`« ${FROZEN.geste} » — son prix : ${FROZEN.prix}`));
-    assert.ok(written.demande.includes("n'agis pas avant mon accord"));
-    assert.ok(written.demande.includes("4. une ligne qui me dit que je peux te demander le détail"));
-    assert.ok(written.demande.includes("seulement une fois que j'ai choisi"));
-    assert.doesNotMatch(written.demande, /[\r\n]/);
-  });
-
-  test("un caractère de contrôle dans ce que la ligne dit refuse tout : aucun clic ne peut envoyer un Entrée", () => {
-    for (const trap of ["gelée\r", "x\x03", "tab\there"]) {
-      assert.deepEqual(requestOfTheAlert("parade", { ...FROZEN, dit: trap }), { refus: REFUSAL_CONTROL_ALERT });
-      assert.deepEqual(requestOfTheAlert("parade", { ...FROZEN, pourquoi: trap }), { refus: REFUSAL_CONTROL_ALERT });
-    }
-  });
-
-  test("écrite dans le second : rien d'autre que la phrase, sans Entrée — elle ne part que de l'Entrée du chef", () => {
-    const { terminaux: terminals, ecrits: writtenOnes } = registry();
-    const project = { nom: "parade", dossier: "/projets/parade" };
-    terminals.espace(project);
-    const written = requestOfTheAlert("parade", FROZEN);
-    assert.ok("demande" in written);
-
-    const said = terminals.inscrire(project, written.demande, noteOfTheRequest);
-
-    assert.deepEqual(writtenOnes, [written.demande]);
-    assert.ok(writtenOnes.every((data) => !/[\r\n]/.test(data)));
-    assert.match(said.note, /appuie sur Entrée/);
   });
 });

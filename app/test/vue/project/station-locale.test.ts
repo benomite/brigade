@@ -12,7 +12,6 @@ import { PALETTE } from "../../../src/colors.ts";
 import { BANNER } from "../../../src/facts.ts";
 import { TABS, HEADINGS } from "../../../src/tabs.ts";
 import { blockOfOrdinary } from "../../../src/ordinary.ts";
-import type { Outage } from "../../../src/outages/outages.ts";
 import { calibrationRecommended, EFFORTS, MODELS, type SeenOfProjects } from "../../../src/projects/projects.ts";
 import type { StationVue, SeenOfStations } from "../../../src/stations/stations.ts";
 import type { Terminal } from "../../../src/terminals.ts";
@@ -30,8 +29,7 @@ const setBlockStationLocale = (fabrique: typeof doc, state: StateOfTheStationLoc
 const A = "2026-11-05T21:00:00.000Z";
 const PARADE: Project = { nom: "parade", dossier: "/tmp/parade", ordinaires: true, limiteCooks: 2 };
 const FOLDERS = { clone: "/Users/chef/brigade-atelier/clones/parade", worktrees: "/Users/chef/brigade-atelier/worktrees/parade" };
-const LOST: Outage = { cle: "connexion-max:2026-11-05T20:40:00.000Z", sujet: "connexion-max", ligne: "Max connection lost 20 min ago", survol: "nothing cooks on macbook until you log in", bouton: { libelle: "log in", geste: "login" } };
-const station = (id: string, max: StationVue["max"], outages: Outage[] = []): StationVue => ({ id, nom: id, machine: "", etat: "en-ligne", ligne: "online", pannes: outages, dit: "online", version: "", projets: ["parade"], max });
+const station = (id: string, max: StationVue["max"]): StationVue => ({ id, nom: id, machine: "", etat: "en-ligne", ligne: "online", dit: "online", version: "", projets: ["parade"], max });
 
 // Les lignes du bloc : le nom de chaque réglage (son étiquette de niveau comprise), et sa valeur.
 const lines = (block: Fake) => block.dessous("div").filter(({ className }) => className === "reglage");
@@ -93,21 +91,18 @@ describe("les lignes de la station locale", () => {
     assert.equal(valueOf(lines(elsewhere).find(({ dataset }) => dataset.cle === "ordinaires") ?? assert.fail("pas de ligne")), "parade does not cook on this computer");
   });
 
-  test("chaque geste appelle le sien : le bac à sable, le login de la panne", () => {
+  test("chaque geste appelle le sien : le bac à sable", () => {
     const facts: unknown[][] = [];
-    const block = setBlockStationLocale(doc, state({ station: station("macbook", "perdue", [LOST]) }), {
+    const block = setBlockStationLocale(doc, state({ station: station("macbook", "perdue") }), {
       regler: (active, limit, or) => void facts.push(["regler", active, limit, or]),
-      seConnecter: (key) => void facts.push(["seConnecter", key]),
     }) as unknown as Fake;
     assert.equal(valueOf(lines(block).find(({ dataset }) => dataset.cle === "claude") ?? assert.fail("pas de ligne")), "lost");
     const limit = block.dessous("input")[0] ?? assert.fail("pas de limite");
     switchOf(block).click();
     limit.value = "";
     limit.declencher("change");
-    const [login] = buttons(block, "log in");
-    assert.equal(login?.className, "recommande");
-    login?.click();
-    assert.deepEqual(facts, [["regler", false, 2, "option"], ["regler", false, null, "limite"], ["seConnecter", LOST.cle]]);
+    assert.deepEqual(buttons(block, "log in"), []);
+    assert.deepEqual(facts, [["regler", false, 2, "option"], ["regler", false, null, "limite"]]);
   });
 
   test("aucun « Save » ; un changement en route se dit sous sa rangée, les contrôles du bac à sable attendent ; un refus se lit sous la sienne", () => {
@@ -129,7 +124,7 @@ const switchOf = (pose: Fake) => pose.dessous("button").find(({ role }) => role 
 describe("la station locale dans l'onglet Stations", () => {
   const SECOND: Terminal = { id: 1, projet: "parade", genre: "second", titre: "second · claude", note: "", arrete: false };
   // La station de ce Mac, et la box — qui a perdu sa connexion : rien d'elle ne doit se lire dans le bloc.
-  const STATIONS = (locale: StationVue): SeenOfStations => ({ a: A, stations: [locale, station("box", "perdue", [{ ...LOST, cle: "connexion-max:box" }])] });
+  const STATIONS = (locale: StationVue): SeenOfStations => ({ a: A, stations: [locale, station("box", "perdue")] });
   const PROJECTS_OF_STATIONS: SeenOfProjects = { a: A, projets: [], locale: "macbook", recommandee: null, avertissements: {}, machines: {}, calibrage: calibrationRecommended([]) };
 
   const play = (locale: StationVue, set: (...args: unknown[]) => string | undefined = () => undefined) =>
@@ -152,7 +147,6 @@ describe("la station locale dans l'onglet Stations", () => {
       ordinaires: () => blockOfOrdinary(PARADE, "darwin", undefined, true),
       reglerOrdinaires: set,
       dossiersDeLaStation: () => FOLDERS,
-      panne: () => ({ fait: "the login page opens in your browser" }),
     });
   const openTheProject = async (vue: Played) => {
     (vue.element("projets").children.at(1) ?? assert.fail("pas de case")).click();
@@ -257,18 +251,5 @@ describe("la station locale dans l'onglet Stations", () => {
     await repos();
     assert.equal(theBlock(vue).dessous("p").some(({ className }) => className.startsWith("dit en-cours")), false);
     assert.ok([...theBlock(vue).dessous("input"), switchOf(theBlock(vue))].every(({ disabled }) => !disabled));
-  });
-
-  test("connexion perdue : « log in » joue le login de la panne de cette station, comme sur sa page, et ce qu'il a rendu se lit dessous", async () => {
-    const vue = await play(station("macbook", "perdue", [LOST]));
-    await openTheProject(vue);
-    await openTab(vue, "Stations");
-    await repos();
-    const [login] = buttons(theBlock(vue), "log in");
-    login?.click();
-    await repos();
-    await repos();
-    assert.deepEqual(vue.dernier("panne"), ["macbook", LOST.cle]);
-    assert.ok(theBlock(vue).dessous("p").some(({ className, textContent }) => className === "dit" && textContent === "the login page opens in your browser"));
   });
 });

@@ -18,7 +18,7 @@ import { filter } from "./step-project.js";
 /** @typedef {import("../bricks.js").Fabrique} Fabrique */
 /** @typedef {import("../../first-launch.ts").Opening} Opened */
 /** @typedef {import("../../first-launch.ts").Progress} Progress */
-/** @typedef {{ station: string, projet: string, depot: string, base?: string, etape?: Progress, echec?: Extract<Opened, { state: "failed" | "login" }>, login?: import("../../outages/actions.ts").RenderedOfOutage }} Opening */
+/** @typedef {{ station: string, projet: string, depot: string, base?: string, etape?: Progress, echec?: Extract<Opened, { state: "failed" | "login" }> }} Opening */
 /** @typedef {{ depot: string, base: string }} Repository */
 /**
  * Ce que l'écran tient. `compte` : le compte GitHub de cet ordinateur — absent, sa lecture est en route ; `connexion` :
@@ -53,7 +53,7 @@ import { filter } from "./step-project.js";
 
 /** @typedef {import("./connection.js").Connection} Connection */
 export const OPENING_OF = (/** @type {string} */ project) => `Opening ${project}…`;
-// Le geste qui connecte Claude Code sur cet ordinateur : le mot du bouton de la panne « Max connection lost » (outages/outages.ts).
+// Le geste qui connecte Claude Code sur cet ordinateur.
 export const ITSELF_CONNECT_A_CLAUDE = "log in";
 export const PROJECT_MISSING = "Type the project to work on: its GitHub repository, `owner/repo`.";
 export const ACCOUNT_MISSING = "Connect to GitHub above, or type the project as `owner/repo`: a name alone does not say whose it is.";
@@ -208,10 +208,8 @@ export function openingSaid(doc, opening, state, action) {
   const retry = buttonAction(doc, RETRY, () => action.ouvrir(opening.station, opening.projet, opening.depot, opening.base));
   // Claude Code pas connecté (ticket 4057) : rien n'a commencé. « log in » lance son login ; la copie repart quand il finit.
   if (failure.state === "login") {
-    const login = opening.login;
     return [
       lineError(doc, sentence(doc, "span", failure.reason), undefined, { classe: "refus" }),
-      ...(login === undefined || "outilManquant" in login ? [] : ["fait" in login ? sentence(doc, "p", login.fait) : lineError(doc, sentence(doc, "span", login.refus), undefined, { classe: "refus" })]),
       actions(doc, [...(action.seConnecterAClaude === undefined ? [] : [buttonAction(doc, ITSELF_CONNECT_A_CLAUDE, () => action.seConnecterAClaude?.(), { recommande: true })]), retry]),
     ];
   }

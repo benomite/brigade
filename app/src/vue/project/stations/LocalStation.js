@@ -26,7 +26,7 @@ import { READING, NOT_REACHED, THIS_COMPUTER } from "../../lexicon.js";
 /** @typedef {import("../../bricks.js").Fabrique} Fabrique */
 /** @typedef {import("../../../ordinary.ts").Block} BlockOfOrdinary */
 /** @typedef {import("../../../projects/projects.ts").FoldersOfTheStation} Folders */
-/** @typedef {Pick<import("../../../stations/stations.ts").StationVue, "id" | "nom" | "max" | "pannes">} Station */
+/** @typedef {Pick<import("../../../stations/stations.ts").StationVue, "id" | "nom" | "max">} Station */
 /** @typedef {import("../../components/setting/setting.js").Says} Says */
 /** La rangée du bac à sable qu'un changement touche : les tickets ordinaires, ou combien de cooks à la fois. @typedef {"option" | "limite"} Sandbox */
 /**
@@ -35,7 +35,7 @@ import { READING, NOT_REACHED, THIS_COMPUTER } from "../../lexicon.js";
  * (un téléphone) : le bloc le dit alors en une ligne. `dossiers`, `ordinaires` : leur dernière lecture —
  * indéfinie, elle est en route ; `ordinaires` nul : le projet ne cuit pas sur cet ordinateur. `refusOrdinaires` : pourquoi
  * le bac à sable ne s'est pas lu. `reglageDit` : ce que le dernier changement du bac à sable a rendu, sous la rangée
- * qu'il touche — en route, ou refusé. `connexionDite` : ce que le dernier login a rendu.
+ * qu'il touche — en route, ou refusé.
  * @typedef {{
  *   poste: string,
  *   projet: string,
@@ -44,13 +44,12 @@ import { READING, NOT_REACHED, THIS_COMPUTER } from "../../lexicon.js";
  *   ordinaires?: BlockOfOrdinary | null,
  *   refusOrdinaires?: string,
  *   reglageDit?: { ou: Sandbox, dit: Says },
- *   connexionDite?: string,
  * }} StateOfTheStationLocale
  */
 /**
  * `regler` : le bac à sable — prendre les tickets ordinaires, combien de cooks à la fois (`null` : pas de limite) —, le
- * même appel que Settings ; `ou` : la rangée qui a changé. `seConnecter` : le login de la panne de connexion, par sa clé.
- * @typedef {{ regler(active: boolean, limit: number | null, or: Sandbox): void, seConnecter(key: string): void }} ActionsOfTheStationLocale
+ * même appel que Settings ; `ou` : la rangée qui a changé.
+ * @typedef {{ regler(active: boolean, limit: number | null, or: Sandbox): void }} ActionsOfTheStationLocale
  */
 
 export { READING };
@@ -131,31 +130,25 @@ function sandbox(doc, { poste: workstation, projet: project, ordinaires: ordinar
   ];
 }
 
-// La connexion à Claude, telle que la station la publie : perdue, le bouton de sa panne la refait (le login de Claude
-// Code sur cet ordinateur) ; ce qu'il a rendu se lit dessous.
-/** @param {Fabrique} doc @param {Station | undefined} station @param {string} saidOne @param {ActionsOfTheStationLocale} actions */
-function connection(doc, station, saidOne, actions) {
+// La connexion à Claude, telle que la station la publie.
+/** @param {Fabrique} doc @param {Station | undefined} station */
+function connection(doc, station) {
   const max = station?.max ?? null;
   const seenOne = max === null ? { dit: station === undefined ? READING : CONNECTION_KILLS, survol: CONNECTION_KILLS_HOVER } : CONNECTION[max];
   const value = withIt(doc, "span", seenOne.dit);
   if (max !== null) value.dataset.etat = max;
-  const outage = station?.pannes.find(({ sujet: subject }) => subject === "connexion-max");
-  const control = [];
-  if (outage !== undefined) {
-    control.push(button(doc, outage.bouton.libelle, () => actions.seConnecter(outage.cle), { sorte: "recommande" }));
-  }
-  return row(doc, { nom: "Claude connection", cle: "claude", valeur: [value, ...(station === undefined ? [] : [hover(doc, seenOne.survol)])], controle: control, dessous: saidOne === "" ? [] : [withIt(doc, "p", saidOne, "dit")] });
+  return row(doc, { nom: "Claude connection", cle: "claude", valeur: [value, ...(station === undefined ? [] : [hover(doc, seenOne.survol)])], controle: [] });
 }
 
 // Les lignes de cet ordinateur : ses dossiers, son bac à sable, sa connexion à Claude — chacune une rangée de réglage.
 /** @param {Fabrique} doc @param {StateOfTheStationLocale} state @param {ActionsOfTheStationLocale} [actions] @returns {any[]} */
-export function linesOfTheStationLocale(doc, state, actions = { regler: () => {}, seConnecter: () => {} }) {
+export function linesOfTheStationLocale(doc, state, actions = { regler: () => {} }) {
   const station = state.station === null ? undefined : state.station;
-  return [...folders(doc, state), ...sandbox(doc, state, actions), connection(doc, station, state.connexionDite ?? "", actions)];
+  return [...folders(doc, state), ...sandbox(doc, state, actions), connection(doc, station)];
 }
 
 // La connexion à Claude d'une autre station, telle qu'elle la publie : elle se refait sur sa machine, pas d'ici.
 /** @param {Fabrique} doc @param {Station} station */
 export function connectionAtTheStation(doc, station) {
-  return connection(doc, { ...station, pannes: [] }, "", { regler: () => {}, seConnecter: () => {} });
+  return connection(doc, station);
 }

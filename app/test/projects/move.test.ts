@@ -12,8 +12,8 @@ import type { Files, GitHubOfStations } from "../../src/stations/github.ts";
 import type { StationVue } from "../../src/stations/stations.ts";
 import { CACHE_OF_COMPILATION } from "../helpers/cache-of-compilation.ts";
 
-const BOX: StationVue = { id: "gbox", nom: "parade-box", machine: "Linux 6.1.0", etat: "en-ligne", ligne: "online", pannes: [], dit: "online", version: "1.4.0", projets: [], max: null };
-const MAC: StationVue = { id: "gmac", nom: "macbook", machine: "macOS 25.0.0", etat: "en-ligne", ligne: "online", pannes: [], dit: "online", version: "1.4.0", projets: [], max: null };
+const BOX: StationVue = { id: "gbox", nom: "parade-box", machine: "Linux 6.1.0", etat: "en-ligne", ligne: "online", dit: "online", version: "1.4.0", projets: [], max: null };
+const MAC: StationVue = { id: "gmac", nom: "macbook", machine: "macOS 25.0.0", etat: "en-ligne", ligne: "online", dit: "online", version: "1.4.0", projets: [], max: null };
 const REQUEST_THE = "2026-10-20T10:00:00.000Z";
 const PARADE: ProjectRequest = { nom: "parade", depot: "benomite/parade", base: "main", principale: true, cooks: 2, manager: { modele: "sonnet", effort: "medium" }, reviewer: { modele: "sonnet", effort: "medium" }, ouvertLe: null, demandeLe: REQUEST_THE };
 

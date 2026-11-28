@@ -43,7 +43,7 @@ import { statusRead } from "../engine/engines.js";
  * @typedef {{ de: string, vers: string, depuis: number, etape: "demandee" | "acceptee" | "remise", dit: string, deEnLigne: boolean, versEnLigne: boolean }} Displacement
  */
 /**
- * La ligne du haut. Éteint, `dit` : la phrase de la bande (alerts.ts, `MANAGER_ETEINT`) ; `releve` : la ligne `manager` de la
+ * La ligne du haut. Éteint, `dit` : sa phrase ; `releve` : la ligne `manager` de la
  * box ; `servi` : une station le sert — « Add a station » plutôt que « Choose who cooks it ».
  * @typedef {{ etat: "cuit", vert: true, stations: string[], cooks: number }
  *   | { etat: "deplacement", vert: false, de: string, vers: string, attend: string, depuis: number, bloque: string | null }

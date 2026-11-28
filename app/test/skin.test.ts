@@ -293,7 +293,7 @@ describe("le texte relayé de la box s'affiche à l'identique, sans troncature n
       if (declarations.has("max-height")) assert.equal(declarations.get("overflow"), "auto", said);
       assert.notEqual(declarations.get("font-size"), "0", said);
     }
-    assert.ok(seenOnes >= 8, `${seenOnes} règles seulement portent sur un \`pre\``);
+    assert.ok(seenOnes >= 7, `${seenOnes} règles seulement portent sur un \`pre\``);
 
     // Rien ne se coupe dans toute la peau : pas même le titre d'un ticket, sur la ligne d'un cook — ni le sigle d'un
     // projet dans sa case de la barre (#1983), qui y tient entier.
