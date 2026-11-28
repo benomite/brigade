@@ -145,13 +145,6 @@ export function powershellOf(env: Record<string, string | undefined>): string {
 const ARGUMENTS = ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-EncodedCommand"];
 const encoder = (script: string) => Buffer.from(script, "utf16le").toString("base64");
 
-// Ce qui joue l'installeur, au premier plan : le process, ses arguments et son environnement. Le
-// script passe encodé (UTF-16, base64) : ni guillemets à citer, ni fichier à écrire, et un chemin
-// qui n'est pas en ASCII arrive tel quel.
-export function commandOfInstallationWindows(options: OptionsInstallationWindows): { commande: string; args: string[]; env: Record<string, string | undefined> } {
-  const env = options.env ?? process.env;
-  return { commande: powershellOf(env), args: [...ARGUMENTS, encoder(scriptWindows(options))], env };
-}
 
 // Le script de l'installeur, encodé, attend dans cette variable que le lanceur le reprenne : il ne
 // tiendrait pas deux fois encodé sur une ligne de commande de Windows (32 767 caractères).

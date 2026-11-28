@@ -16,4 +16,3 @@ export const MENU = [
   { id: AGENTS, titre: "Agents" },
   { id: KNOW_HOW, titre: "Know-how" },
 ];
-export const TITLE_OF_SETTINGS = "Settings";

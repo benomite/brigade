@@ -65,7 +65,7 @@ import { buttonAction, caseATick, hover, sentence } from "./bricks.js";
 import { confirmationOfAction } from "./components/confirmation/confirmation.js";
 import { lineError } from "./components/line-error/line-error.js";
 import { rowOfSetting as rowOfTheFamily } from "./components/setting/setting.js";
-import { button as buttonOfTheFamily, kindOfButton } from "./components/button/button.js";
+import { button as buttonOfTheFamily } from "./components/button/button.js";
 import { slip as slipOfTheFamily, headOfSlip } from "./components/slip/slip.js";
 import { pan } from "./components/pan/pan.js";
 import { cardWait, cardOfAnswer } from "./components/card-wait/card-wait.js";
@@ -870,8 +870,6 @@ const cardRefusals = new Map();
 // que le pont du téléphone rend —, ou écrit dans le second, que l'écran étroit ne montre pas à côté de la fiche.
 /** @type {Map<string, { envoi: string } | { fait: string, detail: string } | { second: true }>} */
 const issuesOfCards = new Map();
-// Pourquoi un geste n'est pas parti quand le pont ne porte pas l'action (le téléphone, tant que son pont ne la prend pas).
-const WITHOUT_BRIDGE = "this app does not carry this action to the station yet";
 // La phrase que le chef écrit en réponse, par projet et ticket : une fiche reposée ne la perd pas.
 /** @type {Map<string, string>} */
 const drafts = new Map();
@@ -1232,13 +1230,6 @@ function keep(project, terminal) {
   if (project === current?.nom) aFocus = terminal.id;
 }
 
-// Une ligne courte, et son explication au survol : ce qui s'écrivait en mode d'emploi.
-/** @param {string} balise @param {string} line @param {string} help */
-function saysAndHelp(balise, line, help) {
-  const created = block(balise, line);
-  created.append(hover(document, help));
-  return created;
-}
 
 // Un bouton de geste : celui de la famille unique (components/button, ticket 2916) — secondaire, sauf sorte dite.
 /** @param {string} text @param {(() => void) | undefined} gesture @param {import("./components/button/button.js").Kind} [kind] */
@@ -1312,15 +1303,6 @@ async function ask(ticket) {
   show();
 }
 
-// La page cliquée s'ouvre par-dessus le rail ; recliquée, elle se referme, et le rail revient tel qu'il était.
-/** @param {string} id */
-function activer(id) {
-  notWritten = "";
-  if (current === undefined) return show();
-  if (leaves.get(current.nom) === id) leaves.delete(current.nom);
-  else leaves.set(current.nom, id);
-  show();
-}
 
 // À droite, l'onglet d'un shell le montre à la place du second ; celui du second le rend. Ni l'un
 // ni l'autre ne se ferme : caché, un terminal garde ce qu'il avait reçu. Celui montré prend le clavier.
@@ -2732,8 +2714,6 @@ function railEmpty(project) {
   return upstreams.get(project.nom)?.vide ?? `${NOT_STILL("ticket on the rail")} What is before it is being read…`;
 }
 
-// Où l'allumer, au survol de ce qui dit le projet éteint hors de Rail (ticket 3454).
-const OR_TURN_ON = "the project is off on its station";
 
 // Ce que dit la page d'un projet qui cuit sur cet ordinateur quand la station de cet ordinateur ne tourne pas.
 const STATION_STOPPED = `${THIS_COMPUTER}'s station is not running`;

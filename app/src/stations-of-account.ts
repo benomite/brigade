@@ -26,7 +26,6 @@ type OfAccount =
   | { state: "listed"; stations: Recorded[]; unreadable: Array<{ id: string; reason: string }>; reason?: string }
   | { state: "sign-in-required"; reason: string; action: { id: "github-sign-in"; label: string; command: string[] } }
   | { state: "unavailable"; cause: "gh-missing" | "network" | "timeout" | "rate-limit" | "github"; reason: string; link?: string; detail?: string };
-export type StationsOfAccountRead = OfAccount;
 
 // Ce qu'une station a fait d'un dépôt choisi pour elle, une fois lu : `seule` — aucune autre ne le servait, elle le
 // prépare elle-même, comme avant ; `rejointe` — elle cuit dans la cuisine que `principale` fait tourner ; `refusee` —
@@ -41,7 +40,3 @@ export type StationsOfAccount = Exclude<OfAccount, { state: "listed" }> | (Omit<
 // détail au survol.
 export type Choice = { selection: string[] } | { refus: string; detail?: string };
 
-// Deux refus d'une écriture que GitHub n'a pas prise, que les écrans disent sur la ligne même — ce que `gh` a dit reste au
-// survol (#3187).
-export const REFUSAL_NETWORK = "not saved: GitHub could not be reached from this computer; check its network connection, then choose again";
-export const REFUSAL_GITHUB = "not saved: GitHub answered the write with an error (its answer on hover); choose again in a minute";

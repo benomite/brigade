@@ -20,7 +20,6 @@ import { toggleSwitch } from "../../components/switch/switch.js";
 import { lineError } from "../../components/line-error/line-error.js";
 import { saysOfSetting, rowOfSetting } from "../../components/setting/setting.js";
 import { levelOf } from "../../levels.js";
-import { button } from "../../components/button/button.js";
 import { READING, NOT_REACHED, THIS_COMPUTER } from "../../lexicon.js";
 
 /** @typedef {import("../../bricks.js").Fabrique} Fabrique */

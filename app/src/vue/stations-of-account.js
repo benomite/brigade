@@ -17,13 +17,10 @@
 // (addition-project/connection.js) ; une lecture qui échoue, une ligne, son détail au survol.
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément (bricks.js), et rend des éléments.
 
-import { buttonAction, caseATick, hover } from "./bricks.js";
+import { buttonAction, hover } from "./bricks.js";
 import { lineError } from "./components/line-error/line-error.js";
 import { buttonOfThePage, connectionSaid, actions, sentenceAndDetail } from "./addition-project/connection.js";
-import { button as buttonOfTheFamily } from "./components/button/button.js";
-import { lineEmpty } from "./components/line-empty/line-empty.js";
-import { NOT_STILL, READ_OF, RECORDING } from "./lexicon.js";
-import { outsideLineOfAccount } from "./choice-station/choice-station.js";
+import { NOT_STILL } from "./lexicon.js";
 
 /** @typedef {import("./bricks.js").Fabrique} Fabrique */
 /** @typedef {import("../stations-of-account.ts").StationsOfAccount} StationsOfAccount */
@@ -78,13 +75,6 @@ export const stateSays = (station) => (station.heldUntil ? HELD(station.heldUnti
 // Le ton de sa pastille : vert en ligne, jaune retenue, gris hors ligne.
 /** @param {Pick<StationRecorded, "available" | "heldUntil">} station */
 export const yourOf = (station) => (station.heldUntil ? "jaune" : station.available ? "vert" : "gris");
-// Ce qu'une station a fait d'un dépôt coché pour elle qu'une autre servait déjà (ticket 1790, retiré par le ticket 2713),
-// sous sa case : elle cuit dans la cuisine qui tourne, ou elle refuse — sa phrase dessous, en entier. Tant qu'elle ne l'a pas
-// lu, la case dit qu'elle va répondre.
-/** @param {string} main */
-export const JOINED = (main) => `cooks in ${main}'s kitchen`;
-export const REFUSED = "refused";
-export const REQUESTED = "asked: the station answers within a minute";
 
 // Ce qu'une station a fait d'un dépôt choisi pour elle, tel que son gist le dit (stations-of-account.ts, `ajouts`) — rien tant
 // qu'elle ne l'a pas lu.

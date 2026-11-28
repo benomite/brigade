@@ -137,12 +137,6 @@ export function readRequest(root: string): { version: string } | { motif: string
   }
 }
 
-// Le geste de la station, pour sa mise à jour et pour les essais : écrit d'un coup.
-export function askRestart(root: string, version: string): void {
-  const file = join(root, REQUEST);
-  writeFileSync(`${file}.${process.pid}`, `${JSON.stringify({ version })}\n`);
-  renameSync(`${file}.${process.pid}`, file);
-}
 
 export function readStateOfVersions(versions: string): StateOfVersions {
   try {

@@ -11,8 +11,6 @@
 /** @typedef {"recommande" | "secondaire" | "discret" | "danger"} Kind */
 /** @typedef {{ createElement(balise: string): any }} Fabrique */
 
-/** @type {readonly Kind[]} */
-export const KINDS = ["recommande", "secondaire", "discret", "danger"];
 
 // Un bouton : son libellé, son geste au clic (aucun pour un `submit`, que son formulaire écoute), sa sorte et sa taille.
 // `coupe` : un libellé qui ne tient pas sur une ligne y reste, coupé d'une ellipse, entier au survol (`title`) et pour un

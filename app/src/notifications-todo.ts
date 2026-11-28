@@ -16,8 +16,6 @@ import type { CallGitHub } from "./board/client.ts";
 import { readWhatAwaitingTheChef, type WaitOfChef } from "./board/wait-of-chef.ts";
 import { readTheProjectsOfAccount, type ProjectOfAccount } from "./read-github-phone.ts";
 
-// Le rythme du sondage d'arrière-plan : le plus court que le système donne à un job périodique d'Android.
-export const PROBE_MS = 15 * 60_000;
 
 // Ce que la mémoire retient d'une carte notifiée.
 export type Notified = { id: number; projet: string; depot: string; ticket: number; question: string };

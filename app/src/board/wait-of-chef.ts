@@ -29,7 +29,7 @@
 // Chaque entrée dit sa question puis son geste, sur sa ligne du bloc, et porte ce que la carte de TODO en fait (`chef`,
 // `miseDeCote`) ; le bloc les range de la plus ancienne à la plus récente, et dit « nothing awaits the chef »
 // quand il n'y en a aucune. Une lecture qui échoue n'est jamais « rien n'attend » : elle dit pourquoi.
-import type { ExpectedOfOthers, Third } from "../facts.ts";
+import type { Third } from "../facts.ts";
 import type { Share } from "../vue/cards-assigned/cards-assigned.ts";
 import type { CallGitHub } from "./client.ts";
 import type { IssueParkedForTheChef, ReadOfBoardOfRepository, LineOfTheFile, BoardRead } from "./read.ts";

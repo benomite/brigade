@@ -4,7 +4,6 @@
 // a quitté la tête du rail avec la bande de chiffres (ticket 3013).
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément (bricks.js), et rend un élément.
 
-import { hover } from "./bricks.js";
 
 /** @typedef {import("./bricks.js").Fabrique} Fabrique */
 /** @typedef {import("../cadence.ts").Seniority} Seniority */

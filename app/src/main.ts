@@ -5,7 +5,7 @@ import { homedir, hostname, userInfo } from "node:os";
 import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { menuOfTheApp } from "./help-community.ts";
-import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, protocol, shell, type MenuItemConstructorOptions } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, shell, type MenuItemConstructorOptions } from "electron";
 import { setTheIconOfDock } from "./icon-of-dock.ts";
 import { holdMenuBar, type Entry } from "./menu-bar.ts";
 import { createTheIcon, ICON_OF_THE_BAR } from "./tray/icon.ts";

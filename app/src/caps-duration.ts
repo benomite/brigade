@@ -14,45 +14,17 @@
 // L'app ne juge que ce que le runtime refuserait de lire (`SEUILS_DU_PROJET`) : un nombre au-dessus de zéro, entier
 // quand le seuil l'est. Ce module compose les demandes ; ce qui les porte est donné (`ClientDeLaPriorite`).
 import type { ClientOfThePriority } from "./priority.ts";
-import { PROPOSES } from "./box.ts";
 import { refusalOf } from "./board/client.ts";
 
 export const FILE = ".claude/brigade/projet.json";
 
-// Les seuils de dérive, tels que le runtime les lit, dans l'ordre où la page les montre : les durées d'abord.
-// `unite` : ce que la valeur compte ; `entier` : le runtime n'y lit qu'un entier ; `defaut` : la valeur que le runtime
-// prend quand rien n'est déclaré, ni dans le dépôt ni sur la station.
-export const CAPS = [
-  { cle: "gatesSeconds", nom: "Gates duration", unite: "s", entier: false, duree: true, defaut: 100 },
-  { cle: "ticketTokens", nom: "Costliest ticket", unite: "tokens", entier: true, duree: false },
-  { cle: "lostTokens", nom: "Tokens lost", unite: "tokens", entier: true, duree: false },
-] as const satisfies readonly { cle: string; nom: string; unite: string; entier: boolean; duree: boolean; defaut?: number }[];
-export type KeyCap = (typeof CAPS)[number]["cle"];
 
-// Ce que la page reçoit : chaque plafond — son nom, son unité, son défaut — et sa valeur dans le dépôt — null quand le
-// dépôt ne la déclare pas —, ou pourquoi le fichier ne se lit pas, en une ligne, le détail au survol.
-export type CapRead = { cle: KeyCap; nom: string; unite: string; entier: boolean; duree: boolean; defaut: number | null; valeur: number | null };
-export type ReadOfCaps = { plafonds: CapRead[]; branche: string | null } | { sans: string; detail?: string };
 // Ce qu'une proposition a ouvert : la PR, son adresse et son numéro.
 export type PrOpen = { pr: string; numero: number };
-// Ce que le changement a rendu : la PR qui propose la valeur (null : la retirer), la valeur déjà là, ou pourquoi rien n'a
-// changé.
-export type RenderedOfCap = ({ propose: string; cle: KeyCap; valeur: number | null } & PrOpen) | { fait: string; cle: KeyCap; valeur: number | null } | { refus: string; detail?: string };
 
 const isObject = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
 const message = (error: unknown) => (error instanceof Error ? error.message : String(error));
-const capOf = (key: unknown) => CAPS.find((cap) => cap.cle === key);
 
-// La valeur qu'un champ propose, ou pourquoi elle n'en est pas une : vide, le plafond se retire du dépôt.
-export function valueProposed(key: KeyCap, input: unknown): { valeur: number | null } | { refus: string } {
-  const cap = capOf(key);
-  if (cap === undefined) return { refus: `${String(key)} is not a duration cap` };
-  const text = typeof input === "number" ? String(input) : typeof input === "string" ? input.trim() : "";
-  if (text === "") return { valeur: null };
-  const count = /^[0-9]+(\.[0-9]+)?$/.test(text) ? Number(text) : Number.NaN;
-  const slip = Number.isFinite(count) && count > 0 && (!cap.entier || Number.isSafeInteger(count));
-  return slip ? { valeur: count } : { refus: `${cap.nom.toLowerCase()} must be ${cap.entier ? "a whole number" : "a number"} greater than zero` };
-}
 
 // Le fichier tel que GitHub le rend : son contenu lu, et son `sha` — null quand la branche ne l'a pas.
 export type FileRead = { contenu: Record<string, unknown>; sha: string } | { contenu: null; sha: null };
@@ -130,57 +102,6 @@ export async function proposeTheFile(
   return { pr: html_url, numero: number };
 }
 
-// Le texte du fichier tel que le runtime le relit : du JSON indenté, une fin de ligne.
-export const textOfFile = (contents: Record<string, unknown>) => `${JSON.stringify(contents, null, 2)}\n`;
 
-const valuesOf = (contents: Record<string, unknown> | null): CapRead[] => {
-  const drift = contents !== null && isObject(contents.drift) ? contents.drift : {};
-  return CAPS.map((cap) => {
-    const value = drift[cap.cle];
-    const fallback = "defaut" in cap ? cap.defaut : null;
-    return { cle: cap.cle, nom: cap.nom, unite: cap.unite, entier: cap.entier, duree: cap.duree, defaut: fallback, valeur: typeof value === "number" && Number.isFinite(value) && value > 0 ? value : null };
-  });
-};
 
-// Les plafonds que le dépôt déclare, sur sa branche d'intégration (`branche` ; null : celle par défaut de GitHub).
-export async function readTheCaps({ depot: repository, branche: branch, client }: { depot: string; branche: string | null; client: ClientOfThePriority }): Promise<ReadOfCaps> {
-  try {
-    const { contenu: contents } = await readTheFile(client, repository, branch);
-    return { plafonds: valuesOf(contents), branche: branch };
-  } catch (error) {
-    return { sans: "duration caps unavailable", detail: message(error) };
-  }
-}
 
-// Change un plafond dans le dépôt : le fichier est relu — son dernier état, et le `sha` que GitHub exige —, la seule
-// clé `drift.<cle>` changée, le reste gardé tel quel, puis proposé par une pull request vers la branche d'intégration.
-// Sans fichier, il est créé avec ce que le runtime exige d'un fichier (sa version, la branche) — seulement quand la
-// branche est connue.
-export async function changeTheCap({ depot: repository, branche: branch, cle: key, saisie: input, client }: { depot: string; branche: string | null; cle: unknown; saisie: unknown; client: ClientOfThePriority }): Promise<RenderedOfCap> {
-  const cap = capOf(key);
-  if (cap === undefined) return { refus: `nothing was changed: ${String(key)} is not a duration cap` };
-  const proposes = valueProposed(cap.cle, input);
-  if ("refus" in proposes) return { refus: `nothing was changed: ${proposes.refus}` };
-  let readOne: FileRead;
-  try {
-    readOne = await readTheFile(client, repository, branch);
-  } catch (error) {
-    return { refus: `nothing was changed: ${FILE} was not read on GitHub`, detail: message(error) };
-  }
-  if (readOne.contenu === null && branch === null) return { refus: `nothing was changed: ${repository} has no ${FILE} and its integration branch is not known`, detail: "" };
-  const contents: Record<string, unknown> = readOne.contenu ?? { version: 1, integrationBranch: branch };
-  const before = isObject(contents.drift) ? contents.drift : {};
-  if ((typeof before[cap.cle] === "number" ? before[cap.cle] : null) === proposes.valeur) return { fait: "unchanged: the repository already says so", cle: cap.cle, valeur: proposes.valeur };
-  const drift: Record<string, unknown> = { ...before };
-  if (proposes.valeur === null) delete drift[cap.cle];
-  else drift[cap.cle] = proposes.valeur;
-  if (Object.keys(drift).length === 0) delete contents.drift;
-  else contents.drift = drift;
-  const said = proposes.valeur === null ? `remove drift.${cap.cle}` : `set drift.${cap.cle} to ${proposes.valeur}`;
-  try {
-    const openOne = await proposeTheFile(client, repository, branch, { texte: textOfFile(contents), sha: readOne.sha, dit: said, ou: "Kitchen > Health" });
-    return { propose: PROPOSES, ...openOne, cle: cap.cle, valeur: proposes.valeur };
-  } catch (error) {
-    return { refus: `nothing was proposed: GitHub did not open the pull request of ${FILE}`, detail: message(error) };
-  }
-}

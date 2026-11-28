@@ -7,7 +7,6 @@
 // disait (même clé, `need:<besoin>`) : la ligne du blocage ne se répète pas dessous. Ce module ne connaît aucun
 // besoin ni aucune issue : il montre ceux que la station publie. Il ne touche pas `document` (bricks.js).
 
-import { hover } from "../bricks.js";
 import { button as buttonOfTheFamily, kindOfButton } from "../components/button/button.js";
 import { lineError } from "../components/line-error/line-error.js";
 

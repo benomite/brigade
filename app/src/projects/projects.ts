@@ -361,12 +361,6 @@ export function servedElsewhere(seenOne: Pick<SeenOfProjects, "projets"> | undef
   return cooked !== undefined && cooked !== null && !cooked.ici;
 }
 
-// La machine d'une station, par son nom — `<machine>/<moteur>` : la machine —, telle que le réseau du chef la nomme.
-// Rien, quand ce n'est pas un nom de machine.
-export function machineOfName(name: string): string | undefined {
-  const machine = name.includes("/") ? name.slice(0, name.indexOf("/")) : name;
-  return /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(machine) ? machine : undefined;
-}
 
 // Le déménagement en cours d'un projet, d'après ses stations : le plus récent, à son étape la plus
 // avancée. Reçu par celle qui le reprend, il est fini : rien. Refusé, `dit` dit pourquoi — ce que
