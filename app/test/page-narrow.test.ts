@@ -32,7 +32,7 @@ const startup = () => ({
   code: undefined,
 });
 
-type OfRuntime = FactsOfRuntime["stations"][number];
+type OfRuntime = NonNullable<FactsOfRuntime["stations"]>[number];
 // Une station telle que le runtime la rend dans `facts` (runtime/src/etat.ts, #1183) : avec son plafond, ses tickets
 // ordinaires et son bac à sable — ce qui se règle, et qu'un écran étroit ne montre pas.
 const station = (name: string, more: Partial<OfRuntime> = {}): OfRuntime => ({

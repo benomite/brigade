@@ -35,7 +35,7 @@ const startup = () => ({
   code: undefined,
 });
 
-type OfRuntime = FactsOfRuntime["stations"][number];
+type OfRuntime = NonNullable<FactsOfRuntime["stations"]>[number];
 // Une station telle que le runtime la rend dans `facts` (runtime/src/etat.ts, #1183), mot pour mot.
 const station = (name: string, more: Partial<OfRuntime> = {}): OfRuntime => ({
   station: name,

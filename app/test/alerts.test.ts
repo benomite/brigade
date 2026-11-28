@@ -45,7 +45,7 @@ const SCENARIO_OF_EVENT: Record<string, Scenario> = {
 // en dessine, lu comme le process principal le lit — `faits`, puis `status` son bloc `attend` mis à part.
 function kitchen() {
   let scenario: Scenario = "healthy";
-  const note = (done: { type: string }, _author = "runtime") => {
+  const note = (done: { type: string; payload?: unknown }, _author = "runtime") => {
     scenario = SCENARIO_OF_EVENT[done.type] ?? assert.fail(`pas d'état figé pour ${done.type}`);
   };
   // L'horloge n'est plus tenue : tout est rendu à 10:00:00, et la sauvegarde la plus vieille date du 2026-10-10.

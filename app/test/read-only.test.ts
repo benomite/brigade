@@ -52,7 +52,7 @@ const PRODUCT = {
 };
 // Sa carte du chef, telle que son issue la pose sur GitHub (board/todo-github.ts).
 const CHEF = { sorte: PRODUCT.type, texte: [PRODUCT.question, ...PRODUCT.choix.map(({ texte: text, suite }) => `- [${suite}] ${text}`)].join("\n") };
-type OfRuntime = FactsOfRuntime["stations"][number];
+type OfRuntime = NonNullable<FactsOfRuntime["stations"]>[number];
 const BOX: OfRuntime = { station: "box/claude", distante: false, plafond: 2, ordinaires: false, bacASable: null, prendOrdinaires: true, cuisson: "cooking", arreteeDepuis: null, refus: null, cooks: [] };
 const facts = (readOnly: boolean) => ({
   etat: "ouverte",

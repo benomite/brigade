@@ -27,7 +27,7 @@ const startup = () => ({
   code: undefined,
 });
 
-type OfRuntime = FactsOfRuntime["stations"][number];
+type OfRuntime = NonNullable<FactsOfRuntime["stations"]>[number];
 const station = (name: string, more: Partial<OfRuntime> = {}): OfRuntime => ({
   station: name, distante: false, plafond: 2, ordinaires: false, bacASable: null, prendOrdinaires: true, cuisson: "cooking", arreteeDepuis: null, refus: null, cooks: [], ...more,
 });

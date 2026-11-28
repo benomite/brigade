@@ -38,7 +38,7 @@ const startup = () => ({
   telephone: { github: { compte: "chef" } },
 });
 
-type Station = FactsOfRuntime["stations"][number];
+type Station = NonNullable<FactsOfRuntime["stations"]>[number];
 const station = (name: string, more: Partial<Station> = {}): Station => ({
   station: name,
   distante: false,
