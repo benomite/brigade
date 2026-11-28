@@ -212,8 +212,6 @@ describe("les faits que l'app dessine", () => {
         mot: "open",
         ton: "vert",
         arretee: false,
-        // Ni leçon ni profil : `facts` ne porte pas `apprentissage`, la page le dira en une phrase.
-        apprentissage: { lecons: [], profils: [] },
         // Où en est chaque ticket, pour le récit du premier ticket (#3302) : ceux du rail, puis les servis et leur PR mergée.
         etapesDesTickets: [
           { ticket: 14, etat: "pris", pr: null, renvoi: null },

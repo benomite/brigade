@@ -87,8 +87,6 @@ import { pan } from "./components/pan/pan.js";
 import { cardWait, cardOfAnswer } from "./components/card-wait/card-wait.js";
 import { stateOfYour, shapeOf, brand as brandOfPill, pill as pillOfState } from "./components/pill/pill.js";
 import { setEngine, WITHOUT_ENGINE } from "./delivery-engine/display.js";
-import { holdTheFiguresOfAutonomy } from "./autonomy/figures.js";
-import { holdTheTeam } from "./autonomy/team.js";
 import { holdTheAgents } from "./agents/agents.js";
 import { SAYS_TEMPORARY, TEMPORARY } from "./learning.js";
 import { keepTheKeyboard } from "./keep-the-keyboard.js";
@@ -104,7 +102,6 @@ import { setOpinionOfTodo } from "./todo/opinion-todo.js";
 import { setTheOthers } from "./todo/others.js";
 import { LIST_OF_CHEF, isRed, tidyTheRail } from "./todo/todo.js";
 import { kitchenBoardGrid } from "./kitchen-board/kitchen-board.js";
-import { holdSinceLastLooked } from "./since-last-looked/since-last-looked.js";
 import { COOKS, OF_RAIL, columnOfPlan, NOT_READY, PASS as COLUMN_PASS, NOTHING_OF_READY, aOneAction, whatAwaitingYou, lineParked, planOfTheKitchen, setTheBandOfTop, setTheTodo } from "./kitchen/kitchen.js";
 import { lineOfAlerts } from "./line-of-status/line-of-status.js";
 import { setLineOfBreaker } from "./todo-breaker-line.js";
@@ -189,7 +186,6 @@ const dateHour = (/** @type {number | string | Date} */ instant) => new Date(ins
 // Ce que `tabs.ts` nomme : l'onglet Paramètres, qui n'a pas de commande à lui.
 const PARAMETERS = "parametres";
 // Et la page des chiffres d'autonomie de tous les projets (ticket 3222).
-const COSTS = "couts";
 // Les onglets de la page d'un projet (ticket 1184), Rail et Stations.
 const RAIL = "rail";
 // Le menu du projet (ticket 2485, 2921, 4224, 4241) : Rail · Stations · Agents · Know-how · Settings (project/menu/menu.js).
@@ -561,39 +557,6 @@ removalOfStation.className = "retrait-de-station";
 const sectionsOfStation = document.createElement("div");
 sectionsOfStation.className = "sections-de-station";
 pageOfStation.append(returnALHome, inHeadOfStation, capOfStation, versionOfStation, outagesOfStation, sectionsOfStation, projectsOfTheStation, removalOfStation);
-// Les chiffres d'autonomie de tous les projets (ticket 3222) : ils valent pour l'ensemble, ils vivent donc au niveau de
-// l'app, pas dans un projet. Une ligne « Autonomy » ouvre leur page, en bas du bandeau de santé de chaque projet. Le coût
-// en tokens qu'elle montrait avant (ticket 1022), que seul l'ancien runtime calculait, en est retiré (ticket 4509).
-const costsOfTheHome = document.createElement("section");
-costsOfTheHome.id = "couts-de-tous";
-costsOfTheHome.ariaLabel = "Autonomy";
-const openTheCosts = /** @type {HTMLButtonElement} */ (block("button", ""));
-openTheCosts.type = "button";
-openTheCosts.className = "ligne";
-openTheCosts.ariaLabel = "the autonomy of all projects";
-{
-  const suite = block("span", "›");
-  suite.className = "ouvrir";
-  suite.ariaHidden = "true";
-  openTheCosts.append(block("strong", "Autonomy"), block("span", "served without a human, delay and send-back rate, all projects together"), suite);
-}
-costsOfTheHome.append(openTheCosts);
-const pageOfCosts = document.createElement("section");
-pageOfCosts.id = "cout";
-pageOfCosts.ariaLabel = "Autonomy of all projects";
-const returnOfCosts = /** @type {HTMLButtonElement} */ (button("‹ All projects", undefined, "discret"));
-returnOfCosts.className = "retour";
-const bodyOfCosts = document.createElement("div");
-bodyOfCosts.ariaLive = "polite";
-pageOfCosts.append(returnOfCosts, bodyOfCosts);
-// Les lignes de tous les projets, dans le bandeau de santé de chacun (ticket 2638) : elles valent pour l'ensemble.
-const ALL_THE_PROJECTS = "All projects";
-const ofAllTheProjects = document.createElement("section");
-ofAllTheProjects.id = "de-tous-les-projets";
-ofAllTheProjects.className = "bloc-du-projet";
-ofAllTheProjects.ariaLabel = ALL_THE_PROJECTS;
-ofAllTheProjects.dataset.bloc = "de-tous-les-projets";
-ofAllTheProjects.append(block("h3", ALL_THE_PROJECTS), costsOfTheHome);
 // L'accueil a les projets et la station de cet ordinateur (ticket 2638, épique 2497) — chacun son composant, sous
 // accueil/ —, puis toutes les stations (ticket 3195). La version de l'app et la ligne de santé l'ont quitté sans aller ailleurs : la ligne d'une
 // version plus haute, en tête de l'app (update/banner.js), dit la version qui tourne et l'installe.
@@ -632,22 +595,6 @@ const stationsOfProject = element("stations-du-projet");
 // Ce qui bloque le projet affiché (ticket 1399), sous ses stations, tel que le suivi le publie : une ligne par
 // blocage (project/blockages.js). Les détails que le chef a dépliés, par projet et blocage : une relecture ne les replie pas.
 const delayOfProject = element("delai-du-projet");
-// L'équipe du projet affiché (ticket 4029, autonomy/team.js), en tête de sa vue : relue à son ouverture et à chaque
-// lecture de son rail, montrée pour lui seul.
-// La bande du haut du rail lit son supervisor et son closer : une lecture qui les change la repose (ticket 4238).
-// Un clic sur un badge ouvre l'onglet Agents (ticket 4224).
-const teamOfProject = holdTheTeam(document, element("equipe-du-projet"), (name) => {
-  if (current?.nom === name) setRail(current);
-}, () => chooseTab(AGENTS));
-// "Since you last looked" (ticket 4649, since-last-looked/): read from GitHub at each opening of a project, posed at the top
-// of its view until the next opening.
-const sinceLastLooked = holdSinceLastLooked(document, {
-  read: async (name) => brigade.sinceYouLastLooked?.(name),
-  open: (name, ticket) => void (current?.nom === name ? openIssue(current, ticket) : undefined),
-  redraw: (name) => {
-    if (current?.nom === name) setRail(current);
-  },
-});
 // L'onglet Agents du projet affiché (ticket 4224, agents/) : ses agents au travail, lus à l'ouverture de l'onglet (ticket 4569).
 const agentsOfProject = holdTheAgents(document);
 // L'offre du téléphone (ticket 3303, offre-telephone/) : sous le délai du premier projet du chef, une fois son premier
@@ -941,10 +888,6 @@ let phoneSeen;
 // La station dont la page est ouverte, par son gist. Aucune : c'est l'accueil — ou un projet.
 /** @type {string | undefined} */
 let stationOpen;
-// La page de l'app ouverte à la place de l'accueil : celle des chiffres d'autonomie de tous les projets (ticket 3222).
-// Aucune : l'accueil — ou un projet, une station.
-/** @type {typeof COSTS | undefined} */
-let pageOfTheApp;
 // Ce que `faits` a rendu en dernier pour chaque projet, et la demande à laquelle il répond :
 // une par barre posée. Sans entrée, le projet n'a pas encore été lu.
 /** @type {Map<string, Drawable>} */
@@ -4312,9 +4255,8 @@ function setTheRail(project) {
   /** @type {Map<import("../facts.ts").Card, HTMLElement>} */
   const setEntries = new Map();
   setCooking(project);
-  // At the very top, the card "Since you last looked" (ticket 4649), once the project's opening has read it.
   /** @param {(HTMLElement | string)[]} poses */
-  const set = (...poses) => rail.replaceChildren(...sinceLastLooked.poser(project.nom), ...(alertOfKitchen.hidden ? [] : [alertOfKitchen]), ...poses);
+  const set = (...poses) => rail.replaceChildren(...(alertOfKitchen.hidden ? [] : [alertOfKitchen]), ...poses);
   // Cuisine d'un projet servi ici, station arrêtée : rien n'est lu, la page dit pourquoi en une ligne — sur l'un et
   // l'autre onglet.
   if (project.sansStation === true) return rail.replaceChildren(block("h3", STATION_STOPPED));
@@ -4498,7 +4440,7 @@ function setTheRail(project) {
       rereadable(outsideLine !== undefined ? [signOutsideLine(outsideLine)] : outdated !== undefined ? signStale(outdated, held.a) : held.pause !== undefined ? [] : freshness(held.a)),
     ].find((lines) => lines.length > 0 && aOneAction(lines)) ?? [];
   // La bande du haut (ticket 4354) : les cartes du supervisor et du closer sur une ligne.
-  const bandOfTop = setTheBandOfTop(document, { roles: held.tableau.rolesCuisine, montre: (name) => teamOfProject.agent(project.nom, name) !== undefined, alerte: issueOfTheKitchen?.ticket, maintenant: Date.now(), deplies: unfoldsOf(project.nom) });
+  const bandOfTop = setTheBandOfTop(document, { roles: held.tableau.rolesCuisine, alerte: issueOfTheKitchen?.ticket, maintenant: Date.now(), deplies: unfoldsOf(project.nom) });
   const age = held.publieLe === undefined ? undefined : ageOfRail(held.publieLe, held.a);
   // Sans ligne d'état ni bandeau, la rangée des colonnes la porte : l'âge n'est jamais perdu, jamais une ligne de plus.
   if (age !== undefined) for (const carrier of [status[0], grid]) if (carrier !== undefined && !carrier.title) carrier.title = age;
@@ -5099,19 +5041,6 @@ async function prepareTheRepository(project) {
   }
 }
 
-// La page des chiffres d'autonomie de tous les projets ensemble (autonomy/figures.js, ticket 3222), lus de GitHub.
-/** @type {ReturnType<typeof holdTheFiguresOfAutonomy> | undefined} */
-let autonomyOfAll;
-const openTicketOfAutonomy = (/** @type {string} */ url) => void brigade.ouvrirTicketDAutonomie(url);
-function setCost() {
-  if (pageOfTheApp !== COSTS) return bodyOfCosts.replaceChildren();
-  autonomyOfAll ??= holdTheFiguresOfAutonomy(document, {
-    tous: true,
-    lire: (days) => brigade.lireAutonomie(configuration.projets.filter((project) => itselfLit(project)).map(({ nom: name }) => name), days),
-    ouvrir: openTicketOfAutonomy,
-  });
-  bodyOfCosts.replaceChildren(autonomyOfAll.poser());
-}
 // Un ticket cliqué sur la page des coûts : son projet s'ouvre, puis sa fiche, par-dessus le rail. La
 // fiche refermée rend le clavier au rail : le bouton cliqué n'est plus à l'écran.
 /** @param {string} name @param {number} ticket */
@@ -5818,7 +5747,6 @@ function setStationsOfProject() {
     readyShows = undefined;
   }
   stationsOfProject.hidden = project === undefined;
-  teamOfProject.montrer(project?.nom);
   if (project === undefined) {
     setTheChoice(undefined);
     setTheBlockages(undefined);
@@ -5931,9 +5859,6 @@ const statesOfCloser = new Map();
 const verificationsOfCloser = new Map();
 /** @type {Set<string>} */
 const candidatesOpen = new Set();
-// Les chiffres d'autonomie de chaque projet (autonomy/figures.js, ticket 3222), dans sa section, lus de GitHub.
-/** @type {Map<string, ReturnType<typeof holdTheFiguresOfAutonomy>>} */
-const autonomyOfProjects = new Map();
 // Le savoir-faire du projet (know-how/, ticket 4239), sous son onglet (ticket 4570) : lu sur GitHub par le process principal.
 /** @type {Map<string, ReturnType<typeof holdTheKnowledge>>} */
 const knowledgeOfProjects = new Map();
@@ -5955,12 +5880,6 @@ function knowledgeOfProject(project) {
   const held = knowledgeOfProjects.get(project.nom) ?? holdTheKnowledge(document, { lire: () => brigade.savoirDuProjet(project.nom), changer: (change) => brigade.changerLeSavoir(project.nom, change), ouvrir: (url) => void brigade.ouvrirLaProposition(url), reposer: (keep) => restTheKnowHow(project, keep) });
   knowledgeOfProjects.set(project.nom, held);
   return held;
-}
-/** @param {Project} project */
-function autonomyOfProject(project) {
-  const heldOne = autonomyOfProjects.get(project.nom) ?? holdTheFiguresOfAutonomy(document, { lire: (days) => brigade.lireAutonomie([project.nom], days), ouvrir: openTicketOfAutonomy });
-  autonomyOfProjects.set(project.nom, heldOne);
-  return heldOne;
 }
 // `garder` : une relecture ne repose pas un champ où le chef est en train d'écrire ; ce que ses gestes rendent, si.
 // Les post-mortems de panne du projet (ticket 4023), d'après les derniers faits de sa box — rien de lu tant qu'elle ne les donne pas.
@@ -5992,9 +5911,7 @@ function setTheBannerOfHealth(project, keep = true) {
     }),
     setTheCloserOfHealth(project),
     setBlockTimeOfThePass(document, seenOne?.temps),
-    autonomyOfProject(project).poser(),
     setBlockPostMortems(document, postMortemsOf(project)),
-    ofAllTheProjects,
   );
   if (Date.now() - (capsReadThe.get(project.nom) ?? 0) > 60_000) void readTheCapsDuration(project);
   if (Date.now() - (closerOfHealthReadThe.get(project.nom) ?? 0) > 60_000) void readTheCloserOfHealth(project);
@@ -6765,7 +6682,7 @@ function wait(project, head, body) {
 // la fenêtre (ticket 3159) : rechargée (Cmd+R), la vue s'y rouvre ; l'app relancée, elle s'ouvre sur l'accueil, comme avant.
 const KEY_OF_THE_SCREEN = "brigade.ecran";
 function holdTheScreen() {
-  const screen = current !== undefined ? { projet: current.nom } : adds ? { ajout: true } : stationOpen !== undefined ? { station: stationOpen } : pageOfTheApp !== undefined ? { page: pageOfTheApp } : {};
+  const screen = current !== undefined ? { projet: current.nom } : adds ? { ajout: true } : stationOpen !== undefined ? { station: stationOpen } : {};
   try {
     window.sessionStorage?.setItem(KEY_OF_THE_SCREEN, JSON.stringify(screen));
   } catch {
@@ -6785,7 +6702,6 @@ function resumeTheScreen() {
   if (project !== undefined) current = project;
   else if (readOne.ajout === true) adds = true;
   else if (typeof readOne.station === "string") stationOpen = readOne.station;
-  else if (readOne.page === COSTS) pageOfTheApp = readOne.page;
 }
 
 // La fenêtre s'est rechargée (ticket 3159) : les terminaux ouverts avant sont restés au process principal, chacun dans son
@@ -6822,7 +6738,7 @@ function mark() {
   all.hidden = refuses || adds || current !== undefined;
   // À la largeur d'un téléphone, l'accueil est la liste des cartes qui attendent le chef (ticket 2915) : elle prend la place
   // de « Tous les projets », sauf sous une page de l'app, une station ou le premier lancement, qui la couvrent comme lui.
-  const underOnePage = stationOpen !== undefined || pageOfTheApp !== undefined || (screenOfFirst !== undefined && screenOfFirst.parentElement === all);
+  const underOnePage = stationOpen !== undefined || (screenOfFirst !== undefined && screenOfFirst.parentElement === all);
   const onTheCards = narrow() && !all.hidden && !underOnePage;
   cardsOfChef.hidden = !onTheCards;
   if (onTheCards) {
@@ -6848,11 +6764,9 @@ function openAll() {
   current = undefined;
   adds = false;
   stationOpen = undefined;
-  pageOfTheApp = undefined;
   mark();
   setCode();
   setHome();
-  setCost();
   setBlockStation();
   setStationsOfTheHome();
   all.replaceChildren(blockOfThePromise, blockOfProjects, blockOfTheStation.racine, stationsOfTheHome);
@@ -7076,7 +6990,6 @@ function openFirst() {
   current = undefined;
   adds = false;
   stationOpen = undefined;
-  pageOfTheApp = undefined;
   mark();
   screenOfFirst = setFirstLaunch(document, { ...first, ...stateOfJourney(), poste: WORKSTATION.nom, outils: toolsOfJourney.etat }, actionsOfFirst);
   all.replaceChildren(screenOfFirst);
@@ -7598,28 +7511,12 @@ brigade.surConnexionGitHub?.((end) => {
   accountOfJourney.apresLaConnexion();
 });
 
-// La page des chiffres d'autonomie de tous les projets, à la place de l'accueil : « T » reste l'entrée affichée, et un
-// geste y ramène.
-function openCosts() {
-  current = undefined;
-  adds = false;
-  stationOpen = undefined;
-  pageOfTheApp = COSTS;
-  mark();
-  setCost();
-  all.replaceChildren(pageOfCosts);
-  returnOfCosts.focus();
-}
-openTheCosts.addEventListener("click", () => openCosts());
-returnOfCosts.addEventListener("click", () => openAll());
-
 // La page d'une station, à la place de l'accueil : « T » reste l'entrée affichée, et un geste y ramène.
 /** @param {string} id */
 function openStation(id) {
   current = undefined;
   adds = false;
   stationOpen = id;
-  pageOfTheApp = undefined;
   removalOfStationRequest = undefined;
   removalOfStationRefuses = "";
   sectionsOfStationSet = "";
@@ -7661,7 +7558,6 @@ function openAddition() {
   current = undefined;
   adds = true;
   stationOpen = undefined;
-  pageOfTheApp = undefined;
   delete stateOfTheAddition.refus;
   // Une ouverture ratée, laissée là, ne reste pas sur un nouvel ajout ; celle qui court, si.
   if (first.ouverture?.echec !== undefined) delete first.ouverture;
@@ -7744,11 +7640,8 @@ async function pasteOneRepository(text) {
 /** @param {Project} project */
 async function open(project) {
   current = project;
-  teamOfProject.lire(project.nom);
-  sinceLastLooked.lire(project.nom);
   recordedAReread = true;
   stationOpen = undefined;
-  pageOfTheApp = undefined;
   if (emergencyChosen !== project.nom) emergencyChosen = "";
   notWritten = notWrittenSecond = "";
   // Une confirmation ouverte sur un autre projet ne reste pas ouverte : rien n'en part.
@@ -7898,7 +7791,6 @@ brigade.surFaits((receivedOne) => {
   // Le détail ouvert d'une carte que cette lecture ne porte plus se ferme ; sinon, il n'est pas reposé : le chef y zoome, ou y tape.
   if (detailOpen?.projet === receivedOne.projet && theValidation(detailOpen.projet, detailOpen.ticket) === undefined) setTheDetail();
   if (current?.nom === receivedOne.projet) {
-    teamOfProject.lire(current.nom);
     void readTheTrials(current);
     draw();
     setTheStoryOfFirstTicket();
@@ -8166,7 +8058,6 @@ function display() {
   if (expected !== undefined) void open(expected);
   else if (same !== undefined) void open(same);
   else if (stationOpen !== undefined && !adds) openStation(stationOpen);
-  else if (pageOfTheApp === COSTS && !adds) openCosts();
   // Sur un ordinateur neuf, sans projet : ses stations et leurs projets (first-launch.js). Sur le téléphone,
   // aucun projet ne s'ajoute d'un dossier : sans projet, l'app reste sur « Tous les projets ».
   else if (adds || (configuration.projets.length === 0 && phone === undefined && !withFirst())) openAddition();
