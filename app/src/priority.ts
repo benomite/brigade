@@ -1,11 +1,5 @@
-// Changer la priorité d'un ticket du rail, depuis sa fiche (#1739) : la priorité est le label `prio:<n>` de son issue,
-// et l'app le remplace elle-même sur GitHub — l'ancien retiré, le nouveau posé —, par l'API REST et le jeton du `gh` de
-// ce poste. Ni box, ni second : il suffit que l'app soit connectée à GitHub.
-//
-// La station le lit à son tour suivant et range le ticket ; d'ici là, la dernière lecture du rail (board/read.ts)
-// montre encore l'ancienne priorité. Le rail montre donc celle que l'app vient d'écrire (`tenirPrioritesEcrites`), tant
-// que la lecture montre celle d'avant ; dès qu'elle en montre une autre, c'est elle qui dit vrai. Un échec de GitHub ne
-// change rien au rail : la fiche le dit, en une ligne, son détail au survol.
+// Le client GitHub de l'app, et le label `prio:<n>` d'une issue que le triage du premier ticket d'un projet pose (#3268,
+// departure-of-project.ts) : l'ancien retiré, le nouveau posé, par l'API REST et le jeton du `gh` de ce poste.
 //
 // Ce module compose les demandes ; ce qui les porte est donné par la plateforme — le `fetch` du desktop (`envoyerParFetch`).
 import { clientGitHub, bodyRead, DELAY_MS, refusalOf, type CallGitHub, type AnswerGitHub } from "./board/client.ts";
@@ -37,7 +31,7 @@ export function priorityOfLabels(labels: readonly string[]): number | null {
   return levels.length === 0 ? null : Math.min(...levels);
 }
 
-// Ce que la fiche reçoit (vue.js, `jouerGesteDeFiche`) : la priorité écrite — `niveau`, et `avant`, celle que l'issue
+// Ce que le départ reçoit : la priorité écrite — `niveau`, et `avant`, celle que l'issue
 // portait —, ou pourquoi rien n'a changé. `detail` : au survol.
 export type RenderedOfThePriority = { fait: string; detail: string; niveau: number | null; avant: number | null } | { refus: string; detail: string };
 
@@ -103,34 +97,5 @@ export function sendByFetch(options: { fetch?: typeof fetch; delaiMs?: number } 
     } finally {
       clearTimeout(guard);
     }
-  };
-}
-
-// Les priorités que l'app a écrites, par projet et ticket, avec celle que l'issue portait avant : ce que le rail montre
-// tant que la lecture du rail ne la montre pas (facts.ts, `rail`). Ce module ne lance rien : il retient.
-export type PriorityShown = (ticket: number, readEntry: number | null | undefined) => number | null | undefined;
-export function holdPrioritiesWritten() {
-  const heldEntries = new Map<string, Map<number, { niveau: number | null; avant: number | null }>>();
-  return {
-    // L'app vient d'écrire cette priorité sur l'issue, qui portait `avant`.
-    ecrite(project: string, ticket: number, level: number | null, before: number | null): void {
-      const itsOwn = heldEntries.get(project) ?? new Map();
-      heldEntries.set(project, itsOwn);
-      if (level === before) itsOwn.delete(ticket);
-      else itsOwn.set(ticket, { niveau: level, avant: before });
-    },
-    // Ce que le rail d'un projet montre d'un ticket, d'après ce que sa lecture en dit (`lue` ; absente, elle ne le dit
-    // pas) : la priorité écrite, tant que la lecture montre celle d'avant — rien sinon, et elle est oubliée dès qu'elle
-    // en montre une autre.
-    de(project: string): PriorityShown {
-      return (ticket, readEntry) => {
-        const itsOwn = heldEntries.get(project);
-        const heldOne = itsOwn?.get(ticket);
-        if (heldOne === undefined) return undefined;
-        if (readEntry === undefined || readEntry === heldOne.avant) return heldOne.niveau;
-        itsOwn?.delete(ticket);
-        return undefined;
-      };
-    },
   };
 }

@@ -22,16 +22,6 @@ const ROOT = join(import.meta.dirname, "../..");
 // L'exemple que la doc de l'ancien runtime donnait des faits (ses champs `dernierTick` et `compteurs`).
 const EXAMPLE = "{\"etat\":\"ouverte\",\"lu\":\"2026-10-12T10:04:11.000Z\",\"dernierTick\":\"2026-10-12T10:04:02.000Z\",\"compteurs\":{\"rail\":2,\"auTravail\":1,\"aLaPass\":1,\"attend\":1,\"livres24h\":3},\"dernierEvenement\":{\"seq\":812,\"at\":\"2026-10-12T10:03:58.000Z\",\"type\":\"merge.done\",\"ticket\":216},\"rail\":[{\"ticket\":14,\"etat\":\"pris\",\"titre\":\"Le journal en ajout seul\",\"url\":\"https://github.com/benomite/brigade/issues/14\",\"activite\":{\"fait\":\"lit\",\"faitEn\":\"reading\",\"cible\":\"runtime/src/etat.ts\",\"depuis\":\"2026-10-12T10:01:11.000Z\"},\"attente\":null},{\"ticket\":21,\"etat\":\"BLOQUÉ\",\"titre\":\"L'export du journal\",\"url\":\"https://github.com/benomite/brigade/issues/21\",\"activite\":null,\"attente\":null}],\"cooks\":[{\"ticket\":14,\"titre\":\"Le journal en ajout seul\",\"station\":\"box/claude\"}],\"attend\":[{\"ticket\":21,\"titre\":\"L'export du journal\",\"url\":\"https://github.com/benomite/brigade/issues/21\"}],\"livres\":[{\"ticket\":216,\"titre\":\"Le relevé des mesures\",\"url\":\"https://github.com/benomite/brigade/issues/216\",\"livre\":\"2026-10-12T10:03:58.000Z\",\"station\":\"box/claude\",\"pr\":\"https://github.com/benomite/brigade/pull/219\",\"relecture\":{\"resume\":\"Le relevé des mesures se lit par station, et un seuil franchi se dit en tête de `status`. Rien n'est écrit au journal par la lecture.\",\"constats\":[{\"gravite\":\"remarque\",\"fichier\":\"runtime/src/mesures.ts\",\"constat\":\"Le seuil par défaut est répété dans deux fichiers.\"},{\"gravite\":\"remarque\",\"fichier\":null,\"constat\":\"À supprimer : l'ancien compteur, qui ne sert plus.\"}]}},{\"ticket\":201,\"titre\":\"Les grants sous plafond\",\"url\":\"https://github.com/benomite/brigade/issues/201\",\"livre\":\"2026-10-12T07:12:40.000Z\",\"station\":\"box/claude\",\"pr\":\"https://github.com/benomite/brigade/pull/207\",\"relecture\":{\"resume\":\"Un grant porte désormais un plafond d'usages, et s'éteint seul quand il est atteint.\",\"constats\":[]}},{\"ticket\":188,\"titre\":\"Une fiche sans zone\",\"url\":\"https://github.com/benomite/brigade/issues/188\",\"livre\":\"2026-10-11T16:30:05.000Z\",\"station\":\"box/claude\",\"pr\":null,\"relecture\":null}]}";
 
-// Ce que le reviewer a dit de deux livraisons de l'exemple : un résumé et ses constats, puis un résumé seul.
-const REREAD_216 = {
-  resume: "Le relevé des mesures se lit par station, et un seuil franchi se dit en tête de `status`. Rien n'est écrit au journal par la lecture.",
-  constats: [
-    { gravite: "remarque", fichier: "runtime/src/mesures.ts", constat: "Le seuil par défaut est répété dans deux fichiers." },
-    { gravite: "remarque", fichier: null, constat: "À supprimer : l'ancien compteur, qui ne sert plus." },
-  ],
-};
-const REREAD_201 = { resume: "Un grant porte désormais un plafond d'usages, et s'éteint seul quand il est atteint.", constats: [] };
-const WITHOUT_REVIEW = "what was delivered: not given — no readable review covers this delivery (merged by hand, served without going through pass, or from before the review)";
 
 const FACTS: Facts = {
   etat: "ouverte",
@@ -46,9 +36,9 @@ const FACTS: Facts = {
   cooks: [{ ticket: 14, titre: "Le journal en ajout seul", station: "box/claude" }],
   attend: [{ ticket: 21, titre: "L'export du journal", url: "https://github.com/benomite/brigade/issues/21" }],
   livres: [
-    { ticket: 216, titre: "Le relevé des mesures", url: "https://github.com/benomite/brigade/issues/216", livre: "2026-10-12T10:03:58.000Z", station: "box/claude", pr: "https://github.com/benomite/brigade/pull/219", relecture: REREAD_216 },
-    { ticket: 201, titre: "Les grants sous plafond", url: "https://github.com/benomite/brigade/issues/201", livre: "2026-10-12T07:12:40.000Z", station: "box/claude", pr: "https://github.com/benomite/brigade/pull/207", relecture: REREAD_201 },
-    { ticket: 188, titre: "Une fiche sans zone", url: "https://github.com/benomite/brigade/issues/188", livre: "2026-10-11T16:30:05.000Z", station: "box/claude", pr: null, relecture: null },
+    { ticket: 216, titre: "Le relevé des mesures", url: "https://github.com/benomite/brigade/issues/216", livre: "2026-10-12T10:03:58.000Z", station: "box/claude", pr: "https://github.com/benomite/brigade/pull/219" },
+    { ticket: 201, titre: "Les grants sous plafond", url: "https://github.com/benomite/brigade/issues/201", livre: "2026-10-12T07:12:40.000Z", station: "box/claude", pr: "https://github.com/benomite/brigade/pull/207" },
+    { ticket: 188, titre: "Une fiche sans zone", url: "https://github.com/benomite/brigade/issues/188", livre: "2026-10-11T16:30:05.000Z", station: "box/claude", pr: null },
   ],
 };
 // Ce que rend un runtime d'avant les cooks : la même forme, sans le champ.
@@ -269,7 +259,7 @@ describe("les faits que l'app dessine", () => {
               ton: "rouge",
               compte: "1",
               // `attend`, dans la forme, le nomme : il est ici avant même que `status` ait été lu.
-              cartes: [{ ticket: 21, etat: "BLOQUÉ", mot: "BLOCKED", ton: "rouge", titre: "L'export du journal", ouvrable: true, attendu: true, attend: [], etape: "On the rail", ligne: withoutQuestion(21), dit: [], sans: `${WITHOUT_STATUS} : who holds it · since when · its lease · what it burns · what blocks it`, ...card("L'export du journal", expected(21)), gestes: ["attente-poser"], ...atChef(21) }],
+              cartes: [{ ticket: 21, etat: "BLOQUÉ", mot: "BLOCKED", ton: "rouge", titre: "L'export du journal", ouvrable: true, attendu: true, attend: [], etape: "On the rail", ligne: withoutQuestion(21), dit: [], sans: `${WITHOUT_STATUS} : who holds it · since when · its lease · what it burns · what blocks it`, ...card("L'export du journal", expected(21)), ...atChef(21) }],
               vide: "no ticket in `attend`, according to `facts`",
             },
             { nom: "Waiting", ton: "orange", compte: "0", cartes: [], vide: "no ticket waits for a third party" },
@@ -279,12 +269,11 @@ describe("les faits que l'app dessine", () => {
               // Autant de cartes que `livrés 24 h` : celles de `livres`, le plus récent en haut, partis du rail ou non.
               compte: "3",
               cartes: [
-                { ticket: 216, etat: "servi", mot: "served", ton: "vert", titre: "Le relevé des mesures", ouvrable: true, attendu: false, attend: [], essayable: true, ligne: `served at ${hourHM("2026-10-12T10:03:58.000Z")} · ${REREAD_216.resume.split(". ")[0]}.`, pr: true, livraison: { resume: REREAD_216.resume, remarques: "2 remarks", constats: REREAD_216.constats }, dit: [{ libelle: "merged", valeur: "13 s ago" }, { libelle: "cooked by", valeur: "box/claude", exact: true }], ...card("Le relevé des mesures", { pr: true }) },
-                { ticket: 201, etat: "servi", mot: "served", ton: "vert", titre: "Les grants sous plafond", ouvrable: true, attendu: false, attend: [], essayable: true, ligne: `served at ${hourHM("2026-10-12T07:12:40.000Z")} · ${REREAD_201.resume}`, pr: true, livraison: { resume: REREAD_201.resume, remarques: "no remarks", constats: [] }, dit: [{ libelle: "merged", valeur: "2 h 51 ago" }, { libelle: "cooked by", valeur: "box/claude", exact: true }], ...card("Les grants sous plafond", { pr: true }) },
+                { ticket: 216, etat: "servi", mot: "served", ton: "vert", titre: "Le relevé des mesures", ouvrable: true, attendu: false, attend: [], ligne: `served at ${hourHM("2026-10-12T10:03:58.000Z")}`, pr: true, dit: [{ libelle: "merged", valeur: "13 s ago" }, { libelle: "cooked by", valeur: "box/claude", exact: true }], ...card("Le relevé des mesures", { pr: true }) },
+                { ticket: 201, etat: "servi", mot: "served", ton: "vert", titre: "Les grants sous plafond", ouvrable: true, attendu: false, attend: [], ligne: `served at ${hourHM("2026-10-12T07:12:40.000Z")}`, pr: true, dit: [{ libelle: "merged", valeur: "2 h 51 ago" }, { libelle: "cooked by", valeur: "box/claude", exact: true }], ...card("Les grants sous plafond", { pr: true }) },
                 {
                   ticket: 188,
                   etat: "servi",
-                  essayable: true,
                   mot: "served",
                   ton: "vert",
                   titre: "Une fiche sans zone",
@@ -292,8 +281,6 @@ describe("les faits que l'app dessine", () => {
                   attendu: false,
                   attend: [],
                   ligne: `served at ${hourHM("2026-10-11T16:30:05.000Z")}`,
-                  repere: true,
-                  livraison: { sans: WITHOUT_REVIEW },
                   dit: [{ libelle: "served", valeur: "17 h 34 before the reading" }, { libelle: "cooked by", valeur: "box/claude", exact: true }, { libelle: "PR", valeur: "none — served without a merge" }],
                   ...card("Une fiche sans zone", { pr: { valeur: "none — served without a merge" } }),
                 },
@@ -530,7 +517,7 @@ describe("le rail en six colonnes", () => {
       ["Served", "1", [9]],
     ]);
     // Ce qu'on attend de lui, en mots, n'a pas été lu : la carte l'écrit, et n'offre aucun geste d'après des mots qu'elle n'a pas.
-    assert.deepEqual(draws.colonnes[3]?.cartes[0], { ticket: 21, etat: "BLOQUÉ", mot: "BLOCKED", ton: "rouge", titre: "Ticket 21", ouvrable: true, attendu: true, attend: [], etape: "On the rail", ...BARE, ligne: withoutQuestion(21), ...card("Ticket 21", expected(21)), gestes: ["attente-poser"], ...atChef(21) });
+    assert.deepEqual(draws.colonnes[3]?.cartes[0], { ticket: 21, etat: "BLOQUÉ", mot: "BLOCKED", ton: "rouge", titre: "Ticket 21", ouvrable: true, attendu: true, attend: [], etape: "On the rail", ...BARE, ligne: withoutQuestion(21), ...card("Ticket 21", expected(21)), ...atChef(21) });
     // Aucun ticket n'attend : la colonne le dit de `faits`, et jamais « rien ne t'attend » — une connexion, la base n'y ont pas de carte.
     assert.deepEqual(rail({ ...WITHOUT_DELIVERED, rail: RAIL, attend: [] }).colonnes[3], { nom: "Awaiting you", ton: "rouge", compte: "0", cartes: [], vide: "no ticket in `attend`, according to `facts`" });
   });
@@ -712,7 +699,6 @@ describe("Livré, d'après `livres`", () => {
     livre: deliversThe,
     station: "box/claude",
     pr: `https://github.com/benomite/brigade/pull/${ticket + 100}`,
-    relecture: { resume: `Ce qui a été livré pour #${ticket}.`, constats: [] },
     ...other,
   });
   const DELIVERED = [delivers(30, "2026-10-12T10:00:00.000Z"), delivers(9, "2026-10-12T09:00:00.000Z"), delivers(14, "2026-10-11T12:00:00.000Z")];
@@ -743,16 +729,14 @@ describe("Livré, d'après `livres`", () => {
     assert.deepEqual(deliversCol(draws)?.cartes[0], {
       ticket: 30,
       etat: "servi",
-      essayable: true,
       mot: "served",
       ton: "vert",
       titre: "Ticket 30",
       ouvrable: true,
       attendu: false,
       attend: [],
-      ligne: `served at ${hourHM("2026-10-12T10:00:00.000Z")} · Ce qui a été livré pour #30.`,
+      ligne: `served at ${hourHM("2026-10-12T10:00:00.000Z")}`,
       pr: true,
-      livraison: { resume: "Ce qui a été livré pour #30.", remarques: "no remarks", constats: [] },
       dit: [
         { libelle: "merged", valeur: "4 min ago" },
         { libelle: "cooked by", valeur: "box/claude", exact: true },
@@ -776,20 +760,17 @@ describe("Livré, d'après `livres`", () => {
   });
 
   test("ce que `livres` ne dit pas est écrit sur la carte : ni cuisinier ni PR, ni titre ni issue pour une livraison hors du rail", () => {
-    const [cardItem] = deliversCol(rail({ ...FACTS, rail: [], livres: [delivers(378, "2026-10-12T10:00:00.000Z", { titre: "", url: null, station: null, pr: null, relecture: null })] }))?.cartes ?? [];
+    const [cardItem] = deliversCol(rail({ ...FACTS, rail: [], livres: [delivers(378, "2026-10-12T10:00:00.000Z", { titre: "", url: null, station: null, pr: null })] }))?.cartes ?? [];
 
     assert.deepEqual(cardItem, {
       ticket: 378,
       etat: "servi",
-      essayable: true,
       mot: "served",
       ton: "vert",
       ouvrable: false,
       attendu: false,
       attend: [],
       ligne: `served at ${hourHM("2026-10-12T10:00:00.000Z")}`,
-      repere: true,
-      livraison: { sans: WITHOUT_REVIEW },
       dit: [
         { libelle: "served", valeur: "4 min before the reading" },
         { libelle: "PR", valeur: "none — served without a merge" },
@@ -801,48 +782,6 @@ describe("Livré, d'après `livres`", () => {
     // Un titre vide se complète de celui du rail, une issue nulle de son adresse.
     const [ofRail] = deliversCol(rail({ ...FACTS, rail: [ticket(9, "servi")], livres: [delivers(9, "2026-10-12T10:00:00.000Z", { titre: "", url: null })] }))?.cartes ?? [];
     assert.deepEqual([ofRail?.titre, ofRail?.ouvrable], ["Ticket 9", true]);
-  });
-
-  test("ce qui a été livré est le résumé de la relecture, mot pour mot, avec le nombre de ses constats en clair — sans relecture, la carte dit pourquoi, et ne met pas le titre à sa place", () => {
-    const LONG = `${"Un résumé long, que rien ne coupe au milieu d'un mot. ".repeat(12)}Fin.`;
-    const finding = (gravite: string, text: string) => ({ gravite, fichier: "app/src/facts.ts", constat: text });
-    const four = [finding("remarque", "Un."), finding("remarque", "Deux."), finding("remarque", "Trois."), finding("remarque", "Quatre.")];
-    const cardsOf = (...delivered: object[]) => deliversCol(rail({ ...FACTS, rail: [], livres: delivered } as Facts))?.cartes.map(({ livraison: delivery }) => delivery);
-
-    assert.deepEqual(
-      cardsOf(
-        delivers(1, "2026-10-12T10:00:00.000Z", { relecture: { resume: LONG, constats: four } }),
-        delivers(2, "2026-10-12T10:00:00.000Z", { relecture: { resume: "Seul.", constats: [finding("remarque", "Un.")] } }),
-        delivers(3, "2026-10-12T10:00:00.000Z", { relecture: { resume: "Rouge, mergé à la main.", constats: [finding("bloquant", "Un."), finding("remarque", "Deux.")] } }),
-        delivers(4, "2026-10-12T10:00:00.000Z", { relecture: null }),
-      ),
-      [
-        { resume: LONG, remarques: "4 remarks", constats: four },
-        { resume: "Seul.", remarques: "1 remark", constats: [finding("remarque", "Un.")] },
-        { resume: "Rouge, mergé à la main.", remarques: "2 remarks, 1 blocking", constats: [finding("bloquant", "Un."), finding("remarque", "Deux.")] },
-        { sans: WITHOUT_REVIEW },
-      ],
-    );
-    // D'un runtime qui donne `livres` sans `relecture`, ou qui ne donne pas `livres` : la carte le dit.
-    const { relecture: _review, ...withoutReview } = delivers(5, "2026-10-12T10:00:00.000Z");
-    const NOT_DATA = { sans: "what was delivered: not given — this station's runtime does not yet give the review in `facts`" };
-    assert.deepEqual(cardsOf(withoutReview), [NOT_DATA]);
-    assert.deepEqual(
-      deliversCol(rail({ ...WITHOUT_DELIVERED, rail: [ticket(9, "servi")] }))?.cartes.map(({ livraison: delivery }) => delivery),
-      [NOT_DATA],
-    );
-    // Les autres colonnes n'en portent pas : rien n'y a été livré.
-    assert.ok(cards(rail({ ...WITHOUT_DELIVERED, rail: RAIL })).every(({ etat: state, livraison: delivery }) => (state === "servi") === (delivery !== undefined)));
-  });
-
-  test("une relecture qui n'a pas la forme refuse la forme entière : un résumé, des constats en liste, chacun avec sa gravité, son fichier ou rien, son texte", () => {
-    const withIt = (review: unknown) => renderedOnes({ ...FACTS, livres: [delivers(30, "2026-10-12T10:00:00.000Z", { relecture: review })] });
-    assert.deepEqual(understand(withIt({ resume: "R.", constats: [{ gravite: "inconnue", fichier: null, constat: "C." }] })), { ...FACTS, livres: [delivers(30, "2026-10-12T10:00:00.000Z", { relecture: { resume: "R.", constats: [{ gravite: "inconnue", fichier: null, constat: "C." }] } })] });
-    assert.match(unreadable(withIt("un texte")), /livres\[0\]\.relecture/);
-    assert.match(unreadable(withIt({ constats: [] })), /livres\[0\]\.relecture\.resume/);
-    assert.match(unreadable(withIt({ resume: "R." })), /livres\[0\]\.relecture\.constats/);
-    assert.match(unreadable(withIt({ resume: "R.", constats: [{ gravite: "remarque", constat: "C." }] })), /livres\[0\]\.relecture\.constats\[0\]\.fichier/);
-    assert.match(unreadable(withIt({ resume: "R.", constats: [{ gravite: "remarque", fichier: null }] })), /livres\[0\]\.relecture\.constats\[0\]\.constat/);
   });
 
   test("une PR dont l'adresse n'est pas en https ne s'ouvre pas : la carte le sait, le process principal ne la donne pas", () => {

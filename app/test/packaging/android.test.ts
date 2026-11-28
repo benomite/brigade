@@ -142,7 +142,7 @@ test("la vue posée pour Capacitor est celle d'app/src/vue/, et ce qu'elle charg
   const outsideOfTheVue = [...html.matchAll(/(?:href|src)="([^"]+)"|"@[^"]+":\s*"([^"]+)"/g)].map((finds) => finds[1] ?? finds[2] ?? "");
   assert.ok(outsideOfTheVue.length > 0);
   for (const path of outsideOfTheVue) assert.ok(existsSync(resolve(dirname(entry), path)), path);
-  assert.deepEqual(dependancesDeLaVue(html), ["node_modules/@xterm/addon-fit/lib/addon-fit.mjs", "node_modules/@xterm/xterm/css/xterm.css", "node_modules/@xterm/xterm/lib/xterm.mjs", "node_modules/mermaid/dist/mermaid.min.js"]);
+  assert.deepEqual(dependancesDeLaVue(html), ["node_modules/@xterm/addon-fit/lib/addon-fit.mjs", "node_modules/@xterm/xterm/css/xterm.css", "node_modules/@xterm/xterm/lib/xterm.mjs"]);
   assert.ok(existsSync(join(www, "android", "pont.js")));
 });
 

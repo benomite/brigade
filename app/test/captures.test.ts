@@ -46,7 +46,6 @@ const FACTS: Facts = {
       livre: "2026-10-16T09:00:00.000Z",
       station: "box/claude",
       pr: "https://github.com/benomite/brigade/pull/41",
-      relecture: null,
       captures: { complet: false, ecrans: [{ ecran: "bandeau", avant: address("bandeau-avant.png"), apres: null }] },
     },
   ],

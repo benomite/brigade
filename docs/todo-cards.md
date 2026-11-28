@@ -30,7 +30,6 @@ On the phone, the list of `Awaiting you` shows the cards that have a question (`
 ### What is not an answer
 
 - `ask the second` is the secondary action of every card, never an answer.
-- `waiting for…` (desktop and phone) puts a card in WAITING until a third party answers: it defers the question, it does not answer it.
 
 ## Where this was read
 

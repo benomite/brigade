@@ -4,7 +4,6 @@
 // faux document (vue/kitchen/kitchen.js), puis la vue jouée.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { ACTIONS_OF_WAIT } from "../../../src/wait.ts";
 import { forTheBar } from "../../../src/bar.ts";
 import type { CardOfTodo } from "../../../src/card-todo.ts";
 import { EXAMPLE } from "../../../src/config.ts";
@@ -77,7 +76,7 @@ type Plays = [number, string, unknown];
 function actions(step: "repos" | "envoi" | "refus" = "repos") {
   const played: Plays[] = [];
   const state = step === "envoi" ? { etape: step, reponse: { question: "Ship it?", choix: 1 } } : step === "refus" ? { etape: step, dit: "no", detail: "" } : { etape: step };
-  return { joues: played, gestes: { etat: () => state as never, attente: ACTIONS_OF_WAIT, jouer: (ticket: number, kind: string, answer?: unknown) => void played.push([ticket, kind, answer]) } };
+  return { joues: played, gestes: { etat: () => state as never, jouer: (ticket: number, kind: string, answer?: unknown) => void played.push([ticket, kind, answer]) } };
 }
 const buttons = (or: Fake) => or.dessous("button").filter(({ dataset }) => dataset.bouton !== "discret");
 
@@ -117,16 +116,12 @@ describe("chaque entrée du TODO dit ce qui est demandé, avec ses boutons", () 
     assert.deepEqual(actionsOfTodo(card(63, { todo: todo({ sorte: "design-validation", choix: [], validation: { illisible: "no PR named" } }) }), itsOwn as never), []);
   });
 
-  test("une carte de WAITING parked pour le chef : « resume » et « it arrived » ; « waiting for… » n'y répond pas", () => {
-    const { joues: played, gestes: itsOwn } = actions();
-    const wait = card(51, { attendu: false, gestes: ["attente-reprendre", "attente-arrivee"] });
-    const setOne = setTheTodo(doc, { deplie: { ouvert: true }, cartes: [wait, card(52, { gestes: ["attente-poser"] })], ouvrir: () => {}, gestes: itsOwn as never }) as unknown as Fake;
+  test("une carte de WAITING sans question n'a aucun bouton : ni « resume », ni « it arrived »", () => {
+    const { gestes: itsOwn } = actions();
+    const setOne = setTheTodo(doc, { deplie: { ouvert: true }, cartes: [card(51, { attendu: false }), card(52)], ouvrir: () => {}, gestes: itsOwn as never }) as unknown as Fake;
     const [first, second] = setOne.dessous("li");
-    assert.deepEqual(buttons(first as Fake).map(({ textContent }) => textContent), ["resume", "it arrived, back to the kitchen"]);
+    assert.deepEqual(buttons(first as Fake), []);
     assert.deepEqual(buttons(second as Fake), []);
-    assert.deepEqual((second as Fake).dessous("div"), []);
-    buttons(first as Fake)[1]?.click();
-    assert.deepEqual(played, [[51, "attente-arrivee", undefined]]);
   });
 
   test("sans gestes — un projet en lecture seule —, la question se lit, aucun bouton ; sans question, aucune ligne", () => {
@@ -146,11 +141,10 @@ describe("chaque entrée du TODO dit ce qui est demandé, avec ses boutons", () 
 const startup = () => ({
   configuration: forTheBar({ chemin: "/tmp/app.json", projets: [{ nom: PARADE, dossier: "/tmp/parade" }] }, () => true),
   palette: PALETTE, exemple: EXAMPLE, onglets: TABS, rubriques: HEADINGS,
-  gestes: { attente: ACTIONS_OF_WAIT },
   banniere: BANNER, calibrage: { modeles: MODELS, efforts: EFFORTS }, code: undefined,
 });
 async function show(readOnes: Facts): Promise<Played> {
-  const vue = await playTheVue({ demarrage: startup, espace: () => [], ouvrirIssue: () => true, repondreCarte: () => ({ repondue: true, dit: "posted", commentaire: 7 }), attente: () => ({ fait: "done", detail: "" }) });
+  const vue = await playTheVue({ demarrage: startup, espace: () => [], ouvrirIssue: () => true, repondreCarte: () => ({ repondue: true, dit: "posted", commentaire: 7 }) });
   (vue.element("projets").children.at(1) ?? assert.fail("pas d'entrée")).click();
   await repos();
   const receivedOne = holdFacts().recevoir({ projet: PARADE, demande: 0, a: A, sorties: [{ commande: "facts", texte: JSON.stringify(readOnes) }] });
@@ -186,17 +180,6 @@ describe("la vue : le TODO, ses questions et ses boutons", () => {
     (buttons(entryOf(vue, 50)).find(({ textContent }) => textContent === "No, drop it") ?? assert.fail("pas de « No, drop it »")).click();
     await repos();
     assert.deepEqual(callsOf(vue, "repondreCarte"), [[PARADE, 50, { question: "Ship the export as CSV?", choix: 2 }]]);
-  });
-
-  test("« resume » et « it arrived » d'une carte de WAITING parked pour le chef partent comme depuis sa carte", async () => {
-    // Répondue, l'entrée se replie (#4646) : chaque geste se joue sur une vue neuve.
-    const vue = await show(WORLD);
-    (buttons(entryOf(vue, 51)).find(({ textContent }) => textContent === "resume") ?? assert.fail("pas de « resume »")).click();
-    await repos();
-    const other = await show(WORLD);
-    (buttons(entryOf(other, 51)).find(({ textContent }) => textContent === "it arrived, back to the kitchen") ?? assert.fail("pas de « it arrived »")).click();
-    await repos();
-    assert.deepEqual([...callsOf(vue, "attente"), ...callsOf(other, "attente")].map(([project, id, ticket]) => [project, id, ticket]), [[PARADE, "attente-reprendre", 51], [PARADE, "attente-arrivee", 51]]);
   });
 
   test("un projet en lecture seule : le TODO dit ses questions, sans un bouton", async () => {

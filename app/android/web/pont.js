@@ -27,12 +27,10 @@
 // sont gardés : relancée, l'app les montre avant de relire. Aucune station n'est lue : pas connecté, le téléphone ne lit
 // rien.
 // `oublierLeTelephone` oublie sa connexion à GitHub — celle que GitHub refuse.
-// Et, connecté, les gestes du chef, écrits sur GitHub seul (le ticket 2502) : `gestesDeFiche`, `gesteDeFiche`, `attente` et
-// `repondreCarte` passent par les gestes de la même lecture (app/src/actions-github-phone.ts) — le code d'écriture du
-// desktop, sur le dernier rail lu, avec le jeton du coffre, par le HTTP natif de Capacitor, à l'API de GitHub et nulle part
-// ailleurs. Répondre à une carte de TODO poste sa réponse sur l'issue et joue son geste ; reprendre (« back to the
-// kitchen », « it arrived ») retire `waiting` ; mettre en suspens (« remove from the rail ») retire `fire`. Ce que GitHub
-// refuse, ou un GitHub qui ne répond pas, revient à la vue en une phrase, et rien n'est montré fait. Aucune station n'est
+// Et, connecté, les gestes du chef, écrits sur GitHub seul (le ticket 2502) : `repondreCarte` passe par les gestes de la
+// même lecture (app/src/actions-github-phone.ts) — le code d'écriture du desktop, sur le dernier rail lu, avec le jeton du
+// coffre, par le HTTP natif de Capacitor, à l'API de GitHub et nulle part ailleurs. Répondre à une carte de TODO poste sa
+// réponse sur l'issue et joue son geste. Ce que GitHub refuse, ou un GitHub qui ne répond pas, revient à la vue en une phrase, et rien n'est montré fait. Aucune station n'est
 // jointe pour un geste : pas connecté, rien ne part.
 // Les deux gestes de la carte « Validate its screen » (`gesteDeValidation`, le ticket 3185) passent par les mêmes gestes : la
 // PR mergée, ou le renvoi posté sur le ticket, et la carte fermée. Les captures d'une carte (`lireCapture`) se lisent sur
@@ -341,9 +339,6 @@ const connus = {
   tous: (/** @type {number} */ demande) => avecLaLectureGitHub((ouverte) => ouverte.tous(demande)),
   regarder: (/** @type {string} */ projet, /** @type {number} */ demande) => avecLaLectureGitHub((ouverte) => ouverte.regarder(projet, demande)),
   relireBox: () => avecLaLectureGitHub((ouverte) => ouverte.relire()),
-  gestesDeFiche: (/** @type {unknown} */ carte) => avecLesGestes((gestes) => gestes.gestesDeFiche(carte), []),
-  gesteDeFiche: (/** @type {string} */ projet, /** @type {string} */ id, /** @type {number} */ ticket) => avecLesGestes((gestes) => gestes.geste(projet, id, ticket), { refus: SANS_GITHUB, detail: "" }),
-  attente: (/** @type {string} */ projet, /** @type {string} */ id, /** @type {number} */ ticket, /** @type {unknown} */ saisie) => avecLesGestes((gestes) => gestes.attente(projet, id, ticket, saisie), { refus: SANS_GITHUB, detail: "" }),
   repondreCarte: async (/** @type {string} */ projet, /** @type {number} */ ticket, /** @type {unknown} */ reponse) => {
     const rendu = /** @type {any} */ (await avecLesGestes((gestes) => gestes.repondreCarte(projet, ticket, reponse), { refus: SANS_GITHUB, detail: "" }));
     // Répondue dans l'app : sa notification disparaît tout de suite (le ticket 2747).

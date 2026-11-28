@@ -1,15 +1,12 @@
 // #4510 — the shell's small modules read nothing from the old runtime: every file of the ticket names no `runtime/src/<x>`
 // but `runtime/src/kitchen/`; the `brigade` command, which only ran the old runtime's station gesture, is gone; the phone
-// reads a station's selection itself; and « back to the kitchen » removes the labels the kitchen reads as parked.
+// reads a station's selection itself.
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test } from "node:test";
-import { removeTheLabel } from "../../src/actions-github.ts";
 import { readTheProjectsOfAccount } from "../../src/read-github-phone.ts";
 import type { AnswerGitHub } from "../../src/board/client.ts";
-import type { BoardRead } from "../../src/board/read.ts";
-import type { ClientOfThePriority } from "../../src/priority.ts";
 
 const SRC = join(import.meta.dirname, "..", "..", "src");
 const SCOPE = ["home.ts", "notification.ts", "setup/init.sh", "read-github-phone.ts", "actions-github.ts", "name.ts", "ordinary.ts", "cooking.ts", "caps-duration.ts", "closer-health.ts", "reliability.ts", "terminals.ts", "alerts.ts"];
@@ -41,13 +38,5 @@ describe("#4510 — the shell's small modules read nothing from the old runtime"
       return { status: 200, data: { files: Object.fromEntries(Object.entries(files).map(([name, content]) => [name, { content }])) } };
     };
     assert.deepEqual(await readTheProjectsOfAccount(call), [{ nom: "parade", depot: "chef/parade" }]);
-  });
-
-  test("« back to the kitchen » removes `parked` and `parked:chef`, then the waiting labels the kitchen still reads as parked", async () => {
-    const read = { lu: true, depot: "chef/parade", faits: { rail: [], attend: [{ ticket: 31 }] } } as unknown as BoardRead;
-    const removed: string[] = [];
-    const client = { ecrire: async (_method: string, path: string) => (removed.push(decodeURIComponent(path.split("/labels/")[1] ?? "")), { status: 200, data: [] }) } as unknown as ClientOfThePriority;
-    assert.ok("fait" in (await removeTheLabel(read, "cuisine", 31, client)));
-    assert.deepEqual(removed, ["parked", "parked:chef", "waiting", "blocked-on-human"]);
   });
 });

@@ -131,30 +131,25 @@ export function lineParked(doc, parked) {
 }
 
 // Les gestes qui tranchent une carte du TODO d'un clic, chacun par son nom (vue.js les joue) : répondre d'un choix, valider
-// un écran, reprendre une carte de WAITING ou dire arrivé ce qu'elle attendait.
-/** @typedef {"repondre" | "valider" | "attente-reprendre" | "attente-arrivee"} KindOfAction */
+// un écran.
+/** @typedef {"repondre" | "valider"} KindOfAction */
 /** @typedef {{ texte: string, recommande: boolean, sorte: KindOfAction, reponse?: import("../../card-todo.ts").Answer, ouvre?: true }} ActionOfTodo */
 /**
- * Ce que le TODO sait de la vue pour trancher ses cartes : où en est la réponse d'une carte (`etat`), les gestes de WAITING
- * et leurs libellés (`attente`), et de quoi jouer un geste (`jouer`).
- * @typedef {{ etat: (ticket: number, todo: import("../../card-todo.ts").CardOfTodo) => import("../card-todo.js").State, attente: readonly { id: string, libelle: string }[], jouer: (ticket: number, kind: KindOfAction, answer?: import("../../card-todo.ts").Answer) => void }} ActionsOfTodo
+ * Ce que le TODO sait de la vue pour trancher ses cartes : où en est la réponse d'une carte (`etat`), et de quoi jouer un geste (`jouer`).
+ * @typedef {{ etat: (ticket: number, todo: import("../../card-todo.ts").CardOfTodo) => import("../card-todo.js").State, jouer: (ticket: number, kind: KindOfAction, answer?: import("../../card-todo.ts").Answer) => void }} ActionsOfTodo
  */
 
-// Les gestes de WAITING qui la tranchent : la reprendre, ou dire arrivé ce qu'elle attendait — « waiting for… » remet la
-// question à plus tard, il n'y répond pas (docs/todo-cards.md).
-const DECIDE = ["attente-reprendre", "attente-arrivee"];
 // Pourquoi une entrée du TODO se lit sans bouton.
 const READ_ONLY = "read-only: nothing is decided from here";
 
 /**
  * Les boutons d'une carte du TODO, ceux de sa carte (ticket 4261) : « Validate » d'un écran à valider,
- * un par choix d'une question — le recommandé plein d'accent —, tant que sa réponse n'est pas partie d'ici ; ou les gestes de
- * WAITING qu'elle a. Aucun sur une carte qui ne se tranche qu'en mots : un clic sur son entrée ouvre sa carte et son champ.
+ * un par choix d'une question — le recommandé plein d'accent —, tant que sa réponse n'est pas partie d'ici. Aucun sur une carte qui ne se tranche qu'en mots : un clic sur son entrée ouvre sa carte et son champ.
  * @param {Card} card @param {ActionsOfTodo} actions @returns {ActionOfTodo[]}
  */
 export function actionsOfTodo(card, actions) {
   const { todo } = card;
-  if (todo === undefined) return actions.attente.filter(({ id }) => DECIDE.includes(id) && card.gestes?.includes(/** @type {never} */ (id))).map(({ id, libelle: wording }) => ({ texte: wording, recommande: false, sorte: /** @type {KindOfAction} */ (id) }));
+  if (todo === undefined) return [];
   // Un écran à valider : son bouton, quand sa carte dit la PR qu'il tranche — sinon aucun, comme sur sa carte.
   if (isOneValidation(todo)) return "pr" in (todo.validation ?? {}) ? [{ texte: VALIDATE, recommande: true, sorte: "valider" }] : [];
   if (!["repos", "refus"].includes(seenOfTheCard(todo, actions.etat(card.ticket, todo)).vu)) return [];
@@ -168,14 +163,14 @@ export function actionsOfTodo(card, actions) {
  * Le TODO du chef, en une ligne au-dessus des colonnes (ticket 4354) : « 2 wait for you ». Un clic montre, sous elle, une
  * entrée par ticket parked pour lui (ticket 4261) — son numéro et son titre, dont un clic ouvre sa carte ; ce qui lui est
  * demandé ; qui, jusqu'à quand ; ses boutons, qui y répondent. Les entrées sont celles du TODO parked (parked/, ticket
- * 4281), qui ajoute à chacune son contrôle de park (`control`, `opened`). `deplie` garde, d'un rendu à l'autre, que le chef
+ * 4281). `deplie` garde, d'un rendu à l'autre, que le chef
  * l'a ouvert. Sans `gestes` — un projet en lecture seule —, ses cartes se lisent sans bouton. Rien du tout quand rien ne
  * l'attend. `answered` et `later` (ticket 4646) gardent d'un rendu à l'autre les entrées répondues d'ici, repliées sur la
  * réponse envoyée, et celles que le chef a remises à plus tard : une carte partie du TODO les quitte ; une réponse refusée
  * rend ses boutons ; une carte répondue ailleurs — sa fiche — se replie sur sa réponse aussi.
- * @param {Fabrique} doc @param {{ cartes: readonly Card[], ouvrir: (card: Card) => void, gestes?: ActionsOfTodo, control?: (record: import("../parked/records.js").ParkedRecord) => any, opened?: Set<number>, deplie: { ouvert: boolean }, answered?: Map<number, string>, later?: Set<number> }} todo
+ * @param {Fabrique} doc @param {{ cartes: readonly Card[], ouvrir: (card: Card) => void, gestes?: ActionsOfTodo, deplie: { ouvert: boolean }, answered?: Map<number, string>, later?: Set<number> }} todo
  */
-export function setTheTodo(doc, { cartes: cards, ouvrir: open, gestes: actions, control, opened, deplie: unfolded, answered = new Map(), later = new Set() }) {
+export function setTheTodo(doc, { cartes: cards, ouvrir: open, gestes: actions, deplie: unfolded, answered = new Map(), later = new Set() }) {
   const present = new Set(cards.map(({ ticket }) => ticket));
   for (const ticket of [...answered.keys(), ...later]) if (!present.has(ticket)) void (answered.delete(ticket), later.delete(ticket));
   for (const { ticket, todo } of cards) {
@@ -199,7 +194,7 @@ export function setTheTodo(doc, { cartes: cards, ouvrir: open, gestes: actions, 
         const action = of(ticket).siens.find((itsOwn) => itsOwn.texte === text);
         if (action !== undefined && action.ouvre !== true) actions?.jouer(ticket, action.sorte, action.reponse);
       },
-      ...(actions === undefined ? { readOnly: READ_ONLY } : { control, opened, answered, later }),
+      ...(actions === undefined ? { readOnly: READ_ONLY } : { answered, later }),
       open: (ticket) => open(of(ticket).carte),
       openTitle: (ticket) => {
         const { parque: parked } = of(ticket).carte;

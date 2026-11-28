@@ -55,7 +55,7 @@ describe("la passation d'une carte au second (#3133)", () => {
   });
 
   test("une issue sans commentaire utile donne son corps ; fermée, elle le dit ; un message trop long est coupé", () => {
-    const only: Discussion = { titre: "Solo", ouverte: false, messages: [{ auteur: "benomite", at: "2026-11-01 09:00 UTC", blocs: render(`Body ${"x".repeat(3000)}`), corps: true }], liens: [] };
+    const only: Discussion = { titre: "Solo", ouverte: false, messages: [{ auteur: "benomite", at: "2026-11-01 09:00 UTC", blocs: render(`Body ${"x".repeat(3000)}`), corps: true }] };
     const message = handover(7, QUESTION, only);
     assert.ok(message.includes("Its issue: “Solo” (closed)."), message);
     assert.match(message, /Its description \(benomite, 2026-11-01 09:00 UTC\): “Body x+…”/);

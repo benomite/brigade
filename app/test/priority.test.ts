@@ -1,11 +1,8 @@
-// Changer la priorité d'un ticket du rail depuis sa fiche (#1739) : l'app remplace le label `prio:` de son issue sur
-// GitHub — l'ancien retiré, le nouveau posé —, sans box ; le rail montre la nouvelle priorité tant que le tableau de la
-// cuisine montre l'ancienne. Un échec de GitHub ne change rien au rail, et se dit.
+// Changer la priorité d'un ticket (#1739) : l'app remplace le label `prio:` de son issue sur GitHub — l'ancien retiré,
+// le nouveau posé —, sans box. Un échec de GitHub ne change rien, et se dit.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { putAside } from "../src/awaiting.ts";
-import { holdFacts, type Card, type Facts } from "../src/facts.ts";
-import { changeThePriority, clientOfThePriority, sendByFetch, priorityOfLabels, PRIORITIES, holdPrioritiesWritten, type ClientOfThePriority } from "../src/priority.ts";
+import { changeThePriority, clientOfThePriority, sendByFetch, priorityOfLabels, PRIORITIES, type ClientOfThePriority } from "../src/priority.ts";
 import type { AnswerGitHub } from "../src/board/client.ts";
 
 const REPOSITORY = "chef/parade";
@@ -144,66 +141,5 @@ describe("les demandes, telles qu'elles partent", () => {
       ],
     );
     assert.deepEqual(readOnes, [ISSUE]);
-  });
-});
-
-describe("le rail montre la priorité écrite", () => {
-  const A = "2026-10-13T10:04:12.000Z";
-  const FACTS: Facts = {
-    etat: "ouverte",
-    lu: "2026-10-13T10:04:11.000Z",
-    dernierTick: null,
-    compteurs: { rail: 1, auTravail: 0, aLaPass: 0, attend: 0, livres24h: 0 },
-    dernierEvenement: null,
-    rail: [{ ticket: 22, etat: "en attente", titre: "Un ticket libre", url: "https://github.com/chef/parade/issues/22" }],
-  };
-  // Le `status` que le tableau porte : la ligne du ticket, avec la priorité que la box lui connaît.
-  const status = (prio: string) => ["project    parade", "", `rail       1 queued`, `  #22  queued  ${prio}  since 3 min  Un ticket libre`, ""].join("\n");
-
-  // Une cuisine dont le tableau est lu — `facts`, puis `status` — avec cette priorité ; ce que le rail montre de #22.
-  function kitchen() {
-    const writtenEntries = holdPrioritiesWritten();
-    const facts = holdFacts(undefined, (project) => writtenEntries.de(project));
-    facts.recevoir({ projet: "parade", demande: 0, a: A, sorties: [{ commande: "facts", texte: JSON.stringify(FACTS) }] });
-    const shows = (draws: unknown): Pick<Card, "prio"> & { fiche: unknown } => {
-      const board = (draws as { tableau: { rail: { colonnes: { cartes: Card[] }[] } } }).tableau;
-      const card = board.rail.colonnes.flatMap(({ cartes: cards }) => cards).find(({ ticket }) => ticket === 22);
-      assert.ok(card !== undefined);
-      return { prio: card.prio, fiche: card.fiche.priorite };
-    };
-    const read = (prio: string) => shows(facts.attendre(putAside({ projet: "parade", demande: 0, a: A, sorties: [{ commande: "status", texte: status(prio) }] })));
-    return { ecrites: writtenEntries, lire: read, redessiner: () => shows(facts.redessiner("parade")) };
-  }
-
-  test("écrite, la nouvelle priorité est sur la carte et la fiche aussitôt, et tant que le tableau montre l'ancienne — box injoignable comprise", () => {
-    const { ecrites: writtenEntries, lire: read, redessiner: redraw } = kitchen();
-    assert.deepEqual(read("prio:3"), { prio: "prio:3", fiche: { valeur: "prio:3", exact: true } });
-
-    writtenEntries.ecrite("parade", 22, 1, 3);
-    assert.deepEqual(redraw(), { prio: "prio:1", fiche: { valeur: "prio:1", exact: true } });
-    // Le tableau, que la box ne republie pas, montre encore `prio:3` : le rail garde `prio:1`.
-    assert.deepEqual(read("prio:3"), { prio: "prio:1", fiche: { valeur: "prio:1", exact: true } });
-    // La box l'a lue : le tableau la montre, et c'est lui qui la dit désormais.
-    assert.deepEqual(read("prio:1"), { prio: "prio:1", fiche: { valeur: "prio:1", exact: true } });
-    assert.deepEqual(read("prio:2"), { prio: "prio:2", fiche: { valeur: "prio:2", exact: true } });
-    // Oubliée : un tableau qui reviendrait à `prio:3` dit `prio:3`.
-    assert.deepEqual(read("prio:3"), { prio: "prio:3", fiche: { valeur: "prio:3", exact: true } });
-  });
-
-  test("la priorité retirée se dit `no prio` sur la carte ; un autre projet n'en est pas touché", () => {
-    const { ecrites: writtenEntries, lire: read } = kitchen();
-    writtenEntries.ecrite("parade", 22, null, 3);
-    writtenEntries.ecrite("cantine", 22, 7, 3);
-    assert.deepEqual(read("prio:3"), { prio: "no prio", fiche: { valeur: "none — its issue carries no `prio:` label" } });
-  });
-
-  test("GitHub en échec, rien n'est écrit : le rail garde l'ancienne priorité", async () => {
-    const { lire: read, ecrites: writtenEntries } = kitchen();
-    const { client } = github(["prio:3"], { [`POST ${ISSUE}/labels {"labels":["prio:1"]}`]: { status: 502, data: "" } });
-    const rendered = await changeThePriority({ depot: REPOSITORY, ticket: 22, valeur: "1", client });
-    // Un refus : main.ts ne retient que ce qui est fait, et ne redessine rien.
-    assert.ok("refus" in rendered && !("niveau" in rendered));
-    assert.equal(writtenEntries.de("parade")(22, 3), undefined);
-    assert.deepEqual(read("prio:3"), { prio: "prio:3", fiche: { valeur: "prio:3", exact: true } });
   });
 });

@@ -1,14 +1,14 @@
 // #4260 (règle 13 de docs/superpowers/specs/2026-11-24-simplified-process.md) : un ticket parqué à chacune des trois
 // étapes — au backlog, en cuisson (`taken`), à la pass (`in-pass`) — reprend exactement où il était quand la personne
-// répond (« resume ») et quand son fait arrive (« it arrived, back to the kitchen ») : les deux gestes de l'app, que le
+// répond (`unpark`) et quand son fait arrive (« it arrived, back to the kitchen ») : les deux gestes de l'app, que le
 // second joue aussi (`deparquer`). Sa reprise à la date est celle du tour de la station
 // (runtime/test/parked/parquer-a-chaque-etape.test.ts). L'étape est lue comme la station la lisait (`etatDuTicket`, copie locale).
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { parkingBody as corpsDuParking } from "../parking-body.ts";
 import type { ClientOfThePriority } from "../../src/priority.ts";
-import type { BoardRead } from "../../src/board/read.ts";
-import { waitOnGithub, park } from "../../src/vue/wait/wait-github.ts";
+import { unpark } from "../../src/actions-github.ts";
+import { park } from "../../src/vue/wait/wait-github.ts";
 
 // The old station's reading of a ticket (github-etat/etats.ts, deleted in #4775), kept as small local copies: a ticket is
 // parked when it carries `parked` or one of the waiting labels from before it (#4260); else `in-pass` (with an open,
@@ -59,33 +59,31 @@ function issueA(labels: string[]) {
       return assert.fail(`${method} ${path}`);
     },
   };
-  // La dernière lecture du rail : elle porte le ticket.
-  const readOne = { depot: REPOSITORY, faits: { rail: [{ ticket: TICKET }], attend: [], attendAutres: [] } } as unknown as BoardRead;
   const state = () => etatDuTicket({ state: "open", labels: [...heldOnes], pr: PR_OPEN });
-  const action = (id: string) => waitOnGithub({ id, ticket: TICKET, saisie: undefined, aujourdhui: TODAY, lu: readOne, client });
+  const action = () => unpark(REPOSITORY, TICKET, client);
   return { tenus: heldOnes, commentaires: comments, client, etat: state, geste: action };
 }
 
 for (const { etape: step, labels } of STEPS) {
   describe(`a ticket parked ${step}`, () => {
-    test("parked until a date by the app: when the person answers (« resume »), it resumes at the same step", async () => {
+    test("parked until a date by the app: when the person answers (`unpark`), it resumes at the same step", async () => {
       const t = issueA(labels);
       const before = t.etat();
       const pose = await park(REPOSITORY, TICKET, { quoi: "the signed quote", qui: "the client", relance: "2026-12-02" }, TODAY, t.client);
       assert.ok("fait" in pose, JSON.stringify(pose));
       assert.equal(estParque(t.tenus), true);
       assert.equal(t.etat(), "parked");
-      assert.ok("fait" in (await t.geste("attente-reprendre")));
+      assert.ok("fait" in (await t.geste()));
       assert.deepEqual(t.tenus, labels);
       assert.equal(estParque(t.tenus), false);
       assert.equal(t.etat(), before);
     });
 
-    test("parked until a fact by the station: when the fact happens (« it arrived »), it resumes at the same step", async () => {
+    test("parked until a fact by the station: when the fact happens (`unpark`), it resumes at the same step", async () => {
       const t = issueA([...labels, "parked"]);
       t.commentaires.push(corpsDuParking({ what: "the API key", who: "the client", followUp: "2026-12-02T10:00:00.000Z", fact: "the client sends the key" }));
       assert.equal(t.etat(), "parked");
-      assert.ok("fait" in (await t.geste("attente-arrivee")));
+      assert.ok("fait" in (await t.geste()));
       assert.deepEqual(t.tenus, labels);
       assert.equal(estParque(t.tenus), false);
       assert.equal(etatDuTicket({ state: "open", labels: labels, pr: PR_OPEN }), t.etat());
