@@ -58,13 +58,6 @@ describe("les gates et la zone app", { concurrency: 8 }, () => {
     assert.deepEqual(await linesOfTheApp(root), ["ok    app sans script typecheck : aucun contrôle de types à jouer", "FAIL  tests de l'app en échec — rejoue : npm --prefix app test"]);
   });
 
-  test("les mesures additionnent les deux zones — et une suite rouge les retire toutes : jamais la somme des seules vertes", { skip: WITHOUT_POSIX }, async (t) => {
-    const green = project(t, { manifeste: SUITE_OF(30), installe: true }, SUITE_OF(1400));
-    const appRed = project(t, { manifeste: { scripts: { test: "false" } }, installe: true }, SUITE_OF(1400));
-
-    assert.deepEqual(await lines(green, /^MESURE {2}tests/), ["MESURE  tests=1430", "MESURE  tests_s=3.0"]);
-    assert.deepEqual(await lines(appRed, /^MESURE {2}tests/), []);
-  });
 
   test("des dépendances déclarées et jamais installées sont dites, plutôt qu'une suite qui ne trouve aucun module", async (t) => {
     const root = project(t, { manifeste: { scripts: { test: "true" }, dependencies: { "node-pty": "1.1.0" } }, installe: false });

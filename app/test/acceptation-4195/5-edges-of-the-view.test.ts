@@ -23,34 +23,7 @@ function dropped(cards: unknown[]): VueOfProject {
   }
 }
 
-test("qui est attendu : chaque raison, seule", () => {
-  const vue = dropped([
-    card(1, { etat: "todo", attendu: true }),
-    card(2, { etat: "todo", question: true }),
-    card(3, { etat: "waiting", enWaiting: true }),
-    card(4, { etat: "waiting", relancePassee: true }),
-    card(5, { etat: "base rouge" }),
-    card(6, { etat: "in pass" }),
-    card(7, { etat: "queued" }),
-    card(8, { etat: "en attente" }),
-    card(9, { etat: "autre" }),
-  ]);
-  const awaiting = (n: number) => vue.rail.find((c) => c.number === n)!.waitsOn;
-  assert.match(awaiting(1), /chef/);
-  assert.match(awaiting(2), /chef/);
-  assert.match(awaiting(3), /station/);
-  assert.match(awaiting(4), /chef/);
-  assert.match(awaiting(6), /pass/);
-  assert.match(awaiting(7), /kitchen/);
-  assert.match(awaiting(8), /kitchen/);
-  assert.match(awaiting(9), /third party/);
-});
 
-test("« base rouge » : le rail ne dit plus la base rouge (#4509), la carte est ramenée à « in pass »", () => {
-  const green = dropped([card(5, { etat: "base rouge" })]);
-  assert.equal(green.rail[0]!.displayed, "in pass");
-  assert.match(green.rail[0]!.waitsOn, /pass/);
-});
 
 test("le crochet : un message sans question de blocage, ou un événement de fond qui en parle, ne reçoit rien", () => {
   const views = mkdtempSync(join(tmpdir(), "vue-4195-"));

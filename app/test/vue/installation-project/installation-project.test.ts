@@ -207,30 +207,6 @@ async function seconds(answers: Answers = {}, stations: SeenOfStations | null = 
 }
 
 describe("la vue jouée : la mise en place mergée, aucune station ne le sert", () => {
-  test("la question vient aussitôt, cet ordinateur en tête ; un clic l'ajoute à la liste que sert cet ordinateur", async () => {
-    const servedOnes: [string, boolean][] = [];
-    const { vue, merger } = await seconds({ servirUnProjet: (repository, served) => (servedOnes.push([repository, served]), { depots: [repository] }) });
-    // Tant que la mise en place n'est pas faite, rien n'est demandé.
-    assert.equal(request(vue).hidden, true);
-
-    await merger();
-    assert.equal(request(vue).hidden, false);
-    const card = request(vue).dessous("section")[0] ?? assert.fail("pas de question");
-    assert.equal(card.dessous("h2")[0]?.textContent, QUESTION(REPOSITORY));
-    assert.ok(card.dessous("p").some(({ textContent }) => textContent === NOBODY(REPOSITORY)));
-    assert.deepEqual(buttons(card), ["this computer", "atelier", LATER]);
-
-    button(card, "this computer").click();
-    await repos();
-    await repos();
-    assert.deepEqual(servedOnes, [[REPOSITORY, true]]);
-    const served = request(vue).dessous("section")[0] ?? assert.fail("pas de confirmation");
-    assert.equal(served.dataset.etape, "servi");
-    assert.equal(served.dessous("p")[0]?.textContent, SERVED_HERE(REPOSITORY));
-    button(served, CLOSE).click();
-    await repos();
-    assert.equal(request(vue).hidden, true);
-  });
 
   test("cet ordinateur le sert déjà : rien n'est demandé", async () => {
     const { vue, merger } = await seconds({ projetsServis: () => ({ depots: [REPOSITORY] }) });

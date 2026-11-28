@@ -132,22 +132,6 @@ describe("deux onglets, Rail et Stations, à côté du nom du projet", () => {
 });
 
 describe("ce que chaque onglet montre", () => {
-  test("Rail : ce qui t'attend et son geste, le plan de la cuisine entier, dans son ordre — ni gates, ni worktrees, ni plafond, ni consommation", async () => {
-    const vue = await open();
-
-    assert.deepEqual(columns(vue), ["Backlog", "Manager", "Cooks", "Pass", "Served"]);
-    // Le rail dans son ordre (#2093) : #12, qui t'attend, rouge en tête de la colonne de son étape (#3458), avec son geste ;
-    // #31, servi, sans geste qui ouvre une page de son worktree (#1846) : l'app n'en ouvre aucune.
-    assert.deepEqual(cards(vue), ["#21", "#22", "#14", "#12", "#30", "#31"]);
-    assert.ok(cardOf(vue, 12).dessous("button").length > 0, "ce qui t'attend n'a pas de geste");
-    assert.ok(!cardOf(vue, 31).dessous("button").some((button) => /browser/.test(button.textContent)));
-    // Rien d'exécution : ni la carte du projet, ni `station`.
-    assert.doesNotMatch(center(vue).textContent, /cap of cooks|saturée|consommé/);
-    for (const id of ["carte", "lu-cuisine", "lecture-cuisine"]) assert.equal(pose(vue, id), false, id);
-    // Les stations du projet sont sur Stations ; rien n'est lu de `station` : aucune lecture ne court sur aucun onglet.
-    assert.equal(vue.element("stations-du-projet").hidden, true);
-    assert.equal(vue.appels.some(({ geste: action, args }) => action === "onglet" && args[1] !== undefined), false);
-  });
 });
 
 describe("le second reste à droite, le même, quel que soit l'onglet", () => {

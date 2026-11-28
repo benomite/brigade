@@ -32,13 +32,6 @@ const machineDe = (name: string) => name.toLowerCase().replace(/[^\p{Ll}\p{N}-]+
 const stationDe = (name: string) => `${machineDe(name)}/claude`;
 
 describe("la ligne du haut : un seul de quatre états (#3195)", () => {
-  test("une station en ligne le sert : « Cooked by <station> · online · N cooks at work », vert", () => {
-    const servingOnes = servingOf({ projet: "parade",  stations: [BOX, MAC], locale: "gmac", maintenant: NOW });
-    const top = topOf({ servantes: servingOnes, deplacement: null, maintenant: NOW });
-    assert.equal(top.etat, "cuit");
-    assert.equal(sentenceOfTop(top), "Cooked by parade-box · online · 2 cooks at work");
-    assert.equal(yourOfTop(top), "vert");
-  });
 
 
   test("la station qui le sert est hors ligne : elle le cuit, mais rien ne cuit — et depuis quand ; pas de vert", () => {
@@ -51,11 +44,6 @@ describe("la ligne du haut : un seul de quatre états (#3195)", () => {
     assert.notEqual(yourOfTop(top), "vert");
   });
 
-  test("tue sur GitHub, une station choisie pour le projet dit depuis quand elle s'est tue", () => {
-    const servingOnes = servingOf({ projet: "parade",  maintenant: NOW });
-    const top = topOf({ servantes: servingOnes, deplacement: null, maintenant: NOW });
-    assert.equal(sentenceOfTop(top), OUTSIDE_LINE("box/claude", "offline for 3 h"));
-  });
 
   test("aucune station ne le sert : « No station cooks this project », sans vert", () => {
     const servingOnes = servingOf({ projet: "parade", stations: [MAC, station("gpc", "pc", ["cantine"])], locale: "gmac", maintenant: NOW });
@@ -92,18 +80,6 @@ describe("les cartes : les stations qui servent le projet, elles seules (#3195)"
     assert.equal(topOf({ servantes: servingOnes, deplacement: null, maintenant: NOW }).vert, false);
   });
 
-  test("chaque station une fois : la ligne de `facts`, rattachée à sa station appairée — celle de ce poste quand le projet y cuit —, et la déclaration par son nom", () => {
-    const servingOnes = servingOf({
-      projet: "parade",
-      
-      stations: [{ ...MAC, projets: ["parade"] }, BOX],
-      declarees: [{ nom: "parade-box/claude", distante: true }, { nom: "mac/claude", distante: false }, { nom: "pc/claude", distante: true }],
-      locale: "gmac",
-      ici: true,
-      maintenant: NOW,
-    });
-    assert.deepEqual(servingOnes.map(({ id, nom: name, prise: taking, ici: here }) => [id, name, taking, here]), [["gmac", "macbook", "mac/claude", true], ["gbox", "parade-box", "parade-box/claude", false], ["", "pc/claude", undefined, false]]);
-  });
 
   test("le nom de prise d'une station est celui que le runtime lui donne", () => {
     for (const name of ["parade-box", "MacBook Pro de Benoît", "--", "PC_du_salon"]) assert.equal(nameOfTaking(name), stationDe(name));

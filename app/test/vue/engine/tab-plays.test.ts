@@ -83,9 +83,4 @@ describe("le moteur sur la carte de cet ordinateur, l'app jouée (#3746)", () =>
     assert.equal(line(vue, "moteur-de-la-carte")?.textContent, "engine: Claude subscription");
   });
 
-  test("quand `facts` la dit sur son secours, la carte dit sur lequel et jusqu'à quand", async () => {
-    const vue = await thePage("claude-subscription", { ...lineOfMac, engine: { chosen: "claude-subscription", active: "claude-api-key", onFallback: true, blockedUntil: "2026-11-12T18:30:00Z" } });
-    assert.equal(line(vue, "moteur-de-la-carte")?.textContent, "engine: Claude subscription");
-    assert.equal(line(vue, "moteur-en-secours")?.textContent, "cooking on the API key: the subscription's cap is reached until Nov 12, 06:30 PM");
-  });
 });

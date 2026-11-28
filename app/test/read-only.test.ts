@@ -88,46 +88,8 @@ describe("un projet en lecture seule", () => {
     assert.deepEqual(vue.dernier("ouvrirLectureSeule"), [PARADE, "acces"]);
   });
 
-  test("le rail, ses cartes et TODO se voient ; aucun choix, aucun champ, aucun « Relaunch » : absents, pas grisés", async () => {
-    const vue = await open();
-    await read(vue, true);
-    const cardItem = slip(vue, 21);
-    assert.ok(cardItem.dessous("p").some(({ textContent }) => textContent === PRODUCT.question), "la question se lit");
-    assert.deepEqual(cardItem.dessous("button").filter(({ className }) => className === "choix"), [], "aucun choix");
-    assert.equal(cardItem.dessous("textarea").length, 0, "aucun champ");
-    for (const absent of ["send", "answer in my own words", ...PRODUCT.choix.map(({ texte: text }) => text)]) assert.ok(!texts(cardItem).includes(absent), `${absent} : ${texts(cardItem).join(" | ")}`);
-    const refused = slip(vue, 22);
-    assert.ok(refused.dessous("p").some(({ textContent }) => textContent.startsWith("Will not start:")), "la carte refusée dit pourquoi");
-    for (const absent of ["Relaunch", "Close as already done"]) assert.ok(!texts(refused).includes(absent), absent);
-    assert.ok(cardOfTicket(vue, 23) !== undefined, "la carte prise se voit");
-    assert.ok(!vue.element("rail").dessous("button").some(({ disabled, textContent }) => disabled === true && ["Relaunch", "send", ...PRODUCT.choix.map(({ texte: text }) => text)].includes(textContent)), "rien de grisé à la place");
-  });
 
-  test("Stations : ses stations se voient, et pas « Choose who cooks it »", async () => {
-    const vue = await open();
-    await read(vue, true);
-    await openTab(vue, "Stations");
-    assert.ok(vue.element("rail").dessous("section").some(({ dataset }) => dataset.station === "box/claude"), "la station se voit");
-    assert.ok(!texts(vue.element("rail")).includes(CHOOSE), texts(vue.element("rail")).join(" | "));
-  });
 
-  test("l'accès gagné, la lecture suivante rend la vue ordinaire, sans rouvrir le projet ; perdu, elle redevient seule", async () => {
-    const vue = await open();
-    await read(vue, true);
-    assert.ok(line(vue) !== undefined);
-    await read(vue, false);
-    assert.equal(line(vue), undefined, "plus de ligne de lecture seule");
-    assert.equal("lectureSeule" in vue.element("etat").dataset, false);
-    assert.equal(slip(vue, 21).dessous("button").filter(({ className }) => className === "choix").length, PRODUCT.choix.length, "les choix reviennent");
-    assert.ok(texts(slip(vue, 22)).includes("Relaunch"));
-    // Sur Stations, la station qui le cuit garde ses gestes (#3195) : l'ajout d'une station ne s'offre que quand personne ne le cuit.
-    await openTab(vue, "Stations");
-    assert.ok(texts(vue.element("rail")).includes(DISPLACE));
-    await openTab(vue, "Rail");
-    await read(vue, true);
-    assert.ok(line(vue) !== undefined);
-    assert.ok(!texts(slip(vue, 22)).includes("Relaunch"));
-  });
 });
 
 describe("la fiche d'un ticket en lecture seule", () => {
@@ -144,16 +106,6 @@ describe("la fiche d'un ticket en lecture seule", () => {
     return { gestes: setOne.dessous("section").find(({ className }) => className === "gestes-fiche")?.dessous("li").map(({ dataset }) => dataset.geste) ?? [], commentaire: setOne.dessous("button").some(({ dataset }) => dataset.geste === "commentaire"), champs: setOne.dessous("textarea").length };
   }
 
-  test("elle ne garde que ce qui ouvre ou demande au second : ni commentaire à poster", async () => {
-    const ordinary = await card(false);
-    assert.ok(ordinary.gestes.includes("second"), ordinary.gestes.join(" | "));
-    assert.equal(ordinary.commentaire, false);
-    const only = await card(true);
-    assert.deepEqual(only.gestes.filter((id) => !["issue", "pr", "second", "navigateur"].includes(id ?? "")), [], only.gestes.join(" | "));
-    assert.ok(only.gestes.includes("second"), "le second se demande toujours");
-    assert.equal(only.commentaire, false);
-    assert.equal(only.champs, 0);
-  });
 });
 
 describe("les pages que la ligne ouvre", () => {

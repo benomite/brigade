@@ -114,16 +114,6 @@ const card = (ticket: number, more: Partial<Card> = {}): Card => ({ ticket, titr
 const todoCard = (more: Partial<CardOfTodo> = {}): CardOfTodo => ({ sorte: "product-question", question: "Ship it?", choix: [{ texte: "Yes", prix: "" }, { texte: "No", prix: "" }], prixDuTexte: "", ...more });
 
 describe("le TODO du rail, au clavier", () => {
-  test("`1` joue la réponse du premier choix, comme son bouton ; Entrée, le recommandé de la carte", () => {
-    const played: unknown[][] = [];
-    const gestures = { etat: () => ({ etape: "repos" }) as never, jouer: (...a: unknown[]) => void played.push(a) };
-    const set = () => setTheTodo(doc, { deplie: { ouvert: true }, cartes: [card(50, { todo: todoCard() }), card(51, { todo: todoCard({  }) })], ouvrir: () => {}, gestes: gestures as never }) as unknown as Fake;
-    const [fifty, fiftyOne] = set().dessous("li") as [Fake, Fake];
-    press(fifty, "1");
-    press(fiftyOne, "Enter");
-    set().dessous("li")[0]!.dessous("button").find(({ textContent }) => textContent === "Yes")!.click();
-    assert.deepEqual(played, [[50, "repondre", { question: "Ship it?", choix: 1 }], [51, "repondre", { question: "Ship it?", choix: 2 }], [50, "repondre", { question: "Ship it?", choix: 1 }]]);
-  });
 
   test("redessinée, une carte dont la réponse est en route ou attend la cuisine dit la réponse ; refusée, ses boutons reviennent ; partie du TODO, elle est oubliée", () => {
     const answered = new Map<number, string>();

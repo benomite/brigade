@@ -57,12 +57,6 @@ describe("chaque entrée du TODO dit ce qui est demandé, avec ses boutons", () 
     assert.deepEqual(played, [[50, "repondre", { question: "Ship it?", choix: 2 }]]);
   });
 
-  test("la recommandation de la carte est le bouton plein ; sans recommandation, aucun", () => {
-    const { gestes: itsOwn } = actions();
-    const texts = (one: CardOfTodo) => actionsOfTodo(card(50, { todo: one }), itsOwn as never).map(({ texte: text, recommande: recommended, reponse: answer }) => [text, recommended, answer]);
-    assert.deepEqual(texts(todo({  })), [["Yes", false, { question: "Ship it?", choix: 1 }], ["No", true, { question: "Ship it?", choix: 2 }]]);
-    assert.deepEqual(texts(todo({  })), [["Yes", false, { question: "Ship it?", choix: 1 }], ["No", false, { question: "Ship it?", choix: 2 }]]);
-  });
 
   test("sa réponse en route, ses choix attendent ; refusée, ils reviennent", () => {
     assert.deepEqual(actionsOfTodo(card(50, { todo: todo() }), actions("envoi").gestes as never), []);

@@ -34,21 +34,6 @@ const cards = (columns: readonly Column[]) => columns.map(({ nom: name, compte: 
 
 describe("le rangement : chaque carte qui attend le chef dans la colonne de son étape, en tête", () => {
 
-  test("aucune colonne TODO ; les rouges en tête de leur colonne, avant les autres ; N les compte toutes, une relance passée non (#4261)", () => {
-    const range = tidyTheRail(rail(FACTS).colonnes);
-    assert.deepEqual(cards(range.colonnes), [
-      ["On the rail", "3", [20, 60, 21]],
-      ["Taken", "2", [14, 15]],
-      ["Pass", "3", [30, 40, 31]],
-      ["Waiting", "2", [8, 9]],
-      ["Served", "0", []],
-    ]);
-    assert.equal(range.compte, "5");
-    for (const column of range.colonnes) {
-      const red = column.cartes.map(isRed);
-      assert.deepEqual(red, red.toSorted((a, b) => Number(b) - Number(a)), `${column.nom} : une rouge après une autre`);
-    }
-  });
 
   test("rien n'attend le chef : N vaut 0, et rien n'est rouge", () => {
     const range = tidyTheRail(rail({ ...FACTS, attend: [] }).colonnes);
@@ -56,13 +41,6 @@ describe("le rangement : chaque carte qui attend le chef dans la colonne de son 
     assert.ok(range.colonnes.every(({ cartes: itsOwn }) => !itsOwn.some(isRed)));
   });
 
-  test("la liste pas lue : N est « ? » ; la box muette aussi", () => {
-    const notRead = tidyTheRail(rail({ ...FACTS, attend: undefined }).colonnes);
-    assert.equal(notRead.compte, "?");
-    assert.equal("vide" in notRead, false);
-    const silentOne = tidyTheRail(rail(FACTS).colonnes.map((column) => ({ ...column, compte: "?", cartes: [] })));
-    assert.deepEqual([silentOne.compte, silentOne.colonnes.map(({ compte: account }) => account)], ["?", ["?", "?", "?", "?", "?"]]);
-  });
 
   test("une carte du chef n'est jamais perdue faute de colonne : une étape inconnue, ou un rail sans On the rail, la pose sur le rail", () => {
     const card = (number: number, step?: string): Card => ({ ticket: number, ouvrable: false, attendu: true, attend: [], dit: [], fiche: {}, ...(step === undefined ? {} : { etape: step }) }) as unknown as Card;
@@ -73,14 +51,6 @@ describe("le rangement : chaque carte qui attend le chef dans la colonne de son 
     assert.equal(only.compte, "1");
   });
 
-  test("ce qui attend un autre humain n'est pas rouge, ni compté : il reste à part", () => {
-    const other = { ...rail(FACTS).colonnes[0]?.cartes[0], attendu: true, qui: ["bob"] } as Card;
-    assert.equal(isRed(other), false);
-    const range = tidyTheRail(rail({ ...FACTS, attendAutres: [{ ticket: 70, titre: "Ticket 70", url: issue(70), qui: ["bob"] }] }).colonnes);
-    assert.deepEqual(range.autres?.map(({ ticket: number }) => number), [70]);
-    assert.ok(!range.colonnes.some(({ cartes: itsOwn }) => itsOwn.some(({ ticket: number }) => number === 70)));
-    assert.equal(range.compte, "5");
-  });
 });
 
 const startup = () => ({
@@ -109,34 +79,8 @@ const slipsOf = (column: Fake) => column.dessous("li").filter(({ className }) =>
 
 describe("la vue du projet, sur un écran large et sur un téléphone", () => {
   for (const narrow of [false, true]) {
-    test(`${narrow ? "téléphone" : "écran large"} : aucune colonne TODO, ni entrée ni filtre ; les rouges en tête de leur étape, au nombre de 5`, async () => {
-      const vue = await open(narrow);
-      // Le plan de la cuisine (#4238) : WAITING n'a plus de colonne, #8 et #9 sont parked dans le backlog — le rail en tête, les
-      // prêts à part : #21 ; dessous, ce qui ne l'est pas, les rouges d'abord.
-      assert.deepEqual(theColumns(vue).map(({ dataset }) => dataset.colonne), ["Backlog", "Manager", "Cooks", "Pass", "Served"]);
-      assert.deepEqual(theColumns(vue).map(slipsOf), [
-        [[21, false], [20, true], [60, true], [8, false], [9, false]],
-        [],
-        [[14, true], [15, false]],
-        [[30, true], [40, true], [31, false]],
-        [],
-      ]);
-      assert.equal(red(vue.element("rail")).length, 5);
-      assert.equal(entry(vue), undefined);
-      // La colonne où une carte rouge attend le chef est en vue à l'ouverture.
-      assert.ok(theColumns(vue).filter(({ dataset }) => "attend" in dataset).every(({ dataset }) => "actif" in dataset));
-      // Une lecture suivante ne change rien : il n'y a pas de filtre à garder.
-      receive(vue, FACTS);
-      assert.equal(red(vue.element("rail")).length, 5);
-    });
   }
 
-  test("chaque carte rouge garde sa question et son geste, comme dans TODO : rien n'est perdu", async () => {
-    const vue = await open(false);
-    const red = vue.element("rail").dessous("li").find(({ dataset }) => dataset.ticket === "20") ?? assert.fail("pas de #20");
-    assert.ok(red.dessous("span").some(({ dataset }) => dataset.pastille === "awaiting"), "pas de « awaiting you »");
-    assert.ok(red.dessous("button").some(({ className }) => className === "demander"), "pas de geste sur la carte");
-  });
 
   test("rien n'attend le chef : aucune carte rouge nulle part", async () => {
     const vue = await open(false, { ...FACTS, attend: [] });

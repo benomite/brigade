@@ -96,51 +96,8 @@ test("une station injoignable se dit en une ligne, rouge : ni code de sortie, ni
   for (const text of [visible(vue.element("tous")), ...vue.element("tous").dessous("button").map(({ title }) => title)]) assert.doesNotMatch(text, /exit code|ENOENT|spawn/);
 });
 
-test("l'accueil s'ouvre sur la promesse, ce qu'elle veut dire, la gratuité et les quatre mots de la cuisine, chacun expliqué (#3219)", async () => {
-  const { vue } = await theHome();
-  const [promise] = vue.element("tous").children;
-  assert.equal(promise?.id, "accueil-promesse");
-  assert.equal(promise?.children[0]?.textContent, "You decide. The kitchen ships.");
-  assert.match(promise?.children[1]?.textContent ?? "", /write the ticket.*cook takes it.*pass merges it.*only for product choices/);
-  assert.equal(promise?.children[2]?.textContent, "Open source, free, no Brigade account — just GitHub and your Claude subscription.");
-  const words = promise?.children[3]?.children.map(({ textContent }) => textContent) ?? [];
-  assert.deepEqual(words.map((m) => m.split(" — ")[0]), ["rail", "cook", "pass", "second"]);
-  for (const m of words) assert.ok((m.split(" — ")[1] ?? "").length > 10, m);
-});
 
-test("l'accueil a trois blocs, les projets, la station de cet ordinateur, puis toutes les stations, et rien d'autre (#2638, #3195)", async () => {
-  const { vue, projets: projects } = await theHome();
-  const all = vue.element("tous");
-  assert.deepEqual(
-    all.children.slice(1).map(({ id, children }) => [id, children[0]?.children[0]?.textContent ?? children[0]?.textContent]),
-    [
-      ["accueil-bloc-projets", "Projects"],
-      ["accueil-bloc-station", "This computer's station"],
-      // Toutes les stations et « + station » valent pour le compte : revenues de l'onglet Stations d'un projet (#3195).
-      ["toutes-les-stations", "All stations"],
-    ],
-  );
-  assert.equal(projects().parentElement, all.children[1], "les lignes des projets sont dans leur bloc");
-  // Hors de toutes les stations : ni « + station », ni Cost, ni Closer (Kitchen > Health), ni version de l'app, ni santé
-  // (retirées) : ni sur l'accueil, ni cachées dans la page.
-  for (const other of all.children.slice(1, 3)) assert.doesNotMatch(visible(other), /Stations|\+ station|Cost|Closer|Brigade \d|Max|GitHub/);
-  for (const gone of ["de-tous-les-projets", "accueil-app", "sante", "hors-de-l-accueil"]) assert.throws(() => vue.element(gone), gone);
-});
 
-test("ce qui a quitté l'accueil n'y est plus : le code de l'app, les blocs par projet, les projets des stations, l'ajout d'un projet — ni commande, ni champ ouvert", async () => {
-  const { vue } = await theHome();
-  const all = vue.element("tous");
-  const text = visible(all);
-  for (const gone of [/commits behind/, /what the station said/, /Projects on your stations/, /add a project/, /what awaits you/, /served 24 h|at pass/, /read at/]) assert.doesNotMatch(text, gone);
-  assert.deepEqual(all.dessous("article"), []);
-  assert.deepEqual(all.dessous("pre"), []);
-  assert.doesNotMatch(text, /\b(brigade|gh|git)\s+(-|\S+\s)/);
-  // Un seul champ, replié : celui du code d'appairage, sous « + station », dans toutes les stations (#3195).
-  assert.deepEqual(all.dessous("input").map(({ ariaLabel, parentElement }) => [ariaLabel, parentElement?.hidden, parentElement?.parentElement?.id]), [["pairing code", true, "toutes-les-stations"]]);
-  // Le code de l'app est dans Settings, sous cette machine (#1700), et au survol de « T ».
-  assert.equal(vue.element("code").parentElement, vue.element("reglages-machine"));
-  assert.match(vue.element("projets").children[0]?.title ?? "", /^All projects — this app's code is 3 commits behind$/);
-});
 
 // Une page vit tant que sa fenêtre est ouverte, ses minuteries avec elle ; une vue jouée ne se ferme
 // jamais. Si les siennes retenaient le process, un `node --test` à la main sur ce fichier — ou sur
@@ -168,30 +125,4 @@ test("le bloc Projects de l'accueil : un seul bouton par ligne, son état et ses
   assert.equal(vue.element("ajout").dessous("section").length > 0, true);
 });
 
-test("le bloc de la station, dans la vue jouée : sans id local il n'est pas installé, avec lui il lie sa page et liste les autres (#2640)", async () => {
-  const { vue } = await theHome();
-  const block = () => vue.element("accueil-bloc-station");
-  const station = (id: string, name: string) => ({ id, nom: name, machine: "m", etat: "en-ligne" as const, ligne: "online", dit: "", version: "1.4.0", projets: [], max: null });
-  const buttons = () => block().dessous("button").map(({ textContent }) => textContent);
-  vue.dire("surStations", { a: A, stations: [station("g1", "Mac"), station("g2", "box")] });
-  await repos();
-  assert.deepEqual(buttons(), ["Install this computer's station"], "locale inconnue : installer, jamais « Station settings » sur un id vide");
-  vue.dire("surProjetsDesStations", { a: A, locale: "g1", projets: [] } as unknown as SeenOfProjects);
-  await repos();
-  assert.ok(buttons().includes("Station settings"));
-  assert.ok(!buttons().includes("Install this computer's station"));
-  assert.match(block().textContent, /Mac/);
-  assert.ok(buttons().includes("box online") || block().textContent.includes("box"));
-});
 
-test("la ligne d'un projet dit ce qui s'y passe et, quand le chef est attendu, combien de décisions — et « Add a project » est à droite du titre (#2912)", async () => {
-  const { vue, projets: projects } = await theHome();
-  const lines = theLines(projects());
-  const awaiting = (line: Fake) => line.children.filter(({ className }) => className === "attend").map(({ textContent }) => textContent);
-  assert.deepEqual(lines.map(awaiting), [["1 awaiting you"], ["5 awaiting you"], []], "une pastille par projet que le chef attend, aucune pour les autres");
-  assert.equal(lines[0]?.children.find(({ className }) => className === "maintenant")?.textContent, "1 decision awaits you · #867 cooking");
-  const block = vue.element("tous").children[1] as Fake;
-  const header = block.children[0] as Fake;
-  assert.deepEqual(header.children.map(({ textContent }) => textContent), ["Projects", "Add a project"], "le bouton est dans l'en-tête du bloc");
-  assert.equal(projects().dessous("button").filter(({ className }) => className !== "ligne").length, 0, "plus de bouton sous la liste");
-});

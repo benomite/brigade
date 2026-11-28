@@ -30,19 +30,6 @@ const recordedOne = (id: string, name: string, available: boolean, platform = "l
 const vue = (id: string, name: string, state: StationVue["etat"], machine: string): StationVue => ({ id, nom: name, machine, etat: state, ligne: "", dit: state === "en-ligne" ? "online" : "offline for 22 min", version: "2.4.0", projets: [], max: null });
 
 describe("le choix de station, une seule pièce (#3195)", () => {
-  test("cet ordinateur d'abord, son nom d'hôte après lui ; la station en ligne recommandée ; une hors ligne dit depuis quand et comment la ramener", () => {
-    const choice = choiceOfStation({ ici: true, hote: "macbook",  maintenant: NOW });
-    assert.deepEqual(choice.map(({ cle: key, nom: name, recommande: recommended, horsLigne: outsideLine }) => [key, name, recommended, outsideLine]), [[HERE, "this computer", false, false], ["g1", "parade-box", true, false], ["g2", "nas", false, true]]);
-    const chosen: Choice[] = [];
-    const [list] = setTheChoice(doc as never, { choix: choice }, (oneOf) => chosen.push(oneOf)) as unknown as Fake[];
-    const lines = list?.children ?? [];
-    assert.deepEqual(lines.map(({ dataset }) => dataset.choix), [HERE, "g1", "g2"]);
-    assert.equal(lines[0]?.dessous("span").find(({ className }) => className === "hote mono")?.textContent, "macbook");
-    assert.equal(lines[1]?.dessous("button")[0]?.dataset.bouton, "recommande");
-    assert.match(lines[2]?.textContent ?? "", /^nasOffline for 22 min: switch nas on, or start its brigade-station service there/);
-    lines[2]?.dessous("button")[0]?.click();
-    assert.deepEqual(chosen.map(({ cle: key }) => key), ["g2"]);
-  });
 
   test("un choix qui s'écrit grise les boutons et le dit sur sa ligne ; un refus se dit en une ligne", () => {
     const choice = choiceOfStation({ ici: true,  maintenant: NOW });

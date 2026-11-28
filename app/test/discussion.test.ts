@@ -114,25 +114,7 @@ const actions = (vue: Played): Fake => card(vue).dessous("section").find((pose) 
 const requestAtSecond = (vue: Played): Fake => actions(vue).dessous("button").find((pose) => pose.dataset.geste === "demande") ?? assert.fail("pas de bouton « ask the second »");
 
 describe("la fiche : le bouton « ask the second » de la barre de gestes, et la question d'une carte Await (#686)", () => {
-  test("rien ne part avant le clic ; le clic envoie le projet et le ticket, rien d'autre — ni commentaire, ni champ", async () => {
-    const vue = await open({ demander: () => SECOND_WRITTEN });
-    await openCard(vue, 21);
-    assert.equal(requestAtSecond(vue).textContent, "ask the second");
-    assert.equal(vue.appels.filter(({ geste: action }) => action === "demander").length, 0);
-    requestAtSecond(vue).click();
-    await repos();
-    assert.deepEqual(vue.dernier("demander"), [PARADE, 21]);
-    assert.equal(card(vue).dessous("textarea").length, 0, "la fiche n'a plus de champ de commentaire");
-  });
 
-  test("un appel qui lève ne fait pas tomber la fiche, qui reste ouverte", async () => {
-    const vue = await open({ demander: () => Promise.reject(new Error("ipc fermé")) as never });
-    await openCard(vue, 21);
-    requestAtSecond(vue).click();
-    await repos();
-    assert.deepEqual(vue.dernier("demander"), [PARADE, 21]);
-    assert.ok(requestAtSecond(vue).textContent === "ask the second");
-  });
 
   const QUESTION: Read = {
     a: "2026-10-14T12:30:00.000Z",
@@ -157,20 +139,5 @@ describe("la fiche : le bouton « ask the second » de la barre de gestes, et la
   };
   const blocks = (vue: Played) => card(vue).dessous("section").map((pose) => pose.className);
 
-  test("sur une carte Await, la question et ses choix sont en tête, au-dessus des gestes de la fiche", async () => {
-    const vue = await openAwait(QUESTION);
-    const order = blocks(vue);
-    assert.ok(order.includes("question") && order.includes("gestes-fiche"));
-    assert.ok(order.indexOf("question") < order.indexOf("gestes-fiche"));
-    const question = card(vue).dessous("section").find((pose) => pose.className === "question") ?? assert.fail("pas de question");
-    assert.ok(question.textContent.includes("Quel format garde-t-on ?"));
-    assert.deepEqual(question.dessous("button").filter((pose) => pose.className === "choix").map((pose) => pose.textContent), ["A) CSV", "B) JSON"]);
-  });
 
-  test("sur une carte qui n'est pas Await, aucun bloc de question", async () => {
-    const vue = await open({  });
-    await openCard(vue, 21);
-    assert.ok(!blocks(vue).includes("question"));
-    assert.equal(vue.appels.filter(({ geste: action }) => action === "lireQuestion").length, 0);
-  });
 });

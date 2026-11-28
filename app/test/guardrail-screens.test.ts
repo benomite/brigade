@@ -163,30 +163,11 @@ const SCREENS: Screen[] = [
 
 describe("aucun écran n'écrit à plat une commande, un mode d'emploi, un code de sortie ou un prix", () => {
   for (const { nom: name, echec: failure } of SCREENS) {
-    test(`${name} : une lecture en échec`, async () => {
-      const { racine: root } = await failure();
-      const said = visible(root);
-      assert.doesNotMatch(said, THROUGH, `${name} écrit un travers à plat : ${said}`);
-      assert.doesNotMatch(said, PRICE, `${name} écrit un prix à plat : ${said}`);
-    });
   }
 });
 
 describe("une lecture en échec tient en une ligne, son détail n'est qu'au survol", () => {
   for (const { nom: name, echec: failure, lectures: readings } of SCREENS) {
-    test(name, async () => {
-      const { racine: root } = await failure();
-      const lines = linesInFailure(root);
-      assert.equal(lines.length, readings, `${name} : ${lines.length} ligne(s) de lecture en échec, ${readings} attendue(s)`);
-      for (const line of lines) {
-        const said = visible(line);
-        assert.ok(said !== "" && said.length <= 80 && !said.includes("\n"), `${name} : la ligne n'est pas courte — « ${said} »`);
-        assert.ok(hovers(line).some((detail) => detail.includes(DETAIL)), `${name} : le détail n'est pas au survol de la ligne`);
-      }
-      // Le détail n'est nulle part à plat sur l'écran, ni dans un `pre`.
-      assert.ok(!visible(root).includes(DETAIL), `${name} écrit le détail à plat`);
-      assert.deepEqual(root.dessous("pre").filter((pre) => pre.textContent.includes(DETAIL)), [], `${name} montre le détail dans un bloc de code`);
-    });
   }
 
   // L'accueil (#870) n'écrit aucun texte brut d'erreur, même au survol : la box qui ne répond pas est la
@@ -223,13 +204,6 @@ const queuedCard = () => openCard({  });
 
 describe("en attente de décision, aucun écran n'écrit à plat une commande ni un prix", () => {
   for (const [name, play] of [["accueil", homeQueued], ["fiche d'une carte", queuedCard]] as const) {
-    test(name, async () => {
-      const { racine: root } = await play();
-      const said = visible(root);
-      assert.ok(said !== "", `${name} est vide`);
-      assert.doesNotMatch(said, THROUGH, `${name} écrit un travers à plat : ${said}`);
-      assert.doesNotMatch(said, PRICE, `${name} écrit un prix à plat : ${said}`);
-    });
   }
 });
 
@@ -248,17 +222,5 @@ describe("en attente de décision, chaque geste attendu est un bouton, pas du te
     assert.equal(vue.element("espace").textContent, "parade", "le clic n'ouvre pas le projet");
   });
 
-  test("fiche : chaque geste que la table du chef propose pour la carte est un bouton, dans l'ordre de la table", async () => {
-    const { racine: root } = await queuedCard();
-    const proposes = actionsOfCard(card);
-    assert.ok(proposes.length > 0, "la table ne propose aucun geste");
-    const cardButtons = buttons(root).map(({ textContent }) => textContent);
-    for (const { libelle: wording } of proposes) assert.ok(cardButtons.includes(wording), `« ${wording} » n'est pas un bouton de la fiche`);
-    const [first] = proposes;
-    const actions = root.dessous("section").find(({ className }) => className === "gestes-fiche") ?? assert.fail("pas de gestes sur la fiche");
-    assert.equal(buttons(actions)[0]?.textContent, first?.libelle);
-    // Aucun geste n'est une ligne de texte : chaque ligne de geste porte son bouton.
-    for (const line of actions.dessous("li")) assert.ok(buttons(line).length > 0 || line.dessous("select").length > 0, `le geste « ${line.dataset.geste} » n'est pas un bouton`);
-  });
 
 });

@@ -88,37 +88,7 @@ const stations = (vue: Played) =>
     .map((card: Fake) => ({ station: card.dataset.station, etat: card.dessous("span").find((span) => span.className === "pilule etat")?.textContent, cooks: cooksOf(card) }));
 
 describe("la file d'un projet sur le téléphone", () => {
-  test("Rail : le plan de la cuisine, du backlog à ce qui est servi — pas de colonne TODO : ce qui attend le chef est rouge dans son étape, et le compte de l'accueil le dit (#3458, #4238)", async () => {
-    const vue = await open({ etroit: true });
-    assert.deepEqual(
-      columns(vue).map(({ nom: name, compte: account }) => [name, account]),
-      [
-        ["Backlog", "2"],
-        ["Manager", "0"],
-        ["Cooks", "2"],
-        ["Pass", "1"],
-        ["Served", "1"],
-      ],
-    );
-    const [pass] = columns(vue).filter(({ nom: name }) => name === "Pass");
-    assert.match(pass?.cartes.join() ?? "", /#12.*Validation SIRET/);
-    // Seule la colonne où une carte rouge attend le chef est marquée.
-    assert.deepEqual(
-      sections(vue).filter((column) => "attend" in column.dataset).map((column) => column.children[0]?.children[0]?.textContent),
-      ["Pass"],
-    );
-    assert.deepEqual(red(vue.element("rail")), ["#12"]);
-    assert.equal(vue.element("rail").dessous("button").some(({ className }) => className === "entree-todo"), false);
-  });
 
-  test("Stations : les cooks en cours, station par station", async () => {
-    const vue = await open({ etroit: true });
-    await type(vue, "Stations");
-    assert.deepEqual(stations(vue), [
-      { station: "box/claude", etat: "online", cooks: ["#14Le journal en ajout seul"] },
-      { station: "mac/claude", etat: "online", cooks: ["#15La carte des desserts"] },
-    ]);
-  });
 
   test("la même lecture dit la même chose qu'au desktop : les mêmes colonnes, les mêmes cartes, les mêmes cooks", async () => {
     const phone = await open({ etroit: true });

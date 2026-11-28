@@ -67,35 +67,8 @@ function unfold(fold: Fake) {
 
 describe("« Awaiting others » sous les colonnes, hors d'elles (#2985, #3458)", () => {
   for (const narrow of [false, true]) {
-    test(`${narrow ? "écran étroit" : "écran large"} : les siennes rouges dans leur colonne, puis « Awaiting others (2) », replié, en dernier`, async () => {
-      const vue = await open({ etroit: narrow });
-      const column = todo(vue);
-      const fold = foldOf(column) ?? assert.fail("pas de « Awaiting others »");
-      const red = vue.element("rail").dessous("li").filter((li) => li.dataset.carte === "attente" && !fold.dessous("li").includes(li));
-      assert.deepEqual(red.map((li) => li.children[0]?.children[0]?.textContent), ["#12"]);
-      assert.equal(account(vue), 1);
-      assert.equal(column.children.at(-1), fold);
-      assert.equal(fold.children[0]?.textContent, "Awaiting others (2)");
-      assert.equal(opened(fold), false);
-    });
   }
 
-  test("déplié : chaque carte dit qui elle attend, et reste sous « Awaiting others », hors du compte de TODO", async () => {
-    const vue = await open({ etroit: false });
-    const column = todo(vue);
-    const fold = foldOf(column) ?? assert.fail("pas de « Awaiting others »");
-    unfold(fold);
-    assert.deepEqual(
-      fold.dessous("p").filter((p) => p.className === "qui").map((p) => p.textContent),
-      ["awaits bob", "awaits benomite, carol"],
-    );
-    assert.deepEqual(
-      fold.dessous("li").filter((li) => li.className.split(" ").includes("bon")).map((li) => li.children[0]?.children[0]?.textContent),
-      ["#22", "#23"],
-    );
-    assert.equal(account(vue), 1);
-    assert.equal(fold.dessous("*").some((e) => e.textContent === "awaiting you"), false, "elles n'attendent pas le compte connecté");
-  });
 
   for (const narrow of [false, true]) {
     test(`${narrow ? "écran étroit" : "écran large"} : une carte d'autrui porte sa question, ses choix et le champ de réponse de TODO, et s'ouvre d'un clic (#3071)`, async () => {

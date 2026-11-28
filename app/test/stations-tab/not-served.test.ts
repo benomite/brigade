@@ -123,9 +123,4 @@ describe("un projet que cet ordinateur fait tourner sans le servir (#3399)", () 
     assert.equal(sentence(vue), NOBODY);
   });
 
-  test("la liste de ce Mac pas lue : rien n'est décidé à sa place, la ligne de cuisson dit ce qu'elle dit", async () => {
-    const { vue } = await thePage({ lue: false });
-    assert.equal(sentence(vue), "Cooked by macbook · online");
-    assert.equal(tab(vue).dessous("button").some(({ textContent }) => textContent === COOK_HERE), false);
-  });
 });

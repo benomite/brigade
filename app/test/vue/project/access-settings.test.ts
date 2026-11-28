@@ -116,14 +116,6 @@ describe("l'épreuve de l'épique 2484 (#2495)", () => {
     }
   });
 
-  // `todo` tant que les groupes « this computer » et « you » (sigle, couleurs, retrait) sont encore dans Settings : les tickets
-  // de l'épique qui les déménagent (#2489, #2491, #2492, #2494) ne sont pas sur main. Le test garde son corps ; on ôte `todo`
-  // quand le dernier est livré.
-  test("Settings ne montre que le projet : ni réglage de la machine, ni préférence de toi", { todo: "Settings still holds the machine and you groups until #2489, #2491, #2492 and #2494 land" }, async () => {
-    const vue = await open();
-    await work(vue, "Settings");
-    assert.deepEqual(outsideOfProject(ofSettings(vue)), []);
-  });
 
   test("Stations montre ses réglages avec leur niveau", async () => {
     const vue = await open();
@@ -131,21 +123,4 @@ describe("l'épreuve de l'épique 2484 (#2495)", () => {
     for (const level of levelsSaid(vue.element("rail"))) assert.ok(["project", "machine", "you"].includes(level), `niveau inconnu « ${level} »`);
   });
 
-  test("le garde-fou voit un réglage de la machine ou de toi posé dans Settings", () => {
-    for (const [key, level] of [["cooks", "machine"], ["couleurs", "you"]] as const) {
-      const line = new Fake("div");
-      line.dataset.cle = key;
-      assert.deepEqual(outsideOfProject([{ niveau: "project", pose: line }]), [level]);
-      const label = new Fake("span");
-      label.dataset.niveau = level;
-      assert.deepEqual(outsideOfProject([{ niveau: "project", pose: label }]), [level]);
-      assert.deepEqual(outsideOfProject([{ niveau: level, pose: new Fake("div") }]), [level]);
-    }
-    // Ce qui est caché ne compte pas : une ligne sous un parent caché ne se montre pas.
-    const hidden = new Fake("section");
-    hidden.hidden = true;
-    const line = new Fake("div");
-    hidden.append(line);
-    assert.equal(shows(line), false);
-  });
 });

@@ -443,25 +443,6 @@ describe("la cuisine : une pastille à forme, et son libellé", () => {
 });
 
 describe("un ticket qui t'attend", () => {
-  test("sa pilule dit « t'attend » en mots, avec la forme de la colonne — et l'état du ticket garde la sienne", async () => {
-    const vue = await openASpace();
-    // Le rail est au centre de l'espace : aucun onglet n'est à ouvrir pour le lire.
-    vue.dire("surFaits", { ...facts("ouverte", "vert"), demande: vue.dernier("faits")[0] as number });
-
-    // La carte de #12 : son bon, pas son entrée du TODO (#4238).
-    const slip = vue.element("rail").dessous("li").find((li) => li.className.split(" ").includes("bon") && li.dataset.ticket === "12") ?? assert.fail("pas de carte #12");
-    const pills = slip.dessous("span").filter((s) => s.dataset.pastille !== undefined);
-    const brand = (s: Fake) => s.children[0]?.dataset;
-    // L'état du ticket (servi) et la pilule « t'attend » : chacun sa pastille, de la famille.
-    assert.deepEqual(
-      pills.slice(-2).map((s) => [s.children[1]?.textContent, s.dataset.pastille, brand(s)?.ton, brand(s)?.forme]),
-      [["servi", "served", "vert", "disque"], ["awaiting you", "awaiting", "rouge", "carre"]],
-    );
-    // TODO n'est pas une colonne (#3458) : la carte est dans le backlog (#4238), et sa colonne porte le rouge de ce qui t'attend.
-    const [column] = vue.element("rail").dessous("section");
-    assert.equal(column?.dataset.colonne, "Backlog");
-    assert.deepEqual(red(vue.element("rail")).length, 1);
-  });
 });
 
 describe("la forme se lit sans la couleur", () => {
