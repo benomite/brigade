@@ -18,6 +18,9 @@
 //   version d'avant est relancée, et l'issue le dit. Une version ratée n'est pas réessayée.
 // - **Ce qui est gardé survit à son tenant.** La version retenue est notée sous `<versions>/` : la station de
 //   fond relancée relance la station sur elle, sauf si le paquet de l'app en porte une plus récente.
+// - **Le paquet mis à jour relance la station.** La station survit à l'app qui quitte pour sa mise à jour (#3632) et tient en
+//   mémoire le runtime d'avant : l'hôte, qui vit, regarde la version du runtime du paquet, et la station repart dessus quand
+//   elle change — le même remplacement de son seul process que pour une release, ses cooks restent sous leurs relais (#4795).
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { PRINCIPAL } from "../workstation/role.ts";
@@ -69,6 +72,8 @@ export type OptionsProcessOfStation = Omit<OptionsStationLocale, "principal"> & 
   // Entre deux regards sur la station qui démarre, et sur la demande.
   pasMs?: number;
   veilleMs?: number;
+  // Entre deux regards sur la version du runtime du paquet de l'app, que sa mise à jour remplace en place (#4795).
+  paquetMs?: number;
   // Un redémarrage s'est conclu.
   surIssue?: (issue: Issue) => void;
   maintenant?: () => Date;
@@ -189,6 +194,7 @@ export function holdProcessOfStation(options: OptionsProcessOfStation): ProcessO
   const notMs = options.pasMs ?? 250;
   const standbyMs = options.veilleMs ?? 2_000;
   const now = options.maintenant ?? (() => new Date());
+  const bundleMs = options.paquetMs ?? 5_000;
   const { embarque: embedded } = options;
   // Ce que chaque process de la station reçoit : ce que workstation/station.ts attend, et où poser les versions.
   const common: Omit<OptionsStationLocale, "principal"> = {
@@ -308,11 +314,37 @@ export function holdProcessOfStation(options: OptionsProcessOfStation): ProcessO
     return conclude({ quoi: "revenue", visee: aimed, restauree: since, motif: finding.motif, le: the(), retour: "le" in returned ? null : returned.motif });
   };
 
-  const restart = (aimed: string): Promise<Issue | null> => {
+  // Le paquet de l'app porte un autre runtime que celui que cet hôte a vu : la station repart sur lui, sauf si la version
+  // retenue dans les données de l'app est encore plus récente (la même règle qu'au départ).
+  const playBundle = async (bundleVersion: string): Promise<Issue | null> => {
+    const retained = stateOfVersions.retenue;
+    if (retained !== null && existsSync(principalOfTheVersion(retained)) && compareVersions(retained, bundleVersion) > 0) return null;
+    const since = version;
+    const pointBefore = principal;
+    const before = readInService(root);
+    tell(`brigade: the app's package now carries ${bundleVersion} (this computer's station runs ${since}) — its station restarts on it, only its process; the cooks keep running under their relays`);
+    const trial = await replace(embedded);
+    const finding = await waitInService(trial.tenue, bundleVersion, trial.debut, before?.pid, before?.servis ?? []);
+    if ("le" in finding) {
+      principal = embedded;
+      version = bundleVersion;
+      stateOfVersions = { ...stateOfVersions, retenue: null };
+      writeState();
+      tell(`brigade: this computer's station now runs ${bundleVersion}`);
+      return conclude({ quoi: "passee", version: bundleVersion, depuis: since, le: finding.le });
+    }
+    if (stopped) return null;
+    tell(`brigade: this computer's station did not start on the app's package ${bundleVersion} (${finding.motif})`);
+    // Le paquet a pris la place de l'ancien runtime : rien d'autre à relancer, la station se retente d'elle-même.
+    if (pointBefore !== embedded) await replace(pointBefore);
+    return conclude({ quoi: "refusee", visee: bundleVersion, motif: finding.motif, le: now().toISOString() });
+  };
+
+  const restart = (aimed: string, playOne: () => Promise<Issue | null> = () => play(aimed)): Promise<Issue | null> => {
     if (stopped) return Promise.resolve(null);
     if (inProgress !== null) return inProgress;
     aimedInProgress = aimed;
-    inProgress = play(aimed)
+    inProgress = playOne()
       .catch((error) => {
         tell(`brigade: this computer's station restart on ${aimed} failed — ${message(error)}`);
         return null;
@@ -341,6 +373,19 @@ export function holdProcessOfStation(options: OptionsProcessOfStation): ProcessO
   const standby = setInterval(watch, standbyMs);
   standby.unref();
 
+  // Le runtime du paquet de l'app, remplacé en place par sa mise à jour : relu, et suivi quand sa version change.
+  let seenBundle = versionEmbedded;
+  const watchBundle = () => {
+    if (stopped || inProgress !== null || station.etat() === "tenue-ailleurs" || !existsSync(embedded)) return;
+    const bundleVersion = versionOfRuntime(embedded);
+    if (bundleVersion === "unknown" || bundleVersion === seenBundle) return;
+    seenBundle = bundleVersion;
+    if (bundleVersion === version && principal === embedded) return;
+    void restart(bundleVersion, () => playBundle(bundleVersion));
+  };
+  const bundleTimer = setInterval(watchBundle, bundleMs);
+  bundleTimer.unref();
+
   return {
     etat: () => station.etat(),
     tourne: () => station.tourne(),
@@ -351,6 +396,7 @@ export function holdProcessOfStation(options: OptionsProcessOfStation): ProcessO
     async arreter(stop) {
       stopped = true;
       clearInterval(standby);
+      clearInterval(bundleTimer);
       // Pour une mise à jour de l'app, rien n'attend : la station n'est pas arrêtée, un redémarrage en cours non plus.
       if (stop?.laisser !== true) await inProgress;
       await station.arreter(stop);
