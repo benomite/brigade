@@ -33,13 +33,10 @@ const bridge = {
   demanderAuSecond: (project, ticket) => ipcRenderer.invoke("demanderAuSecond", project, ticket),
   passerAuSecond: (project, ticket, question) => ipcRenderer.invoke("passerAuSecond", project, ticket, question),
   lireTitre: (project, ticket) => ipcRenderer.invoke("lireTitre", project, ticket),
-  lireFeu: (project) => ipcRenderer.invoke("lireFeu", project),
   relireLesStations: () => ipcRenderer.invoke("relireLesStations"),
   relireBox: (request) => ipcRenderer.send("relireBox", request),
   repondreQuestion: (project, ticket, answer) => ipcRenderer.invoke("repondreQuestion", project, ticket, answer),
   refus: (project, id, ticket) => ipcRenderer.invoke("refus", project, id, ticket),
-  ecrireMiseAJour: (clone) => ipcRenderer.invoke("mettreAJour", clone),
-  passer: () => ipcRenderer.invoke("passer"),
   // La mise à jour de l'app installée (update/state.ts) : `miseAJour` rend son état
   // (`EtatDeMiseAJour` : inactive, verification, a-jour, disponible, telechargement, prete,
   // installation, erreur), `verifierMiseAJour` relit le flux des versions publiées et rend l'état
@@ -110,14 +107,11 @@ const bridge = {
   scroll: (id, lines) => ipcRenderer.send("scroll", id, lines),
   surSortie: (receive) => void ipcRenderer.on("sortie", (_, id, data) => receive(id, data)),
   surEtat: (receive) => void ipcRenderer.on("etat", (_, terminal) => receive(terminal)),
-  surActivites: (receive) => void ipcRenderer.on("activites", (_, published) => receive(published)),
   surContenu: (receive) => void ipcRenderer.on("contenu", (_, reading) => receive(reading)),
   surFaits: (receive) => void ipcRenderer.on("faits", (_, receivedOne) => receive(receivedOne)),
   // Une question cliquée dans le menu de la barre des menus (menu-bar.ts) : sa carte s'ouvre.
   surOuvrirProjet: (receive) => void ipcRenderer.on("ouvrirProjet", (_, project) => receive(project)),
   surOuvrirCarte: (receive) => void ipcRenderer.on("ouvrirCarte", (_, project, ticket) => receive(project, ticket)),
-  surAmont: (receive) => void ipcRenderer.on("amont", (_, seenOne) => receive(seenOne)),
-  surCode: (receive) => void ipcRenderer.on("code", (_, seenOne) => receive(seenOne)),
   surMiseAJour: (receive) => void ipcRenderer.on("miseAJour", (_, state) => receive(state)),
   surStations: (receive) => void ipcRenderer.on("stations", (_, seenOne) => receive(seenOne)),
   surProjetsDesStations: (receive) => void ipcRenderer.on("projetsDesStations", (_, seenOne) => receive(seenOne)),

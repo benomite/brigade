@@ -91,7 +91,6 @@ import { choiceOfDisplacement } from "./stations-tab/choice.js";
 import { serverSeen } from "./add-server/add-server.js";
 import { keyOf, OR_DISPLACE, setTheTabOfStations, WHO_COOKED as WHO_COOKED_TAB, WHO_OF_OTHER } from "./stations-tab/stations-tab.js";
 import { BY_DEFAULT as ENGINE_BY_DEFAULT } from "./engine/engines.js";
-import { cookOfTicket, duration as durationOfCook, action as actionOfCook, setTheActivityOfCook } from "./activity-of-cook.js";
 import { setAge, setTrials } from "./cadence.js";
 import { setRankOfTrial } from "./card/trial.js";
 import { setLabels } from "./labels-of-slip.js";
@@ -240,9 +239,6 @@ const panelOfSecond = mountThePanel({
 window.addEventListener?.("resize", () => panelOfSecond.reborner());
 const message = element("message");
 const state = element("etat");
-// Settings (ticket 1700, 2494) : un seul groupe, le projet. Ce qui était à cette machine n'y est plus : ses lignes sont
-// toujours posées, dans un conteneur caché, jusqu'à ce que Stations les reprenne.
-const groupMachine = element("reglages-machine");
 const emptyProject = element("vide-project");
 const removal = element("retrait");
 const colors = element("couleurs");
@@ -358,11 +354,6 @@ const alertOfKitchen = document.createElement("div");
 alertOfKitchen.id = "alerte-de-cuisine";
 const addition = element("ajout");
 const review = element("relecture");
-// Posé dans le conteneur caché de ce qui était sous cette machine : le code de l'app, et des clones de brigade — la case « T » le dit aussi, au survol.
-const code = document.createElement("div");
-code.id = "code";
-code.ariaLive = "polite";
-groupMachine.append(code);
 // L'accueil, « Tous les projets » : la vue d'ensemble de brigade (home.ts). Trois blocs (tickets 2638, 3195) : la liste
 // des projets — une ligne chacun, un clic ouvre son espace —, la station de cet ordinateur, et toutes les stations.
 const projectsOfTheHome = document.createElement("section");
@@ -675,14 +666,6 @@ const repositories = new Map();
 // Dans la barre, la pastille de chaque projet qui a une box.
 /** @type {Map<string, HTMLElement>} */
 const pills = new Map();
-// Ce que fait chaque cook de chaque projet, tel que la dernière lecture de son tableau le publie (activity-of-cook.js) :
-// la fiche d'un ticket en pose son cook.
-/** @type {Map<string, import("./activity-of-cook.js").Published>} */
-const activitiesPublished = new Map();
-// Ce qui est avant le rail, par projet, tel que le process principal l'a rangé (upstream.ts) : la dernière lecture que le
-// tableau de la cuisine en donne, pour le projet affiché.
-/** @type {Map<string, import("../upstream.ts").Seen>} */
-const upstreams = new Map();
 // La fiche ouverte par-dessus le rail : son projet, la carte cliquée — telle que la dernière lecture
 // la donne —, et son bon, qui reprend le clavier quand elle se ferme. Aucune : le rail est seul.
 /** @type {{ projet: Project, carte: import("../facts.ts").Card, retour: HTMLElement } | undefined} */
@@ -742,13 +725,6 @@ let acronymRefuses = { projet: "", refus: "" };
 let menuBarRefused = "";
 // Ce qui empêche l'icône de fond de se montrer (main.ts, `iconeDeFond`), relu toutes les minutes ; vide, rien ne la gêne.
 let iconOfBackgroundRefused = "";
-// Ce que la dernière lecture des clones donne à poser (delay.ts). Indéfini : pas encore lus.
-/** @type {SeenOfCode | undefined} */
-let codeSeen;
-// Pourquoi la dernière mise à jour demandée n'a pas été écrite, ou pas faite : dit sous les clones, jusqu'à la prochaine.
-let notUpdated = "";
-// L'app se met à jour : son bouton attend qu'elle se relance.
-let inPassage = false;
 // La mise à jour de l'app installée, telle que la dernière lecture la dit (mise-a-jour/etat.ts). Indéfini : pas encore reçue.
 /** @type {import("../update/state.ts").StateOfUpdate | undefined} */
 let updateVue;
@@ -1058,13 +1034,6 @@ function clickable(text, gesture) {
   return created;
 }
 
-// Un bouton qui porte sa commande : elle se lit telle qu'elle sera écrite, au caractère près.
-/** @param {string} text @param {() => void} gesture */
-function buttonOfCommand(text, gesture) {
-  const created = button(text, gesture);
-  created.className = "mono";
-  return created;
-}
 
 // Le logo de brigade (docs/logo/brigade-icone.svg), la queue : la page ne charge aucune image, il est dessiné ici.
 function logoOfBrigade() {
@@ -1718,12 +1687,7 @@ function renderSlip(project, cardItem, stateOfColumn, withStation = false, outsi
   // du bon ne le redit pas. Répondue — envoyée, ou jouée —, elle ne demande plus de répondre : la phrase se tait aussi.
   const seenOfTodo = expected && cardItem.todo !== undefined ? seenOfTheCard(cardItem.todo, stateOfTheCard(project, ticket, cardItem.todo)).vu : undefined;
   const todoAnswered = seenOfTodo === "attente" || seenOfTodo === "jouee";
-  // Le rail d'un projet sur GitHub seul ne donne pas d'activité à la carte (ticket 4076) : tant que son cook travaille, la carte dit
-  // ce que sa fiche dit (« writing app/src/slip.ts · 2 min ago »), jamais « no activity yet ».
-  const published = activitiesPublished.get(project.nom);
-  const cookAtWork = cardItem.repere === true ? cookOfTicket(published, ticket) : undefined;
-  const inProgress = cookAtWork === undefined || cookAtWork.finiLe !== null || cookAtWork.maintenant === null || published === undefined || "sans" in published ? undefined : cookAtWork.maintenant;
-  const lineOfCard = inProgress === undefined || published === undefined || "sans" in published ? cardItem.ligne : `${actionOfCook(inProgress)} · ${durationOfCook(Date.parse(published.lu) - Date.parse(inProgress.depuis))} ago`;
+  const lineOfCard = cardItem.ligne;
   if (lineOfCard !== undefined && cardItem.refus === undefined && !(expected && cardItem.todo?.resume !== undefined) && !todoAnswered) {
     const links = cardItem.miseDeCote?.liens ?? cardItem.liens;
     const sentence = links === undefined ? block("p", lineOfCard) : lineWithItsNumbers(project, lineOfCard, links);
@@ -2019,8 +1983,6 @@ function renderCard() {
   panel.className = "panneau";
   // Ce qu'on attend de toi, en tête, en une phrase : jamais la ligne de la file.
   const wait = expected === undefined ? [] : [Object.assign(block("p", expected), { className: "attendu" })];
-  // Son cook, tel que sa station le publie (ticket 1846) : ce qu'il fait, ses derniers gestes, sa fin et sa PR.
-  const cook = setTheActivityOfCook(document, { publiees: activitiesPublished.get(project.nom), ticket, pastille: pill, ouvrirPr: () => void openPrOfCook(project, ticket) });
   // Dans l'ordre où le chef lit : ce qu'est le ticket, où il en est, ce qu'on attend de lui — puis ce que la cuisine en dit.
   panel.append(head, ...wait, ...(named === undefined ? [] : [named]), ...(lines.children.length > 0 ? [lines] : []), ...renderCardDetails(cardItem));
   card.replaceChildren(panel);
@@ -2036,7 +1998,7 @@ function renderCard() {
   // La carte de TODO d'un ticket du chef, sur sa fiche aussi : sur le kanban de la nouvelle cuisine, plus aucun bon ne la porte
   //, et c'est ici que le chef écrit sa réponse et clique Answer.
   if (cardItem.attendu && cardItem.todo !== undefined) panel.append(...setTheCardOfTodo(project, ticket, cardItem.todo));
-  panel.append(renderCardActions(project, cardItem), ...(cook === null ? [] : [cook]));
+  panel.append(renderCardActions(project, cardItem));
 }
 
 // Les gestes de la fiche : ouvrir l'issue, la PR, demander au second (card-actions.ts), un bouton chacun. Ce que fait un
@@ -3363,11 +3325,8 @@ function openCostCard(name, ticket, back) {
   const project = configuration.projets.find((candidate) => candidate.nom === name);
   if (project === undefined) return;
   const without = { sans: "not communicated — the rail of this project is not read" };
-  const upstream = upstreams.get(name);
-  const inUpstream = upstream === undefined || !("groupes" in upstream) ? undefined : upstream.groupes.flatMap(({ issues }) => issues).find((issue) => issue.ticket === ticket);
   const cardItem =
     cardOnTheRail(name, ticket) ??
-    inUpstream?.carte ??
     { ticket, ouvrable: false, attendu: false, attend: [], dit: [], fiche: { titre: without, priorite: without, issue: without } };
   openCard(project, cardItem, back);
 }
@@ -3378,12 +3337,6 @@ async function openIssue(project, ticket) {
   show();
 }
 
-// La PR du cook d'un ticket, depuis sa fiche (ticket 1846) : son adresse reste au process principal, comme celle de l'issue.
-/** @param {Project} project @param {number} ticket */
-async function openPrOfCook(project, ticket) {
-  notWritten = (await brigade.ouvrirPrDuCook(project.nom, ticket)) ? "" : `the PR of #${ticket}'s cook was not opened: the latest reading of GitHub no longer gives it, its address is not https, or the workstation could not open it`;
-  show();
-}
 
 /** @param {Project} project @param {number} ticket */
 async function openPr(project, ticket) {
@@ -3391,60 +3344,7 @@ async function openPr(project, ticket) {
   show();
 }
 
-// Le code de l'app, et les clones de brigade parmi les projets, sous cette machine dans Settings (ticket 1700) : une
-// ligne chacun — son état en une phrase, l'heure de sa lecture et ce que le process principal en dit au survol
-// (delay.ts) —, et son seul geste quand il en a un. L'app en retard, ou à relancer : un bouton la met à jour et la
-// relance, sans terminal (catch-up.ts). Le clone d'un projet en retard : la commande qui le met à jour est un bouton,
-// elle s'écrit dans un shell, et rien ne l'envoie. La case du logo de la barre le dit aussi, quel que soit l'écran.
-function setCode() {
-  const entry = document.getElementById("entree-tous");
-  if (entry !== null) {
-    entry.classList.toggle("perime", codeSeen?.alerte !== undefined);
-    entry.title = codeSeen?.alerte === undefined ? "All projects" : `All projects — ${codeSeen.alerte}`;
-    entry.ariaLabel = entry.title;
-  }
-  if (codeSeen === undefined) {
-    code.hidden = false;
-    code.replaceChildren(rowOfSetting("this app", [block("span", "first read of how far its code is behind origin in progress…")], []));
-    return setTheGroups();
-  }
-  const hour = hourOf(codeSeen.a);
-  code.replaceChildren(
-    ...codeSeen.clones.map(({ id, etat: state, tete: head, lignes: lines, commande: command, bouton: gesture }, rank) => {
-      const said = block("span", head);
-      said.dataset.etat = state;
-      const help = [`${state === "pas-lu" ? "tried at" : "read at"} ${hour}, re-read when you come back to the window`, ...lines].join("\n");
-      /** @type {HTMLElement[]} */
-      const control = [];
-      if (gesture !== undefined) {
-        const created = button(inPassage ? "updating — the app relaunches itself…" : gesture, () => void pass(), "recommande");
-        created.disabled = inPassage;
-        control.push(created);
-      } else if (command !== undefined) control.push(buttonOfCommand(command, () => void putADay(id)));
-      // Ce qui n'a pas été écrit, ou pas fait, se lit sous la première ligne, jusqu'à la prochaine demande.
-      return rowOfSetting(rank === 0 ? "this app" : "a brigade clone", [said, hover(document, help)], control, rank === 0 ? refusalOfSetting(notUpdated) : []);
-    }),
-  );
-  // L'app installée n'a pas de clone (locations.ts) : sans rien à dire, la ligne n'est pas posée.
-  code.hidden = code.childElementCount === 0;
-  setTheGroups();
-}
 
-// L'app passe à la nouvelle version : elle se met à jour, puis se ferme et repart d'elle-même —
-// rien ne revient. Ce qui revient, c'est pourquoi elle reste sur son code : lu sous les clones.
-async function pass() {
-  notUpdated = "";
-  inPassage = true;
-  setCode();
-  try {
-    const rendered = await brigade.passer();
-    if (rendered !== undefined) notUpdated = rendered.refus;
-  } catch (error) {
-    notUpdated = `this app was not updated: ${error instanceof Error ? error.message : String(error)}`;
-  }
-  inPassage = false;
-  setCode();
-}
 
 
 
@@ -4184,25 +4084,6 @@ async function entrust() {
   validateTrust.disabled = false;
 }
 
-// La mise à jour d'un clone n'est pas lancée : sa commande s'écrit dans un shell, dans
-// l'espace d'un projet, que l'on montre — c'est sa note qui dit ce qui a été écrit, et que
-// rien n'est parti. Sans projet qui s'ouvre, la raison se lit sous les clones.
-/** @param {string} clone */
-async function putADay(clone) {
-  notUpdated = "";
-  try {
-    const rendered = await brigade.ecrireMiseAJour(clone);
-    if (rendered !== undefined && "refus" in rendered) notUpdated = rendered.refus;
-    else if (rendered !== undefined) {
-      keep(rendered.projet, rendered);
-      const project = projectOf(rendered.projet);
-      if (project !== undefined) return void open(project);
-    }
-  } catch (error) {
-    notUpdated = `nothing written: ${error instanceof Error ? error.message : String(error)}`;
-  }
-  setCode();
-}
 
 // La bannière d'arrêt : la cuisine est à l'arrêt quand la box le dit, d'un mot.
 /** @param {Project} project */
@@ -4335,7 +4216,6 @@ function openAll() {
   current = undefined;
   adds = false;
   mark();
-  setCode();
   setHome();
   all.replaceChildren(blockOfProjects);
   brigade.tous(++request);
@@ -4777,30 +4657,6 @@ brigade.surEtat((terminal) => {
   }
   show();
 });
-// Ce que fait chaque cook d'un projet, à chaque lecture de son tableau (ticket 1846) : la fiche ouverte sur l'un de ses
-// tickets suit son cook — reposée seulement si ce qu'elle en dit a changé.
-brigade.surActivites((published) => {
-  const before = activitiesPublished.get(published.projet);
-  activitiesPublished.set(published.projet, published);
-  // Les cartes de Taken et de Pass disent ce que fait leur cook quand le rail ne le dit pas (ticket 4076) : elles suivent sa lecture.
-  if (current?.nom === published.projet && JSON.stringify(before) !== JSON.stringify(published)) draw();
-  if (openOne === undefined || openOne.projet.nom !== published.projet) return;
-  const { ticket } = openOne.carte;
-  /** @param {import("./activity-of-cook.js").Published | undefined} readEntries */
-  const said = (readEntries) => {
-    if (readEntries === undefined || "sans" in readEntries) return JSON.stringify(readEntries);
-    const cook = cookOfTicket(readEntries, ticket);
-    return JSON.stringify(cook === undefined ? null : [readEntries.lu, cook]);
-  };
-  if (said(before) !== said(published)) renderCard();
-});
-// Les faits d'un projet : ils remplacent ceux d'avant, partout où ils se dessinent —
-// sa pastille dans la barre, et son espace s'il est affiché — sa ligne de l'accueil vient par `surAccueil`.
-// Ce qui n'est pas encore sur le rail d'un projet : le sien se repose, s'il est affiché.
-brigade.surAmont((seenOne) => {
-  upstreams.set(seenOne.projet, seenOne);
-  if (current?.nom === seenOne.projet && !rail.hidden && heldOnes.has(seenOne.projet)) setRail(current);
-});
 brigade.surFaits((receivedOne) => {
   if (receivedOne.demande !== factsRequest) return;
   inRead.delete(receivedOne.projet);
@@ -4830,11 +4686,6 @@ brigade.surFaits((receivedOne) => {
 });
 // Ce que l'onglet de contenu affiché a rendu : une lecture ratée s'y lit comme
 // dans le panneau, et n'en retire rien.
-// Les clones relus : leur état remplace celui d'avant, dans Settings et sur la case « T ».
-brigade.surCode((seenOne) => {
-  codeSeen = seenOne;
-  setCode();
-});
 // La mise à jour de l'app : son état remplace celui d'avant ; la ligne de tête le suit.
 brigade.surMiseAJour((seenOne) => {
   updateVue = seenOne;
@@ -5050,7 +4901,6 @@ function display() {
   bar.prepend(entry);
   bar.append(foot);
   // La case du logo est neuve : ce que la dernière lecture des clones en dit y est reposé.
-  setCode();
 
   const same = configuration.projets.find((project) => project.nom === current?.nom);
   // Le projet ouvert du premier lancement, arrivé dans le fichier après sa réponse.
@@ -5072,7 +4922,6 @@ PALETTE = startup.palette;
 HEADINGS = startup.rubriques;
 BANNER = startup.banniere;
 // Une lecture arrivée pendant le démarrage est plus récente que celle qu'il rend.
-codeSeen ??= startup.code;
 stationsViews ??= startup.stations;
 projectsSeen ??= startup.projetsDesStations;
 homeSeen ??= startup.accueil;

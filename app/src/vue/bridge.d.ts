@@ -77,8 +77,6 @@ export type Bridge = {
   ouvrirLien?(project: string, ticket: number, url: string): Promise<boolean>;
   // Le titre d'une issue que la box ne donne pas, lu par le `gh` du poste à l'adresse que la box a rendue.
   lireTitre(project: string, ticket: number): Promise<import("../question.ts").Title | undefined>;
-  // Les tickets `fire` du projet, lus sur GitHub par le `gh` du poste (fire.ts) : ce que le rail sait encore quand la box ne répond pas.
-  lireFeu(project: string): Promise<import("../fire.ts").Fire | undefined>;
   // « réessayer maintenant » : les lectures de la box repartent tout de suite, au lieu d'attendre leur tour.
   relireBox(request: number): void;
   // La réponse du chef à cette question — un choix par sa lettre, ou sa phrase —, postée sur
@@ -88,14 +86,6 @@ export type Bridge = {
   repondreQuestion(project: string, ticket: number, answer: { question: string; vu: string; choix: string } | { question: string; vu: string; texte: string }): Promise<AnswerRendered>;
   // Un geste d'une carte mise de côté (actions-refusal.ts, ticket 3147) : `relancer` retire `served-elsewhere` de l'issue, `clore` la ferme comme terminée.
   refus(project: string, id: "relancer" | "clore", ticket: number): Promise<Terminal | { refus: string; detail?: string } | { fait: string; detail?: string }>;
-  // Un clone en retard sur son origine (delay.ts) : sa mise à jour, `git -C <clone> pull`, est
-  // écrite dans un shell de l'espace d'un projet, ouvert pour elle, sans être envoyée. Rend ce
-  // shell — son projet est celui où il s'est ouvert — ou pourquoi rien n'est écrit. Rien, pour un
-  // clone qui n'est pas en retard.
-  ecrireMiseAJour(clone: string): Promise<Terminal | { refus: string } | undefined>;
-  // Le code de l'app, en retard ou à relancer : elle se met à jour et se relance sur la nouvelle
-  // version — rien n'est rendu, elle se ferme —, ou dit pourquoi elle reste sur son code.
-  passer(): Promise<{ refus: string } | undefined>;
   // La mise à jour de l'app installée (mise-a-jour/etat.ts) — l'état et ses deux gestes. L'état :
   // `inactive` (lancée depuis le dépôt, elle ne regarde rien), `verification`, `a-jour`,
   // `disponible` (avec la `nouvelle` version), `telechargement` (`recus` sur `taille` octets),
@@ -241,22 +231,12 @@ export type Bridge = {
   scroll(id: number, lines: number): void;
   surSortie(receive: (id: number, data: string) => void): void;
   surEtat(receive: (terminal: Terminal) => void): void;
-  // Ce que fait chaque cook d'un projet, à chaque lecture de son tableau de la cuisine (ticket 1846) — ou pourquoi
-  // il ne se lit pas : la fiche d'un ticket en pose son cook (activity-of-cook.js).
-  surActivites(receive: (published: import("./activity-of-cook.js").Published) => void): void;
   // Ce que la commande de l'onglet affiché a rendu, mot pour mot.
   surContenu(receive: (reading: Reading) => void): void;
   // Ce que `faits` a rendu pour un projet : de quoi dessiner, ou ce qui a été obtenu à la place.
   surFaits(receive: (receivedOne: Drawable) => void): void;
   // Le chef a choisi un projet dans le menu de la barre des menus : la fenêtre est déjà au premier plan, le projet s'ouvre.
   surOuvrirProjet(receive: (project: string) => void): void;
-  // Ce qui est avant le rail du projet affiché (upstream.ts) : ses issues par état — le bandeau Backlog, ticket 3460 —, ou
-  // pourquoi rien n'est compté — et ce qui se lit à la place du rail quand il est vide.
-  surAmont(receive: (seenOne: SeenUpstream) => void): void;
-  // Le retard du code de l'app sur son origine, et celui des clones de brigade parmi les projets,
-  // relus : au démarrage, au retour à la fenêtre, quand le fichier des projets change. La
-  // dernière lecture d'avant le démarrage de la vue est dans `demarrage`.
-  surCode(receive: (seenOne: SeenOfCode) => void): void;
   // L'état de la mise à jour de l'app installée, à chaque changement (voir `miseAJour`) : un
   // téléchargement le dit à chaque pour-cent gagné.
   surMiseAJour(receive: (state: StateOfUpdate) => void): void;

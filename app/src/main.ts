@@ -14,8 +14,6 @@ import { stateOfTheStation } from "./tray-background/tray-background.ts";
 import { run, keepTheIcon, stationOfBackgroundInstalled } from "./tray-background/system.ts";
 import { holdHome, type Home } from "./home.ts";
 import { dropTheVue } from "./second/vue-of-project.ts";
-import { readFire } from "./fire.ts";
-import { COMMAND as COMMAND_UPSTREAM, holdUpstream } from "./upstream.ts";
 import { putAside } from "./awaiting.ts";
 import { forTheBar } from "./bar.ts";
 import { askAtSecond, noteOfTheQuestion } from "./discussion.ts";
@@ -40,7 +38,7 @@ import { holdTheQuotaGitHub, withTheQuota } from "./quota-github.ts";
 import { ticketOfTheBiggest } from "./spenders-of-token.ts";
 import { RELEASES_URL } from "./update/android.ts";
 import { FRESHNESS_MAX_OF_A_READ_MS } from "./vue/served/freshness.ts";
-import { activitiesPublished, readTheBoardOfRepository, type ReadOfBoardOfRepository } from "./board/read.ts";
+import { readTheBoardOfRepository, type ReadOfBoardOfRepository } from "./board/read.ts";
 import { pageOfFacts } from "./read-only.ts";
 import { openStandbyOfBoard, holdReadsOfBoard } from "./board/rail.ts";
 import { playTheRefusal } from "./actions-refusal.ts";
@@ -75,9 +73,7 @@ import { claudeOf, connectionOfTheSession, openOfAStation } from "./first-launch
 import { openTheLocalCopy, sessionOfClaude } from "./local-copy.ts";
 import { probesOfTheRuntime, serveHere } from "./serve-here.ts";
 import { readQuestion, reply as answerQuestion, titleOf, type Read as QuestionRead } from "./question.ts";
-import { relaunchOf, holdPassage } from "./catch-up.ts";
 import { holdAnswered } from "./answered.ts";
-import { APP, holdDelays } from "./delay.ts";
 import { openTurns } from "./input.ts";
 import { holdRemovals } from "./removal.ts";
 import { FOLDER as FOLDER_OF_SETUP, setTheSetup } from "./setup/setup.ts";
@@ -369,33 +365,15 @@ const factsWatch = openStandbyOfBoard({
   intervalleMs: 30_000,
   surLecture: (reading) => {
     tellTheFacts(facts.recevoir(reading));
-    // Ce que GitHub dit de chaque cook du projet (#1846) — sa station, depuis sa prise, sa PR —, sans joindre la box : à
-    // la place de son terminal, que l'app ne suit pas, la fiche d'un ticket suit son cook (vue/activity-of-cook.js).
-    const board = boards.dernier(reading.projet);
-    if (!("erreur" in reading) && board !== undefined) tell("activites", activitiesPublished(reading.projet, board));
     tellTheHome(home.faits(reading));
     setTheMenuBar();
   },
 });
 
-// Ce qui est avant le rail (upstream.ts, #1836) : lu sur GitHub pour le projet affiché seulement — son bandeau Backlog se
-// pose au-dessus des colonnes de son rail (#3460). Des issues qui ne se lisent pas : la vue n'en dit rien (#1770), jamais
-// « rien avant le rail », et aucune box n'est jointe pour lui.
-const upstreams = holdUpstream();
-const standbyOfTheUpstream = openStandbyOfBoard({
-  lire: boards.lire,
-  intervalleMs: 60_000,
-  surLecture: (reading) => tell("amont", upstreams.recevoir(reading)),
-});
-
 // La veille de `status` change de projets : le bloc `attend` de ceux qu'elle ne lit plus est
 // lâché, et leur rail redessiné sans lui — il ne serait plus rafraîchi, quand leurs faits le sont.
-// `espace` : c'est l'espace d'un projet, et son rail — ce qui est en amont s'y lit aussi.
-function look(seenOnes: Parameters<typeof standby.regarder>[0], commands: readonly string[], request: number, space = false): void {
+function look(seenOnes: Parameters<typeof standby.regarder>[0], commands: readonly string[], request: number): void {
   standby.regarder(seenOnes, commands, request);
-  const upstream = space ? seenOnes : [];
-  standbyOfTheUpstream.regarder(upstream, [COMMAND_UPSTREAM], request);
-  upstreams.veiller(upstream.map(({ nom: name }) => name));
   for (const redraws of facts.veiller(seenOnes.map(({ nom: name }) => name))) tellTheFacts(redraws);
   tellTheHome(home.veiller(seenOnes.map(({ nom: name }) => name)));
 }
@@ -429,7 +407,6 @@ const tracking = followConfiguration({
   surChangement: (configuration, gone) => {
     tell("configuration", shownEntry(), gone.flatMap((name) => terminals.quitter(name)));
     // Un clone de brigade a pu entrer dans la liste, ou en sortir.
-    void delays.relire(true);
     // L'accueil a une ligne par projet du fichier, tel qu'il est maintenant.
     tellTheHome(home.relire());
     // La barre des menus aussi — et le chef l'a peut-être allumée ou éteinte.
@@ -458,19 +435,6 @@ const knownOne = (name: unknown) => projects().find((candidate) => candidate.nom
 // Le même, tel que le fichier le déclare.
 const declare = (name: unknown) => tracking.configuration().projets.find((candidate) => candidate.nom === name);
 
-// Le code de l'app vient d'un clone, et rien d'autre ne le surveille : son retard sur son
-// origine est lu au démarrage, puis à chaque retour à la fenêtre — et celui du clone d'un
-// projet, quand ce clone est celui de brigade (delay.ts). Lire n'écrit rien dans un clone :
-// un `git` qui n'a rien rendu au bout de trente secondes est arrêté. L'app installée n'a pas
-// de clone : rien ne s'en lit.
-// Le dossier de l'app, dans son clone.
-const folderApp = join(import.meta.dirname, "..");
-const delays = holdDelays({
-  reglages: { git: "git", delaiMs: 30_000 },
-  app: locations.clone,
-  projets: projects,
-  surLecture: (seenOne) => tell("code", seenOne),
-});
 // Les projets de ses stations, sous elles : ceux qu'il leur a ajoutés depuis l'app, écrits et relus
 // dans le gist de chacune (projects/projects.ts) — relus à chaque lecture des stations.
 let servedRead = "";
@@ -552,19 +516,6 @@ const stationLocale =
     : undefined;
 const claudeHere = claudeOf(process.env);
 if (role.role === "poste") console.error(`brigade: this app is a workstation, not a station — ${role.pourquoi}: it pilots, nothing cooks here`);
-// Son propre code, l'app le met à jour au clic sur la ligne qui dit son retard : son clone
-// avance, puis elle se relance — par `npm start` quand c'est par là qu'elle est partie, pour
-// que son lancement pose ce que la nouvelle version demande (catch-up.ts). Se fermer arrête
-// les terminaux, comme quitter.
-const pass = holdPassage({
-  reglages: { git: "git", delaiMs: 60_000 },
-  app: folderApp,
-  relancer: () => {
-    app.relaunch(relaunchOf(process.env, folderApp));
-    app.quit();
-  },
-});
-
 // La vue nomme un projet ; seul un projet du fichier, et qui s'ouvre, a un espace.
 function project(name: unknown): Project {
   const finds = projects().find((candidate) => candidate.nom === name);
@@ -572,7 +523,7 @@ function project(name: unknown): Project {
   return finds;
 }
 
-ipcMain.handle("demarrage", () => ({ poste: { nom: nameOfWorkstation(), mac: isOneMac(platform) }, configuration: shownEntry(), palette: PALETTE, exemple: EXAMPLE, onglets: TABS, rubriques: HEADINGS, banniere: BANNER, calibrage: { modeles: MODELS, efforts: EFFORTS }, code: delays.vu(), stations: stations.vu(), projetsDesStations: projectsOfStations.vu(), accueil: home.vu(), miseAJour: update.vu() }));
+ipcMain.handle("demarrage", () => ({ poste: { nom: nameOfWorkstation(), mac: isOneMac(platform) }, configuration: shownEntry(), palette: PALETTE, exemple: EXAMPLE, onglets: TABS, rubriques: HEADINGS, banniere: BANNER, calibrage: { modeles: MODELS, efforts: EFFORTS }, stations: stations.vu(), projetsDesStations: projectsOfStations.vu(), accueil: home.vu(), miseAJour: update.vu() }));
 // Les couleurs d'un projet : la vue nomme le projet, le rôle — onglet ou accent — et une couleur
 // de la palette, par son nom, ou une couleur libre `#rrggbb` (colors.ts). Écrite, elle arrive par
 // `surConfiguration`, avec ce qu'elle a de trop proche. Rend la raison, si elle ne l'a pas été.
@@ -647,7 +598,7 @@ ipcMain.handle("demander", (_, name: unknown, ticket: unknown) => {
   const aims = project(name);
   if (typeof ticket !== "number") return undefined;
   const said = facts.attendu(aims.nom, ticket);
-  const gives = said === undefined ? (facts.ticket(aims.nom, ticket) ?? (upstreams.adresse(aims.nom, ticket) === undefined ? undefined : {})) : undefined;
+  const gives = said === undefined ? facts.ticket(aims.nom, ticket) : undefined;
   if (said === undefined && gives === undefined) return undefined;
   const written = said !== undefined ? requestOf(aims.nom, ticket, said.lignes, said.titre) : requestOnTheTicket(aims.nom, ticket, gives?.etat, gives?.titre);
   return "refus" in written ? written : terminals.inscrire(aims, written.demande, noteOfTheRequest);
@@ -938,13 +889,6 @@ ipcMain.handle("ouvrirLaProposition", (_, url: unknown) => {
     () => false,
   );
 });
-// Le code de l'app, en retard ou à relancer : le clic la met à jour et la relance — rien n'est
-// rendu, elle se ferme — ou dit pourquoi elle reste sur son code (catch-up.ts).
-ipcMain.handle("passer", () => {
-  const itsOwn = delays.vu()?.clones.find(({ id }) => id === APP);
-  if (itsOwn?.bouton === undefined) return { refus: "nothing to do: the last read did not find this app behind its origin" };
-  return pass(itsOwn.etat === "a-relancer");
-});
 // La mise à jour de l'app installée (update/state.ts) : son état, la vérification que la vue
 // demande, et « installer maintenant » — l'app se ferme et rien n'est rendu, ou elle dit pourquoi
 // elle reste sur sa version. Depuis le dépôt, l'état dit qu'elle ne se met pas à jour par là.
@@ -959,21 +903,6 @@ ipcMain.handle("telechargerVersion", async (_, url: unknown) => {
     () => false,
   );
 });
-// Un clone en retard : sa mise à jour — `git -C <clone> pull` — est écrite dans un shell, et
-// rien ne l'envoie. La vue nomme le clone ; ce qui s'écrit, et dans l'espace de quel projet, se
-// décide dans delay.ts — ou pourquoi rien ne l'est. Rien, pour un clone qui n'est pas en retard.
-// L'espace du projet est ouvert d'abord, comme au clic sur sa case : un shell n'y vit pas sans son second.
-ipcMain.handle("mettreAJour", (_, clone: unknown) =>
-  delays.ecrire(
-    {
-      shell: (concerne, written) => {
-        terminals.espace(concerne);
-        return terminals.shell(concerne, written);
-      },
-    },
-    clone,
-  ),
-);
 // La réponse du chef à une carte de TODO (card-todo.ts) : la carte du chef lue de GitHub (#2434) — sa réponse est postée
 // sur son issue et son geste joué par l'app même, par le jeton du `gh` de ce poste (board-actions/answer-github.ts) —, ni
 // tableau, ni box. Toute autre carte ne se répond plus de l'app (#2061) : rien ne part, et la phrase dit pourquoi.
@@ -997,7 +926,7 @@ ipcMain.handle("ouvrirLectureSeule", (_, name: unknown, page: unknown) => {
   );
 });
 // Un projet refusé n'a pas d'espace, mais sa box se lit quand même.
-ipcMain.on("regarder", (_, name: unknown, request: number) => (see = () => look(projects().filter((candidate) => candidate.nom === name), ["status"], request, true))());
+ipcMain.on("regarder", (_, name: unknown, request: number) => (see = () => look(projects().filter((candidate) => candidate.nom === name), ["status"], request))());
 // L'onglet de contenu affiché : aucun ne lit plus la box (TABS est vide, #4710) — le canal reste pour la vue, qui n'y lit rien.
 ipcMain.on("onglet", () => {});
 // « Tous les projets » : le `status` de chacun — ce qui bloque un projet, depuis quand ses décisions
@@ -1019,18 +948,11 @@ ipcMain.on("relireBox", (_, request: number) => {
 // disant plus rien, le rail sait encore. Jamais par la box — c'est justement elle qui ne répond pas.
 // Les adresses que GitHub a rendues pour ces tickets : un numéro de la liste s'ouvre par elles, la box ne les dit plus.
 const adressesOfFire = new Map<string, Map<number, string>>();
-ipcMain.handle("lireFeu", async (_, name: unknown) => {
-  const aims = knownOne(name);
-  if (aims === undefined) return undefined;
-  const fire = await readFire({ gh: process.env.BRIGADE_GH_BIN || "gh", delaiMs: 30_000 }, aims.dossier);
-  if ("tickets" in fire) adressesOfFire.set(String(name), new Map(fire.tickets.flatMap(({ ticket, url }) => (url === undefined ? [] : [[ticket, url] as const]))));
-  return fire;
-});
 // Un ticket du rail s'ouvre sur son issue, dans le navigateur du poste : la vue nomme le
 // projet et le ticket, l'adresse est celle que la box a rendue (facts.ts) — ou, pour une issue
 // qui n'est pas encore sur le rail, celle que la lecture de l'amont a donnée (upstream.ts). Rend si elle a été ouverte.
 ipcMain.handle("ouvrirIssue", (_, name: unknown, ticket: unknown) => {
-  const address = facts.adresse(name, ticket) ?? upstreams.adresse(name, ticket) ?? (typeof ticket === "number" ? (adressesOfFire.get(String(name))?.get(ticket)) : undefined);
+  const address = facts.adresse(name, ticket) ?? (typeof ticket === "number" ? (adressesOfFire.get(String(name))?.get(ticket)) : undefined);
   return address === undefined ? false : shell.openExternal(address).then(
     () => true,
     () => false,
@@ -1071,8 +993,6 @@ app.on("will-quit", () => {
   turns.fermer();
   standby.fermer();
   factsWatch.fermer();
-  standbyOfTheUpstream.fermer();
-  delays.fermer();
   update.fermer();
   clearInterval(verificationsOfVersion);
   stations.fermer();
@@ -1094,7 +1014,6 @@ app.on("will-quit", () => {
 // revient peut-être d'un `git pull`, ou d'une heure pendant laquelle on a livré.
 app.on("browser-window-focus", () => {
   tracking.relire();
-  void delays.relire();
   // Et les préférences du chef : il revient peut-être d'un autre appareil, où il les a changées.
   void preferences.tirer();
 });
@@ -1134,8 +1053,6 @@ void app.whenReady().then(() => {
   // L'icône de la barre des menus, avec ce qui est déjà lu ; chaque lecture de `faits` la redit ensuite.
   barReady = true;
   setTheMenuBar();
-  // La première lecture du retard des clones : la vue la reçoit, ou la trouve à son démarrage.
-  void delays.relire();
   // La première vérification des versions publiées, puis une tous les quarts d'heure.
   update.demarrer();
   // Et celle de la ligne d'une version plus haute, à la même cadence.
