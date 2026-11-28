@@ -20,7 +20,6 @@ import type { Terminal } from "../src/terminals.ts";
 import { FORKER, READ_ONLY, GET_THE_ACCESS } from "../src/vue/read-only/read-only.js";
 import { CHOOSE } from "../src/vue/stations-tab/state.js";
 import { DISPLACE } from "../src/vue/stations-tab/stations-tab.js";
-import { discussionOf } from "./helpers/cards-said.ts";
 import { cardOfTicket, type Fake, type Played, playTheVue, openTab, type Answers, repos } from "./helpers/false-vue.ts";
 
 const PARADE = "parade";
@@ -150,7 +149,6 @@ describe("la fiche d'un ticket en lecture seule", () => {
   async function card(readOnly: boolean) {
     const vue = await open({
       gestesDeFiche: (cardItem) => actionsOfCard(cardItem),
-      lireDiscussion: () => discussionOf({ issue: { title: "La recherche", state: "open", body: { author: "chef", at: A, body: "Chercher." }, comments: [] } }),
     });
     await read(vue, readOnly);
     (cardOfTicket(vue, 23) ?? assert.fail("pas de carte #23")).click();
@@ -160,10 +158,10 @@ describe("la fiche d'un ticket en lecture seule", () => {
     return { gestes: setOne.dessous("section").find(({ className }) => className === "gestes-fiche")?.dessous("li").map(({ dataset }) => dataset.geste) ?? [], commentaire: setOne.dessous("button").some(({ dataset }) => dataset.geste === "commentaire"), champs: setOne.dessous("textarea").length };
   }
 
-  test("elle ne garde que ce qui ouvre ou demande au second : ni priorité, ni commentaire à poster", async () => {
+  test("elle ne garde que ce qui ouvre ou demande au second : ni commentaire à poster", async () => {
     const ordinary = await card(false);
-    assert.ok(ordinary.gestes.includes("priorite"), ordinary.gestes.join(" | "));
-    assert.equal(ordinary.commentaire, true);
+    assert.ok(ordinary.gestes.includes("second"), ordinary.gestes.join(" | "));
+    assert.equal(ordinary.commentaire, false);
     const only = await card(true);
     assert.deepEqual(only.gestes.filter((id) => !["issue", "pr", "second", "navigateur"].includes(id ?? "")), [], only.gestes.join(" | "));
     assert.ok(only.gestes.includes("second"), "le second se demande toujours");

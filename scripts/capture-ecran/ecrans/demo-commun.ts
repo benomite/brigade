@@ -76,7 +76,7 @@ export const VIDE: Rendu = { ...BASE, facts: faits({ dernierEvenement: null } as
 export const SERVI: Rendu = {
   ...BASE,
   facts: faits(
-    { dernierEvenement: evenement("merge.done", "2026-10-13T10:03:58.000Z"), livres: [{ ticket: 21, titre: TITRE, url: ISSUE, livre: "2026-10-13T10:03:58.000Z", station: "box/claude", pr: PR, relecture: { resume: "Le journal s'exporte par projet, dans un fichier à lui.", constats: [] } }] } as Partial<Facts>,
+    { dernierEvenement: evenement("merge.done", "2026-10-13T10:03:58.000Z"), livres: [{ ticket: 21, titre: TITRE, url: ISSUE, livre: "2026-10-13T10:03:58.000Z", station: "box/claude", pr: PR }] } as Partial<Facts>,
     { livres24h: 1 },
   ),
   status: status("rail       empty", []),

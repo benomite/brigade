@@ -3,7 +3,6 @@
 // réponse envoyée, et le focus passe à la suivante. D'abord le module seul, puis le TODO du rail, puis la vue jouée.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { ACTIONS_OF_WAIT } from "../../../src/wait.ts";
 import { forTheBar } from "../../../src/bar.ts";
 import type { CardOfTodo } from "../../../src/card-todo.ts";
 import { EXAMPLE } from "../../../src/config.ts";
@@ -117,7 +116,7 @@ const todoCard = (more: Partial<CardOfTodo> = {}): CardOfTodo => ({ sorte: "prod
 describe("le TODO du rail, au clavier", () => {
   test("`1` joue la réponse du premier choix, comme son bouton ; Entrée, le recommandé de la carte", () => {
     const played: unknown[][] = [];
-    const gestures = { etat: () => ({ etape: "repos" }) as never, attente: ACTIONS_OF_WAIT, jouer: (...a: unknown[]) => void played.push(a) };
+    const gestures = { etat: () => ({ etape: "repos" }) as never, jouer: (...a: unknown[]) => void played.push(a) };
     const set = () => setTheTodo(doc, { deplie: { ouvert: true }, cartes: [card(50, { todo: todoCard() }), card(51, { todo: todoCard({ recommandation: { rang: 2, pourquoi: null } as never }) })], ouvrir: () => {}, gestes: gestures as never }) as unknown as Fake;
     const [fifty, fiftyOne] = set().dessous("li") as [Fake, Fake];
     press(fifty, "1");
@@ -130,7 +129,7 @@ describe("le TODO du rail, au clavier", () => {
     const answered = new Map<number, string>();
     const later = new Set<number>([52]);
     let state: unknown = { etape: "envoi", reponse: { question: "Ship it?", choix: 2 } };
-    const gestures = { etat: () => state as never, attente: ACTIONS_OF_WAIT, jouer: () => {} };
+    const gestures = { etat: () => state as never, jouer: () => {} };
     const set = (cards: Card[]) => setTheTodo(doc, { deplie: { ouvert: true }, cartes: cards, ouvrir: () => {}, gestes: gestures as never, answered, later }) as unknown as Fake;
     // Répondue sur sa fiche : l'entrée du TODO le dit aussi.
     assert.deepEqual(set([card(50, { todo: todoCard() })]).dessous("li").map((li) => li.textContent), ["#50 Ticket 50 · answered: “No”"]);
@@ -157,7 +156,6 @@ const WORLD: Facts = {
 const startup = () => ({
   configuration: forTheBar({ chemin: "/tmp/app.json", projets: [{ nom: PARADE, dossier: "/tmp/parade" }] }, () => true),
   palette: PALETTE, exemple: EXAMPLE, onglets: TABS, rubriques: HEADINGS,
-  gestes: { attente: ACTIONS_OF_WAIT },
   banniere: BANNER, calibrage: { modeles: MODELS, efforts: EFFORTS }, code: undefined,
 });
 async function show(): Promise<Played> {

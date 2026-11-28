@@ -35,9 +35,8 @@ const FAITS_PARADE: Facts = {
       livre: "2026-10-13T10:03:58.000Z",
       station: "box/claude",
       pr: "https://github.com/chef/parade/pull/19",
-      relecture: { resume: "Le relevé des mesures se lit par station, et un seuil franchi se dit en tête de `status`.", constats: [{ gravite: "remarque", fichier: "runtime/src/mesures.ts", constat: "Le seuil par défaut est répété dans deux fichiers." }] },
     },
-    { ticket: 7, titre: "Les accès sous plafond", url: issue(7), livre: "2026-10-13T07:12:40.000Z", station: "box/claude", pr: "https://github.com/chef/parade/pull/8", relecture: { resume: "Un accès porte désormais un plafond d'usages.", constats: [] } },
+    { ticket: 7, titre: "Les accès sous plafond", url: issue(7), livre: "2026-10-13T07:12:40.000Z", station: "box/claude", pr: "https://github.com/chef/parade/pull/8" },
   ],
 };
 
@@ -69,7 +68,7 @@ const FAITS_CANTINE: Facts = {
   rail: [{ ticket: 5, etat: "en attente", titre: "La carte du midi", url: "https://github.com/chef/cantine/issues/5", activite: null, attente: null }],
   cooks: [],
   attend: [],
-  livres: [{ ticket: 3, titre: "Les allergènes sur chaque plat", url: "https://github.com/chef/cantine/issues/3", livre: "2026-10-13T08:20:00.000Z", station: "box/claude", pr: "https://github.com/chef/cantine/pull/4", relecture: null }],
+  livres: [{ ticket: 3, titre: "Les allergènes sur chaque plat", url: "https://github.com/chef/cantine/issues/3", livre: "2026-10-13T08:20:00.000Z", station: "box/claude", pr: "https://github.com/chef/cantine/pull/4" }],
 };
 
 const STATUS_CANTINE = ["project    cantine", "kitchen    open", "", "rail       1 queued", "  #5  queued  -  since 23 min  La carte du midi", "", "cooks      none running", ""].join("\n");

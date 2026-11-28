@@ -78,12 +78,8 @@ export const lineInWaiting = (third: { quoi: string; qui: string; relance?: stri
 // Une question du manager répondue, qui attend qu'il lise la réponse (answered.ts) : qui y a répondu.
 export const lineAnswered = (by: string): LineOfCard => ({ ligne: `answered by ${by} · the manager's turn` });
 
-// Livrée : l'heure, locale, et ce qui a été livré en une phrase — sans résumé, l'heure seule.
-export function lineDelivered(when: string, resume: string | undefined): LineOfCard {
-  const hour = `served at ${hourHM(when)}`;
-  const sentence = resume?.split(/(?<=[.!?])\s/)[0]?.trim();
-  return sentence === undefined || sentence === "" ? { ligne: hour, repere: true } : { ligne: `${hour} · ${sentence}` };
-}
+// Livrée : l'heure, locale.
+export const lineDelivered = (when: string): LineOfCard => ({ ligne: `served at ${hourHM(when)}` });
 
 // Une carte que l'app n'a pas su lire — la box en sait plus qu'elle : la forme est plus récente. Seule cette carte en pâtit.
 export const lineUnreadable = (): LineOfCard => ({ ligne: "the app could not read this card — update the app to fix it", signal: "unreadable" });

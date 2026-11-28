@@ -6,7 +6,6 @@
 // ne le rend pas dans `faits`. La vue est jouée telle qu'elle est, devant un faux document (helpers/false-vue.ts).
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { ACTIONS_OF_WAIT, dayOf, relaunchProposed } from "../src/wait.ts";
 import { putAside } from "../src/awaiting.ts";
 import { forTheBar } from "../src/bar.ts";
 import { EXAMPLE } from "../src/config.ts";
@@ -16,8 +15,8 @@ import { EFFORTS, MODELS } from "../src/projects/projects.ts";
 import { TABS, HEADINGS } from "../src/tabs.ts";
 import type { ClientOfThePriority } from "../src/priority.ts";
 import type { Terminal } from "../src/terminals.ts";
-import { waitOnGithub, park } from "../src/vue/wait/wait-github.ts";
-import { inputRead, type Input } from "../src/vue/wait/input.ts";
+import { park } from "../src/vue/wait/wait-github.ts";
+import { dayOf, inputRead, relaunchProposed, type Input } from "../src/vue/wait/input.ts";
 import { red } from "./helpers/red.ts";
 import { type Fake, type Played, playTheVue, type Answers, repos } from "./helpers/false-vue.ts";
 
@@ -36,15 +35,7 @@ describe("les gestes de WAITING et ce que « waiting for… » demande", () => {
     assert.equal(relaunchProposed(new Date(2026, 11, 30, 0, 1)), "2027-01-06");
   });
 
-  test("ce sont les trois gestes de WAITING, et aucun n'est une commande de la box (#4262)", () => {
-    assert.deepEqual(ACTIONS_OF_WAIT, [
-      { id: "attente-poser", libelle: "waiting for…" },
-      { id: "attente-reprendre", libelle: "resume" },
-      { id: "attente-arrivee", libelle: "it arrived, back to the kitchen" },
-    ]);
-  });
-
-  test("rien n'est écrit sans ce que la commande demande : quoi, de qui, une relance à venir, un ticket", async () => {
+  test("rien n'est écrit sans ce que la commande demande : quoi, de qui, une relance à venir", () => {
     const full = { quoi: "sa réponse", qui: "le client", relance: "2026-10-22" };
     assert.deepEqual(inputRead({ ...full, quoi: "  sa validation écrite du devis  " }, TODAY), { ...full, quoi: "sa validation écrite du devis" });
     assert.match(refusal({ ...full, quoi: "   " }), /say what it waits for/);
@@ -53,10 +44,6 @@ describe("les gestes de WAITING et ce que « waiting for… » demande", () => {
     for (const relaunch of ["", "22/10/2026", "2026-02-30", "2026-10-22T09:00", "7j"]) assert.match(refusal({ ...full, relance: relaunch }), /is not a day of the calendar/, relaunch);
     for (const relaunch of ["2026-10-15", "2026-10-01"]) assert.match(refusal({ ...full, relance: relaunch }), /is not after today/, relaunch);
     assert.match(refusal({ ...full, quoi: "une ligne\npuis une autre" }), /control character/);
-    for (const ticket of [0, -3, 1.5, "8", null, undefined]) {
-      const said = await waitOnGithub({ id: "attente-reprendre", ticket, saisie: undefined, aujourdhui: TODAY, lu: undefined, client: {} as ClientOfThePriority });
-      assert.match("refus" in said ? said.refus : "", /names no ticket/, String(ticket));
-    }
   });
 
   test("« waiting for… » parque le ticket : le commentaire de parking dit qui, pour quoi, jusqu'à quand, puis `parked` est posé", async () => {
@@ -131,7 +118,6 @@ describe("le rail en TODO et WAITING", () => {
       { libelle: "on arrival", valeur: THIRD.aLArrivee },
     ]);
     assert.deepEqual([card?.etat, card?.ton, card?.titre, card?.ouvrable, card?.attendu, card?.sans], ["WAITING", "gris", "Ticket 8", true, false, undefined]);
-    assert.deepEqual(card?.gestes, ["attente-reprendre", "attente-arrivee"]);
     // Une relance passée le dit aussi.
     const past = rail({ ...FACTS, lu: "2026-10-23T00:00:00.000Z" }).colonnes[4]?.cartes[0]?.dit.find(({ libelle: wording }) => wording === "follow-up");
     assert.equal(past?.valeur, "2026-10-21 00:00 UTC — passed 2 d before the reading");
@@ -140,7 +126,7 @@ describe("le rail en TODO et WAITING", () => {
     assert.equal(card?.relancePassee, undefined);
     // Une box qui dit WAITING sans dire ce qu'il attend : la carte l'écrit, et garde ses gestes.
     const silentOne = rail({ ...FACTS, rail: [ticket(8, "WAITING")] }).colonnes[4]?.cartes[0];
-    assert.deepEqual([silentOne?.dit, silentOne?.gestes], [[], ["attente-reprendre", "attente-arrivee"]]);
+    assert.deepEqual(silentOne?.dit, []);
     assert.match(silentOne?.sans ?? "", /^not given — this station's runtime does not give in `facts` what it waits for/);
   });
 
@@ -151,27 +137,12 @@ describe("le rail en TODO et WAITING", () => {
     const [card] = rail(facts).colonnes[4]?.cartes ?? [];
     assert.deepEqual(card?.dit?.map(({ libelle: wording }) => wording), ["waiting for", "from", "since", "on arrival"]);
     assert.equal(card?.ligne, "waiting for a station that provides chrome-connecté — attach one to the project · from a human, the chef");
-    assert.equal(card?.gestes, undefined);
     assert.equal(card?.signal, undefined);
     // La forme lit une relance nulle, et refuse celle qui n'est ni nulle ni une heure.
     const readOne = understand(JSON.stringify({ ...facts, rail: [{ ...facts.rail[0] }] }));
     assert.ok(!("informe" in readOne) && readOne.rail[0]?.tiers?.relance === null);
     const badly = understand(JSON.stringify({ ...facts, rail: [{ ...facts.rail[0], tiers: { ...WITHOUT_STATION, relance: 3 } }] }));
     assert.ok(!("informe" in badly) && badly.rail[0]?.illisible === "“rail[0].tiers.relance” is not a time");
-  });
-
-  test("« waiting for… » est sur une carte de TODO que le runtime laisse attendre — pas sur un ticket en pass, ni hors du rail, ni hors de TODO", () => {
-    const todo = rail({ ...FACTS, attend: [...(FACTS.attend ?? []), { ticket: 99, titre: "", url: null }] }).colonnes[3]?.cartes ?? [];
-    assert.deepEqual(
-      todo.map(({ ticket: number, gestes: actions }) => [number, actions]),
-      [
-        [30, ["attente-poser"]],
-        [31, ["attente-poser"]],
-        [12, undefined],
-        [99, undefined],
-      ],
-    );
-    assert.equal(rail(FACTS).colonnes[0]?.cartes[0]?.gestes, undefined);
   });
 
   // Le motif du retour vient de `faits.rail[].revenu`, mot pour mot : l'app n'en déduit rien.
@@ -217,7 +188,6 @@ const startup = () => ({
   exemple: EXAMPLE,
   onglets: TABS,
   rubriques: HEADINGS,
-  gestes: { attente: ACTIONS_OF_WAIT },
   banniere: BANNER,
   calibrage: { modeles: MODELS, efforts: EFFORTS },
   code: undefined,
@@ -243,12 +213,6 @@ const slipOf = (vue: Played, number: number): Fake =>
     .element("rail")
     .dessous("li")
     .find((slip) => slip.className === "bon" && slip.children[0]?.children[0]?.textContent === `#${number}`) ?? assert.fail(`pas de bon #${number}`);
-const buttonOf = (or: Fake, text: string): Fake => or.dessous("button").find((pose) => pose.textContent === text) ?? assert.fail(`pas de bouton « ${text} »`);
-const field = (or: Fake, name: string): Fake => or.dessous("input").find((pose) => pose.dataset.champ === name) ?? assert.fail(`pas de champ ${name}`);
-const type = (entry: Fake, text: string) => {
-  entry.value = text;
-  entry.declencher("input");
-};
 
 describe("sur l'écran, les cartes de WAITING et leurs gestes", () => {
   test("ni WAITING ni TODO n'ont de colonne (#3458, #4238) : la carte parked reste dans le backlog, et se lit sans clic", async () => {
@@ -286,96 +250,9 @@ describe("sur l'écran, les cartes de WAITING et leurs gestes", () => {
     const backlog = column(vue, "Backlog");
     const inOrder = backlog.dessous("li").filter(({ className, dataset }) => className === "bon" && ["8", "9"].includes(dataset.ticket ?? "")).map(({ dataset }) => [dataset.ticket, dataset.carte]);
     assert.deepEqual(inOrder, [["8", undefined], ["9", undefined]]);
-    // Ses deux gestes restent sur sa carte.
-    buttonOf(slipOf(vue, 8), "resume");
-    buttonOf(slipOf(vue, 8), "it arrived, back to the kitchen");
     // Les trois cartes du chef, et elles seules.
     assert.equal(red(vue.element("rail")).length, 3);
   });
-
-  test("« resume » et « it arrived, back to the kitchen » partent au clic, pour ce ticket", async () => {
-    const vue = await open({ attente: () => SECOND });
-    receive(vue);
-    buttonOf(slipOf(vue, 8), "resume").click();
-    await repos();
-    assert.deepEqual(vue.dernier("attente"), ["parade", "attente-reprendre", 8, undefined]);
-    buttonOf(slipOf(vue, 8), "it arrived, back to the kitchen").click();
-    await repos();
-    assert.deepEqual(vue.dernier("attente"), ["parade", "attente-arrivee", 8]);
-    // Le clic d'un geste n'ouvre pas la fiche par-dessus le rail.
-    assert.equal(card(vue).hidden, true);
-    // Une carte de TODO n'a pas ces deux-là ; une carte de WAITING n'a pas « waiting for… ».
-    assert.ok(!slipOf(vue, 30).dessous("button").some(({ textContent }) => textContent === "resume"));
-    assert.ok(!slipOf(vue, 8).dessous("button").some(({ textContent }) => textContent === "waiting for…"));
-  });
-
-  test("« waiting for… » ouvre sur la carte un formulaire — quoi, de qui, la relance proposée à sept jours —, qui survit à une lecture ; validé, la commande part, et il se referme", async () => {
-    const vue = await open({ attente: () => SECOND });
-    receive(vue);
-    assert.equal(slipOf(vue, 12).dessous("button").filter(({ dataset }) => "attente" in dataset).length, 0, "un ticket en pass ne se met pas en attente");
-    buttonOf(slipOf(vue, 30), "waiting for…").click();
-    await repos();
-
-    const form = () => slipOf(vue, 30).dessous("form")[0] ?? assert.fail("pas de formulaire");
-    const before = relaunchProposed(new Date());
-    assert.deepEqual(
-      form()
-        .dessous("label")
-        .map((label) => label.children[0]?.textContent),
-      ["what it waits for, in your words", "from whom", "follow-up on"],
-    );
-    assert.deepEqual([field(form(), "quoi").value, field(form(), "qui").value], ["", ""]);
-    assert.equal(field(form(), "relance").type, "date");
-    assert.ok([before, relaunchProposed(new Date())].includes(field(form(), "relance").value), field(form(), "relance").value);
-    assert.equal(card(vue).hidden, true);
-
-    type(field(form(), "quoi"), "sa réponse écrite");
-    type(field(form(), "qui"), "le client");
-    type(field(form(), "relance"), "2026-11-02");
-    // Une lecture redessine le rail : le formulaire revient tel que le chef l'a laissé.
-    receive(vue);
-    assert.deepEqual(
-      ["quoi", "qui", "relance"].map((name) => field(form(), name).value),
-      ["sa réponse écrite", "le client", "2026-11-02"],
-    );
-
-    form().declencher("submit");
-    await repos();
-    assert.deepEqual(vue.dernier("attente"), ["parade", "attente-poser", 30, { quoi: "sa réponse écrite", qui: "le client", relance: "2026-11-02" }]);
-    assert.equal(slipOf(vue, 30).dessous("form").length, 0);
-    assert.ok(slipOf(vue, 30).dessous("button").some(({ textContent }) => textContent === "waiting for…"));
-  });
-
-  test("refusé, le formulaire reste, et dit pourquoi ; « cancel » le referme sans rien envoyer ; et le ticket parked le referme", async () => {
-    let answer: Terminal | { refus: string } = { refus: "nothing is written: say whom it waits for — the client, a team, a person" };
-    const vue = await open({ attente: () => answer });
-    receive(vue);
-    buttonOf(slipOf(vue, 31), "waiting for…").click();
-    await repos();
-    const form = () => slipOf(vue, 31).dessous("form")[0] ?? assert.fail("pas de formulaire");
-    type(field(form(), "quoi"), "sa réponse");
-    form().declencher("submit");
-    await repos();
-    assert.equal(form().dessous("p").find((pose) => pose.className === "refus")?.textContent, "nothing is written: say whom it waits for — the client, a team, a person");
-    assert.equal(field(form(), "quoi").value, "sa réponse");
-
-    const calls = vue.appels.filter(({ geste: action }) => action === "attente").length;
-    buttonOf(form(), "Cancel").click();
-    await repos();
-    assert.equal(slipOf(vue, 31).dessous("form").length, 0);
-    assert.equal(vue.appels.filter(({ geste: action }) => action === "attente").length, calls);
-
-    // Rouvert, puis le ticket passe dans WAITING à la lecture suivante : le formulaire n'a plus de carte, il se referme.
-    answer = SECOND;
-    buttonOf(slipOf(vue, 31), "waiting for…").click();
-    await repos();
-    receive(vue, drawable({ ...FACTS, rail: FACTS.rail.map((pose) => (pose.ticket === 31 ? { ...pose, etat: "WAITING", tiers: THIRD } : pose)) }));
-    assert.ok(column(vue, "Backlog").contains(slipOf(vue, 31)));
-    assert.equal(slipOf(vue, 31).dessous("form").length, 0);
-    receive(vue);
-    assert.equal(slipOf(vue, 31).dessous("form").length, 0, "le formulaire refermé ne revient pas");
-  });
-
 });
 
 const card = (vue: Played) => vue.element("fiche");

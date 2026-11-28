@@ -135,8 +135,6 @@ async function openCard(answers: Answers): Promise<Plays> {
 const failedCard = () =>
   openCard({
     lireQuestion: () => ({ a: A, sans: `not read: ${RAW}` }),
-    lireDiscussion: () => ({ sans: `not read: ${RAW}` }),
-    lireHistoire: () => ({ sans: `not read: ${RAW}` }) as never,
   });
 
 // Settings (#1700) : une seule page, qui ne lit rien : sa lecture ratée n'a rien à dire.
@@ -163,7 +161,7 @@ async function second(): Promise<Plays> {
 const SCREENS: Screen[] = [
   // L'accueil n'a plus de ligne de lecture en échec à part : celle du projet le dit (plus bas).
   { nom: "accueil", echec: home, lectures: 0 },
-  { nom: "fiche d'une carte", echec: failedCard, lectures: 3 },
+  { nom: "fiche d'une carte", echec: failedCard, lectures: 1 },
   { nom: "Settings", echec: settings, lectures: 0 },
   { nom: "bandeau du second", echec: second, lectures: 0 },
 ];
@@ -226,7 +224,7 @@ async function homeQueued(): Promise<Plays> {
   await repos();
   return { vue, racine: vue.element("tous") };
 }
-const queuedCard = () => openCard({ lireQuestion: () => ({ a: A, aucune: true }), lireDiscussion: () => undefined });
+const queuedCard = () => openCard({ lireQuestion: () => ({ a: A, aucune: true }) });
 
 describe("en attente de décision, aucun écran n'écrit à plat une commande ni un prix", () => {
   for (const [name, play] of [["accueil", homeQueued], ["fiche d'une carte", queuedCard]] as const) {
@@ -260,7 +258,7 @@ describe("en attente de décision, chaque geste attendu est un bouton, pas du te
     const proposes = actionsOfCard(card);
     assert.ok(proposes.length > 0, "la table ne propose aucun geste");
     const cardButtons = buttons(root).map(({ textContent }) => textContent);
-    for (const { libelle: wording } of proposes.filter(({ id }) => id !== "priorite")) assert.ok(cardButtons.includes(wording), `« ${wording} » n'est pas un bouton de la fiche`);
+    for (const { libelle: wording } of proposes) assert.ok(cardButtons.includes(wording), `« ${wording} » n'est pas un bouton de la fiche`);
     const [first] = proposes;
     const actions = root.dessous("section").find(({ className }) => className === "gestes-fiche") ?? assert.fail("pas de gestes sur la fiche");
     assert.equal(buttons(actions)[0]?.textContent, first?.libelle);

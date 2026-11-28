@@ -25,7 +25,7 @@ const FACTS: Facts = {
     { ticket: 5, etat: "WAITING", titre: "Chez un tiers", url: url(5), activite: null, attente: null, tiers: { quoi: "le devis", qui: "le client", depuis: "2026-10-11T10:04:11.000Z", relance: "2026-10-10T00:00:00.000Z", aLArrivee: "il repart en cuisine" } },
   ],
   attend: [{ ticket: 6, titre: "Qui m'attend", url: url(6) }],
-  livres: [{ ticket: 7, titre: "Livré", url: url(7), livre: "2026-10-12T10:00:00.000Z", station: "box/claude", pr: null, relecture: { resume: "Le rail se lit en deux lignes. Le détail est sur la fiche.", constats: [] } }],
+  livres: [{ ticket: 7, titre: "Livré", url: url(7), livre: "2026-10-12T10:00:00.000Z", station: "box/claude", pr: null }],
 };
 const cards = (facts: Facts): Card[] => {
   const draws = rail(facts);
@@ -91,9 +91,9 @@ describe("la phrase de chaque état d'une carte (#622)", () => {
     assert.deepEqual(lineAwaitingMe(undefined), { ligne: "waits for your decision", repere: true });
   });
 
-  test("livrée : l'heure et la première phrase du résumé ; sans résumé, l'heure et le repère", () => {
-    assert.deepEqual(sentence(of(FACTS, 7)), { ligne: `served at ${hourHM("2026-10-12T10:00:00.000Z")} · Le rail se lit en deux lignes.` });
-    assert.deepEqual(lineDelivered("2026-10-12T10:00:00.000Z", undefined), { ligne: `served at ${hourHM("2026-10-12T10:00:00.000Z")}`, repere: true });
+  test("livrée : l'heure seule", () => {
+    assert.deepEqual(sentence(of(FACTS, 7)), { ligne: `served at ${hourHM("2026-10-12T10:00:00.000Z")}` });
+    assert.deepEqual(lineDelivered("2026-10-12T10:00:00.000Z"), { ligne: `served at ${hourHM("2026-10-12T10:00:00.000Z")}` });
   });
 
   test("aucune carte ne parle comme le runtime", () => {

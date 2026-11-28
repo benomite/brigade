@@ -1712,43 +1712,6 @@ main > header,
 #rail .porte span {
   color: var(--bon-discret);
 }
-/* Sur la fiche, le même résumé : en prose, tout le texte, rien de coupé. */
-#fiche .details p.livraison {
-  font-family: var(--police-interface);
-  font-size: var(--taille-corps);
-  overflow-wrap: break-word;
-}
-/* Ses remarques, sous leur nombre : un clic les déplie sur la fiche, un autre les replie. */
-#rail .remarques,
-#fiche .remarques {
-  font-size: var(--taille-meta);
-  line-height: 1.45;
-}
-#rail .remarques summary,
-#fiche .remarques summary {
-  color: var(--bon-discret);
-  cursor: pointer;
-  user-select: none;
-}
-#rail .remarques ol,
-#fiche .remarques ol {
-  display: flex;
-  flex-direction: column;
-  gap: var(--pas-1);
-  margin: var(--pas-1) 0 0;
-  padding-left: var(--pas-4);
-  list-style: decimal;
-}
-#rail .remarques li strong,
-#fiche .remarques li strong {
-  margin-right: var(--pas-2);
-  font-weight: 700;
-}
-#rail .remarques code,
-#fiche .remarques code {
-  margin-right: var(--pas-2);
-  color: var(--bon-discret);
-}
 #rail .ticket {
   padding: 0;
   font-size: var(--taille-corps);
@@ -1857,32 +1820,6 @@ main > header,
 #fiche .porte span {
   color: var(--discret);
 }
-/* L'histoire et le coût : les étapes dans l'ordre, chacune avec son heure ; la relecture et le
-   jugement prennent la couleur de leur verdict. */
-#fiche .histoire,
-#fiche .situation {
-  display: flex;
-  flex-direction: column;
-  gap: var(--pas-2);
-}
-#fiche .histoire ol {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-#fiche .histoire li {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) max-content;
-  gap: var(--pas-1) var(--pas-4);
-}
-#fiche .histoire li[data-ton] > span {
-  color: var(--ton);
-}
-#fiche .histoire li p {
-  grid-column: 1 / -1;
-  margin: 0;
-  color: var(--discret);
-}
 /* Le cook du ticket, tel que sa station le publie sur le tableau de la cuisine (ticket 1846) : sa pilule et sa ligne de
    tête, ce qu'il fait en ce moment, ses derniers gestes chacun avec son heure, sa PR, et d'où vient ce qui est dit. */
 #fiche .activite-du-cook {
@@ -1916,45 +1853,6 @@ main > header,
   gap: var(--pas-1) var(--pas-4);
   color: var(--texte-doux);
 }
-/* La rétro du ticket servi : ses leçons, chacune sa pastille « provisional » comme dans ce que les
-   cooks ont appris, son id et son texte ; puis ce que son cook a écrit, tel quel. */
-#fiche .retro {
-  display: flex;
-  flex-direction: column;
-  gap: var(--pas-2);
-}
-#fiche .retro ul {
-  display: grid;
-  gap: var(--pas-1);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-#fiche .retro li {
-  display: flex;
-  align-items: baseline;
-  gap: var(--pas-3);
-  min-width: 0;
-}
-#fiche .retro li > .survol {
-  flex: none;
-}
-#fiche .retro .id {
-  flex: none;
-  font-size: var(--taille-corps);
-  color: var(--discret);
-}
-#fiche .retro .texte {
-  min-width: 0;
-  overflow-wrap: anywhere;
-  color: var(--texte);
-}
-#fiche .retro .reprise {
-  flex: none;
-  font-size: var(--taille-corps);
-  font-style: italic;
-  color: var(--discret);
-}
 /* Les gestes de la fiche : un par ligne, son bouton puis ce qu'il coûte, en clair ; la priorité se
    choisit avant d'être envoyée. Ce qui n'est pas parti se lit dessous, en rouge. */
 #fiche .gestes-fiche {
@@ -1976,17 +1874,6 @@ main > header,
   flex-wrap: wrap;
   align-items: baseline;
   gap: var(--pas-2);
-}
-/* L'issue, repliée d'un clic sous les gestes : son titre est celui du pli. */
-#fiche details.issue-repliee > summary {
-  cursor: pointer;
-  color: var(--texte-doux);
-}
-#fiche details.issue-repliee > .discussion > h4 {
-  display: none;
-}
-#fiche select.priorite {
-  max-width: 100%;
 }
 #fiche .prix {
   color: var(--discret);
@@ -2072,129 +1959,6 @@ main > header,
   cursor: default;
 }
 #fiche .question .postee {
-  margin: 0;
-  color: var(--vert);
-}
-/* L'issue et sa discussion, sous les gestes : chaque message bordé à gauche, son auteur et sa date
-   en tête, puis son texte rendu — titres ramenés à la taille de la fiche, listes, citations, code,
-   tableaux, liens. Dessous, le champ du commentaire, comme celui d'une réponse. */
-#fiche .discussion {
-  display: flex;
-  flex-direction: column;
-  align-self: stretch;
-  gap: var(--pas-2);
-}
-#fiche .discussion > ol {
-  display: flex;
-  flex-direction: column;
-  gap: var(--pas-3);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-#fiche .discussion > ol > li {
-  padding: var(--pas-2) 0 var(--pas-2) var(--pas-3);
-  border-left: 2px solid var(--trait);
-}
-#fiche .discussion > ol > li.corps {
-  border-left-color: var(--trait-fort);
-}
-#fiche .discussion > ol > li > header {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-start;
-  gap: 0 var(--pas-2);
-  color: var(--discret);
-  font-size: var(--taille-corps);
-}
-#fiche .discussion > ol > li > header strong {
-  color: var(--texte);
-}
-#fiche .rendu {
-  display: flex;
-  flex-direction: column;
-  gap: var(--pas-2);
-  margin-top: var(--pas-1);
-  line-height: 1.45;
-}
-#fiche .rendu :is(h1, h2, h3, h4, h5, h6) {
-  margin: var(--pas-1) 0 0;
-  font-weight: 600;
-  line-height: 1.3;
-}
-#fiche .rendu h1 {
-  font-size: var(--taille-intertitre);
-}
-#fiche .rendu h2 {
-  font-size: var(--taille-intertitre);
-}
-#fiche .rendu :is(h3, h4, h5, h6) {
-  font-size: var(--taille-intertitre);
-}
-#fiche .rendu :is(p, ul, ol, blockquote, table, details) {
-  margin: 0;
-}
-#fiche .rendu :is(ul, ol) {
-  padding-left: var(--pas-5);
-}
-#fiche .rendu li > p + :is(ul, ol, p) {
-  margin-top: var(--pas-1);
-}
-#fiche .rendu blockquote {
-  padding-left: var(--pas-3);
-  color: var(--texte-doux);
-  border-left: 3px solid var(--trait-fort);
-}
-#fiche .rendu table {
-  border-collapse: collapse;
-}
-#fiche .rendu :is(th, td) {
-  padding: var(--pas-1) var(--pas-2);
-  text-align: left;
-  border: 1px solid var(--trait);
-}
-#fiche .rendu hr {
-  align-self: stretch;
-  border: none;
-  border-top: 1px solid var(--trait);
-}
-#fiche .rendu summary {
-  cursor: pointer;
-}
-#fiche .rendu a {
-  color: var(--bleu);
-  text-decoration: underline;
-  cursor: pointer;
-}
-#fiche .discussion .commentaire {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: var(--pas-2);
-}
-#fiche .discussion textarea {
-  flex: 1 1 100%;
-  min-width: 0;
-  padding: var(--pas-1) var(--pas-2);
-  font: inherit;
-  font-size: var(--taille-corps);
-  color: var(--texte);
-  background: var(--fond);
-  border: 1px solid var(--trait);
-  border-radius: var(--rayon-bouton);
-  resize: vertical;
-}
-#fiche .discussion textarea:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-#fiche .discussion textarea:disabled {
-  color: var(--discret);
-  background: none;
-  border-style: dashed;
-  cursor: default;
-}
-#fiche .discussion .postee {
   margin: 0;
   color: var(--vert);
 }
@@ -2825,22 +2589,6 @@ main > header {
 /* La section « Connections » de la page d'une station (ticket 2643) : ses rangées sont celles de components/setting. */
 .connexions .ailleurs { margin: var(--pas-2) 0 0; opacity: 0.7; }
 
-/* Le moteur d'une livraison, en tête de ce que la file en dit sur sa fiche (livraison-moteur/). */
-.moteur-livraison {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--pas-2);
-  align-items: baseline;
-  margin: 0 0 var(--pas-2);
-  color: var(--discret);
-}
-.moteur-livraison strong {
-  color: var(--texte);
-  font-weight: 600;
-}
-.moteur-livraison .prix {
-  font-variant-numeric: tabular-nums;
-}
 /* L'écran de l'outil manquant (ticket 4059, outils-requis/) : à la place du pas qu'il retient — le compte du premier
    lancement, ou l'avis —, l'outil nommé, pourquoi, le lien de sa page d'installation et « I installed it ». */
 #tous .ecran-outil-manquant h3,
