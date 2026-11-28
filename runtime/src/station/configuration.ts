@@ -5,7 +5,7 @@
 // Une ligne : le nom du projet, son dépôt GitHub, puis, au besoin, des
 // réglages `BRIGADE_…=valeur` propres à ce projet. La branche d'intégration
 // vient du projet — celle que son dépôt déclare, sinon sa branche par défaut
-// (`reglages-projet/en-vigueur.ts`) —, jamais de la ligne : une branche qu'une
+// du dépôt —, jamais de la ligne : une branche qu'une
 // ancienne ligne a gardée est ignorée.
 //
 //   # projet  dépôt              réglages
@@ -18,9 +18,8 @@
 import { readFileSync } from "node:fs";
 import { isAbsolute, join, resolve, sep } from "node:path";
 import { LECTURES_INTERDITES } from "../bac-a-sable/configuration.ts";
-import { DECISIONS } from "../decisions.ts";
-import { avecLaBrancheDuDepot } from "../reglages-projet/en-vigueur.ts";
-import { NOM_DE_PROJET } from "../runtime.ts";
+import { NOM_DE_PROJET } from "../nom-de-projet.ts";
+import { DECISIONS } from "../noms-des-decisions.ts";
 
 // Ce que la station porte sous son répertoire (`BRIGADE_STATION_DIR`).
 export const CONFIGURATION = "projets";
@@ -166,10 +165,3 @@ export function environnementDuProjet(racine: string, projet: ProjetConfigure, e
     BRIGADE_WORKTREES_DIR: worktrees,
   };
 }
-
-// L'environnement où une commande du chef lit un projet de la station — le
-// geste de la station (`geste.ts`), par où l'app lit ce que la station sert sur
-// la box : celui du projet, avec la branche d'intégration que son dépôt déclare, celle que sa
-// cuisine lit.
-export const environnementDeLaCommande = (racine: string, projet: ProjetConfigure, env: Record<string, string | undefined>): Record<string, string | undefined> =>
-  avecLaBrancheDuDepot(environnementDuProjet(racine, projet, env));

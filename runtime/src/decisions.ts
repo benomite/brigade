@@ -24,6 +24,7 @@ import type { ReglagesDeFermeture } from "./events/closing.ts";
 import { configFermeture, provenancesDeFermeture } from "./closing/settings.ts";
 import { lireBudget, lireBudgetDeLaBase } from "./cout-des-gates.ts";
 import { cheminJournal, type Journal } from "./journal.ts";
+import { DECISIONS } from "./noms-des-decisions.ts";
 import { configManager } from "./manager.ts";
 import { plafondDuProjet, type PlafondLu } from "./reagir.ts";
 import { variablesDuDepot } from "./reglages-projet/en-vigueur.ts";
@@ -32,27 +33,7 @@ import { configReviewer } from "./reviewer.ts";
 import { ConfigInvalide } from "./runtime.ts";
 import { lireStations, type StationDeclaree } from "./stations-declarees.ts";
 
-// Les décisions, nommées par la variable qu'elles remplacent.
-export const DECISIONS = [
-  "BRIGADE_STATIONS",
-  "BRIGADE_DRIFT_TICKET_TOKENS",
-  "BRIGADE_DRIFT_LOST_TOKENS",
-  "BRIGADE_GATES_BUDGET_SECONDS",
-  "BRIGADE_GATES_BUDGET_CPU_SECONDS",
-  "BRIGADE_GATES_BASE_BUDGET_SECONDS",
-  "BRIGADE_GATES_BASE_BUDGET_CPU_SECONDS",
-  "BRIGADE_MANAGER_MODEL",
-  "BRIGADE_MANAGER_EFFORT",
-  "BRIGADE_REVIEWER_MODEL",
-  "BRIGADE_REVIEWER_EFFORT",
-  "BRIGADE_CLOSING_MODEL",
-  "BRIGADE_CLOSING_EFFORT",
-  "BRIGADE_CLOSING_COOKS",
-  "BRIGADE_CLOSING_MAX_TOKENS",
-  "BRIGADE_CLOSING_MAX_REMOVED_LINES",
-  "BRIGADE_CEILING_MODEL",
-  "BRIGADE_CEILING_EFFORT",
-] as const;
+export { DECISIONS };
 
 export type Decision = (typeof DECISIONS)[number];
 
