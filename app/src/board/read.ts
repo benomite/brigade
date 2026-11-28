@@ -187,9 +187,3 @@ export async function readTheBoardOfRepository({ depot: repository, appeler: cal
   return { ...complete, parqueesPourLeChef: parkedForTheChef };
 }
 
-// Ce que la vue reçoit de l'activité des cooks d'un projet, à chaque lecture de son rail (#1846, vue/activity-of-cook.js) :
-// l'heure de la lecture, et ce que GitHub dit de chaque cook.
-export type ActivitiesPublished = { projet: string; lu: string; activites: ActivityOfCook[] };
-export function activitiesPublished(project: string, readOne: BoardRead): ActivitiesPublished {
-  return { projet: project, lu: readOne.luLe, activites: readOne.activites };
-}

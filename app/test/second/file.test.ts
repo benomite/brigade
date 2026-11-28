@@ -42,10 +42,10 @@ function fakeGh(t: TestContext, code: number, output: string, error = ""): strin
 // `depot` : ce qu'il rend du dépôt lui-même (`repos/<depot>`, ses `permissions`, #3163) — `[]` sans lui.
 function ghOfProject(t: TestContext, wait = 0, repository?: unknown): string {
   const d = folder(t);
-  const paths = ["repos/x/issues?labels=fire", "repos/x/issues?labels=chef-todo", "repos/x/issues/8/comments", "repos/x/issues/20/comments"];
+  const paths = ["repos/x/issues?labels=fire", "repos/x/issues?labels=parked:chef", "repos/x/issues/8/comments", "repos/x/issues/20/comments"];
   paths.forEach((path, rank) => writeFileSync(join(d, `${rank}.json`), JSON.stringify(answerA(path))));
   const gh = join(d, "gh");
-  const theCase = ["*labels=fire*", "*labels=chef-todo*", "*/issues/8/comments*", "*/issues/20/comments*"].map((motive, rank) => `  ${motive}) /bin/cat '${join(d, `${rank}.json`)}' ;;`).join("\n");
+  const theCase = ["*labels=fire*", "*labels=parked:chef*", "*/issues/8/comments*", "*/issues/20/comments*"].map((motive, rank) => `  ${motive}) /bin/cat '${join(d, `${rank}.json`)}' ;;`).join("\n");
   writeFileSync(join(d, "depot.json"), JSON.stringify(repository ?? []));
   const ofRepository = `  repos/${REPOSITORY}) /bin/cat '${join(d, "depot.json")}' ;;`;
   writeFileSync(gh, `#!/bin/sh\necho "$@" >> '${join(d, "recu")}'\n${wait === 0 ? "" : `sleep ${wait}\n`}case "$2" in\n${ofRepository}\n${theCase}\n  *) echo '[]' ;;\nesac\n`);
@@ -62,23 +62,23 @@ function play(t: TestContext, gh: string, name: string, repository: string) {
 const REPOSITORY = "acme/brigade";
 const READ = "2026-11-05T12:00:00.000Z";
 
-// Ce que GitHub tient du projet : #8, en pass, sa livraison touche à ce qui la juge — sa carte `chef-todo` demande au chef
-// de la merger ; #20, une carte `chef-todo` ; #1, sur le rail, calibré par le manager, n'attend rien — ni le chef, ni un manager (le rail bloqué,
-// #3358 : test/rail-blocked/). Rendu par chemin de l'API, comme `gh api` le rend.
+// Ce que GitHub tient du projet : #8, en pass, que la cuisine parque pour le chef — sa PR touche à ce qui la juge, il peut la merger ;
+// #20, parqué pour le chef aussi, qui pose une question ; #1, sur le rail, calibré par le manager, n'attend rien — ni le chef, ni un
+// manager. Rendu par chemin de l'API, comme `gh api` le rend.
 const FIRE = [
   { number: 1, title: "Ticket 1", html_url: `https://github.com/${REPOSITORY}/issues/1`, created_at: "2026-11-01T00:00:00Z", labels: [{ name: "fire" }, { name: "model:sonnet" }, { name: "effort:medium" }] },
-  { number: 8, title: "Ticket 8", html_url: `https://github.com/${REPOSITORY}/issues/8`, created_at: "2026-11-01T00:00:00Z", labels: [{ name: "fire" }, { name: "in-pass" }, { name: "chef-todo" }] },
+  { number: 8, title: "Ticket 8", html_url: `https://github.com/${REPOSITORY}/issues/8`, created_at: "2026-11-01T00:00:00Z", labels: [{ name: "fire" }, { name: "in-pass" }, { name: "parked:chef" }] },
 ];
-const CHEF = [FIRE[1], { number: 20, title: "Ticket 20", html_url: `https://github.com/${REPOSITORY}/issues/20`, created_at: "2026-11-01T00:00:00Z", labels: [{ name: "chef-todo" }] }];
+const CHEF = [FIRE[1], { number: 20, title: "Ticket 20", html_url: `https://github.com/${REPOSITORY}/issues/20`, created_at: "2026-11-01T00:00:00Z", labels: [{ name: "parked:chef" }] }];
 const COMMENTS: Record<number, unknown[]> = {
-  8: [{ body: "<!-- brigade:todo kind=merge-by-hand -->\nMerge the PR of #8 by hand? It changes what judges it.\n- [merge] Merge the PR of #8", author_association: "OWNER", created_at: "2026-11-05T09:00:00Z" }],
-  20: [{ body: "<!-- brigade:todo kind=blocked -->\nWhich token does the box use for the registry?", author_association: "OWNER", created_at: "2026-11-05T10:00:00Z" }],
+  8: [{ body: "The pass approves PR #8, but it touches the pass's own rules: merge it yourself.", author_association: "OWNER", created_at: "2026-11-05T09:00:00Z" }],
+  20: [{ body: "Parked for the chef: which token does the box use for the registry?", author_association: "OWNER", created_at: "2026-11-05T10:00:00Z" }],
 };
 // La réponse de GitHub à un chemin : la liste au label demandé, les commentaires d'une issue, rien d'autre.
 function answerA(path: string): unknown {
   const label = /[?&]labels=([^&]+)/.exec(path)?.[1];
   if (label === "fire") return FIRE;
-  if (label === "chef-todo") return CHEF;
+  if (label === "parked:chef") return CHEF;
   const commented = /\/issues\/(\d+)\/comments/.exec(path)?.[1];
   return commented === undefined ? [] : (COMMENTS[Number(commented)] ?? []);
 }
@@ -86,9 +86,9 @@ const github: CallGitHub = async (path) => ({ status: 200, data: answerA(path) }
 
 // Le bloc `awaiting` que l'app et le second en lisent, bords compris.
 const BLOCK = [
-  "awaiting   2 decisions await the chef — the oldest for 3 h 00",
-  "  #8  for 3 h 00  Merge the PR of #8 by hand? It changes what judges it. — answer on its Todo card: “Merge the PR of #8” — or in your own words  Ticket 8",
-  "  #20  for 2 h 00  Which token does the box use for the registry? — answer on its Todo card, in your own words  Ticket 20",
+  "awaiting   2 decisions await the chef — the oldest for 4 d",
+  "  #8  for 4 d  The pass approves PR #8, but it touches the pass's own rules: merge it yourself. — on its Todo card: “Merge PR #8” — or answer in your own words  Ticket 8",
+  "  #20  for 2 h 00  Parked for the chef: which token does the box use for the registry? — on its Todo card: Answer, in your own words — the ticket goes back on the rail  Ticket 20",
   "end awaiting",
 ].join("\n");
 
@@ -172,7 +172,7 @@ describe("le crochet joué à la main", () => {
     // Les durées se comptent jusqu'à la lecture : la même file que BLOC, à l'heure près.
     assert.equal(context.slice(context.indexOf("\n\nawaiting") + 2).replace(/for \d+ (?:d|h \d\d|min|s)\b/g, "for …"), BLOCK.replace(/for \d+ (?:d|h \d\d|min|s)\b/g, "for …"), context);
     const receivedOnes = readFileSync(join(gh, "..", "recu"), "utf8");
-    assert.match(receivedOnes, new RegExp(`^api repos/${REPOSITORY}/issues\\?state=open&labels=fire&`, "m"));
+    assert.match(receivedOnes, new RegExp(`^api repos/${REPOSITORY}/issues\\?state=open&labels=parked:chef&`, "m"));
     assert.doesNotMatch(receivedOnes, /kitchen-board/);
   });
 

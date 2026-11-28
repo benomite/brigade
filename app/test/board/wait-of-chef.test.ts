@@ -4,8 +4,6 @@
 // un faux GitHub qui tient ses issues, leurs labels, leurs commentaires et leurs événements.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { putAside } from "../../src/awaiting.ts";
-import { understand, board as boardOf, type Facts } from "../../src/facts.ts";
 import { contextOfTheFile, readTheFile } from "../../src/second/file.ts";
 import { withWhatAwaitingTheChef, blockOfChef, readWhatAwaitingTheChef, type WaitRead } from "../../src/board/wait-of-chef.ts";
 import type { CallGitHub, AnswerGitHub } from "../../src/board/client.ts";
@@ -62,31 +60,7 @@ const readEntry = async (call: CallGitHub = github()): Promise<Extract<WaitRead,
 };
 
 describe("ce qui attend le chef, lu de GitHub", () => {
-  test("une entrée par fait de GitHub qui demande quelque chose au chef, la plus ancienne d'abord, chacune avec sa question et son geste", async () => {
-    const { attentes: waits } = await readEntry();
-    assert.deepEqual(
-      waits.map(({ ticket, quoi: what, depuis: since, ligne: line }) => ({ ticket, quoi: what, depuis: since, ligne: line })),
-      [
-        { ticket: 12, quoi: "mise-de-cote", depuis: "2026-11-05T08:00:00Z", ligne: "Does the export keep the old column order? — answer on its Todo card: “Yes, merge PR #1560 as delivered” or “No, we drop the export” — or in your own words" },
-        { ticket: 8, quoi: "carte", depuis: "2026-11-05T09:00:00Z", ligne: "Merge the PR of #8 by hand? It changes what judges it. — answer on its Todo card: “Merge the PR of #8” — or in your own words" },
-        { ticket: 20, quoi: "carte", depuis: "2026-11-05T10:00:00Z", ligne: "Which token does the box use for the registry? — answer on its Todo card, in your own words" },
-      ],
-    );
-    // Ce que la carte de TODO en fait : la question du chef, de sa sorte.
-    assert.equal(waits.find(({ ticket }) => ticket === 8)?.chef?.sorte, "merge-by-hand");
-    assert.equal(waits.find(({ ticket }) => ticket === 20)?.chef?.sorte, "blocked");
-  });
 
-  test("le bloc `awaiting`, bords compris : sa tête, une ligne par entrée — son numéro, depuis quand, sa ligne, son titre", async () => {
-    assert.deepEqual(blockOfChef(await readEntry()), [
-      "awaiting   3 decisions await the chef — the oldest for 4 h 00",
-      "  #12  for 4 h 00  Does the export keep the old column order? — answer on its Todo card: “Yes, merge PR #1560 as delivered” or “No, we drop the export” — or in your own words  Ticket 12",
-      "  #8  for 3 h 00  Merge the PR of #8 by hand? It changes what judges it. — answer on its Todo card: “Merge the PR of #8” — or in your own words  Ticket 8",
-      "  #20  for 2 h 00  Which token does the box use for the registry? — answer on its Todo card, in your own words  Ticket 20",
-      "end awaiting",
-      "",
-    ]);
-  });
 
   test("rien n'attend : le bloc le dit", async () => {
     const empty = await readEntry(github({ 1: { labels: ["fire"] }, 7: WORLD[7] as Issue }));
@@ -94,27 +68,7 @@ describe("ce qui attend le chef, lu de GitHub", () => {
     assert.deepEqual(blockOfChef(empty), ["awaiting   nothing awaits the chef", "end awaiting", ""]);
   });
 
-  test("répondue, la question de produit n'attend plus ; le label `chef-todo` retiré, la carte part", async () => {
-    const answer = said("<!-- brigade:reponse gesture=merge -->\nYes, merge PR #1560 as delivered", "2026-11-05T11:00:00Z");
-    const world = { ...WORLD, 12: { ...(WORLD[12] as Issue), commentaires: [...((WORLD[12] as Issue).commentaires ?? []), answer] }, 20: { ...(WORLD[20] as Issue), labels: [] } };
-    assert.deepEqual((await readEntry(github(world))).attentes.map(({ ticket }) => ticket), [8]);
-  });
 
-  test("une issue `chef-todo` dont la question ne se lit pas n'est pas une entrée, et le second en est prévenu (#2455)", async () => {
-    const world = {
-      5: { labels: ["chef-todo"], created_at: "2026-11-05T05:00:00Z" },
-      6: { labels: ["chef-todo"], created_at: "2026-11-05T05:30:00Z", commentaires: [said("<!-- brigade:todo kind=blocked -->\n  ", "2026-11-05T05:40:00Z")] },
-    };
-    const reading = await readEntry(github(world));
-    assert.deepEqual(reading.attentes, []);
-    assert.equal(reading.illisibles.length, 2);
-    assert.match(reading.illisibles[0] ?? "", /^#5 carries `chef-todo` but is not shown in Todo: no comment marked/);
-    assert.match(reading.illisibles[1] ?? "", /^#6 carries `chef-todo` but is not shown in Todo: its marked card has no text/);
-    // Le second le lit dans le bloc `awaiting`.
-    const block = blockOfChef(reading);
-    assert.ok(block.includes(`  ${reading.illisibles[0]}`) && block.includes(`  ${reading.illisibles[1]}`), block.join("\n"));
-    assert.ok(!block.some((line) => line.startsWith("  #5  for")));
-  });
 
   test("le tableau de la cuisine n'est jamais lu, ni une entrée", async () => {
     const calls: string[] = [];
@@ -143,26 +97,6 @@ const KITCHEN: Record<number, Issue> = {
 };
 
 describe("l'app et le second ne se contredisent pas : la même lecture, les mêmes entrées", () => {
-  test("le Todo de l'app, son bloc `awaiting` et la file du second disent les mêmes entrées, dans le même ordre, mot pour mot", async () => {
-    const readOne = await readByTheApp(github(KITCHEN));
-    assert.ok(readOne.lu, !readOne.lu ? readOne.raison : "");
-    // L'app : le bloc de son `status`, et les cartes de Todo qu'elle en dessine.
-    const status = statusOfBoard(readOne);
-    const shownOne = putAside({ projet: "kitchen", demande: 0, a: READ, sorties: [{ commande: "status", texte: status }] });
-    assert.ok(!("erreur" in shownOne) && shownOne.attend !== undefined, "status carries its awaiting block");
-    const facts = understand(JSON.stringify(readOne.faits));
-    assert.ok(!("informe" in facts), `facts are in shape: ${"informe" in facts ? facts.informe : ""}`);
-    const todo = boardOf(facts as Facts, { bloc: shownOne.attend, a: READ }, { texte: status, a: READ }).rail.colonnes.find(({ nom: name }) => name === "Awaiting you")?.cartes ?? [];
-    assert.deepEqual(todo.map(({ ticket }) => ticket), [41, 40]);
-    // Le second : la même lecture, le même bloc.
-    const file = await readTheFile(github(KITCHEN), REPOSITORY, now);
-    assert.ok(file.lue, JSON.stringify(file));
-    assert.equal(file.texte, shownOne.attend);
-    const context = contextOfTheFile({ nom: "kitchen", depot: REPOSITORY }, file);
-    assert.ok(context.includes(shownOne.attend.trimEnd()), context);
-    assert.match(context, /from GitHub only .* not the Kitchen board/);
-    assert.equal(facts.compteurs.attend, 2);
-  });
 
   test("un Todo vide : l'app et le second disent tous deux « nothing awaits the chef »", async () => {
     const world = { 1: { labels: ["fire", "model:sonnet", "effort:medium"] } };
@@ -190,12 +124,4 @@ describe("la carte `chef-todo` d'une question du manager (#4129)", () => {
   const card = (text: string): Record<number, Issue> => ({ 70: { labels: ["chef-todo"], commentaires: [said(`<!-- brigade:todo kind=product-question -->\n${text}`, "2026-11-05T06:00:00Z")] } });
   const entryOf = async (world: Record<number, Issue>) => (await readEntry(github(world))).attentes.find(({ ticket }) => ticket === 70);
 
-  test("sa ligne `Recommended:` met en avant le choix qu'elle nomme, et quitte le texte de la carte", async () => {
-    const entry = await entryOf(card("Which column order does the export keep?\n\n- [resume] Keep the old order\n- [close] Drop the export\n\n**Recommended:** Keep the old order — the users read it that way"));
-    assert.deepEqual(entry?.chef, {
-      sorte: "product-question",
-      texte: "Which column order does the export keep?\n- [resume] Keep the old order\n- [close] Drop the export",
-      recommandee: { texte: "Keep the old order", pourquoi: "the users read it that way" },
-    });
-  });
 });

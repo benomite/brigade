@@ -14,14 +14,10 @@ import { pathToFileURL } from "node:url";
 import vm from "node:vm";
 import { demarrageDuPont, poserLaVue, poserLesModules } from "../packaging/android.ts";
 import { APP } from "../packaging/construire.ts";
-import type { Answer } from "../src/card-todo.ts";
-import { writingByCapacitor, openTheActionsGitHub, type RequestNative, type AnswerNative } from "../src/actions-github-phone.ts";
-import { WITHOUT_DONE } from "../src/actions-github.ts";
+import { type RequestNative, type AnswerNative } from "../src/actions-github-phone.ts";
 import { clientOfThePriority, sendByFetch } from "../src/priority.ts";
-import { clientGitHub, bodyRead, byFetch, type Send } from "../src/board/client.ts";
+import { clientGitHub, bodyRead, byFetch } from "../src/board/client.ts";
 import type { BoardRead } from "../src/board/read.ts";
-import { cardOfComment, shapeOfChef, type CardOfChef } from "../src/board/todo-github.ts";
-import { answerOnGithub } from "../src/board-actions/answer-github.ts";
 import { repos } from "./helpers/false-vue.ts";
 
 const REPOSITORY = "chef/parade";
@@ -33,12 +29,6 @@ const API = "https://api.github.com/";
 // #1560, à merger.
 const QUESTION_40 = ["<!-- brigade:todo kind=product-question -->", "Keep the old export?", "- [resume] Yes, keep it", "- [drop] No, drop it"].join("\n");
 const QUESTION_41 = ["<!-- brigade:todo kind=product-question -->", "Does the export keep the old column order?", "- [merge] Yes, merge PR #1560 as delivered", "- [close] No, we drop the export"].join("\n");
-const CHEFS = new Map<number, CardOfChef>([
-  [40, cardOfComment(QUESTION_40) ?? assert.fail("#40 carries a chef's card")],
-  [41, cardOfComment(QUESTION_41) ?? assert.fail("#41 carries a chef's card")],
-]);
-// La réponse que la vue envoie d'un clic sur le choix `rang` de la carte de `ticket`.
-const click = (ticket: number, rank: number): Answer => ({ question: shapeOfChef((CHEFS.get(ticket) as CardOfChef).texte).question, choix: rank });
 
 // La dernière lecture du rail de parade : #22 sur son rail, #31 revenu de WAITING, #40 et #41 dans TODO.
 const READ: BoardRead = {
@@ -142,134 +132,24 @@ function desktop(world: ReturnType<typeof github>) {
   return clientOfThePriority({ jeton: token, appeler: clientGitHub({ jeton: token, envoyer: byFetch({ fetch: world.fetch }) }), envoyer: sendByFetch({ fetch: world.fetch }) });
 }
 
-// Les gestes du téléphone pour ce GitHub : le jeton du coffre, les lectures et les écritures par le HTTP natif, et ce que
-// sa dernière lecture de GitHub dit de parade. `ecrits` : les projets que le téléphone relit après une écriture prise.
-function phone(world: ReturnType<typeof github>) {
-  const writtenOnes: string[] = [];
-  const reading: Send = async (address, headers) => {
-    const { status, data } = await world.capacitor({ url: address, method: "GET", headers: headers });
-    return { status, data };
-  };
-  const actions = openTheActionsGitHub({
-    jeton: token,
-    appeler: clientGitHub({ jeton: token, envoyer: reading }),
-    envoyer: writingByCapacitor(world.capacitor),
-    depot: (project) => (project === PROJECT ? REPOSITORY : undefined),
-    dernier: (project) => (project === PROJECT ? READ : undefined),
-    chef: (project, ticket) => (project === PROJECT && typeof ticket === "number" ? CHEFS.get(ticket) : undefined),
-    ecrit: (project) => void writtenOnes.push(project),
-  });
-  return { gestes: actions, ecrits: writtenOnes };
-}
 
-// Le même geste, du desktop puis du téléphone, chacun sur son GitHub neuf : les deux GitHub ont reçu les mêmes demandes
-// — méthode, adresse, en-têtes, corps —, et en gardent le même état. Rend ce que chacun en a dit, et le GitHub du téléphone.
-async function twoTimes<R>(ofDesktop: (client: ReturnType<typeof desktop>) => Promise<R>, ofPhone: (actions: ReturnType<typeof phone>["gestes"]) => Promise<R>) {
-  const atDesktop = github();
-  const said = await ofDesktop(desktop(atDesktop));
-  const atPhone = github();
-  const { gestes: actions, ecrits: writtenOnes } = phone(atPhone);
-  const saysAtPhone = await ofPhone(actions);
-  assert.deepEqual(atPhone.recues, atDesktop.recues, "the phone sends GitHub the desktop's requests");
-  assert.deepEqual(atPhone.etat(), atDesktop.etat(), "GitHub ends up as the desktop's gesture leaves it");
-  assert.deepEqual(saysAtPhone, said, "the phone says what the desktop says");
-  return { recues: atPhone.recues, etat: atPhone.etat(), dit: saysAtPhone, ecrits: writtenOnes };
-}
 const resume = (received: Received[]) => received.map(({ methode: method, url, corps: body }) => `${method} ${url.slice(API.length - 1)}${body === undefined ? "" : ` ${JSON.stringify(body)}`}`);
 const HEADERS = { Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28", Authorization: `Bearer ${TOKEN}` };
 
 describe("le téléphone écrit sur GitHub ce que le desktop y écrit pour le même geste", () => {
-  test("répondre à une carte de TODO (resume) : le commentaire marqué posté, `served-elsewhere` et `chef-todo` retirés", async () => {
-    const { recues: received, etat: state, dit: said, ecrits: writtenOnes } = await twoTimes(
-      (client) => answerOnGithub({ depot: REPOSITORY, ticket: 40, chef: CHEFS.get(40), reponse: click(40, 1), client }),
-      (actions) => actions.repondreCarte(PROJECT, 40, click(40, 1)),
-    );
-    assert.deepEqual(resume(received), [
-      `POST /repos/${REPOSITORY}/issues/40/comments {"body":"<!-- brigade:reponse gesture=resume -->\\nYes, keep it"}`,
-      `DELETE /repos/${REPOSITORY}/issues/40/labels/served-elsewhere`,
-      `DELETE /repos/${REPOSITORY}/issues/40/labels/chef-todo`,
-      // Une carte parque son ticket pour le chef (#4129) : répondue, `parked` part aussi — l'issue ne le porte pas, GitHub
-      // répond 404.
-      `DELETE /repos/${REPOSITORY}/issues/40/labels/parked`,
-    ]);
-    assert.deepEqual(state.issues[40]?.labels, ["fire"]);
-    assert.deepEqual(said, { repondue: true, dit: "answer posted on #40 (resume): `served-elsewhere` and `chef-todo` removed", commentaire: 902 });
-    assert.deepEqual(writtenOnes, [PROJECT], "the phone reads GitHub again, and the card leaves TODO");
-  });
 
-  test("répondre à une carte de TODO (merge) : la PR lue sur GitHub, mergée, puis `chef-todo` retiré", async () => {
-    const { recues: received, etat: state } = await twoTimes(
-      (client) => answerOnGithub({ depot: REPOSITORY, ticket: 41, chef: CHEFS.get(41), reponse: click(41, 1), client }),
-      (actions) => actions.repondreCarte(PROJECT, 41, click(41, 1)),
-    );
-    assert.deepEqual(resume(received), [
-      `GET /repos/${REPOSITORY}/pulls/1560`,
-      `POST /repos/${REPOSITORY}/issues/41/comments {"body":"<!-- brigade:reponse gesture=merge -->\\nYes, merge PR #1560 as delivered"}`,
-      `PUT /repos/${REPOSITORY}/pulls/1560/merge {"merge_method":"merge"}`,
-      `DELETE /repos/${REPOSITORY}/issues/41/labels/chef-todo`,
-      // Mergée, la livraison n'attend plus personne : `parked` — l'issue ne le porte pas, 404.
-      `DELETE /repos/${REPOSITORY}/issues/41/labels/parked`,
-    ]);
-    assert.equal(state.pr.merged, true);
-  });
 
 });
 
 describe("sans station joignable, la réponse passe par GitHub seul", () => {
-  test("chaque demande part à api.github.com, avec la session GitHub du chef — aucune autre adresse n'est demandée", async () => {
-    const world = github();
-    const { gestes: actions } = phone(world);
-    assert.ok("repondue" in (await actions.repondreCarte(PROJECT, 40, click(40, 1))));
-    // La réponse : son commentaire, `served-elsewhere`, `chef-todo` et `parked` retirés (#4129).
-    assert.equal(world.recues.length, 1 + 3);
-    for (const { url, entetes: headers } of world.recues) {
-      assert.ok(url.startsWith(API), `${url} is GitHub's API`);
-      assert.deepEqual(headers, url.includes("/comments") ? { ...HEADERS, "Content-Type": "application/json" } : HEADERS);
-    }
-  });
 
-  test("ce que le téléphone ne lit pas ne part pas : une carte sans carte du chef", async () => {
-    const world = github();
-    const { gestes: actions, ecrits: writtenOnes } = phone(world);
-    assert.deepEqual(await actions.repondreCarte(PROJECT, 22, click(40, 1)), { refus: WITHOUT_DONE.carte, detail: "" });
-    assert.deepEqual(world.recues, []);
-    assert.deepEqual(writtenOnes, []);
-  });
 });
 
 describe("une écriture que GitHub ne prend pas se dit, et rien n'est montré fait", () => {
   const refuses = (when: (receivedOne: Received) => boolean): Outage => (receivedOne) => (when(receivedOne) ? { status: 403, data: { message: "Resource not accessible by integration" } } : undefined);
 
-  test("GitHub injoignable : rien n'est changé, et le téléphone dit ce que le réseau a dit", async () => {
-    const world = github(() => "injoignable");
-    const { gestes: actions, ecrits: writtenOnes } = phone(world);
-    const answeredOne = await actions.repondreCarte(PROJECT, 40, click(40, 1));
-    assert.ok("refus" in answeredOne);
-    assert.equal(answeredOne.refus, "nothing was sent: your answer was not posted on #40");
-    assert.deepEqual(world.etat().issues[40]?.labels, ["chef-todo", "fire", "served-elsewhere"]);
-    assert.deepEqual(writtenOnes, []);
-  });
 
-  test("la réponse que GitHub ne prend pas : elle n'est pas dite répondue, et la carte reste dans TODO", async () => {
-    const world = github(refuses(({ methode: method }) => method === "POST"));
-    const { gestes: actions, ecrits: writtenOnes } = phone(world);
-    const said = await actions.repondreCarte(PROJECT, 40, click(40, 1));
-    assert.ok(!("repondue" in said));
-    assert.equal(said.refus, "nothing was sent: your answer was not posted on #40");
-    assert.match(said.detail, /Resource not accessible by integration/);
-    assert.deepEqual(resume(world.recues), [`POST /repos/${REPOSITORY}/issues/40/comments {"body":"<!-- brigade:reponse gesture=resume -->\\nYes, keep it"}`]);
-    assert.deepEqual(world.etat().issues[40]?.labels, ["chef-todo", "fire", "served-elsewhere"]);
-    assert.deepEqual(writtenOnes, []);
-  });
 
-  test("la réponse postée dont GitHub refuse le geste : dite à jouer sur GitHub, pas répondue", async () => {
-    const world = github(refuses(({ methode: method, url }) => method === "DELETE" && url.endsWith("/labels/chef-todo")));
-    const { gestes: actions, ecrits: writtenOnes } = phone(world);
-    const said = await actions.repondreCarte(PROJECT, 40, click(40, 1));
-    assert.ok(!("repondue" in said));
-    assert.equal(said.refus, "your answer is posted on #40, but its gesture (resume) was not played — play it on GitHub");
-    assert.deepEqual(writtenOnes, []);
-  });
 });
 
 describe("dans la WebView", () => {

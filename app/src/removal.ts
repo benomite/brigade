@@ -47,4 +47,3 @@ export function holdRemovals(options: {
   };
 }
 
-export type Removals = ReturnType<typeof holdRemovals>;

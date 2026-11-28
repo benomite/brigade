@@ -6,7 +6,6 @@ export const count = (value: number): string => value.toLocaleString(LOCALE);
 
 export const hour = (instant: number | string | Date): string => new Date(instant).toLocaleTimeString(LOCALE);
 
-export const dateHour = (instant: number | string | Date): string => new Date(instant).toLocaleString(LOCALE);
 
 export const capitals = (text: string): string => text.toLocaleUpperCase(LOCALE);
 

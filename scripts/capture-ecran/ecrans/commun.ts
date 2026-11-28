@@ -7,9 +7,9 @@ import { forTheBar } from "../../../app/src/bar.ts";
 import type { Kitchen, Reading } from "../../../app/src/box.ts";
 import { type Configuration, EXAMPLE, type Project } from "../../../app/src/config.ts";
 import { PALETTE } from "../../../app/src/colors.ts";
-import { BANNER, type Card, type Facts, holdFacts } from "../../../app/src/facts.ts";
+import { type Card, type Facts, holdFacts } from "../../../app/src/facts.ts";
 import { EFFORTS, MODELS } from "../../../app/src/projects/projects.ts";
-import { TABS, HEADINGS } from "../../../app/src/tabs.ts";
+import { HEADINGS } from "../../../app/src/tabs.ts";
 import type { Seen as VuDuCode } from "../../../app/src/delay.ts";
 import type { SeenOfProjects } from "../../../app/src/projects/projects.ts";
 import type { SeenOfStations } from "../../../app/src/stations/stations.ts";
@@ -70,9 +70,7 @@ export function demarrage(projets: Configuration, ici: (nom: string) => boolean 
     configuration: forTheBar(projets, servi, ici, () => tourne),
     palette: PALETTE,
     exemple: EXAMPLE,
-    onglets: TABS,
     rubriques: HEADINGS,
-    banniere: BANNER,
     calibrage: { modeles: MODELS, efforts: EFFORTS },
     code: CODE,
     stations: STATIONS,

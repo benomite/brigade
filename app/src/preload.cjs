@@ -17,8 +17,6 @@ const bridge = {
   changerSigle: (project, acronym) => ipcRenderer.invoke("changerSigle", project, acronym),
   iconeDeFond: () => ipcRenderer.invoke("iconeDeFond"),
   changerBarreDeMenus: (active) => ipcRenderer.invoke("changerBarreDeMenus", active),
-  ordinaires: (project) => ipcRenderer.invoke("ordinaires", project),
-  reglerOrdinaires: (project, active, limit) => ipcRenderer.invoke("reglerOrdinaires", project, active, limit),
   ranger: (project, rank) => ipcRenderer.invoke("ranger", project, rank),
   retrait: (project) => ipcRenderer.invoke("retrait", project),
   retirerDeLApp: (project) => ipcRenderer.invoke("retirerDeLApp", project),
@@ -28,25 +26,17 @@ const bridge = {
   shell: (project, machine) => ipcRenderer.invoke("shell", project, machine),
   fermerShell: (id) => ipcRenderer.invoke("fermerShell", id),
   demander: (project, ticket) => ipcRenderer.invoke("demander", project, ticket),
-  lireQuestion: (project, ticket) => ipcRenderer.invoke("lireQuestion", project, ticket),
   gestesDeFiche: (card) => ipcRenderer.invoke("gestesDeFiche", card),
   demanderAuSecond: (project, ticket) => ipcRenderer.invoke("demanderAuSecond", project, ticket),
   passerAuSecond: (project, ticket, question) => ipcRenderer.invoke("passerAuSecond", project, ticket, question),
   lireTitre: (project, ticket) => ipcRenderer.invoke("lireTitre", project, ticket),
-  lireFeu: (project) => ipcRenderer.invoke("lireFeu", project),
-  relireLesStations: () => ipcRenderer.invoke("relireLesStations"),
   relireBox: (request) => ipcRenderer.send("relireBox", request),
-  repondreQuestion: (project, ticket, answer) => ipcRenderer.invoke("repondreQuestion", project, ticket, answer),
-  refus: (project, id, ticket) => ipcRenderer.invoke("refus", project, id, ticket),
-  ecrireMiseAJour: (clone) => ipcRenderer.invoke("mettreAJour", clone),
-  passer: () => ipcRenderer.invoke("passer"),
   // La mise à jour de l'app installée (update/state.ts) : `miseAJour` rend son état
   // (`EtatDeMiseAJour` : inactive, verification, a-jour, disponible, telechargement, prete,
   // installation, erreur), `verifierMiseAJour` relit le flux des versions publiées et rend l'état
   // qui en sort, `installerMiseAJour` installe la nouvelle version et relance l'app — rien n'est
   // rendu, elle se ferme — ou rend `{ refus }`. Chaque changement d'état arrive par `surMiseAJour`.
   miseAJour: () => ipcRenderer.invoke("miseAJour"),
-  verifierMiseAJour: () => ipcRenderer.invoke("verifierMiseAJour"),
   installerMiseAJour: () => ipcRenderer.invoke("installerMiseAJour"),
   // La ligne d'une version plus haute (tickets 1528 et 2431, update/opinion.ts) : le dernier avis — la dernière version,
   // celle qui tourne, le lien direct du paquet de ce poste, le premier lancement — ou rien ; chaque vérification suivante
@@ -54,22 +44,15 @@ const bridge = {
   avisDeVersion: () => ipcRenderer.invoke("avisDeVersion"),
   surAvisDeVersion: (receive) => void ipcRenderer.on("avisDeVersion", (_, opinion) => receive(opinion)),
   telechargerVersion: (url) => ipcRenderer.invoke("telechargerVersion", url),
-  appairer: (code) => ipcRenderer.invoke("appairer", code),
   depotsDuChef: () => ipcRenderer.invoke("depotsDuChef"),
   lireUnDepot: (repository) => ipcRenderer.invoke("lireUnDepot", repository),
   // Le dépôt choisi dans « Add a project » est-il prêt pour brigade, puis sa préparation (#2627) : le constat
   // `{ ready, missingBindings, missingLabels }`, ou un rejet dont le message est la phrase du refus.
   checkRepoSetup: (repo) => ipcRenderer.invoke("checkRepoSetup", repo).then(findingOrRejection),
   runRepoSetup: (repo) => ipcRenderer.invoke("runRepoSetup", repo).then(findingOrRejection),
-  ajouterAUneStation: (input) => ipcRenderer.invoke("ajouterAUneStation", input),
-  confierAUneStation: (input) => ipcRenderer.invoke("confierAUneStation", input),
-  defautsDeStation: (name) => ipcRenderer.invoke("defautsDeStation", name),
   dossiersDeLaStation: (name) => ipcRenderer.invoke("dossiersDeLaStation", name),
   lireReglagesDeLaStation: () => ipcRenderer.invoke("reglagesDeLaStation:lire"),
   ecrireReglagesDeLaStation: (change) => ipcRenderer.invoke("reglagesDeLaStation:ecrire", change),
-  retirerDUneStation: (name) => ipcRenderer.invoke("retirerDUneStation", name),
-  choisirUneIssue: (name, choice, issue) => ipcRenderer.invoke("choisirUneIssue", name, choice, issue),
-  signaler: (request) => ipcRenderer.invoke("signaler", request),
   demenagerLaCuisine: (name, to) => ipcRenderer.invoke("demenagerLaCuisine", name, to),
   autoriserSurGitHub: (url) => ipcRenderer.invoke("autoriserSurGitHub", url),
   agentsAtWork: (project) => ipcRenderer.invoke("agentsAtWork", project),
@@ -81,10 +64,7 @@ const bridge = {
   savoirDuProjet: (project) => ipcRenderer.invoke("savoirDuProjet", project),
   changerLeSavoir: (project, change) => ipcRenderer.invoke("changerLeSavoir", project, change),
   ouvrirLaProposition: (url) => ipcRenderer.invoke("ouvrirLaProposition", url),
-  retirerLaStation: (id) => ipcRenderer.invoke("retirerLaStation", id),
   // Les GitHub Apps de la station de cet ordinateur (ticket 2317) : ce qu'elle en a, et en ranger une — jamais la clé en retour.
-  appsDeLaStation: () => ipcRenderer.invoke("appsDeLaStation"),
-  rangerUneApp: (role, id, key) => ipcRenderer.invoke("rangerUneApp", role, id, key),
   // Les projets que la station de cet ordinateur sert (ticket 2359) : sa liste, et un projet ajouté ou retiré.
   projetsServis: () => ipcRenderer.invoke("projetsServis"),
   servirUnProjet: (repository, served) => ipcRenderer.invoke("servirUnProjet", repository, served),
@@ -92,21 +72,16 @@ const bridge = {
   // GitHub, dont la fin arrive par `surConnexionGitHub` ; une page qu'un échec a nommée.
   ouvrirDUneStation: (name, repository, base) => ipcRenderer.invoke("ouvrirDUneStation", name, repository, base),
   seConnecterAGitHub: () => ipcRenderer.invoke("seConnecterAGitHub"),
-  outilsManquants: (tools) => ipcRenderer.invoke("outilsManquants", tools),
   // Installe la station de cet ordinateur, depuis le bloc de l'accueil (ticket 2640).
-  installerLaStation: () => ipcRenderer.invoke("installerLaStation"),
   // Le compte GitHub de cet ordinateur, que dit l'étape du compte du parcours d'ajout (ticket 2475).
   compteGitHub: () => ipcRenderer.invoke("compteGitHub"),
   ouvrirLaPage: (url) => ipcRenderer.invoke("ouvrirLaPage", url),
   // Les stations enregistrées sous le compte GitHub du chef (ticket 1706), et les projets que chacune sert, écrits dans
   // son gist.
-  stationsDuCompte: () => ipcRenderer.invoke("stationsDuCompte"),
-  choisirLesProjets: (id, repositories) => ipcRenderer.invoke("choisirLesProjets", id, repositories),
   repondreCarte: (project, ticket, answer) => ipcRenderer.invoke("repondreCarte", project, ticket, answer),
   ouvrirLectureSeule: (project, page) => ipcRenderer.invoke("ouvrirLectureSeule", project, page),
   regarder: (project, request) => ipcRenderer.send("regarder", project, request),
   tous: (request) => ipcRenderer.send("tous", request),
-  onglet: (project, id, request) => ipcRenderer.send("onglet", project, id, request),
   faits: (request) => ipcRenderer.send("faits", request),
   ouvrirIssue: (project, ticket) => ipcRenderer.invoke("ouvrirIssue", project, ticket),
   ouvrirPr: (project, ticket) => ipcRenderer.invoke("ouvrirPr", project, ticket),
@@ -116,14 +91,11 @@ const bridge = {
   scroll: (id, lines) => ipcRenderer.send("scroll", id, lines),
   surSortie: (receive) => void ipcRenderer.on("sortie", (_, id, data) => receive(id, data)),
   surEtat: (receive) => void ipcRenderer.on("etat", (_, terminal) => receive(terminal)),
-  surActivites: (receive) => void ipcRenderer.on("activites", (_, published) => receive(published)),
   surContenu: (receive) => void ipcRenderer.on("contenu", (_, reading) => receive(reading)),
   surFaits: (receive) => void ipcRenderer.on("faits", (_, receivedOne) => receive(receivedOne)),
   // Une question cliquée dans le menu de la barre des menus (menu-bar.ts) : sa carte s'ouvre.
   surOuvrirProjet: (receive) => void ipcRenderer.on("ouvrirProjet", (_, project) => receive(project)),
   surOuvrirCarte: (receive) => void ipcRenderer.on("ouvrirCarte", (_, project, ticket) => receive(project, ticket)),
-  surAmont: (receive) => void ipcRenderer.on("amont", (_, seenOne) => receive(seenOne)),
-  surCode: (receive) => void ipcRenderer.on("code", (_, seenOne) => receive(seenOne)),
   surMiseAJour: (receive) => void ipcRenderer.on("miseAJour", (_, state) => receive(state)),
   surStations: (receive) => void ipcRenderer.on("stations", (_, seenOne) => receive(seenOne)),
   surProjetsDesStations: (receive) => void ipcRenderer.on("projetsDesStations", (_, seenOne) => receive(seenOne)),

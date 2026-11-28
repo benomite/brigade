@@ -15,13 +15,10 @@ const station = (name: string, cooking: string, remote = false) => ({ station: n
 const someFacts = (cooks: number, questions: number, more: Partial<Facts> = {}): Facts => ({
   etat: "ouverte",
   lu: A,
-  dernierTick: A,
   compteurs: { rail: 0, auTravail: cooks, aLaPass: 0, attend: questions, livres24h: 0 },
-  dernierEvenement: null,
-  rail: [],
-  cooks: Array.from({ length: cooks }, (_, i) => ({ ticket: i + 1, titre: `ticket ${i + 1}`, station: "mac/claude" })),
+  
   attend: Array.from({ length: questions }, (_, i) => ({ ticket: 100 + i, titre: `question ${i}`, url: null })),
-  livres: [],
+  
  
   ...more,
 });
@@ -45,8 +42,8 @@ describe("les comptes de l'icône", () => {
 
 describe("l'état de la station, lu de ses projets", () => {
   test("en pause quand chaque projet lu est éteint", () => {
-    const off = someFacts(0, 0, { etat: "éteinte", stations: [station("mac/claude", "cooking"), station("box/claude", "cooking", true)] });
-    const stops = someFacts(1, 0, { stations: [station("mac/claude", "stopped"), station("box/claude", "cooking", true)] });
+    const off = someFacts(0, 0, { etat: "éteinte" });
+    const stops = someFacts(1, 0, {  });
     assert.deepEqual(stateOfTheStation([{ nom: "a", faits: off }, { nom: "b", faits: undefined }]), { pause: true });
     assert.deepEqual(stateOfTheStation([{ nom: "a", faits: stops }, { nom: "b", faits: off }]), { pause: false });
     assert.deepEqual(stateOfTheStation([{ nom: "a", faits: someFacts(0, 0) }]), { pause: false });

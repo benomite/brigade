@@ -43,6 +43,7 @@ export function helpUsable(
 
 export const helpUnusable = !helpUsable(HELP);
 
+
 // Faux là où node-pty n'est pas livré compilé (Linux) : l'app est une app du Mac et de Windows.
 export const ptyAvailable = existsSync(PRECOMPILED);
 

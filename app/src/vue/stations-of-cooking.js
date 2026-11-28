@@ -11,32 +11,13 @@
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément (bricks.js).
 
 import { button } from "./components/button/button.js";
-import { rowOfSetting } from "./components/setting/setting.js";
-import { levelOf } from "./levels.js";
-import { lineEmpty } from "./components/line-empty/line-empty.js";
-import { pan } from "./components/pan/pan.js";
 
 /** @typedef {import("./bricks.js").Fabrique} Fabrique */
-/** @typedef {import("../facts.ts").Cook} Cook */
-/** @typedef {import("../cooking.ts").AgentOfStation} Agent */
 /** @typedef {import("../projects/request.ts").AccessBlocked} Access */
 /** @typedef {import("../projects/request.ts").Refusal} Refusal */
 /** @typedef {import("../projects/request.ts").FailureOfClone} Clone */
-/** @typedef {import("../home.ts").CapsOfStation} Caps */
 
-export const NOTHING_NOT_RUNS = "nothing running";
-// Ce que la cuisine fait tourner hors des cooks de ticket (ticket 1971) : le mot de chaque rôle sur sa carte, et ce qu'il
-// est, au survol. Un rôle que l'app ne connaît pas se dit tel quel, sans survol.
-/** @type {Readonly<Record<string, string>>} */
-export const ROLES_IN_PROGRESS = {
-  pass: "the pass judges a delivery: its gates, its CI and the reviewer's review, then merges it or sends it back",
-  manager: "the manager judges the project's issues, puts the ready ones on the rail, splits epics, and decides what follows a red ticket",
-  triage: "the triage takes up a card that would go to you, and settles it when it can",
-  closer: "the closer cleans the project up when you ask it to, and delivers what it removes as a PR",
-};
 export const OPEN_COOKS = "open Cooks";
-// Le plafond de cooks du projet sur une station (ticket 1292) : le nom de sa rangée.
-export const CAP = "Cooks at once";
 
 /** @param {Fabrique} doc @param {string} balise @param {string} [text] */
 function created(doc, balise, text) {
@@ -45,64 +26,7 @@ function created(doc, balise, text) {
   return pose;
 }
 
-// Ce qu'un agent fait, et depuis quand : la durée à la lecture, l'heure au survol.
-/** @param {Fabrique} doc @param {Agent} agent */
-function whatItDone(doc, { fait: done, pour: forIt, depuis: since }) {
-  const said = created(doc, "span", `${done} · for ${forIt}`);
-  said.className = "agent-fait";
-  said.title = `since ${since}`;
-  return said;
-}
 
-// Son rôle, au mot de sa carte, et ce qu'il est au survol.
-/** @param {Fabrique} doc @param {string} role */
-function wordOfRole(doc, role) {
-  const word = created(doc, "strong", role);
-  word.className = "agent-role";
-  const hover = Object.hasOwn(ROLES_IN_PROGRESS, role) ? ROLES_IN_PROGRESS[role] : undefined;
-  if (hover !== undefined) word.title = hover;
-  return word;
-}
-
-// Les cooks en cours d'une station, une ligne chacun : son ticket et son titre (l'écran étroit) — après ce qu'elle fait
-// tourner d'autre, une ligne chacun : son rôle, son ticket, ce qu'il fait. `cuit` : la lecture dit encore vrai et la
-// station cuit — chaque ligne porte alors, à son bout, la poêle qui grésille (ticket 2984).
-/** @param {import("./components/pan/pan.js").Fabrique} doc @param {readonly Cook[]} itsOwn @param {readonly Agent[]} agents @param {boolean} [cooked] */
-export function linesOfCooks(doc, itsOwn, agents, cooked = false) {
-  const inCooking = () => (cooked ? [pan(doc)] : []);
-  const cooks = created(doc, "ul");
-  cooks.className = "cooks";
-  if (itsOwn.length === 0 && agents.length === 0) cooks.className = "cooks vide";
-  cooks.append(
-    ...agents.map((agent) => {
-      const line = created(doc, "li");
-      line.className = "agent";
-      line.dataset.role = agent.role;
-      const number = agent.ticket === null ? [] : [created(doc, "strong", `#${agent.ticket}`)];
-      for (const fort of number) fort.className = "mono";
-      line.append(wordOfRole(doc, agent.role), ...number, whatItDone(doc, agent), ...inCooking());
-      return line;
-    }),
-    ...(itsOwn.length === 0 && agents.length === 0
-      ? [lineEmpty(doc, NOTHING_NOT_RUNS, { classe: "", balise: "li" })]
-      : itsOwn.map(({ ticket, titre: title }) => {
-          const cook = created(doc, "li");
-          const number = created(doc, "strong", `#${ticket}`);
-          number.className = "mono";
-          const said = created(doc, "span", title);
-          said.title = title;
-          cook.append(number, said, ...inCooking());
-          return cook;
-        })),
-  );
-  return cooks;
-}
-
-// Le plafond du projet sur une station, comme sa box le dit (`3 at most — 8 cores`) : une rangée qui se lit.
-/** @param {Fabrique} doc @param {Caps} cap */
-export function capRead(doc, cap) {
-  return [rowOfSetting(doc, { nom: CAP, cle: "cooks", niveau: levelOf(doc, "cooks"), valeur: [created(doc, "strong", cap.plafond.dit)], controle: [], dessous: [] })];
-}
 
 // Le détail de git, que la raison d'un accès bloqué porte entre parenthèses à sa fin : au survol (repository-held.js).
 const DETAIL_OF_GIT = /\s*\(git: ([^)]*)\)\.?$/;

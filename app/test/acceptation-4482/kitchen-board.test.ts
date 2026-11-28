@@ -10,9 +10,9 @@ import { describe, test, type TestContext } from "node:test";
 import { forTheBar } from "../../src/bar.ts";
 import { EXAMPLE } from "../../src/config.ts";
 import { PALETTE } from "../../src/colors.ts";
-import { BANNER, holdFacts } from "../../src/facts.ts";
+import { holdFacts } from "../../src/facts.ts";
 import { actionsOfCard } from "../../src/card-actions.ts";
-import { TABS, HEADINGS } from "../../src/tabs.ts";
+import { HEADINGS } from "../../src/tabs.ts";
 import { EFFORTS, MODELS } from "../../src/projects/projects.ts";
 import { withWhatAwaitingTheChef } from "../../src/board/wait-of-chef.ts";
 import { clientGitHub, type Send, type AnswerGitHub } from "../../src/board/client.ts";
@@ -72,10 +72,9 @@ function world(t: TestContext) {
 const SECOND: Terminal = { id: 1, projet: PROJECT, genre: "second", titre: "second · claude", note: "session neuve", arrete: false };
 const start = () => ({
   configuration: forTheBar({ chemin: "/tmp/app.json", projets: [{ nom: PROJECT, dossier: "/tmp/parade" }] }, () => true),
-  palette: PALETTE, exemple: EXAMPLE, onglets: TABS, rubriques: HEADINGS,
+  palette: PALETTE, exemple: EXAMPLE, rubriques: HEADINGS,
   gestes: {},
-  banniere: BANNER, calibrage: { modeles: MODELS, efforts: EFFORTS }, code: undefined,
-});
+  calibrage: { modeles: MODELS, efforts: EFFORTS }, });
 
 describe("#4482 — the kanban of a project on the new kitchen reads its labels", { skip: WITHOUT_SH }, () => {
   test("one issue in each column — Backlog, Ready, Cooking, Pass, Parked, Served —, its try count, its issue and its PR", async (t) => {

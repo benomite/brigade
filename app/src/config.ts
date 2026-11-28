@@ -7,11 +7,8 @@
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, sep } from "node:path";
-import { ordinaryRead } from "./ordinary.ts";
 import { colorsRead, whole, isColor, ROLES, draw, type Colors, type Role } from "./colors.ts";
 import { refusalOfAcronym } from "./acronym.ts";
-import { same, set } from "./settings-personal/merge.ts";
-import { personal, type Preferences } from "./settings-personal/share.ts";
 
 // Le modèle et l'effort du manager et du reviewer d'un projet.
 export type ProjectCalibration = { manager: { modele: string; effort: string }; reviewer: { modele: string; effort: string } };
@@ -24,7 +21,7 @@ export type ProjectCalibration = { manager: { modele: string; effort: string }; 
 // `sigle` : celui que le chef a écrit pour sa case de la barre (acronym.ts) — absent, l'app en tire un de son nom.
 // `depot`, `base` : son dépôt GitHub et sa branche d'intégration, posés à son ajout depuis l'app
 // (addition.ts) — c'est d'eux que se confie sa cuisine à une station. Absents d'un projet écrit à la main.
-export type Project = { nom: string; dossier: string; depot?: string; base?: string; refus?: string; calibrage?: ProjectCalibration; couleurs?: Colors; sigle?: string; ordinaires?: boolean; limiteCooks?: number };
+export type Project = { nom: string; dossier: string; depot?: string; base?: string; refus?: string; calibrage?: ProjectCalibration; couleurs?: Colors; sigle?: string };
 // `refus` : le fichier entier n'a pas pu être lu — aucun projet, et la raison.
 // `nonRelu` : il a changé depuis, et sa relecture a été refusée — les projets
 // sont ceux d'avant, et la raison est celle du fichier tel qu'il est.
@@ -90,12 +87,10 @@ function understand(path: string, text: string, home: string): Configuration {
     const { sigle: acronym } = declare as { sigle?: unknown };
     const acronymRefuses = acronym === undefined ? undefined : refusalOfAcronym(acronym);
     if (acronymRefuses !== undefined) return refuses(`${which}: ${acronymRefuses}`);
-    const ordinary = ordinaryRead(declare as { ordinaires?: unknown; limiteCooks?: unknown });
-    if (typeof ordinary === "string") return refuses(`${which}: ${ordinary}`);
     const { depot: repository, base } = declare as { depot?: unknown; base?: unknown };
     if (repository !== undefined && (typeof repository !== "string" || repository.trim() === "")) return refuses(`${which}: “depot” must be a non-empty string — its GitHub repository, \`<owner>/<name>\``);
     if (base !== undefined && (typeof base !== "string" || base.trim() === "")) return refuses(`${which}: “base” must be a non-empty string — its integration branch`);
-    projects.push({ nom: name, dossier: absolute, ...(repository === undefined ? {} : { depot: repository }), ...(base === undefined ? {} : { base }), ...ordinary, ...(calibration === undefined ? {} : { calibrage: calibration }), ...(refusal === undefined ? {} : { refus: refusal }), ...(colors === undefined ? {} : { couleurs: colors }), ...(typeof acronym === "string" ? { sigle: acronym.trim() } : {}) });
+    projects.push({ nom: name, dossier: absolute, ...(repository === undefined ? {} : { depot: repository }), ...(base === undefined ? {} : { base }), ...(calibration === undefined ? {} : { calibrage: calibration }), ...(refusal === undefined ? {} : { refus: refusal }), ...(colors === undefined ? {} : { couleurs: colors }), ...(typeof acronym === "string" ? { sigle: acronym.trim() } : {}) });
   }
   return { chemin: path, projets: projects, ...(menuBar === undefined ? {} : { barreDeMenus: menuBar }) };
 }
@@ -272,21 +267,6 @@ export function changeAcronym(path: string, name: string, acronym: unknown, home
   return rewrite(path, written(opened.contenu));
 }
 
-// Règle, pour un projet, si la station de cet ordinateur prend aussi les tickets ordinaires et combien de cooks il
-// fait tourner (`null` : aucune limite écrite) — rien d'autre du fichier. Rend la raison, si
-// rien n'a été écrit.
-export function changeOrdinary(path: string, name: string, active: unknown, limit: unknown, home = homedir()): string | undefined {
-  if (typeof active !== "boolean") return "nothing was written: whether this computer's station takes the ordinary tickets is true or false";
-  if (limit !== null && (!Number.isInteger(limit) || (limit as number) < 1)) return "nothing was written: this computer's cook limit is a whole number, one or more — or empty, for none";
-  const opened = reread(path, home);
-  if ("refus" in opened) return opened.refus;
-  const declare = opened.contenu.projets.find((candidate) => (candidate as { nom?: unknown } | null)?.nom === name) as { ordinaires?: boolean; limiteCooks?: number } | undefined;
-  if (declare === undefined) return `“${name}” is not in this file: nothing was changed there`;
-  declare.ordinaires = active;
-  if (limit === null) delete declare.limiteCooks;
-  else declare.limiteCooks = limit as number;
-  return rewrite(path, written(opened.contenu));
-}
 
 // Montre ou retire l'état de la cuisine de la barre des menus du Mac et de la zone de notification de Windows
 // (menu-bar.ts, #3269) — rien d'autre du fichier. Rend la raison, si rien n'a été écrit.
@@ -298,30 +278,6 @@ export function changeMenuBar(path: string, active: unknown, home = homedir()): 
   if ((content.barreDeMenus ?? true) === active) return undefined;
   content.barreDeMenus = active;
   return rewrite(path, written(opened.contenu));
-}
-
-// Les préférences personnelles du fichier (settings-personal/share.ts), celles qui suivent le chef d'un
-// appareil à l'autre — ou la raison pour laquelle il n'est pas compris : un fichier qu'un éditeur est
-// en train d'écrire ne dit pas que le chef a tout effacé.
-export function preferencesOfFile(path: string, home = homedir()): { preferences: Preferences } | { refus: string } {
-  const opened = reread(path, home);
-  return "refus" in opened ? opened : { preferences: personal(opened.contenu) };
-}
-
-// Pose dans le fichier les préférences personnelles lues dans le gist (settings-personal/merge.ts) : les
-// couleurs, l'ordre et les réglages des projets qu'il connaît, et les préférences du fichier. Le dossier
-// d'un projet et tout ce qui ne vaut que pour cet ordinateur restent ceux du fichier. Rien
-// n'est écrit si rien ne change, ni si le fichier ne serait plus compris. Rend la raison, si elles ne
-// l'ont pas été.
-export function setPreferences(path: string, preferences: Preferences, home = homedir()): string | undefined {
-  const opened = reread(path, home);
-  if ("refus" in opened) return opened.refus;
-  const pose = set(opened.contenu, preferences);
-  if (same(pose, opened.contenu)) return undefined;
-  const fresh = written(pose);
-  const understood = understand(path, fresh, home);
-  if (understood.refus !== undefined) return `the preferences read from GitHub were not written: the file would no longer be understood — ${understood.refus}`;
-  return rewrite(path, fresh);
 }
 
 // Un dossier absent n'invalide pas le fichier : un disque débranché ne doit pas

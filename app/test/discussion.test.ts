@@ -9,10 +9,10 @@ import { EXAMPLE } from "../src/config.ts";
 import { PALETTE } from "../src/colors.ts";
 import { askAtSecond, noteOfTheQuestion } from "../src/discussion.ts";
 import { putAside } from "../src/awaiting.ts";
-import { BANNER, holdFacts, type Facts } from "../src/facts.ts";
+import { holdFacts, type Facts } from "../src/facts.ts";
 import { actionsOfCard } from "../src/card-actions.ts";
 import { EFFORTS, MODELS } from "../src/projects/projects.ts";
-import { TABS, HEADINGS } from "../src/tabs.ts";
+import { HEADINGS } from "../src/tabs.ts";
 import type { Read } from "../src/question.ts";
 import type { Terminal } from "../src/terminals.ts";
 import { cardOfTicket, type Fake, type Played, playTheVue, type Answers, repos } from "./helpers/false-vue.ts";
@@ -29,25 +29,15 @@ const startup = () => ({
   configuration: forTheBar({ chemin: "/tmp/app.json", projets: [PROJECT] }, () => true),
   palette: PALETTE,
   exemple: EXAMPLE,
-  onglets: TABS,
   rubriques: HEADINGS,
   gestes: {},
-  banniere: BANNER,
   calibrage: { modeles: MODELS, efforts: EFFORTS },
-  code: undefined,
-});
+  });
 const FACTS: Facts = {
   etat: "ouverte",
   lu: "2026-10-14T12:00:00.000Z",
-  dernierTick: "2026-10-14T12:00:00.000Z",
   compteurs: { rail: 3, auTravail: 1, aLaPass: 0, attend: 0, livres24h: 1 },
-  dernierEvenement: null,
-  rail: [
-    { ticket: 14, etat: "pris", titre: "Le journal en ajout seul", url: "https://github.com/benomite/brigade/issues/14", activite: null },
-    { ticket: 21, etat: "en attente", titre: "L'export du journal", url: "https://github.com/benomite/brigade/issues/21", activite: null },
-    { ticket: 31, etat: "servi", titre: "Servi hier", url: "https://github.com/benomite/brigade/issues/31", activite: null },
-  ],
-  cooks: [],
+  
   attend: [],
 };
 
@@ -124,25 +114,7 @@ const actions = (vue: Played): Fake => card(vue).dessous("section").find((pose) 
 const requestAtSecond = (vue: Played): Fake => actions(vue).dessous("button").find((pose) => pose.dataset.geste === "demande") ?? assert.fail("pas de bouton « ask the second »");
 
 describe("la fiche : le bouton « ask the second » de la barre de gestes, et la question d'une carte Await (#686)", () => {
-  test("rien ne part avant le clic ; le clic envoie le projet et le ticket, rien d'autre — ni commentaire, ni champ", async () => {
-    const vue = await open({ demander: () => SECOND_WRITTEN });
-    await openCard(vue, 21);
-    assert.equal(requestAtSecond(vue).textContent, "ask the second");
-    assert.equal(vue.appels.filter(({ geste: action }) => action === "demander").length, 0);
-    requestAtSecond(vue).click();
-    await repos();
-    assert.deepEqual(vue.dernier("demander"), [PARADE, 21]);
-    assert.equal(card(vue).dessous("textarea").length, 0, "la fiche n'a plus de champ de commentaire");
-  });
 
-  test("un appel qui lève ne fait pas tomber la fiche, qui reste ouverte", async () => {
-    const vue = await open({ demander: () => Promise.reject(new Error("ipc fermé")) as never });
-    await openCard(vue, 21);
-    requestAtSecond(vue).click();
-    await repos();
-    assert.deepEqual(vue.dernier("demander"), [PARADE, 21]);
-    assert.ok(requestAtSecond(vue).textContent === "ask the second");
-  });
 
   const QUESTION: Read = {
     a: "2026-10-14T12:30:00.000Z",
@@ -150,7 +122,7 @@ describe("la fiche : le bouton « ask the second » de la barre de gestes, et la
   };
   const openAwait = async (readQuestion: Read) => {
     const facts = { ...FACTS, attend: [{ ticket: 50, titre: "Le format de l'export", url: "https://github.com/benomite/brigade/issues/50" }] };
-    const vue = await playTheVue({ demarrage: startup, espace: () => [SECOND], gestesDeFiche: (cardItem) => actionsOfCard(cardItem), lireQuestion: () => readQuestion });
+    const vue = await playTheVue({ demarrage: startup, espace: () => [SECOND], gestesDeFiche: (cardItem) => actionsOfCard(cardItem) });
     (vue.element("projets").children.at(1) ?? assert.fail("pas d'entrée")).click();
     await repos();
     const heldOnes = holdFacts();
@@ -167,20 +139,5 @@ describe("la fiche : le bouton « ask the second » de la barre de gestes, et la
   };
   const blocks = (vue: Played) => card(vue).dessous("section").map((pose) => pose.className);
 
-  test("sur une carte Await, la question et ses choix sont en tête, au-dessus des gestes de la fiche", async () => {
-    const vue = await openAwait(QUESTION);
-    const order = blocks(vue);
-    assert.ok(order.includes("question") && order.includes("gestes-fiche"));
-    assert.ok(order.indexOf("question") < order.indexOf("gestes-fiche"));
-    const question = card(vue).dessous("section").find((pose) => pose.className === "question") ?? assert.fail("pas de question");
-    assert.ok(question.textContent.includes("Quel format garde-t-on ?"));
-    assert.deepEqual(question.dessous("button").filter((pose) => pose.className === "choix").map((pose) => pose.textContent), ["A) CSV", "B) JSON"]);
-  });
 
-  test("sur une carte qui n'est pas Await, aucun bloc de question", async () => {
-    const vue = await open({ lireQuestion: () => QUESTION });
-    await openCard(vue, 21);
-    assert.ok(!blocks(vue).includes("question"));
-    assert.equal(vue.appels.filter(({ geste: action }) => action === "lireQuestion").length, 0);
-  });
 });

@@ -1,15 +1,3 @@
-// Parquer un ticket (ticket 4129 ; d'abord WAITING, ticket 3075) : ce qu'un ticket attend se lit et s'écrit sur
-// son issue, exactement comme la station et le second l'y posent — le label `parked` tant qu'il attend, et le commentaire
-// marqué `<!-- brigade:parked … -->` qui dit qui il attend, pour quoi, jusqu'à quand. La cuisine ne lit que le label (elle
-// tient un ticket `parked` pour parqué) ; le commentaire est pour les humains, et pour sa carte. Ce module en a les deux bouts :
-//   - la lecture : le dernier commentaire de parking d'une issue au label `parked`, rendu dans la forme de `tiers`
-//     (facts.ts, `Tiers`) — ce que sa carte dit (board/wait-of-chef.ts) ; les commentaires `**WAITING: awaiting …**`
-//     d'avant ticket 4129 se lisent encore ;
-//   - le geste, écrit sur l'issue, sur tout projet et sans box (ticket 4262) : `park` parque le ticket (le commentaire puis
-//     le label) ; `unpark` (actions-github.ts) le déparque, le label retiré — le ticket reprend exactement où il était. Le
-//     second joue ces deux fonctions (second/parking.ts), et la carte « Wait for … » du manager parque (board-actions/answer-github.ts).
-// Rien de Node : le téléphone le charge tel quel.
-import type { Third } from "../../facts.ts";
 import { LABELS_OF_ACTIONS, type Written } from "../../actions-github.ts";
 import type { ClientOfThePriority } from "../../priority.ts";
 import { refusalOf } from "../../board/client.ts";
@@ -20,14 +8,9 @@ export const LABEL_PARKED = LABELS_OF_ACTIONS.cuisine;
 // Ce que son déparquage fait de lui.
 export const AT_THE_ARRIVAL = "it resumes exactly where it was";
 
-const MONTH = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-// Ceux dont un commentaire fait foi : le propriétaire du dépôt, les membres de son organisation, ses collaborateurs — tout
-// le monde peut commenter une issue publique.
-const TRUSTED = ["OWNER", "MEMBER", "COLLABORATOR"];
 // La marque en tête du commentaire de parking ; celle d'avant le ticket 4129, `brigade:waiting`, se lit encore.
 const BRAND = "<!-- brigade:parked";
-const BRAND_READ = /^<!-- brigade:(?:parked|waiting) (\{.*?\}) -->/;
 // Une date dite avec son année : `2026-11-16 15:05 UTC`.
 const dateSaid = (iso: string) => `${iso.slice(0, 10)} ${iso.slice(11, 16)} UTC`;
 
@@ -47,70 +30,11 @@ export function brandOfWait({ quoi: what, qui: who }: { quoi: string; qui: strin
   ].join("\n");
 }
 
-// Ce que dit la marque d'un commentaire : qui, pour quoi, jusqu'à quand — une date (`followUp`), ou un fait (`fact`). Nul
-// sans marque, ou d'une marque qui ne se lit pas.
-function waitOfTheBrand(body: string): { what: string; who: string; followUp: string; fact?: string } | null {
-  const raw = BRAND_READ.exec(body)?.[1];
-  if (raw === undefined) return null;
-  try {
-    const { what, who, followUp, fact } = JSON.parse(raw) as Record<string, unknown>;
-    if (typeof what !== "string" || typeof who !== "string" || typeof followUp !== "string" || Number.isNaN(Date.parse(followUp))) return null;
-    return { what, who, followUp, ...(typeof fact === "string" && fact.trim() !== "" ? { fact: fact.trim() } : {}) };
-  } catch {
-    return null;
-  }
-}
 
-const HEAD = /^\*\*WAITING(?: — updated)?: awaiting (.+?)\.\*\* ?(.*)$/;
-const INSTANT = /^(\d{1,2}) ([A-Z][a-z]{2})(?: (\d{4}))? (\d{2}):(\d{2}) UTC$/;
-const DAY_MS = 86_400_000;
 
-// Un instant tel que l'app l'écrivait avant ticket 4129, ou `direInstantEn` sans son année (« 16 Nov 23:00 UTC ») : celle qui le met
-// au plus près de `repere` — avant lui, à un jour près, pour `depuis` (le commentaire est posté après la mise en
-// attente) ; à partir de lui pour la relance, qui vient après. Null pour un texte qui n'a pas cette forme.
-function instantSays(said: string, marker: number, meaning: "avant" | "apres"): string | null {
-  const [, day, month, year, hour, minute] = INSTANT.exec(said.trim()) ?? [];
-  const rank = MONTH.indexOf(month ?? "");
-  if (day === undefined || rank < 0) return null;
-  const within = (an: number) => Date.UTC(an, rank, Number(day), Number(hour), Number(minute));
-  const an = new Date(marker).getUTCFullYear();
-  const instant = year !== undefined ? within(Number(year)) : meaning === "avant" ? (within(an) > marker + DAY_MS ? within(an - 1) : within(an)) : within(an) < marker ? within(an + 1) : within(an);
-  return Number.isNaN(instant) ? null : new Date(instant).toISOString();
-}
 
-// Ce qu'un commentaire d'entrée en WAITING dit, dans la forme de `tiers` — ou null pour un autre commentaire, ou une
-// marque dont un morceau ne se lit pas : rien n'est inventé à sa place. `posteLe` : l'instant où il a été posté.
-export function thirdOfTheBrand(body: string, workstationThe: string): Third | null {
-  const lines = body.split("\n").map((line) => line.trimEnd());
-  const [, who, what] = HEAD.exec(lines[0] ?? "") ?? [];
-  if (who === undefined || what === undefined || what.trim() === "") return null;
-  const said = (wording: string) => lines.find((line) => line.startsWith(`- **${wording}**: `))?.slice(`- **${wording}**: `.length).trim();
-  const [sinceSays, relaunchSaid, atTheArrival] = [said("since"), said("follow-up"), said("on arrival")];
-  const workstation = Date.parse(workstationThe);
-  if (sinceSays === undefined || relaunchSaid === undefined || atTheArrival === undefined || Number.isNaN(workstation)) return null;
-  const since = instantSays(sinceSays, workstation, "avant");
-  const relaunch = since === null ? null : instantSays(relaunchSaid, Date.parse(since), "apres");
-  if (since === null || relaunch === null) return null;
-  return { quoi: what.trim(), qui: said("from whom") ?? who, depuis: since, relance: relaunch, aLArrivee: atTheArrival };
-}
 
-// Ce que dit un commentaire de parking marqué (`<!-- brigade:parked … -->`) d'un auteur du dépôt, dans la forme de
-// `tiers` — depuis : l'instant où il a été posté ; à l'arrivée : il reprend où il était. Null pour un autre commentaire.
-function thirdOfParking(body: string, association: unknown, workstationThe: string): Third | null {
-  const wait = typeof association === "string" && TRUSTED.includes(association) ? waitOfTheBrand(body) : null;
-  if (wait === null || Number.isNaN(Date.parse(workstationThe))) return null;
-  const until = wait.fact !== undefined ? `until ${wait.fact}` : `until ${dateSaid(wait.followUp)}`;
-  return { quoi: wait.what, qui: wait.who, depuis: new Date(workstationThe).toISOString(), relance: wait.fact === undefined ? wait.followUp : null, aLArrivee: `${until}, then ${AT_THE_ARRIVAL}` };
-}
 
-// Ce que l'issue dit de son attente : son dernier commentaire de parking — null sans aucun qui se lise.
-export function thirdOfComments(comments: readonly { body?: unknown; created_at?: unknown; author_association?: unknown }[]): Third | null {
-  for (const { body, created_at: the, author_association: association } of [...comments].reverse()) {
-    const third = typeof body === "string" && typeof the === "string" ? (thirdOfParking(body, association, the) ?? thirdOfTheBrand(body, the)) : null;
-    if (third !== null) return third;
-  }
-  return null;
-}
 
 const number = (ticket: unknown): ticket is number => typeof ticket === "number" && Number.isSafeInteger(ticket) && ticket >= 1;
 const reason = (error: unknown) => (error instanceof Error ? error.message : String(error));

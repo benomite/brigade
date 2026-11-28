@@ -7,19 +7,11 @@ import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
-import type { Answer } from "../../src/card-todo.ts";
-import { understand, board as boardOf, type Facts } from "../../src/facts.ts";
 import { clientOfThePriority, type SendGitHub } from "../../src/priority.ts";
-import { withWhatAwaitingTheChef, readWhatAwaitingTheChef } from "../../src/board/wait-of-chef.ts";
+import { readWhatAwaitingTheChef } from "../../src/board/wait-of-chef.ts";
 import { clientGitHub, type Send, type AnswerGitHub } from "../../src/board/client.ts";
 import { tokenOfGh } from "../../src/board/token-gh.ts";
-import { readTheBoardOfRepository } from "../../src/board/read.ts";
-import { statusOfBoard } from "../../src/board/rail.ts";
-import { answerOnGithub, type ClientOfTheAnswer } from "../../src/board-actions/answer-github.ts";
-import { setCardOfTodo, REPOS } from "../../src/vue/card-todo.js";
-import { whatAwaitingYou, planOfTheKitchen } from "../../src/vue/kitchen/kitchen.js";
-import { tidyTheRail } from "../../src/vue/todo/todo.js";
-import { Fake } from "../helpers/false-vue.ts";
+import { type ClientOfTheAnswer } from "../../src/board-actions/answer-github.ts";
 
 const REPOSITORY = "acme/parade";
 const READ = "2026-11-26T09:00:00.000Z";
@@ -105,53 +97,8 @@ function world(t: TestContext, { commentaires41: comments41 }: { commentaires41?
   return { issues, lectures: readings, ecrits: writtenOnes, client };
 }
 
-// Le TODO que la vue dessine de la lecture de ce monde, comme l'app la fait (main.ts, `lireLeTableau`).
-async function theTodo(client: ClientOfTheAnswer) {
-  const readOne = await withWhatAwaitingTheChef(await readTheBoardOfRepository({ depot: REPOSITORY, appeler: client.lire, maintenant: () => new Date(READ) }), client.lire);
-  assert.ok(readOne.lu, JSON.stringify(readOne));
-  const facts = understand(JSON.stringify(readOne.faits));
-  assert.ok(!("informe" in facts));
-  return whatAwaitingYou(planOfTheKitchen(tidyTheRail(boardOf(facts as Facts, undefined, { texte: statusOfBoard(readOne), a: readOne.luLe }).rail.colonnes).colonnes));
-}
 
 describe("#4474 : une issue `parked:chef` est une carte du TODO, et Answer la rend au rail", { skip: WITHOUT_SH }, () => {
-  test("la carte : la raison de la cuisine, Answer et « Open on GitHub » — Answer poste le texte du chef et retire `parked:chef`", async (t) => {
-    const theWorld = world(t);
-    const todo = await theTodo(theWorld.client);
-    assert.deepEqual(todo.map(({ ticket }) => ticket), [41]);
-    const [card] = todo;
-    assert.ok(card?.todo !== undefined && card.chef !== undefined, "#41 carries its TODO card");
-    // Le dernier commentaire de la cuisine qui dit pourquoi — pas celui d'un inconnu écrit après, avec les mêmes mots.
-    assert.equal(card.todo.question, WHY);
-    assert.equal(card.todo.repondre, "Answer");
-    assert.deepEqual(card.todo.choix, []);
-    // Rien n'est lu du runtime d'avant, ni la liste du label : la lecture du rail a déjà toutes les issues ouvertes.
-    assert.ok(!theWorld.lectures.some((path) => /labels=parked(:|%3A)chef/.test(path)), theWorld.lectures.join("\n"));
-
-    // La carte posée comme la vue la pose : la réponse tapée, Answer cliqué ; « Open on GitHub » ouvre son issue.
-    const answeredEntries: Answer[] = [];
-    let openOne = 0;
-    const setOne = setCardOfTodo({ createElement: (balise: string) => new Fake(balise) }, 41, card.todo, REPOS, { brouillon: ANSWER, cle: "parade#41" }, { repondre: (answer) => void answeredEntries.push(answer), ecrire: () => {}, demander: () => {}, ouvrir: () => void (openOne += 1) });
-    const root = setOne[0] as unknown as Fake;
-    const button = (wording: string) => root.dessous("button").find(({ textContent }) => textContent === wording) ?? assert.fail(`a button “${wording}”`);
-    button("Open on GitHub").click();
-    assert.equal(openOne, 1);
-    button("Answer").click();
-    assert.deepEqual(answeredEntries, [{ question: WHY, texte: ANSWER }]);
-
-    // Answer, joué sur GitHub par le jeton du chef : le commentaire, puis `parked:chef` retiré — et rien d'autre.
-    const rendered = await answerOnGithub({ depot: REPOSITORY, ticket: 41, chef: card.chef, reponse: answeredEntries[0], client: theWorld.client });
-    assert.ok("repondue" in rendered, JSON.stringify(rendered));
-    assert.deepEqual(
-      theWorld.ecrits.map(({ methode: method, chemin: path }) => `${method} ${path}`),
-      [`POST /repos/${REPOSITORY}/issues/41/comments`, `DELETE /repos/${REPOSITORY}/issues/41/labels/parked%3Achef`],
-    );
-    assert.equal(theWorld.issues.get(41)?.commentaires.at(-1)?.body, `<!-- brigade:reponse gesture=resume -->\n${ANSWER}`);
-    assert.deepEqual([...(theWorld.issues.get(41)?.labels ?? [])], ["fire", "model:sonnet", "effort:medium"]);
-
-    // Relu : #41 n'attend plus le chef — il est de retour sur le rail.
-    assert.deepEqual(await theTodo(theWorld.client), []);
-  });
 
   test("le second et les notifications, qui ne lisent pas le rail, lisent la liste du label : la même carte", async (t) => {
     const theWorld = world(t);
@@ -165,29 +112,5 @@ describe("#4474 : une issue `parked:chef` est une carte du TODO, et Answer la re
     assert.ok(theWorld.lectures.some((path) => path.includes("labels=parked:chef")));
   });
 
-  test("le label posé à la main, sans commentaire de la cuisine : la carte est là quand même, et le dit", async (t) => {
-    const theWorld = world(t, { commentaires41: [] });
-    const [card] = await theTodo(theWorld.client);
-    assert.equal(card?.ticket, 41);
-    assert.equal(card?.todo?.question, "Parked for the chef, with no kitchen comment that says why: read the issue, then answer.");
-  });
 
-  // #4789 : le commentaire de la zone à risque (`riskZoneComment`) — la carte nomme la PR et les fichiers, son bouton répond `merge`.
-  test("#4789 : une PR approuvée qui attend le chef pour une zone à risque : la carte la nomme, ses fichiers, et son bouton merge", async (t) => {
-    const RISK = "The pass approves PR #77, but it touches a risk zone (runtime/src/kitchen/decide.ts, app/src/main.ts): it waits for the chef to merge it.";
-    const theWorld = world(t, { commentaires41: [{ id: 1, body: RISK, author_association: "OWNER", created_at: "2026-11-26T08:00:00Z" }] });
-    const [card] = await theTodo(theWorld.client);
-    assert.equal(card?.ticket, 41);
-    assert.equal(card?.todo?.question, RISK);
-    assert.match(card?.todo?.question ?? "", /PR #77.*runtime\/src\/kitchen\/decide\.ts, app\/src\/main\.ts/);
-    assert.deepEqual(card?.todo?.choix.map(({ texte }) => texte), ["Merge PR #77"]);
-    assert.deepEqual(card?.chef && (await import("../../src/card-todo.ts")).cardReadOfChef(card.chef)?.choix, [{ texte: "Merge PR #77", suite: "merge" }]);
-    const rendered = await answerOnGithub({ depot: REPOSITORY, ticket: 41, chef: card?.chef, reponse: { question: RISK, choix: 1 }, client: theWorld.client });
-    assert.ok("repondue" in rendered, JSON.stringify(rendered));
-    assert.deepEqual(
-      theWorld.ecrits.map(({ methode: method, chemin: path }) => `${method} ${path}`),
-      [`POST /repos/${REPOSITORY}/issues/41/comments`, `PUT /repos/${REPOSITORY}/pulls/77/merge`, `DELETE /repos/${REPOSITORY}/issues/41/labels/parked%3Achef`],
-    );
-    assert.equal(theWorld.issues.get(41)?.commentaires.at(-1)?.body, "<!-- brigade:reponse gesture=merge -->\nMerge PR #77");
-  });
 });

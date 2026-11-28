@@ -66,9 +66,8 @@
 }
 .reglage > .champ .action > button {
   white-space: nowrap;
-}
-/* Ce qui suit un champ sans le changer — son unité, un « not editable here » — est en retrait. */
-.reglage > .champ :is(.unite, .fige) {
+}/* Ce qui suit un champ sans le changer — son unité, un « not editable here » — est en retrait. */
+.fige) {
   font-size: var(--taille-corps);
   color: var(--discret);
 }

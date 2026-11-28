@@ -197,7 +197,6 @@ describe("le téléphone connecté à GitHub lit ses projets, leur rail et leur 
     await reading.tous(2);
     const seenOne = boardOf(rail("cantine"));
     assert.deepEqual(seenOne.rail.colonnes.flatMap(({ cartes: cards }) => cards), []);
-    assert.equal(seenOne.rail.aucunTicket, true);
     // TODO est lu, et vide : il le dit.
     assert.equal(seenOne.rail.attendLu, READ);
     assert.equal(seenOne.rail.colonnes.find(({ nom: name }) => name === "Awaiting you")?.vide, "nothing awaits you");

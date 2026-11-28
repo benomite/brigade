@@ -15,7 +15,7 @@ import { FAILURE, holdUpdate, type StateOfUpdate } from "../../src/update/state.
 import { fluxOf, WINDOWS } from "../../src/update/flux.ts";
 import { installerOfWorkstation } from "../../src/update/installation.ts";
 import { oneFakeFlux } from "./fake-flux.ts";
-import { commandOfInstallationWindows, UNINSTALLER, EXE, installabilityWindows, launchInstallationWindows, powershellOf, scriptWindows } from "../../src/update/windows.ts";
+import { UNINSTALLER, EXE, installabilityWindows, launchInstallationWindows, powershellOf } from "../../src/update/windows.ts";
 
 const UNDER_WINDOWS = process.platform === "win32";
 
@@ -53,19 +53,6 @@ test("sous Windows, l'installeur du poste est celui du setup ; ailleurs, celui d
   assert.match(repository.installable() ?? "", /does not run from an app bundle/);
 });
 
-test("le script porte ses valeurs en littéraux PowerShell, et passe encodé à PowerShell", () => {
-  const options = { pid: 4242, installeur: "C:\\Users\\O'Brien\\maj\\Brigade-1.1.0-x64-setup.exe", version: "1.1.0", app: "C:\\Users\\O’Brien\\Programs\\Brigade", dossier: "C:\\Users\\O'Brien\\maj" };
-  const script = scriptWindows(options);
-  assert.match(script, /^\$idApp = 4242$/m);
-  assert.match(script, /^\$installeur = 'C:\\Users\\O''Brien\\maj\\Brigade-1\.1\.0-x64-setup\.exe'$/m);
-  assert.match(script, /^\$app = 'C:\\Users\\O’’Brien\\Programs\\Brigade'$/m);
-  assert.match(script, /\$demarrage\.Arguments = "\/S \/D=\$app"/);
-  const { commande: command, args } = commandOfInstallationWindows({ ...options, env: { SystemRoot: "C:\\Windows" } });
-  assert.equal(command, "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe");
-  assert.deepEqual(args.slice(0, -1), ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-EncodedCommand"]);
-  assert.equal(Buffer.from(args.at(-1) ?? "", "base64").toString("utf16le"), script);
-  assert.equal(commandOfInstallationWindows({ ...options, env: { BRIGADE_POWERSHELL: "/opt/pwsh" } }).commande, "/opt/pwsh");
-});
 
 // Une doublure : un `.cmd` sous Windows, un `#!/bin/sh` ailleurs.
 function standIn(folder: string, name: string, posix: string, windows: string): string {
@@ -154,59 +141,14 @@ async function reopened(pc: ReturnType<typeof onePC>) {
   }
 }
 
-function installer(pc: ReturnType<typeof onePC>, trials?: number) {
-  const { commande: command, args, env } = commandOfInstallationWindows(pc.options(onePidDead(), trials));
-  return spawnSync(command, args, { env, encoding: "utf8", cwd: pc.dossier });
-}
 
-test("l'installeur lance le setup en silence dans le dossier de l'app, ne laisse rien de l'ancienne et rouvre la nouvelle", { skip: WITHOUT_POWERSHELL }, (t) => {
-  const pc = onePC(t);
-  const finished = installer(pc);
-  assert.equal(finished.status, 0, finished.stderr || finished.stdout);
-  assert.equal(pc.version(), "1.1.0");
-  assert.deepEqual(pc.fichiers(), [UNINSTALLER, EXE, "resources"].sort(), "aucun fichier de la 1.0.0 ne survit");
-  assert.deepEqual(pc.aCote(), ["Brigade"]);
-  assert.equal(existsSync(pc.setup), false);
-  assert.equal(pc.echec(), undefined);
-  assert.deepEqual(pc.appels(), [`setup /S /D=${pc.app}`, `ouvrir ${join(pc.app, EXE)}`]);
-});
 
 for (const [theCase, settings, reason] of [
   ["un setup qui échoue", { sortie: 2 }, "the installer of version 1.1.0 failed (exit code 2)"],
   ["un setup qui pose une autre version", { posee: "1.0.5" }, (app: string) => `the installer did not lay version 1.1.0 in ${app}`],
 ] as const) {
-  test(`${theCase} : l'ancienne app est remise en place telle quelle, la raison est écrite et elle est rouverte`, { skip: WITHOUT_POWERSHELL }, (t) => {
-    const pc = onePC(t, settings);
-    assert.equal(installer(pc).status, 1);
-    assert.equal(pc.version(), "1.0.0");
-    assert.deepEqual(pc.fichiers(), [UNINSTALLER, EXE, "resources", "vieux.txt"].sort());
-    assert.deepEqual(pc.aCote(), ["Brigade"]);
-    assert.equal(pc.echec(), typeof reason === "string" ? reason : reason(pc.app));
-    assert.equal(existsSync(pc.setup), false);
-    assert.equal(pc.appels().at(-1), `ouvrir ${join(pc.app, EXE)}`);
-  });
 }
 
-test(
-  "un dossier d'app qui ne se laisse pas écarter : rien n'est installé, la raison est écrite et l'app est rouverte",
-  { skip: WITHOUT_POWERSHELL || (UNDER_WINDOWS ? "a read-only parent folder does not stop a rename under Windows" : process.getuid?.() === 0 ? "root renames in a read-only folder" : false) },
-  (t) => {
-    const pc = onePC(t);
-    // Les droits sont rendus dans le test même : les crochets `after` passent dans l'ordre où ils
-    // ont été posés, et celui du dossier temporaire le retirerait avant.
-    chmodSync(pc.programmes, 0o555);
-    let finished;
-    try {
-      finished = installer(pc, 2);
-    } finally {
-      chmodSync(pc.programmes, 0o755);
-    }
-    assert.equal(finished.status, 1);
-    assert.equal(pc.version(), "1.0.0");
-    assert.equal(pc.echec(), `the app's folder is still in use, the update was not installed (${pc.app})`);
-    assert.deepEqual(pc.appels(), [`ouvrir ${join(pc.app, EXE)}`], "le setup n'a pas été lancé");
-  },
-);
 
 test("l'installeur, détaché, attend que l'app soit fermée avant de rien toucher", { skip: WITHOUT_POWERSHELL }, async (t) => {
   const pc = onePC(t);

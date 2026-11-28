@@ -8,7 +8,7 @@ import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { jusqua, repertoireTemporaire } from "../../../runtime/test/outils.ts";
 import { roleOf } from "../../src/workstation/role.ts";
-import { holdStationLocale, HELD_BY, type OptionsStationLocale, type StationLocale } from "../../src/workstation/station.ts";
+import { holdStationLocale, HELD_BY, type OptionsStationLocale } from "../../src/workstation/station.ts";
 import { CACHE_OF_COMPILATION } from "../helpers/cache-of-compilation.ts";
 import { WITHOUT_POSIX } from "../helpers/posix.ts";
 

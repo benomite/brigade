@@ -1,7 +1,7 @@
 // Les tickets servis d'un projet, lus de GitHub (ticket 2220, épique 2209) : les PR fermées de son dépôt, page après page —
 // ce que les chiffres d'autonomie comptent (scripts/autonomy-page/autonomy-github.ts). Le kanban, lui, est lu de ses labels
 // (board/kitchen-board.ts).
-import { ticketOfThePR } from "../../board/rail-github.ts";
+import { ticketOfThePR } from "../../app/src/board/rail-github.ts";
 
 // La marque que la livraison porte dans le corps de sa PR : la station qui l'a cuisinée.
 const STATION_OF_THE_PR = /Cooked by station `([A-Za-z0-9._/-]+)`/;

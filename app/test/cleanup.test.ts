@@ -8,9 +8,9 @@ import { describe, test } from "node:test";
 import { forTheBar } from "../src/bar.ts";
 import { EXAMPLE, type Project } from "../src/config.ts";
 import { PALETTE } from "../src/colors.ts";
-import { BANNER } from "../src/facts.ts";
+
 import { EFFORTS, MODELS } from "../src/projects/projects.ts";
-import { TABS, HEADINGS } from "../src/tabs.ts";
+import { HEADINGS } from "../src/tabs.ts";
 import { type Fake, FakeTransfer, playTheVue, type Played, repos } from "./helpers/false-vue.ts";
 
 const project = (name: string): Project => ({ nom: name, dossier: `/tmp/${name}` });
@@ -23,13 +23,10 @@ const play = (projects: Project[], tidy: (name: string, rank: number) => string 
       configuration: shownEntry(projects),
       palette: PALETTE,
       exemple: EXAMPLE,
-      onglets: TABS,
       rubriques: HEADINGS,
       gestes: {},
-      banniere: BANNER,
       calibrage: { modeles: MODELS, efforts: EFFORTS },
-      code: undefined,
-    }),
+      }),
     espace: () => [],
     ranger: tidy,
   });

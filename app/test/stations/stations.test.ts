@@ -15,7 +15,6 @@ import { reply } from "./fake-gh-gists.ts";
 import { duration, lineOf, lineOfVersion, holdStations, type SeenOfStations } from "../../src/stations/stations.ts";
 import { WITHOUT_POSIX } from "../helpers/posix.ts";
 import { whatProvidesThisComputer } from "../../src/stations/provides.ts";
-import { DESCRIPTION_OF_PHONE, FILE_PHONE } from "../../src/phone-connected.ts";
 
 const SOURCES = join(import.meta.dirname, "../../src/stations");
 const NOW = Date.parse("2026-10-15T12:00:00Z");

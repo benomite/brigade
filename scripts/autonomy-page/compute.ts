@@ -52,7 +52,7 @@ const POUR_LE_CHEF_AVANT_PARKED: readonly string[] = ["blocked-on-human", "decis
 export const PERIODES: readonly number[] = [7, 30];
 const JOUR_MS = 24 * 3600 * 1000;
 
-// A ticket served by a merged pull request (app/src/vue/rail/github.ts,
+// A ticket served by a merged pull request (scripts/autonomy-page/served-github.ts,
 // `lireLesServis`): its number, title, address and merge instant.
 export type Servi = { ticket: number; titre: string; url: string; livre: string };
 // What one repository's GitHub holds for the figures: its served tickets, and

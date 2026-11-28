@@ -8,8 +8,8 @@ import { describe, test } from "node:test";
 import { forTheBar } from "../src/bar.ts";
 import { EXAMPLE, type Project } from "../src/config.ts";
 import { PALETTE } from "../src/colors.ts";
-import { BANNER } from "../src/facts.ts";
-import { TABS, HEADINGS } from "../src/tabs.ts";
+
+import { HEADINGS } from "../src/tabs.ts";
 import type { Opening } from "../src/first-launch.ts";
 import { EFFORTS, MODELS } from "../src/projects/projects.ts";
 import { ADD, EXPECTED, NO, CLONE_IN, PASTE, SINCE_ONE_COMPUTER, UNREADABLE, READING, SEARCH, REREAD, WITHOUT_ACCOUNT, TITLE } from "../src/vue/addition-project/addition.js";
@@ -34,13 +34,10 @@ const startup = () => ({
   poste: { nom: "this computer", mac: false },
   palette: PALETTE,
   exemple: EXAMPLE,
-  onglets: TABS,
   rubriques: HEADINGS,
   gestes: {},
-  banniere: BANNER,
   calibrage: { modeles: MODELS, efforts: EFFORTS },
-  code: undefined,
-});
+  });
 
 // L'app neuve, son pont doublé : `ouvrir` rend la copie qu'on lui dicte, après avoir écrit le projet dans le fichier,
 // comme le process principal (first-launch.ts) — la liste arrive par `surConfiguration`.

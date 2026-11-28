@@ -10,8 +10,8 @@ import { forTheBar } from "../../src/bar.ts";
 import { EXAMPLE } from "../../src/config.ts";
 import type { StartOfConnection } from "../../src/connection-github.ts";
 import { PALETTE } from "../../src/colors.ts";
-import { BANNER } from "../../src/facts.ts";
-import { TABS, HEADINGS } from "../../src/tabs.ts";
+
+import { HEADINGS } from "../../src/tabs.ts";
 import { EFFORTS, MODELS } from "../../src/projects/projects.ts";
 import type { Phone } from "../../src/vue/bridge.d.ts";
 import { EXPECTED, ITSELF_CONNECT, TITLE } from "../../src/vue/connection-github.js";
@@ -25,12 +25,9 @@ const startup = (phone: Phone | null) => () => ({
   configuration: forTheBar({ chemin: "no projects file on this phone", projets: [] }),
   palette: PALETTE,
   exemple: EXAMPLE,
-  onglets: TABS,
   rubriques: HEADINGS,
   gestes: {},
-  banniere: BANNER,
   calibrage: { modeles: MODELS, efforts: EFFORTS },
-  code: undefined,
   ...(phone === null ? {} : { telephone: phone }),
 });
 

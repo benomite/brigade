@@ -16,10 +16,7 @@ function actions(options: { listeApres?: string[]; refusIci?: string; refusSelec
       calls.push(`ici ${repository}`);
       return options.refusIci === undefined ? { depots: options.listeApres ?? [] } : { refus: options.refusIci };
     },
-    choisir: async (id, repositories) => {
-      calls.push(`selection ${id} ${repositories.join(",")}`);
-      return options.refusSelection === undefined ? { selection: repositories } : { refus: options.refusSelection };
-    },
+    
   };
   return { appels: calls, faits: facts };
 }
@@ -33,19 +30,7 @@ describe("arrêter cet ordinateur", () => {
     assert.deepEqual(said, { texte: REMOVED("macbook", "parade"), refus: false, detail: "" });
   });
 
-  test("la sélection que l'app tient pour sa station le porte aussi : il en est retiré d'abord, sans quoi la station réécrirait sa ligne", async () => {
-    const { appels: calls, faits: facts } = actions();
-    await plays(actionOfStop({ projet: "parade", depot: REPOSITORY, station: { nom: "macbook", ici: true }, liste: [REPOSITORY], selection: { id: "gmac", depots: ["Chef/Parade", "chef/autre"] } }, facts));
-    assert.deepEqual(calls, ["selection gmac chef/autre", `ici ${REPOSITORY}`]);
-  });
 
-  test("la sélection refuse : la liste n'est pas touchée, et la ligne dit pourquoi", async () => {
-    const { appels: calls, faits: facts } = actions({ refusSelection: "not saved: GitHub refused the gist — 403" });
-    const said = await plays(actionOfStop({ projet: "parade", depot: REPOSITORY, station: { nom: "macbook", ici: true }, liste: [REPOSITORY], selection: { id: "gmac", depots: [REPOSITORY] } }, facts));
-    assert.deepEqual(calls, ["selection gmac "]);
-    assert.equal(said.refus, true);
-    assert.match(said.texte, /^nothing was changed: GitHub refused the gist/);
-  });
 
   test("la liste relue le porte encore : rien n'a changé, et la ligne le dit", async () => {
     const { faits: facts } = actions({ listeApres: [REPOSITORY] });
@@ -65,12 +50,6 @@ describe("arrêter cet ordinateur", () => {
   });
 });
 
-test("une station du compte : sa sélection, sans le dépôt", async () => {
-  const { appels: calls, faits: facts } = actions();
-  const said = await plays(actionOfStop({ projet: "parade", depot: REPOSITORY, station: { nom: "parade-box", ici: false }, selection: { id: "gbox", depots: [REPOSITORY, "chef/autre"] } }, facts));
-  assert.deepEqual(calls, ["selection gbox chef/autre"]);
-  assert.deepEqual(said, { texte: REMOVED("parade-box", "parade"), refus: false, detail: "" });
-});
 
 describe("la carte de cet ordinateur suit sa liste", () => {
   const MAC: StationVue = { id: "gmac", nom: "macbook", machine: "macOS 25.0.0", etat: "en-ligne", ligne: "online", dit: "online", version: "", projets: ["parade"], max: null };

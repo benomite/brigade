@@ -10,8 +10,9 @@ const PROJECTS = [
   { nom: "parade", depot: "chef/parade" },
   { nom: "atelier", depot: "chef/atelier" },
 ];
-const card = (question: string) => `<!-- brigade:todo kind=product-question -->\n${question}\n- [resume] Yes\n- [drop] No`;
-const toDo = (question: string): Issue => ({ labels: ["chef-todo"], commentaires: ["chatter", card(question)] });
+// Un ticket que la cuisine parque pour le chef : le label `parked:chef`, et son commentaire qui dit pourquoi.
+const card = (question: string) => `Parked for the chef: ${question}`;
+const toDo = (question: string): Issue => ({ labels: ["parked:chef"], commentaires: ["chatter", card(question)] });
 
 let world: Record<string, Record<number, Issue>>;
 let unreachable: Set<string>;
@@ -73,7 +74,7 @@ describe("la notification d'une carte de TODO", () => {
     parade[1]!.commentaires.push("a comment");
     parade[1]!.labels.push("prio:1", "parked");
     parade[3] = { labels: ["fire", "served-elsewhere"], commentaires: ["<!-- brigade:renvoi n=1 -->\nnothing to ask"] };
-    parade[4] = { labels: ["chef-todo"], commentaires: ["a label without a marked question"] };
+    parade[4] = { labels: ["fire", "chef-todo"], commentaires: ["a label of the old runtime, which the kitchen no longer reads"] };
     delete parade[2];
     assert.deepEqual(await prober(), { lu: true, notifiees: 0, retirees: 0 });
     assert.deepEqual(shown, []);

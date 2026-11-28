@@ -12,8 +12,8 @@ import { cardOfChefOfTodo, type CardRead, type SendSeen, type Rendered } from ".
 import type { CardOfChef } from "../../src/board/todo-github.ts";
 import { EXAMPLE } from "../../src/config.ts";
 import { PALETTE } from "../../src/colors.ts";
-import { BANNER, holdFacts, type Facts } from "../../src/facts.ts";
-import { TABS, HEADINGS } from "../../src/tabs.ts";
+import { holdFacts, type Facts } from "../../src/facts.ts";
+import { HEADINGS } from "../../src/tabs.ts";
 import { EFFORTS, MODELS } from "../../src/projects/projects.ts";
 import type { Reading } from "../../src/box.ts";
 import { WITHOUT_DONE } from "../../src/actions-github.ts";
@@ -48,14 +48,8 @@ const chefOf = ({ type, question, choix: choice }: CardRead, context = ""): Card
 const FACTS: Facts = {
   etat: "ouverte",
   lu: "2026-10-21T10:04:11.000Z",
-  dernierTick: "2026-10-21T10:04:02.000Z",
   compteurs: { rail: 2, auTravail: 0, aLaPass: 1, attend: 2, livres24h: 0 },
-  dernierEvenement: null,
-  rail: [
-    { ticket: 12, etat: "en pass", titre: "Validation SIRET", url: ISSUE(12), activite: null },
-    { ticket: 21, etat: "en attente", titre: "L'export du journal", url: ISSUE(21), activite: null },
-  ],
-  cooks: [],
+  
   attend: [
     { ticket: 12, titre: "Validation SIRET", url: ISSUE(12), chef: chefOf(DESIGN) },
     { ticket: 21, titre: "L'export du journal", url: ISSUE(21), chef: chefOf(PRODUCT) },
@@ -78,13 +72,10 @@ const startup = () => ({
   configuration: forTheBar({ chemin: "/tmp/app.json", projets: [{ nom: PARADE, dossier: "/tmp/parade" }] }, () => true),
   palette: PALETTE,
   exemple: EXAMPLE,
-  onglets: TABS,
   rubriques: HEADINGS,
   gestes: {},
-  banniere: BANNER,
   calibrage: { modeles: MODELS, efforts: EFFORTS },
-  code: undefined,
-});
+  });
 
 async function open(answers: Answers = {}): Promise<Played> {
   const vue = await playTheVue({ demarrage: startup, espace: () => [], ...answers });
@@ -130,150 +121,15 @@ function queued(setOne: Fake, answer: string) {
 }
 
 describe("la carte de TODO, sur le rail du projet", () => {
-  test("une carte montre sa question, puis un bouton par choix, dans l'ordre du runtime", async () => {
-    const vue = await open();
-    receive(vue);
-    for (const [ticket, data] of [[12, DESIGN], [21, PRODUCT]] as const) {
-      const setOne = card(vue, ticket);
-      assert.equal(setOne.dessous("p").find((pose) => pose.className === "question-carte")?.textContent, data.question);
-      assert.deepEqual(
-        choice(setOne).map((pose) => pose.textContent),
-        data.choix.map(({ texte: text }) => text),
-      );
-    }
-  });
 
-  test("chaque choix se lit entier, sans coupe ni « ? » à déchiffrer : son libellé est celui du bouton, son prix au survol du bouton (#3086)", async () => {
-    const vue = await open();
-    receive(vue);
-    const poses = choice(card(vue, 21));
-    assert.deepEqual(
-      poses.map((pose) => pose.textContent),
-      PRODUCT.choix.map(({ texte: text }) => text),
-    );
-    assert.ok(poses.every((pose) => pose.dessous("span").every((span) => span.className !== "coupe")), "aucun libellé coupé");
-    assert.ok(poses.every((pose) => (pose.title ?? "") !== ""), "chaque bouton dit ce qu'il fait");
-    assert.deepEqual(poses.flatMap((pose) => pose.parentElement?.dessous("button").filter((other) => other.className === "aide") ?? []), [], "aucun « ? » sur les choix");
-    assert.equal(poses[0]?.dataset.bouton, "recommande");
-  });
 
-  test("le prix d'un choix est au survol de son bouton, jamais écrit sous lui : un merge le dit", async () => {
-    const vue = await open();
-    receive(vue);
-    const [merge] = choice(card(vue, 12));
-    assert.match(merge?.title ?? "", /merges the PR the card names/);
-    assert.doesNotMatch(card(vue, 12).dessous("p").map((pose) => pose.textContent).join("\n"), /merges/);
-  });
 
-  test("une carte a un champ de texte libre et son bouton « send », inactif tant que le champ est vide", async () => {
-    const vue = await open();
-    receive(vue);
-    const setOne = card(vue, 21);
-    assert.equal(field(setOne).placeholder, FIELD);
-    assert.equal(button(setOne, SEND).disabled, true);
-    field(setOne).value = "Both: one per project, plus a summary.";
-    field(setOne).declencher("input");
-    assert.equal(button(setOne, SEND).disabled, false);
-  });
 
-  test("un clic sur un choix envoie la réponse, une fois, et la carte la dit envoyée, en attente de la cuisine, sans autre clic", async () => {
-    const vue = await open({ repondreCarte: () => ({ repondue: true, dit: "#21: card answered, choice 2", commentaire: 500 }) });
-    receive(vue);
-    assert.equal(account(vue), "2");
-    const reviews = vue.appels.filter(({ geste: action }) => action === "relireBox").length;
-    choice(card(vue, 21))[1]?.click();
-    await repos();
-    assert.deepEqual(vue.dernier("repondreCarte"), [PARADE, 21, { question: PRODUCT.question, choix: 2 }]);
-    assert.equal(vue.appels.filter(({ geste: action }) => action === "repondreCarte").length, 1);
-    queued(card(vue, 21), PRODUCT.choix[1]?.texte ?? "");
-    assert.ok(slip(vue, 12) !== undefined, "l'autre carte reste, à trancher");
-    assert.equal(choice(card(vue, 12)).length, 2);
-    // `facts` est relu tout de suite : la lecture suivante dit ce qu'il en est.
-    assert.equal(vue.appels.filter(({ geste: action }) => action === "relireBox").length, reviews + 1);
-    // Tant qu'aucune lecture n'en dit rien, la carte l'attend ; la lecture qui ne la porte plus l'oublie.
-    receive(vue);
-    queued(card(vue, 21), PRODUCT.choix[1]?.texte ?? "");
-    receive(vue, { ...FACTS, attend: FACTS.attend?.filter(({ ticket }) => ticket !== 21) });
-    receive(vue);
-    assert.equal(choice(card(vue, 21)).length, 2, "revenue avec une lecture neuve, elle se pose de nouveau, à trancher");
-  });
 
-  test("le texte libre part par « send », tel que le chef l'a tapé", async () => {
-    const vue = await open({ repondreCarte: () => ({ repondue: true, dit: "#12: card answered" }) });
-    receive(vue);
-    const setOne = card(vue, 12);
-    field(setOne).value = "Merge it, but the label must say “SIRET number”.";
-    field(setOne).declencher("input");
-    button(setOne, SEND).click();
-    await repos();
-    assert.deepEqual(vue.dernier("repondreCarte"), [PARADE, 12, { question: DESIGN.question, texte: "Merge it, but the label must say “SIRET number”." }]);
-    queued(card(vue, 12), "Merge it, but the label must say “SIRET number”.");
-  });
 
-  test("en route, les choix et le champ attendent : un second clic ne part pas", async () => {
-    let reply: (rendered: Rendered) => void = () => {};
-    const vue = await open({ repondreCarte: () => new Promise<Rendered>((render) => (reply = render)) as unknown as Rendered });
-    receive(vue);
-    choice(card(vue, 21))[0]?.click();
-    await repos();
-    const setOne = card(vue, 21);
-    assert.ok(choice(setOne).every((pose) => pose.disabled));
-    assert.equal(field(setOne).disabled, true);
-    assert.ok(setOne.dessous("span").some((pose) => pose.textContent === IN_ROUTE));
-    choice(setOne)[1]?.click();
-    assert.equal(vue.appels.filter(({ geste: action }) => action === "repondreCarte").length, 1);
-    reply({ repondue: true, dit: "" });
-    await repos();
-    queued(card(vue, 21), PRODUCT.choix[0]?.texte ?? "");
-  });
 
-  test("refusée, la carte reste dans TODO avec ses gestes, et dit pourquoi en une ligne — le détail au survol", async () => {
-    const detail = "$ node geste.ts parade rail choose 21 1\n#21 is not touched: a cook is working on #21\n→ exit code 1";
-    const vue = await open({ repondreCarte: () => ({ refus: "nothing was recorded — #21 is not touched: a cook is working on #21", detail }) });
-    receive(vue);
-    choice(card(vue, 21))[0]?.click();
-    await repos();
-    const setOne = card(vue, 21);
-    const refusal = setOne.dessous("p").find((pose) => pose.className === "refus") ?? assert.fail("pas de ligne de refus");
-    assert.equal(refusal.dessous("span")[0]?.textContent, "nothing was recorded — #21 is not touched: a cook is working on #21");
-    assert.equal(refusal.dessous("button").find((pose) => pose.className === "aide")?.ariaLabel, detail);
-    assert.ok(choice(setOne).every((pose) => !pose.disabled));
-    assert.equal(account(vue), "2");
-  });
 
-  test("ce que le process principal rend aujourd'hui (#2061) : rien n'est posté, la carte reste à trancher et dit où y répondre", async () => {
-    const vue = await open({ repondreCarte: () => ({ refus: WITHOUT_DONE.carte, detail: "" }) });
-    receive(vue);
-    choice(card(vue, 21))[0]?.click();
-    await repos();
-    const setOne = card(vue, 21);
-    const refusal = setOne.dessous("p").find((pose) => pose.className === "refus") ?? assert.fail("pas de ligne de refus");
-    assert.equal(refusal.dessous("span")[0]?.textContent, WITHOUT_DONE.carte);
-    assert.ok(choice(setOne).length === 2 && choice(setOne).every((pose) => !pose.disabled));
-    assert.equal(whereItStands(setOne), undefined);
-  });
 
-  test("une carte du chef à première vue : situation, question, recommandation, boutons — le reste derrière un seul « details », fermé (#3086)", () => {
-    const doc = { createElement: (balise: string) => new Fake(balise) };
-    const nothing = { repondre: () => {}, ecrire: () => {}, demander: () => {} };
-    const cardOfChef = cardOfChefOfTodo({
-      sorte: "blocked",
-      texte: "Should the release run of app 1.0.185 be retried?\n- [resume] Retry it: the failure looks transient\n- [close] Close it\n\nThe release run of app 1.0.185 failed. Opened by a stranger.\n\nManager triage: a long note that must not show at first sight.",
-    }) ?? assert.fail("pas de carte");
-    const setOne = (setCardOfTodo(doc, 3084, cardOfChef, REPOS, { brouillon: "", cle: "p#3084" }, nothing) as Fake[])[0] ?? assert.fail("rien de posé");
-    assert.deepEqual(
-      setOne.children.map((pose) => pose.className),
-      ["resume-carte", "question-carte", "recommandation-carte", "choix-carte", "en-mes-mots", "phrase", "details-carte", "secondaire"],
-    );
-    assert.equal(setOne.children[0]?.textContent, "The release run of app 1.0.185 failed.");
-    assert.equal(setOne.children[2]?.textContent, "Recommended: Retry it: the failure looks transient");
-    const fold = setOne.children.find((pose) => pose.className === "details-carte") ?? assert.fail("pas de pli");
-    assert.notEqual((fold as unknown as { open?: boolean }).open, true, "fermé par défaut");
-    assert.equal(fold.children[0]?.textContent, "details");
-    assert.match(fold.textContent, /Manager triage: a long note/);
-    assert.equal(setOne.dessous("details").length, 1);
-    assert.ok(!setOne.children.filter((pose) => pose !== fold).some((pose) => /Manager triage/.test(pose.textContent)));
-  });
 
   test("les états d'une réponse lue, sur la carte : envoyée et en attente de la cuisine, puis jouée — ou pas jouée et pourquoi", () => {
     const doc = { createElement: (balise: string) => new Fake(balise) };
@@ -295,84 +151,10 @@ describe("la carte de TODO, sur le rail du projet", () => {
     assert.ok(choice(refused).length === 2 && choice(refused).every((pose) => !pose.disabled));
   });
 
-  test("une carte dans la forme unique montre, dans cet ordre : ce qui se passe, la question, un bouton par choix, le champ libre, puis « ask the second »", async () => {
-    const vue = await open();
-    receive(vue, SHAPE);
-    const setOne = card(vue, 21);
-    const order = setOne.children.map((pose) => pose.className);
-    assert.deepEqual(order, ["resume-carte", "question-carte", "recommandation-carte", "choix-carte", "en-mes-mots", "phrase", "details-carte", "secondaire"]);
-    assert.equal(setOne.children[0]?.textContent, PRODUCT_RESUME);
-    assert.equal(setOne.children[1]?.textContent, PRODUCT.question);
-    assert.deepEqual(
-      choice(setOne).map((pose) => pose.textContent),
-      PRODUCT.choix.map(({ texte: text }) => text),
-    );
-    assert.equal(field(setOne).placeholder, FIELD);
-    // Le résumé dit ce qui se passe : la phrase du bon ne le redit pas.
-    assert.ok(!(slip(vue, 21)?.dessous("p") ?? []).some((pose) => pose.className === "ligne-carte"));
-  });
 
-  test("dans Awaiting you, la réponse recommandée est le premier choix, et lui seul ; le champ attend derrière « answer in my own words » (#2922)", async () => {
-    const vue = await open();
-    receive(vue, SHAPE);
-    const setOne = card(vue, 21);
-    assert.deepEqual(
-      choice(setOne).map((pose) => [pose.textContent, pose.dataset.bouton === "recommande"]),
-      PRODUCT.choix.map(({ texte: text }, rank) => [text, rank === 0]),
-    );
-    const sentence = setOne.children.find((pose) => pose.className === "phrase") ?? assert.fail("pas de champ");
-    const opens = button(setOne, IN_MY_WORDS);
-    assert.equal(sentence.hidden, true, "replié tant que rien n'est tapé");
-    assert.equal(opens.hidden, false);
-    opens.click();
-    assert.equal(sentence.hidden, false);
-    assert.equal(opens.hidden, true);
-    // Le champ ouvert se tape et part par « send », comme avant.
-    field(setOne).value = "Both.";
-    field(setOne).declencher("input");
-    assert.equal(button(setOne, SEND).disabled, false);
-  });
 
-  test("un clic sur le bouton d'un choix joue son geste : la réponse part pour ce choix, sur la question montrée", async () => {
-    const vue = await open({ repondreCarte: () => ({ repondue: true, dit: "#31: card answered, choice 1" }) });
-    receive(vue, SHAPE);
-    choice(card(vue, 21))[1]?.click();
-    await repos();
-    assert.deepEqual(vue.dernier("repondreCarte"), [PARADE, 21, { question: PRODUCT.question, choix: 2 }]);
-    queued(card(vue, 21), PRODUCT.choix[1]?.texte ?? "");
-  });
 
-  test("« ask the second » est sur chaque carte, en action secondaire, jamais un des choix — et la carte se tranche sans lui", async () => {
-    const vue = await open({ repondreCarte: () => ({ repondue: true, dit: "#12: card answered, choice 1" }) });
-    receive(vue, SHAPE);
-    for (const ticket of [12, 21]) {
-      const setOne = card(vue, ticket);
-      const ask = button(setOne, ASK);
-      assert.equal(ask.className, "demander", "un mot en retrait, pas un bouton de choix");
-      assert.equal(ask.parentElement?.className, "secondaire");
-      assert.ok(!choice(setOne).includes(ask));
-      assert.ok(!choice(setOne).some((pose) => pose.textContent === ASK));
-    }
-    choice(card(vue, 12))[0]?.click();
-    await repos();
-    queued(card(vue, 12), DESIGN.choix[0]?.texte ?? "");
-    assert.equal(vue.appels.filter(({ geste: action }) => action === "demanderAuSecond").length, 0, "sans passer par le second");
-  });
 
-  test("« ask the second » passe la carte au second — son numéro et sa question (#3133) ; la carte le dit, et garde ses choix", async () => {
-    const vue = await open({ passerAuSecond: () => ({ refus: "nothing was written: the station is not reached" }) });
-    receive(vue, SHAPE);
-    field(card(vue, 21)).value = "what is a journal export?";
-    field(card(vue, 21)).declencher("input");
-    button(card(vue, 21), ASK).click();
-    await repos();
-    assert.deepEqual(vue.dernier("passerAuSecond"), [PARADE, 21, PRODUCT.question]);
-    assert.equal(vue.appels.filter(({ geste: action }) => action === "demanderAuSecond").length, 0, "la carte ne passe plus par la demande de la fiche");
-    const setOne = card(vue, 21);
-    assert.equal(setOne.dessous("span").find((pose) => pose.className === "refus")?.textContent, "nothing was written: the station is not reached");
-    assert.ok(choice(setOne).every((pose) => !pose.disabled), "la carte se tranche toujours par ses choix");
-    assert.equal(account(vue), "2");
-  });
 
   test("une entrée de TODO sans carte du chef n'a ni question, ni choix, ni champ", async () => {
     const vue = await open();

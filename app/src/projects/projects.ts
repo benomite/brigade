@@ -23,7 +23,7 @@
 // demande : une station qui refuse de le reprendre le laisse cuire là où il cuisait.
 import type { GitHubOfStations } from "../stations/github.ts";
 import type { StationVue } from "../stations/stations.ts";
-import { withTheTracking, capacitiesRead, documentOfRequest, FILE_PROJECTS, FILE_TRACKING, readRequest, readOnboarding, readTracking, doorTheTracking, type AccessBlocked, type Toggle, type Blockage, type Calibrated, type Choice, type Delay, type FailureOfClone, type FailureOfWorktree, type StateOfProject, type Onboarding, type ProjectRequest, type Refusal, type Selections, type TrackingOfProject, type TimePublished } from "./request.ts";
+import { capacitiesRead, documentOfRequest, FILE_PROJECTS, FILE_TRACKING, readRequest, readOnboarding, readTracking, doorTheTracking, type AccessBlocked, type Toggle, type Blockage, type Calibrated, type Choice, type Delay, type FailureOfClone, type FailureOfWorktree, type StateOfProject, type Onboarding, type ProjectRequest, type Refusal, type Selections, type TrackingOfProject, type TimePublished } from "./request.ts";
 import type { Move, Mover } from "./move.ts";
 import type { RepositoryOfChef } from "./github.ts";
 
@@ -31,21 +31,6 @@ import type { RepositoryOfChef } from "./github.ts";
 export const MODELS = ["opus", "sonnet", "haiku"] as const;
 export const EFFORTS = ["low", "medium", "high", "xhigh", "max"] as const;
 
-export type InputOfProject = {
-  depot: string;
-  base: string;
-  // Les gists des stations choisies.
-  stations: string[];
-  cooks: string;
-  manager: Calibrated;
-  reviewer: Calibrated;
-  // Quand le chef a ouvert le parcours.
-  ouvertLe: string;
-  // Ce que la machine ajoutée sait faire en plus de coder, coché par le chef (#1307) : sa demande le porte.
-  capacites: string[];
-};
-export type Field = "nom" | "depot" | "base" | "stations" | "cooks" | "capacites" | "manager-modele" | "manager-effort" | "reviewer-modele" | "reviewer-effort";
-export type Reported = Partial<Record<Field, string>>;
 
 // Une station d'un projet, telle que la home la montre : toutes de la même façon, ce qu'elle en dit et les autorisations
 // GitHub qu'elle attend.
@@ -114,9 +99,6 @@ export type SeenOfProjects = {
   calibrage: CalibrationRecommended;
   sans?: string;
 };
-// `manque` : parmi le dépôt, la branche d'intégration et le plafond de cooks, ceux que la première station
-// ne dit pas et que le chef n'a pas donnés — chacun est aussi dans `signales`, sous son nom.
-export type Missing = "depot" | "base" | "cooks";
 // Ce que le formulaire d'ajout d'une station montre d'emblée pour cet ordinateur (#1307), tel que l'opération du
 // runtime le calcule (`defautsDeStation`) : les cooks que ses cœurs
 // permettent et d'où vient ce nombre, le dossier où sa station pose les espaces de travail de ses cooks, et
@@ -127,33 +109,13 @@ export type DefaultsOfTheMachine = { cooks: number; cooksDit: string; espaceDeTr
 export type FoldersOfTheStation = { clone: string; worktrees: string } | { refus: string; detail?: string };
 // Ce que le clone d'un projet sur cet ordinateur dit de lui : son dépôt, sa branche d'intégration.
 export type SaysOfClone = { depot: string | null; base: string | null };
-export type Addition = { ajoute: string } | { signales: Reported; manque?: Missing[] } | { refus: string };
 export type Removal = { retire: string } | { refus: string };
 export type { Move } from "./move.ts";
 
-// Un dépôt GitHub : `<owner>/<repo>`.
-const REPOSITORY = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?\/[A-Za-z0-9_.-]{1,100}$/;
-const BRANCH = /^[A-Za-z0-9._/-]{1,200}$/;
-const NAME = /^[a-z0-9][a-z0-9-]*$/;
 
 const text = (received: unknown) => (typeof received === "string" ? received.trim() : "");
 const message = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
-// Ce que la vue envoie, ramené à des textes : rien n'y est cru sur parole.
-export function readInput(received: unknown): InputOfProject {
-  const { depot: repository, base, stations, cooks, manager, reviewer, ouvertLe: openThe, capacites: capacities } = (received ?? {}) as Record<string, unknown>;
-  const calibrated = (readOne: unknown): Calibrated => ({ modele: text((readOne as Calibrated | undefined)?.modele), effort: text((readOne as Calibrated | undefined)?.effort) });
-  return {
-    depot: text(repository),
-    base: text(base),
-    stations: Array.isArray(stations) ? [...new Set(stations.map(text).filter((id) => id !== ""))] : [],
-    cooks: text(cooks),
-    manager: calibrated(manager),
-    reviewer: calibrated(reviewer),
-    ouvertLe: text(openThe),
-    capacites: capacitiesRead(capacities),
-  };
-}
 
 // Le nom du projet, tiré de son dépôt : celui de son état et de son clone sur la station.
 export function nameOfProject(repository: string): string {
@@ -198,10 +160,6 @@ export function stationRecommended(stations: readonly StationVue[]): string | un
   return stations.find((station) => station.etat === "en-ligne" && station.cuisine !== false && !isOneComputer(station))?.id;
 }
 
-// Celle des stations choisies dont le gist porte le suivi du projet : la recommandée si elle en est, sinon la première.
-export function carrierOfTracking(chosen: readonly string[], recommended: string | undefined): string {
-  return chosen.find((id) => id === recommended) ?? chosen[0] ?? "";
-}
 
 // Le nombre de cooks que les cœurs d'une machine permettent : celui même que la station en dérive
 // (`plafondDesCoeurs`, #1079) — deux cœurs gardés pour le
@@ -246,90 +204,10 @@ export function warning(station: Pick<StationVue, "nom" | "machine"> | undefined
   return `${station.nom} is a computer's app: this project's kitchen stops whenever you close the app there. A server station, always on, is recommended.`;
 }
 
-// Les champs qui empêchent de valider, chacun avec sa raison. Aucun : la saisie peut partir.
-export function refusalOfInput(input: InputOfProject, stations: readonly StationVue[], existing: readonly string[]): Reported {
-  const reported: Reported = {};
-  const report = (field: Field, reason: string | undefined) => {
-    if (reason !== undefined) reported[field] = reason;
-  };
-  const name = nameOfProject(input.depot);
-  report(
-    "depot",
-    input.depot === ""
-      ? "Choose the project's GitHub repository — `<owner>/<name>`."
-      : !REPOSITORY.test(input.depot) || input.depot.endsWith(".git")
-        ? `“${input.depot.slice(0, 60)}” is not a GitHub repository: expected \`<owner>/<name>\`.`
-        : !NAME.test(name)
-          ? "This repository's name gives no project name: letters, digits and dashes."
-          : existing.includes(name)
-            ? `A project named ${name} is already on your stations: remove it first.`
-            : undefined,
-  );
-  report("base", input.base === "" ? "The integration branch is missing: the branch the kitchen delivers to." : BRANCH.test(input.base) ? undefined : `“${input.base.slice(0, 60)}” is not a branch name.`);
-  const known = new Set(stations.map(({ id }) => id));
-  const withoutKitchen = stations.filter(({ id, cuisine: kitchen }) => kitchen === false && input.stations.includes(id)).map(({ nom: name }) => name);
-  report("stations", input.stations.length === 0 ? "Choose at least one station to serve this project." : input.stations.some((id) => !known.has(id)) ? "A chosen station is no longer paired with this app." : withoutKitchen.length > 0 ? `${withoutKitchen.join(", ")} does not cook: choose a station that does.` : undefined);
-  return { ...reported, ...refusalOfDecisions(input) };
-}
 
-// Le plafond de cooks et le calibrage : les décisions du chef — proposées, mais jamais vides.
-function refusalOfDecisions(input: Pick<InputOfProject, "cooks" | "manager" | "reviewer">): Reported {
-  const reported: Reported = {};
-  const report = (field: Field, reason: string | undefined) => {
-    if (reason !== undefined) reported[field] = reason;
-  };
-  report("cooks", input.cooks === "" ? "How many cooks may a station run at once for this project?" : /^[1-9][0-9]{0,2}$/.test(input.cooks) ? undefined : "The number of cooks is a whole number, 1 or more.");
-  for (const role of ["manager", "reviewer"] as const) {
-    const { modele: model, effort } = input[role];
-    report(`${role}-modele`, (MODELS as readonly string[]).includes(model) ? undefined : `Choose the ${role}'s model.`);
-    report(`${role}-effort`, (EFFORTS as readonly string[]).includes(effort) ? undefined : `Choose the ${role}'s effort.`);
-  }
-  return reported;
-}
 
-// Ce que la page d'un projet envoie pour confier sa cuisine : la saisie du parcours, et le nom du
-// projet dans l'app — celui sous lequel ses stations le serviront.
-export type InputOfTrust = InputOfProject & { nom: string };
-export function readTrust(received: unknown): InputOfTrust {
-  return { ...readInput(received), nom: text((received as { nom?: unknown } | null | undefined)?.nom) };
-}
 
-// Ce que les stations font déjà d'un projet : celles qui le portent — que l'app le leur ait demandé,
-// ou qu'elles le servent sans elle —, si une station en porte déjà le suivi, et ce que l'app en a demandé.
-export type AlreadyHeld = { portee: string[]; suivi: boolean; demande?: ProjectRequest };
 
-// Les champs qui empêchent de confier le projet à ces stations, chacun avec sa raison. Une station
-// qui le porte déjà ne se choisit pas une seconde fois ; un projet dont le suivi est porté n'en change pas ; une station de plus reprend le calibrage déjà demandé, et n'a que ses cooks à dire.
-export function refusalOfTrust(input: InputOfTrust, stations: readonly StationVue[], held: AlreadyHeld): Reported {
-  const reported: Reported = {};
-  const report = (field: Field, reason: string | undefined) => {
-    if (reason !== undefined) reported[field] = reason;
-  };
-  report("nom", NAME.test(input.nom) ? undefined : `“${input.nom.slice(0, 60)}” cannot be a project's name on a station: lowercase letters, digits and dashes.`);
-  report(
-    "depot",
-    input.depot === "" ? "Choose the project's GitHub repository — `<owner>/<name>`." : !REPOSITORY.test(input.depot) || input.depot.endsWith(".git") ? `“${input.depot.slice(0, 60)}” is not a GitHub repository: expected \`<owner>/<name>\`.` : undefined,
-  );
-  report("base", input.base === "" ? "The integration branch is missing: the branch the kitchen delivers to." : BRANCH.test(input.base) ? undefined : `“${input.base.slice(0, 60)}” is not a branch name.`);
-  const known = new Map(stations.map((station) => [station.id, station.nom]));
-  const withoutKitchen = stations.filter(({ id, cuisine: kitchen }) => kitchen === false && input.stations.includes(id)).map(({ nom: name }) => name);
-  const already = input.stations.filter((id) => held.portee.includes(id)).map((id) => known.get(id) ?? id);
-  report(
-    "stations",
-    input.stations.length === 0
-      ? `Choose at least one station to cook ${input.nom || "this project"}.`
-      : input.stations.some((id) => !known.has(id))
-        ? "A chosen station is no longer paired with this app."
-        : withoutKitchen.length > 0
-          ? `${withoutKitchen.join(", ")} does not cook: choose a station that does.`
-          : already.length > 0
-          ? `${already.join(", ")} already cook${already.length > 1 ? "" : "s"} it: choose another station.`
-          : undefined,
-  );
-  if (held.demande === undefined) return { ...reported, ...refusalOfDecisions(input) };
-  if (input.cooks !== "" && !/^[1-9][0-9]{0,2}$/.test(input.cooks)) reported.cooks = "The number of cooks is a whole number, 1 or more.";
-  return reported;
-}
 
 // Ce que la demande d'un projet porte pour une station : ce que son appairage dit qu'elle fournit (#1757,
 // stations/document.ts), en plus de ce que le chef a coché — c'est par là que le suivi du projet l'apprend.
@@ -361,12 +239,6 @@ export function servedElsewhere(seenOne: Pick<SeenOfProjects, "projets"> | undef
   return cooked !== undefined && cooked !== null && !cooked.ici;
 }
 
-// La machine d'une station, par son nom — `<machine>/<moteur>` : la machine —, telle que le réseau du chef la nomme.
-// Rien, quand ce n'est pas un nom de machine.
-export function machineOfName(name: string): string | undefined {
-  const machine = name.includes("/") ? name.slice(0, name.indexOf("/")) : name;
-  return /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(machine) ? machine : undefined;
-}
 
 // Le déménagement en cours d'un projet, d'après ses stations : le plus récent, à son étape la plus
 // avancée. Reçu par celle qui le reprend, il est fini : rien. Refusé, `dit` dit pourquoi — ce que
@@ -412,24 +284,13 @@ export type OptionsProjects = {
   // première ne dit pas : le chef ne les retape pas (#1307).
   leClone?: (name: string) => Promise<SaysOfClone | null>;
 };
-export type DecisionWithoutSandbox = { fait: string } | { refus: string; detail?: string };
-export type Chosen = { fait: string } | { refus: string; detail?: string };
 
 export type Projects = {
   vu(): SeenOfProjects | undefined;
   relire(): Promise<SeenOfProjects>;
   depots(): Promise<{ depots: RepositoryOfChef[] } | { refus: string }>;
-  ajouter(received: unknown): Promise<Addition>;
-  // Confie la cuisine d'un projet de l'app à une première station, ou à une de plus.
-  confier(received: unknown): Promise<Addition>;
-  retirer(name: unknown): Promise<Removal>;
   // Déménage la cuisine d'un projet vers une station appairée — son gist.
   demenager(name: unknown, to: unknown): Promise<Move>;
-  // Le chef continue sans bac à sable sur la station du projet : sa décision est notée, la retenue du rail se lève.
-  continuerSansBac(name: unknown): Promise<DecisionWithoutSandbox>;
-  // Retient une issue d'un choix que le suivi du projet attend (#1400) : elle s'écrit dans la demande de la
-  // station qui le porte, qui la pose à son journal à sa lecture suivante.
-  choisir(name: unknown, choice: unknown, issue: unknown): Promise<Chosen>;
   // Les pages GitHub où autoriser brigade, telles que les stations les ont publiées.
   pages(): string[];
 };
@@ -564,121 +425,6 @@ export function holdProjects(options: OptionsProjects): Projects {
     return writtenOnes;
   };
 
-  const add = (received: unknown): Promise<Addition> =>
-    inFile(async () => {
-      const input = readInput(received);
-      const stations = paired();
-      const existing = (await reread()).projets.map(({ nom: name }) => name);
-      const reported = refusalOfInput(input, stations, existing);
-      if (Object.keys(reported).length > 0) return { signales: reported };
-      const name = nameOfProject(input.depot);
-      const instant = new Date(now()).toISOString();
-      const carrier = carrierOfTracking(input.stations, stationRecommended(stations));
-      const project = (tracking: boolean): ProjectRequest => withTheTracking({
-        nom: name,
-        depot: input.depot,
-        base: input.base,
-        cooks: Number(input.cooks),
-        manager: input.manager,
-        reviewer: input.reviewer,
-        ouvertLe: Number.isNaN(Date.parse(input.ouvertLe)) ? null : new Date(input.ouvertLe).toISOString(),
-        demandeLe: instant,
-      }, tracking);
-      try {
-        await rewrite((station, before) => (input.stations.includes(station.id) ? [...before.filter((p) => p.nom !== name), withWhatItProvides(station, project(station.id === carrier))] : before));
-      } catch (error) {
-        await reread();
-        return { refus: `${name} was not added: GitHub could not be read or written — ${message(error)}` };
-      }
-      await reread();
-      return { ajoute: name };
-    });
-
-  // La page d'un projet le confie à des stations : à une première — il prend alors son suivi,
-  // son plafond et son calibrage —, ou à une de plus, qui reprend ce que l'app en a déjà demandé.
-  const entrust = (received: unknown): Promise<Addition> =>
-    inFile(async () => {
-      const input = readTrust(received);
-      const stations = paired();
-      let readOnes: Awaited<ReturnType<typeof readAll>>;
-      try {
-        readOnes = await readAll();
-      } catch (error) {
-        return { refus: `${input.nom} was not entrusted to a station: GitHub could not be read — ${message(error)}` };
-      }
-      const requests = readOnes.flatMap(({ station, demande: request }) => (request ?? []).filter(({ nom: name }) => name === input.nom).map((project) => ({ station, projet: project })));
-      const served = stations.filter((station) => station.projets.includes(input.nom));
-      const held: AlreadyHeld = {
-        portee: [...new Set([...requests.map(({ station }) => station.id), ...served.map(({ id }) => id)])],
-        suivi: served.length > 0 || requests.some(({ projet: project }) => doorTheTracking(project)),
-        ...(requests[0] === undefined ? {} : { demande: requests.find(({ projet: project }) => doorTheTracking(project))?.projet ?? requests[0].projet }),
-      };
-      // Une station de plus sert ce que la première sert déjà : son dépôt, sa branche et son plafond, tels
-      // qu'elle les publie, puis tels que l'app les lui a demandés ; le chef ne les redit pas.
-      const saidOnes = readOnes.flatMap(({ station, suivi: tracking }) => tracking.filter(({ nom: name }) => name === input.nom).map((oneOf) => ({ station, un: oneOf }))).sort((a, b) => Number(b.un.etat === "servi") - Number(a.un.etat === "servi"));
-      const first = <C extends "depot" | "base" | "cooks">(field: C): TrackingOfProject[C] | undefined => saidOnes.find(({ un: oneOf }) => oneOf[field] !== null)?.un[field];
-      const resumed = held.demande;
-      // Ce que ni la première ni la demande ne disent, le clone du projet sur cet ordinateur le dit (#1307). Les
-      // cooks sont ceux de la machine ajoutée, tels que le chef les envoie : ceux de la première, à défaut.
-      const [repositoryKnown, baseKnown] = [first("depot") ?? resumed?.depot, first("base") ?? resumed?.base];
-      const clone = held.suivi && (repositoryKnown === undefined || baseKnown === undefined) ? await readTheClone(input.nom) : null;
-      const resumption = held.suivi
-        ? {
-            depot: repositoryKnown ?? clone?.depot ?? input.depot,
-            base: baseKnown ?? clone?.base ?? input.base,
-            cooks: input.cooks !== "" ? Number(input.cooks) : (first("cooks") ?? resumed?.cooks),
-          }
-        : { depot: input.depot, base: input.base, cooks: Number(input.cooks) };
-      const effective: InputOfTrust = { ...input, depot: resumption.depot, base: resumption.base, cooks: resumption.cooks === undefined ? "" : String(resumption.cooks) };
-      const reported = refusalOfTrust(effective, stations, held);
-      const stationOfRepository = (saidOnes[0]?.station ?? stations.find(({ id }) => held.portee.includes(id)))?.nom ?? "the station that cooks it";
-      const lack: Missing[] = held.suivi ? (["depot", "base", "cooks"] as const).filter((field) => effective[field] === "") : [];
-      for (const field of lack) {
-        reported[field] =
-          field === "cooks"
-            ? `${stationOfRepository} does not say how many cooks it may run at once for ${input.nom}: give the cook cap.`
-            : `${stationOfRepository} does not say ${field === "depot" ? "which GitHub repository it serves" : "which integration branch it delivers to"} for ${input.nom}, and neither does its folder on this computer.`;
-      }
-      if (Object.keys(reported).length > 0) return lack.length > 0 ? { signales: reported, manque: lack } : { signales: reported };
-      const instant = new Date(now()).toISOString();
-      const carrier = carrierOfTracking(input.stations, stationRecommended(stations));
-      const project = (tracking: boolean): ProjectRequest => withTheTracking({
-        nom: input.nom,
-        depot: effective.depot,
-        base: effective.base,
-        cooks: Number(effective.cooks),
-        manager: resumed?.manager ?? input.manager,
-        reviewer: resumed?.reviewer ?? input.reviewer,
-        ouvertLe: Number.isNaN(Date.parse(input.ouvertLe)) ? null : new Date(input.ouvertLe).toISOString(),
-        demandeLe: instant,
-        ...(input.capacites.length === 0 ? {} : { fournit: input.capacites }),
-      }, tracking);
-      try {
-        await rewrite((station, before) => (input.stations.includes(station.id) ? [...before.filter((p) => p.nom !== input.nom), withWhatItProvides(station, project(!held.suivi && station.id === carrier))] : before));
-      } catch (error) {
-        await reread();
-        return { refus: `${input.nom} was not entrusted to a station: GitHub could not be read or written — ${message(error)}` };
-      }
-      await reread();
-      return { ajoute: input.nom };
-    });
-
-  const remove = (received: unknown): Promise<Removal> =>
-    inFile(async () => {
-      const name = text(received);
-      if (name === "") return { refus: "which project? none was named" };
-      try {
-        const writtenOnes = await rewrite((_, before) => before.filter((project) => project.nom !== name));
-        if (writtenOnes.length === 0) return { refus: `${name} is on none of your stations` };
-      } catch (error) {
-        return { refus: `${name} was not removed: GitHub could not be read or written — ${message(error)}` };
-      }
-      await reread();
-      return { retire: name };
-    });
-
-  // Déménager : vers une station appairée, et par l'opération du runtime seule — elle lit et écrit
-  // les demandes elle-même ; l'app relit ensuite ce qu'elle a écrit. À la suite des autres écritures.
   const relocate = (receivedName: unknown, receivedTo: unknown): Promise<Move> =>
     inFile(async () => {
       const name = text(receivedName);
@@ -699,52 +445,10 @@ export function holdProjects(options: OptionsProjects): Projects {
 
   // Continuer sans bac à sable : la décision s'écrit dans l'état du projet, sur la station de cet
   // ordinateur — la seule que l'app atteigne ; une autre station dit qui peut la prendre.
-  const continueWithoutSandbox = async (receivedName: unknown): Promise<DecisionWithoutSandbox> => {
-    const name = text(receivedName);
-    if (name === "") return { refus: "which project? none was named" };
-    const carrier = seenOne?.projets.find((project) => project.nom === name)?.suiviPar;
-    if (carrier === undefined) return { refus: `${name} cooks on none of your stations: nothing was changed` };
-    if (options.accepterSansBac === undefined || locale() === null) return { refus: "this app has no runtime beside it to record this choice: nothing was changed" };
-    if (carrier.id !== locale()) return { refus: `${carrier.nom} cooks ${name}, not this computer: the choice can only be recorded from ${carrier.nom}'s own computer — or choose another station: nothing was changed` };
-    try {
-      await options.accepterSansBac(name, carrier.nom);
-    } catch (error) {
-      return { refus: "the choice could not be recorded: nothing was changed", detail: message(error) };
-    }
-    return { fait: `continuing without a sandbox on ${carrier.nom}: ${name} starts on its next turn` };
-  };
-
-  // Choisir une issue : le choix doit être celui que la page montre, en attente, et offrir cette issue — sinon rien
-  // ne s'écrit. Seule la demande de la station qui porte le suivi change : c'est elle qui tient le choix. À la suite des autres écritures.
-  const choose = (receivedName: unknown, receivedChoice: unknown, receivedIssue: unknown): Promise<Chosen> =>
-    inFile(async () => {
-      const name = text(receivedName);
-      const id = text(receivedChoice);
-      const issue = text(receivedIssue);
-      if (name === "") return { refus: "which project? none was named: nothing was recorded" };
-      const project = seenOne?.projets.find((oneOf) => oneOf.nom === name);
-      const carrier = project?.suiviPar;
-      if (project === undefined || carrier === undefined) return { refus: `${name} cooks on none of your stations: nothing was recorded` };
-      const choice = project.choix?.find((oneOf) => oneOf.id === id);
-      if (choice === undefined || choice.status !== "pending") return { refus: `${carrier.nom} no longer waits for this choice: nothing was recorded` };
-      const retainedOne = choice.options.find((option) => option.id === issue);
-      if (retainedOne === undefined) return { refus: `${carrier.nom} no longer offers this option: nothing was recorded` };
-      try {
-        const writtenOnes = await rewrite((station, before) => (station.id === carrier.id ? before.map((oneOf) => (oneOf.nom === name && doorTheTracking(oneOf) ? { ...oneOf, choix: { ...oneOf.choix, [id]: issue } } : oneOf)) : before));
-        if (writtenOnes.length === 0) return { refus: `${name} is no longer asked of ${carrier.nom}: nothing was recorded` };
-      } catch (error) {
-        return { refus: "the choice could not be recorded: GitHub could not be read or written", detail: message(error) };
-      }
-      await reread();
-      return { fait: `“${retainedOne.label}” is recorded: ${carrier.nom} applies it at its next read` };
-    });
-
   return {
     vu: () => seenOne,
     relire: reread,
     demenager: relocate,
-    continuerSansBac: continueWithoutSandbox,
-    choisir: choose,
     async depots() {
       try {
         return { depots: await options.depots() };
@@ -752,9 +456,6 @@ export function holdProjects(options: OptionsProjects): Projects {
         return { refus: `your repositories could not be read on GitHub — ${message(error)}` };
       }
     },
-    ajouter: add,
-    confier: entrust,
-    retirer: remove,
     // Et celles que son onboarding montre : le geste attendu, le ticket de préparation, sa PR ; et celles
     // du geste d'un clone en échec (#1390) ; et celles où lever un blocage hors de l'app (#1399).
     pages: () =>

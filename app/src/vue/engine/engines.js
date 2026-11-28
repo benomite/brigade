@@ -24,9 +24,6 @@ export const ENGINES = /** @type {const} */ ([
 // Sans réglage, la station cuit sur l'abonnement Claude.
 /** @type {Engine} */
 export const BY_DEFAULT = "claude-subscription";
-// Le moteur qui demande une clé.
-/** @type {Engine} */
-export const A_KEY = "claude-api-key";
 
 export const WORDS = {
   moteur: "engine",
@@ -50,9 +47,6 @@ export const isOneEngine = (key) => ENGINES.some((engine) => engine.cle === key)
 /** @param {string} key */
 export const nameOf = (key) => ENGINES.find((engine) => engine.cle === key)?.nom ?? key;
 
-// Les moteurs que le secours peut prendre : les deux autres que le moteur choisi.
-/** @param {string} engine */
-export const fallbackPossible = (engine) => ENGINES.filter(({ cle: key }) => key !== engine);
 
 /** @param {string} key */
 const saysOf = (key) => ENGINES.find((engine) => engine.cle === key)?.dit ?? key;
@@ -74,11 +68,3 @@ export function sentenceOfFallback({ choisi: chosen, actif: active, jusqua: unti
   return `cooking on ${saysOf(active)}: ${saysOf(chosen)}'s cap is reached${when === null ? "" : ` until ${when}`}`;
 }
 
-// L'état publié par le runtime, lu sans rien croire : un état mal formé, ou qui nomme un moteur inconnu, ne se lit pas.
-/** @param {unknown} raw @returns {Status | undefined} */
-export function statusRead(raw) {
-  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return undefined;
-  const { chosen, active, onFallback, blockedUntil } = /** @type {Record<string, unknown>} */ (raw);
-  if (!isOneEngine(chosen) || !isOneEngine(active) || typeof onFallback !== "boolean") return undefined;
-  return { choisi: chosen, actif: active, secours: onFallback, jusqua: typeof blockedUntil === "string" && blockedUntil !== "" ? blockedUntil : null };
-}

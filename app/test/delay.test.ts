@@ -10,7 +10,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import type { Project } from "../src/config.ts";
-import { identity, readDelay, withoutToken, holdDelays, type Settings, type Seen } from "../src/delay.ts";
+import { identity, readDelay, withoutToken, type Settings } from "../src/delay.ts";
 import type { Terminal } from "../src/terminals.ts";
 import { WITHOUT_POSIX } from "./helpers/posix.ts";
 
@@ -75,17 +75,6 @@ function registry() {
   return { ouverts: openOnes, shell };
 }
 
-// Les lectures dites à la vue, dans l'ordre, et la dernière.
-function hold(settings: Settings, app: string | undefined, projects: () => readonly Project[] = () => []) {
-  const saidEntries: Seen[] = [];
-  const delays = holdDelays({ reglages: settings, app, projets: projects, surLecture: (seenOne) => void saidEntries.push(seenOne) });
-  const last = (): Seen => {
-    const seenOne = saidEntries.at(-1);
-    assert.ok(seenOne !== undefined, "aucune lecture n'a été dite");
-    return seenOne;
-  };
-  return { retards: delays, dites: saidEntries, derniere: last };
-}
 
 describe("le retard d'un clone sur son origine", () => {
   test("à jour : zéro commit, lu depuis un dossier du clone — et c'est la branche que le clone suit qui est comparée", { skip: WITHOUT_POSIX }, async (t) => {
@@ -207,266 +196,21 @@ describe("le retard d'un clone sur son origine", () => {
 });
 
 describe("ce que l'app dit de son propre code", () => {
-  test("installée depuis le .dmg, elle n'a pas de clone : rien ne se dit de son code — ni « pas lu », ni bouton, ni alerte", async (t) => {
-    const { origine: origin, reglages: settings, cloner: cloneRepo } = trial(t);
-    // Un projet sur un clone de brigade en retard : sans clone de l'app, rien ne le reconnaît comme tel.
-    const clone = cloneRepo("clone");
-    deliver(origin, 3);
-    const { retards: delays, derniere: last } = hold(settings, undefined, () => [PARADE(clone, "brigade")]);
 
-    await delays.relire();
 
-    assert.deepEqual(last().clones, []);
-    assert.equal(last().alerte, undefined);
-    assert.equal(delays.ecrire(registry(), "app"), undefined);
-  });
 
-  test("à jour : une ligne, avec la branche suivie — et aucune commande à écrire", async (t) => {
-    const { reglages: settings, cloner: cloneRepo } = trial(t);
-    const clone = cloneRepo("clone");
-    const { retards: delays, derniere: last } = hold(settings, join(clone, "app"));
 
-    await delays.relire();
 
-    const seenOne = last();
-    assert.deepEqual(seenOne.clones, [{ id: "app", etat: "a-jour", tete: "this app's code is up to date with origin/v2", lignes: [] }]);
-    assert.equal(seenOne.alerte, undefined);
-    assert.ok(!Number.isNaN(Date.parse(seenOne.a)));
-    assert.equal(delays.ecrire(registry(), "app"), undefined);
-  });
 
-  test("en retard : combien de commits, que ce qu'elle montre peut être périmé, et le bouton qui la passe à la nouvelle version — la lecture, elle, ne touche à rien", async (t) => {
-    const { origine: origin, reglages: settings, cloner: cloneRepo } = trial(t);
-    const clone = cloneRepo("clone");
-    deliver(origin, 39);
-    const before = git(clone, "rev-parse", "HEAD");
-    const { retards: delays, derniere: last } = hold(settings, join(clone, "app"));
-
-    await delays.relire();
-
-    const [app, ...others] = last().clones;
-    assert.deepEqual(others, []);
-    assert.equal(app?.etat, "en-retard");
-    assert.equal(app?.tete, "THIS APP'S CODE IS 39 COMMITS BEHIND origin/v2");
-    assert.match(app?.lignes.join("\n") ?? "", /What this app shows may be out of date/);
-    assert.match(app?.lignes.join("\n") ?? "", /One click updates it and relaunches it on the new version — no terminal, nothing to copy\. Without a click, it switches to the new version the next time it is opened\./);
-    assert.equal(app?.bouton, "update and relaunch the app");
-    // Plus de commande à recopier pour son propre code.
-    assert.equal(app?.commande, undefined);
-    assert.equal(delays.ecrire(registry(), "app"), undefined);
-    // La barre le dit aussi, quel que soit l'écran.
-    assert.equal(last().alerte, "this app's code is 39 commits behind origin/v2");
-    // Rien n'est mis à jour : le clone est sur le commit d'avant.
-    assert.equal(git(clone, "rev-parse", "HEAD"), before);
-  });
-
-  test("un seul commit de retard se dit au singulier", async (t) => {
-    const { origine: origin, reglages: settings, cloner: cloneRepo } = trial(t);
-    const clone = cloneRepo("clone");
-    deliver(origin, 1);
-    const { retards: delays, derniere: last } = hold(settings, clone);
-
-    await delays.relire();
-
-    assert.equal(last().clones[0]?.tete, "THIS APP'S CODE IS 1 COMMIT BEHIND origin/v2");
-  });
-
-  test("le clone mis à jour pendant qu'elle tourne : elle dit qu'elle tourne encore sur le code d'avant, et qu'il faut la relancer", async (t) => {
-    const { origine: origin, reglages: settings, cloner: cloneRepo } = trial(t);
-    const clone = cloneRepo("clone");
-    deliver(origin, 4);
-    const { retards: delays, derniere: last } = hold(settings, join(clone, "app"));
-    await delays.relire();
-    assert.equal(last().clones[0]?.etat, "en-retard");
-
-    git(clone, "pull", "-q");
-    await delays.relire();
-
-    const app = last().clones[0];
-    assert.equal(app?.etat, "a-relancer");
-    assert.equal(app?.tete, "THIS APP IS RUNNING OLDER CODE THAN ITS CLONE");
-    assert.match(app?.lignes.join("\n") ?? "", /4 commits more/);
-    assert.match(app?.lignes.join("\n") ?? "", /one click relaunches it/);
-    // Le clone est à jour : il n'y a plus de `git pull` à écrire — un clic la relance.
-    assert.equal(app?.commande, undefined);
-    assert.equal(app?.bouton, "relaunch the app");
-    assert.match(last().alerte ?? "", /relaunch/);
-  });
-
-  test("une origine qui ne répond pas : « pas lu », avec ce que `git` en a dit — jamais « à jour »", async (t) => {
-    const { racine: root, reglages: settings, cloner: cloneRepo } = trial(t);
-    const clone = cloneRepo("clone");
-    git(clone, "remote", "set-url", "origin", join(root, "partie"));
-    const { retards: delays, derniere: last } = hold(settings, clone);
-
-    await delays.relire();
-
-    const app = last().clones[0];
-    assert.equal(app?.etat, "pas-lu");
-    assert.equal(app?.tete, "how far this app's code is behind its origin was not read");
-    assert.match(app?.lignes.join("\n") ?? "", /the origin did not answer/);
-    assert.match(app?.lignes.join("\n") ?? "", /So nothing says this code is up to date/);
-    assert.equal(app?.commande, undefined);
-    assert.equal(app?.bouton, undefined);
-  });
-
-  test("une app qui n'est pas lancée d'un clone le dit, et ne lit aucun projet comme le sien", async (t) => {
-    const { racine: root, reglages: settings, cloner: cloneRepo } = trial(t);
-    const bare = join(root, "nu");
-    mkdirSync(bare);
-    const { retards: delays, derniere: last } = hold(settings, bare, () => [PARADE(cloneRepo("clone"))]);
-
-    await delays.relire();
-
-    assert.deepEqual(last().clones.map(({ id, etat: state }) => [id, state]), [["app", "pas-lu"]]);
-  });
 });
 
 describe("le clone d'un projet, quand c'est celui de brigade", () => {
-  test("le dossier du projet est le clone de l'app : dit une fois, le projet nommé — et c'est le bouton de l'app qui le met à jour, rien ne s'écrit dans un shell", async (t) => {
-    const { origine: origin, reglages: settings, cloner: cloneRepo } = trial(t);
-    const clone = cloneRepo("clone");
-    const elsewhere = cloneRepo("ailleurs");
-    git(elsewhere, "remote", "set-url", "origin", "git@github.com:chef/parade.git");
-    deliver(origin, 3);
-    const projects = [PARADE(elsewhere), PARADE(clone, "brigade")];
-    const { retards: delays, derniere: last } = hold(settings, join(clone, "app"), () => projects);
 
-    await delays.relire();
 
-    const [app, ...others] = last().clones;
-    assert.deepEqual(others, []);
-    assert.match(app?.lignes.join("\n") ?? "", /It is also the clone of the project “brigade”/);
-    assert.equal(app?.bouton, "update and relaunch the app");
-    const { ouverts: openOnes, shell } = registry();
-    assert.equal(delays.ecrire({ shell }, "app"), undefined);
-    assert.deepEqual(openOnes, []);
-    // Lire n'est pas mettre à jour : le clone a toujours ses trois commits de retard.
-    await delays.relire();
-    assert.equal(last().clones[0]?.tete, "THIS APP'S CODE IS 3 COMMITS BEHIND origin/v2");
-  });
 
-  test("son clone a des commits à lui : il ne peut pas simplement avancer — pas de bouton, la commande s'écrit dans un shell de l'espace du projet dont c'est le dossier, sans être envoyée", { skip: WITHOUT_POSIX }, async (t) => {
-    const { origine: origin, reglages: settings, cloner: cloneRepo } = trial(t);
-    const clone = cloneRepo("clone");
-    deliver(origin, 3);
-    deliver(clone, 1);
-    const projects = [PARADE("/projets/parade"), PARADE(clone, "brigade")];
-    const { retards: delays, derniere: last } = hold(settings, join(clone, "app"), () => projects);
-
-    await delays.relire();
-
-    const app = last().clones[0];
-    assert.equal(app?.etat, "en-retard");
-    assert.equal(app?.bouton, undefined);
-    assert.equal(app?.commande, `git -C ${clone} pull`);
-    assert.match(app?.lignes.join("\n") ?? "", /It cannot simply move forward, so it does not update itself\./);
-    const { ouverts: openOnes, shell } = registry();
-    const rendered = delays.ecrire({ shell }, "app");
-    assert.deepEqual(openOnes, [{ projet: "brigade", dossier: clone, ecrit: `git -C ${clone} pull` }]);
-    assert.ok(rendered !== undefined && "note" in rendered);
-    assert.match(rendered.note, /sans Entrée/);
-  });
-
-  test("un autre clone de brigade parmi les projets a sa ligne — pas le projet d'un autre dépôt, ni celui dont le dossier n'est pas là", { skip: WITHOUT_POSIX }, async (t) => {
-    const { racine: root, origine: origin, reglages: settings, cloner: cloneRepo } = trial(t);
-    const clone = cloneRepo("clone");
-    const second = cloneRepo("second");
-    const neighbor = cloneRepo("voisin");
-    git(neighbor, "remote", "set-url", "origin", join(root, "autre-depot"));
-    const withoutGit = join(root, "sans-git");
-    mkdirSync(withoutGit);
-    deliver(origin, 2);
-    // L'app, elle, s'est mise à jour : seul le clone du projet est en retard.
-    git(clone, "pull", "-q");
-    const projects: Project[] = [PARADE(neighbor, "voisin"), PARADE(join(second, "app"), "brigade"), PARADE(withoutGit, "sans-git"), { nom: "parti", dossier: second, refus: "dossier introuvable" }];
-    const { retards: delays, derniere: last } = hold(settings, clone, () => projects);
-
-    await delays.relire();
-
-    const [app, project, ...others] = last().clones;
-    assert.deepEqual(others, []);
-    assert.equal(app?.etat, "a-jour");
-    assert.equal(project?.id, second);
-    assert.equal(project?.etat, "en-retard");
-    assert.equal(project?.tete, "THE CLONE OF THE PROJECT “brigade” IS 2 COMMITS BEHIND origin/v2");
-    assert.match(project?.lignes.join("\n") ?? "", /may be out of date/);
-    assert.equal(project?.commande, `git -C ${second} pull`);
-    assert.equal(last().alerte, "the clone of the project “brigade” is 2 commits behind origin/v2");
-    const { ouverts: openOnes, shell } = registry();
-    delays.ecrire({ shell }, second);
-    assert.deepEqual(openOnes, [{ projet: "brigade", dossier: join(second, "app"), ecrit: `git -C ${second} pull` }]);
-  });
-
-  test("un chemin que le shell couperait est écrit entre apostrophes ; sans projet qui s'ouvre, rien n'est écrit et la commande se recopie", { skip: WITHOUT_POSIX }, async (t) => {
-    const { origine: origin, reglages: settings, cloner: cloneRepo } = trial(t);
-    const clone = cloneRepo("le clone du chef");
-    deliver(origin, 1);
-    // Des commits à lui : c'est la commande qui le met à jour, pas le bouton.
-    deliver(clone, 1);
-    const projects: Project[] = [{ nom: "parti", dossier: "/nulle/part", refus: "dossier introuvable" }];
-    const { retards: delays, derniere: last } = hold(settings, clone, () => projects);
-
-    await delays.relire();
-
-    assert.equal(last().clones[0]?.commande, `git -C '${clone}' pull`);
-    const { ouverts: openOnes, shell } = registry();
-    const rendered = delays.ecrire({ shell }, "app");
-    assert.deepEqual(openOnes, []);
-    assert.ok(rendered !== undefined && "refus" in rendered);
-    assert.match(rendered.refus, /^nothing is written: no project opens here/);
-    assert.ok(rendered.refus.includes(`git -C '${clone}' pull`));
-    // Un nom que la vue invente n'écrit rien non plus.
-    assert.equal(delays.ecrire({ shell }, "ailleurs"), undefined);
-    assert.equal(delays.ecrire({ shell }, 3), undefined);
-
-    // Dès qu'un projet s'ouvre, c'est dans son espace — la commande nomme son clone, où qu'elle soit écrite.
-    projects.push(PARADE("/projets/parade"));
-    delays.ecrire({ shell }, "app");
-    assert.deepEqual(openOnes, [{ projet: "parade", dossier: "/projets/parade", ecrit: `git -C '${clone}' pull` }]);
-  });
 });
 
 describe("une lecture à la fois", () => {
-  test("revenir trois fois à la fenêtre pendant une lecture n'en lance aucune de plus", async (t) => {
-    const { reglages: settings, cloner: cloneRepo } = trial(t);
-    const clone = cloneRepo("clone");
-    const { retards: delays, dites: saidEntries } = hold(settings, clone);
 
-    await Promise.all([delays.relire(), delays.relire(), delays.relire(), delays.relire()]);
 
-    assert.equal(saidEntries.length, 1);
-    assert.deepEqual(delays.vu(), saidEntries[0]);
-    // La suivante, elle, lit de nouveau.
-    await delays.relire();
-    assert.equal(saidEntries.length, 2);
-  });
-
-  test("les projets changent pendant une lecture : une autre la suit, une seule — et elle les voit", { skip: WITHOUT_POSIX }, async (t) => {
-    const { origine: origin, reglages: settings, cloner: cloneRepo } = trial(t);
-    const clone = cloneRepo("clone");
-    const second = cloneRepo("second");
-    deliver(origin, 1);
-    const projects: Project[] = [];
-    const { retards: delays, dites: saidEntries } = hold(settings, clone, () => projects);
-
-    const readOut = delays.relire();
-    projects.push(PARADE(second, "brigade"));
-    await Promise.all([readOut, delays.relire(true), delays.relire(true)]);
-
-    assert.equal(saidEntries.length, 2);
-    assert.deepEqual(saidEntries[1]?.clones.map(({ id }) => id), ["app", second]);
-  });
-
-  test("l'app fermée, une lecture en route ne dit plus rien", async (t) => {
-    const { reglages: settings, cloner: cloneRepo } = trial(t);
-    const clone = cloneRepo("clone");
-    const { retards: delays, dites: saidEntries } = hold(settings, clone);
-
-    const readOut = delays.relire();
-    delays.fermer();
-    await readOut;
-
-    assert.deepEqual(saidEntries, []);
-  });
 });

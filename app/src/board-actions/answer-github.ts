@@ -27,39 +27,15 @@
 import { cardReadOfChef, answerRead, type Rendered } from "../card-todo.ts";
 import type { MethodOfWriting } from "../priority.ts";
 import type { CallGitHub, AnswerGitHub } from "../board/client.ts";
-import { SERVED_ELSEWHERE } from "../board/set-aside-github.ts";
-import { LABEL_PARKED_CHEF, KIND_PARKED_CHEF } from "../board/parked-chef-github.ts";
+import { LABEL_PARKED_CHEF } from "../board/parked-chef-github.ts";
 import { ticketOfThePR } from "../board/rail-github.ts";
-import { LABEL_OF_CHEF, type CardOfChef, type ActionOfChef } from "../board/todo-github.ts";
+import type { CardOfChef, ActionOfChef } from "../board/todo-github.ts";
 import { refusalOf } from "../board/client.ts";
 import { PR_OF_TICKET } from "../vue/pr-of-ticket.js";
-import { LABELS_OF_ACTIONS } from "../actions-github.ts";
-import { park } from "../vue/wait/wait-github.ts";
-import { relaunchProposed, inputRead } from "../vue/wait/input.ts";
 
 // Le client : les lectures par le `GET` du tableau (client.ts), les écritures avec le même jeton — celui des labels de
 // priorité (priority.ts, `clientDeLaPriorite`).
 export type ClientOfTheAnswer = { lire: CallGitHub; ecrire: (method: MethodOfWriting, path: string, body?: unknown) => Promise<AnswerGitHub> };
-
-const LABEL_FIRE = "fire";
-// Le ticket d'une carte attend le chef : il est parqué pour lui (`chef-todo`, #4129). Répondu, il ne l'attend plus, ni
-// personne : sa carte tombe, et `parked` s'il l'avait parquée pour un autre — sauf `wait`, qui la parque pour un autre.
-const PARKED = LABELS_OF_ACTIONS.cuisine;
-// Ce que chaque geste retire de l'issue, en plus de jouer ce qu'il joue.
-const REMOVED: Readonly<Record<ActionOfChef, readonly string[]>> = {
-  // Le ticket reprend où il était : la mise de côté est levée (#3369), et ce qui le parquait — sa carte, ou `parked` (#4129).
-  resume: [SERVED_ELSEWHERE, LABEL_OF_CHEF, PARKED],
-  // Mergée, la livraison n'attend plus personne.
-  merge: [LABEL_OF_CHEF, PARKED],
-  drop: [LABEL_FIRE, LABEL_OF_CHEF, PARKED],
-  close: [LABEL_OF_CHEF, PARKED],
-  rail: [LABEL_OF_CHEF, PARKED],
-  // Parquée pour un tiers, la question du manager l'attend, lui : elle n'attend plus le chef (#3434).
-  wait: [LABEL_OF_CHEF],
-};
-
-// Qui un choix « Wait for <qui> » attend — le libellé entier, s'il n'a pas cette forme.
-const expected = (wording: string) => /^wait for\s+(.+)$/i.exec(wording.trim())?.[1]?.trim() ?? wording.trim();
 
 // Le commentaire de la réponse : sa marque, puis le libellé du choix, ou le texte du chef.
 export const commentOfAnswer = (action: ActionOfChef, saidOne: string): string => `<!-- brigade:reponse gesture=${action} -->\n${saidOne}`;
@@ -83,41 +59,20 @@ async function prNamed(repository: string, ticket: number, wording: string, clie
   return itsOwnOne === undefined ? null : (itsOwnOne.number as number);
 }
 
-// Le geste joué sur l'issue de `ticket` — ce qu'il dit fait, ou l'erreur de GitHub.
-async function play(repository: string, ticket: number, action: ActionOfChef, pr: number | null, wording: string, question: string, now: Date, client: ClientOfTheAnswer, parkedForTheChef = false): Promise<string> {
+// Le geste joué sur l'issue de `ticket` — ce qu'il dit fait, ou l'erreur de GitHub : `merge` merge la PR que la carte nomme ;
+// toute réponse retire `parked:chef`, et le ticket retourne sur le rail.
+async function play(repository: string, ticket: number, action: ActionOfChef, pr: number | null, client: ClientOfTheAnswer): Promise<string> {
   const issue = `/repos/${repository}/issues/${ticket}`;
   let done = "";
-  if (action === "wait") {
-    const readEntry = inputRead({ quoi: question, qui: expected(wording), relance: relaunchProposed(now) }, now);
-    if ("refus" in readEntry) throw new Error(readEntry.refus);
-    const written = await park(repository, ticket, readEntry, now, client);
-    if ("refus" in written) throw new Error(`${written.refus}${written.detail === "" ? "" : ` — ${written.detail}`}`);
-    done = written.fait;
-  }
   if (action === "merge" && pr !== null) {
     const mergee = await client.ecrire("PUT", `/repos/${repository}/pulls/${pr}/merge`, { merge_method: "merge" });
     if (mergee.status !== 200) throw refusalOf(`the merge of the ${PR_OF_TICKET(ticket)}`, mergee);
     done = `the ${PR_OF_TICKET(ticket)} merged`;
   }
-  if (action === "close") {
-    const closedOne = await client.ecrire("PATCH", issue, { state: "closed", state_reason: "not_planned" });
-    if (closedOne.status !== 200) throw refusalOf(`the closing of #${ticket}`, closedOne);
-    done = `#${ticket} closed`;
-  }
-  if (action === "rail") {
-    // L'issue d'un inconnu : le `prio:` que le choix nomme, sinon `fire`, comme « on the rail » du runtime.
-    const label = /\bprio:([1-9])\b/.exec(wording)?.[0] ?? LABEL_FIRE;
-    const setOne = await client.ecrire("POST", `${issue}/labels`, { labels: [label] });
-    if (setOne.status !== 200) throw refusalOf(`the \`${label}\` label`, setOne);
-    done = `\`${label}\` put on #${ticket}`;
-  }
-  const removed: string[] = [];
-  for (const label of parkedForTheChef ? [LABEL_PARKED_CHEF] : REMOVED[action]) {
-    const withdrawn = await client.ecrire("DELETE", `${issue}/labels/${encodeURIComponent(label)}`);
-    // Une issue qui ne le porte pas : rien à retirer.
-    if (withdrawn.status === 200) removed.push(`\`${label}\``);
-    else if (withdrawn.status !== 404) throw refusalOf(`the removal of \`${label}\``, withdrawn);
-  }
+  const withdrawn = await client.ecrire("DELETE", `${issue}/labels/${encodeURIComponent(LABEL_PARKED_CHEF)}`);
+  // Une issue qui ne le porte pas : rien à retirer.
+  const removed = withdrawn.status === 200 ? [`\`${LABEL_PARKED_CHEF}\``] : [];
+  if (withdrawn.status !== 200 && withdrawn.status !== 404) throw refusalOf(`the removal of \`${LABEL_PARKED_CHEF}\``, withdrawn);
   const saidOnes = [done, removed.length === 0 ? "" : `${removed.join(" and ")} removed`].filter((said) => said !== "");
   return saidOnes.length === 0 ? "nothing else to change on the issue" : saidOnes.join(", ");
 }
@@ -150,7 +105,7 @@ export async function answerOnGithub({ depot: repository, ticket, chef, reponse:
     return { refus: `nothing was sent: your answer was not posted on #${readEntry.ticket}`, detail: message(error) };
   }
   try {
-    const done = await play(repository, readEntry.ticket, action, pr, chosen?.texte ?? "", known?.question ?? "", now, client, chef?.sorte === KIND_PARKED_CHEF);
+    const done = await play(repository, readEntry.ticket, action, pr, client);
     return { repondue: true, dit: `answer posted on #${readEntry.ticket} (${action}): ${done}`, commentaire: comment };
   } catch (error) {
     return { refus: `your answer is posted on #${readEntry.ticket}, but its gesture (${action}) was not played — play it on GitHub`, detail: message(error) };

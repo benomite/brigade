@@ -4,7 +4,7 @@ import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
-import { holdConnectionGitHub, signInToGitHub, type StartOfConnection, type EndOfConnection } from "../src/connection-github.ts";
+import { holdConnectionGitHub, signInToGitHub, type StartOfConnection } from "../src/connection-github.ts";
 import { WITHOUT_POSIX } from "./helpers/posix.ts";
 
 const fakeGh = (t: TestContext, body: string) => {

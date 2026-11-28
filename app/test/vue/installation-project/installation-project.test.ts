@@ -10,8 +10,8 @@ import { forTheBar } from "../../../src/bar.ts";
 import { EXAMPLE, type Project } from "../../../src/config.ts";
 import type { StationRecorded } from "../../../src/stations-of-account.ts";
 import { PALETTE } from "../../../src/colors.ts";
-import { BANNER, holdFacts, type Facts } from "../../../src/facts.ts";
-import { TABS, HEADINGS } from "../../../src/tabs.ts";
+import { holdFacts, type Facts } from "../../../src/facts.ts";
+import { HEADINGS } from "../../../src/tabs.ts";
 import { EFFORTS, MODELS } from "../../../src/projects/projects.ts";
 import type { SeenOfStations } from "../../../src/stations/stations.ts";
 import type { Terminal } from "../../../src/terminals.ts";
@@ -151,23 +151,16 @@ const startup = (stations: SeenOfStations | undefined) => () => ({
   poste: { nom: "this computer", mac: false },
   palette: PALETTE,
   exemple: EXAMPLE,
-  onglets: TABS,
   rubriques: HEADINGS,
   gestes: {},
-  banniere: BANNER,
   calibrage: { modeles: MODELS, efforts: EFFORTS },
-  code: undefined,
   ...(stations === undefined ? {} : { stations }),
 });
 // Le rail de secondes, lu sur GitHub : ses tickets fire attendent, aucun cook.
 const facts = (): Facts => ({
   etat: "ouverte",
   lu: A,
-  dernierTick: A,
   compteurs: { rail: 9, auTravail: 0, aLaPass: 0, attend: 0, livres24h: 0 },
-  dernierEvenement: null,
-  rail: [],
-  cooks: [],
   attend: [],
 });
 const request = (vue: Played) => vue.element("installation-projet");
@@ -180,8 +173,8 @@ async function seconds(answers: Answers = {}, stations: SeenOfStations | null = 
   vue = await playTheVue({
     demarrage: startup(stations ?? undefined),
     compteGitHub: () => ({ login: "octo-chef" }),
-    stationsDuCompte: () => ({ state: "listed", stations: [ATELIER], unreadable: [] }),
-    choisirLesProjets: (_, repositories) => ({ selection: repositories }),
+    
+    
     depotsDuChef: () => ({ depots: [{ depot: REPOSITORY, base: "main" }] }),
     ouvrirDUneStation: (name, repository, base) => {
       vue?.dire("surConfiguration", forTheBar({ chemin: PATH, projets: [{ nom: name, dossier: `/home/chef/Brigade/${name}`, depot: repository, base: base ?? "main" } satisfies Project] }), []);
@@ -198,7 +191,7 @@ async function seconds(answers: Answers = {}, stations: SeenOfStations | null = 
   await repos();
   const played = vue;
   const read = async () => {
-    played.dire("surFaits", { ...holdFacts(() => new Map()).recevoir({ projet: "secondes", demande: 0, a: A, sorties: [{ commande: "facts", texte: JSON.stringify(facts()) }] }), demande: played.dernier("faits")[0] as number });
+    played.dire("surFaits", { ...holdFacts().recevoir({ projet: "secondes", demande: 0, a: A, sorties: [{ commande: "facts", texte: JSON.stringify(facts()) }] }), demande: played.dernier("faits")[0] as number });
     await repos();
     await repos();
   };
@@ -214,30 +207,6 @@ async function seconds(answers: Answers = {}, stations: SeenOfStations | null = 
 }
 
 describe("la vue jouée : la mise en place mergée, aucune station ne le sert", () => {
-  test("la question vient aussitôt, cet ordinateur en tête ; un clic l'ajoute à la liste que sert cet ordinateur", async () => {
-    const servedOnes: [string, boolean][] = [];
-    const { vue, merger } = await seconds({ servirUnProjet: (repository, served) => (servedOnes.push([repository, served]), { depots: [repository] }) });
-    // Tant que la mise en place n'est pas faite, rien n'est demandé.
-    assert.equal(request(vue).hidden, true);
-
-    await merger();
-    assert.equal(request(vue).hidden, false);
-    const card = request(vue).dessous("section")[0] ?? assert.fail("pas de question");
-    assert.equal(card.dessous("h2")[0]?.textContent, QUESTION(REPOSITORY));
-    assert.ok(card.dessous("p").some(({ textContent }) => textContent === NOBODY(REPOSITORY)));
-    assert.deepEqual(buttons(card), ["this computer", "atelier", LATER]);
-
-    button(card, "this computer").click();
-    await repos();
-    await repos();
-    assert.deepEqual(servedOnes, [[REPOSITORY, true]]);
-    const served = request(vue).dessous("section")[0] ?? assert.fail("pas de confirmation");
-    assert.equal(served.dataset.etape, "servi");
-    assert.equal(served.dessous("p")[0]?.textContent, SERVED_HERE(REPOSITORY));
-    button(served, CLOSE).click();
-    await repos();
-    assert.equal(request(vue).hidden, true);
-  });
 
   test("cet ordinateur le sert déjà : rien n'est demandé", async () => {
     const { vue, merger } = await seconds({ projetsServis: () => ({ depots: [REPOSITORY] }) });

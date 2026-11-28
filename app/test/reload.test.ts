@@ -7,8 +7,8 @@ import { describe, test } from "node:test";
 import { forTheBar } from "../src/bar.ts";
 import { EXAMPLE } from "../src/config.ts";
 import { PALETTE } from "../src/colors.ts";
-import { BANNER } from "../src/facts.ts";
-import { TABS, HEADINGS } from "../src/tabs.ts";
+
+import { HEADINGS } from "../src/tabs.ts";
 import { EFFORTS, MODELS } from "../src/projects/projects.ts";
 import { openTerminals, HELD, type Launch } from "../src/terminals.ts";
 import { FakeStorage, type Played, playTheVue, repos } from "./helpers/false-vue.ts";
@@ -46,13 +46,10 @@ function principal() {
     configuration: forTheBar({ chemin: "/tmp/app.json", projets: PROJECTS }, () => true),
     palette: PALETTE,
     exemple: EXAMPLE,
-    onglets: TABS,
     rubriques: HEADINGS,
     gestes: {},
-    banniere: BANNER,
     calibrage: { modeles: MODELS, efforts: EFFORTS },
-    code: undefined,
-  });
+    });
   // Une fenêtre : sa vue, jouée sur le stockage de session de la fenêtre.
   async function window(session: FakeStorage): Promise<Played> {
     shownEntry = undefined;

@@ -13,7 +13,7 @@ test("aucun projet : la station le dit", () => {
 
 test("des projets : les comptes, puis la pause de la station", () => {
   const A = "2026-11-15T10:00:00.000Z";
-  const readOne = project({ etat: "ouverte", lu: A, dernierTick: A, compteurs: { rail: 0, auTravail: 0, aLaPass: 0, attend: 0, livres24h: 0 }, dernierEvenement: null, rail: [], cooks: [], attend: [], livres: [] });
+  const readOne = project({ etat: "ouverte", lu: A, compteurs: { rail: 0, auTravail: 0, aLaPass: 0, attend: 0, livres24h: 0 }, attend: [] });
   assert.equal(lineOfBackground([readOne], { pause: false }), "0 cooking · 0 for you");
   assert.equal(lineOfBackground([readOne], { pause: true }), "0 cooking · 0 for you · paused");
   assert.equal(lineOfBackground([readOne], "illisible"), "0 cooking · 0 for you");

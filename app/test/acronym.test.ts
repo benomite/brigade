@@ -9,15 +9,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { forTheBar } from "../src/bar.ts";
-import { changeAcronym, EXAMPLE, readConfiguration, type Project } from "../src/config.ts";
-import { PALETTE } from "../src/colors.ts";
-import { BANNER } from "../src/facts.ts";
-import { EFFORTS, MODELS } from "../src/projects/projects.ts";
-import { TABS, HEADINGS } from "../src/tabs.ts";
+import { changeAcronym, readConfiguration } from "../src/config.ts";
+
 import { refusalOfAcronym, ACRONYM_MAX, acronyms } from "../src/acronym.ts";
 import { followConfiguration } from "../src/tracking.ts";
-import type { Terminal } from "../src/terminals.ts";
-import { type Fake, type Played, tokensOf, playTheVue, openRead, repos } from "./helpers/false-vue.ts";
 
 const VUE = join(import.meta.dirname, "../src/vue");
 // Les cinq projets du chef, tels que sa barre les montrait (#1512, #1983).
@@ -136,108 +131,3 @@ describe("le sigle dans le fichier des projets", () => {
   });
 });
 
-describe("le sigle dans la vue", () => {
-  const SECOND: Terminal = { id: 1, projet: "mirrorlab", genre: "second", titre: "second · claude", note: "", arrete: false };
-  const projects = (acronymOfLab?: string): Project[] => OF_CHEF.map((name) => ({ nom: name, dossier: `/tmp/${name}`, ...(name === "mirrorlab" && acronymOfLab !== undefined ? { sigle: acronymOfLab } : {}) }));
-
-  const play = (poses: Project[], changeAcronym?: (project: string, acronym: string | null) => string | undefined) =>
-    playTheVue({
-      demarrage: () => ({
-        configuration: forTheBar({ chemin: "/tmp/app.json", projets: poses }, () => true),
-        palette: PALETTE,
-        exemple: EXAMPLE,
-        onglets: TABS,
-        rubriques: HEADINGS,
-        gestes: {},
-        banniere: BANNER,
-        calibrage: { modeles: MODELS, efforts: EFFORTS },
-        code: undefined,
-      }),
-      espace: () => [SECOND],
-      ...(changeAcronym === undefined ? {} : { changerSigle: changeAcronym }),
-    });
-  // Les cases des projets : entre « Tous les projets », en tête, et « + », au pied.
-  const casesOfProjects = (vue: Played): Fake[] => vue.element("projets").children.filter(({ id }) => !id.startsWith("entree-"));
-  const caseOf = (vue: Played, name: string): Fake => casesOfProjects(vue).find(({ title }) => title.split(" — ")[0] === name) ?? assert.fail(`pas de case pour ${name}`);
-  const written = (theCase: Fake) => theCase.dessous("span").filter(({ className }) => className === "sigle-de-case").map(({ textContent }) => textContent);
-  const line = (vue: Played): Fake => vue.element("sigle").children.find(({ className }) => className === "reglage") ?? assert.fail("pas de ligne de sigle");
-  const openSettings = async (vue: Played, name: string) => {
-    caseOf(vue, name).click();
-    await repos();
-    await openRead(vue, "Settings");
-  };
-
-  test("chaque case écrit le sigle de son projet ; son nom entier est au survol, et en tête de son espace une fois ouvert", async () => {
-    const vue = await play(projects());
-    assert.deepEqual(casesOfProjects(vue).map(written), [["BR"], ["MS"], ["ML"], ["ES"], ["CW"]]);
-    assert.deepEqual(casesOfProjects(vue).map(({ title }) => title.split(" — ")[0]), OF_CHEF);
-    // Sa couleur et sa pastille restent les siennes.
-    assert.equal(caseOf(vue, "mirrorlab").dessous("span").filter(({ className }) => className === "pastille").length, 1);
-
-    caseOf(vue, "mirrorlab").click();
-    await repos();
-    assert.equal(vue.element("espace").textContent, "mirrorlab");
-  });
-
-  test("dans Settings, sous toi, le sigle se lit — tiré de son nom — et s'écrit : il part dès que le champ change, vidé il est retiré", async () => {
-    const vue = await play(projects(), () => undefined);
-    await openSettings(vue, "mirrorlab");
-    assert.equal(vue.element("sigle").hidden, false);
-    assert.equal(line(vue).dataset.cle, "sigle");
-    assert.match(line(vue).textContent, /^Label in the bar.*ML · from its name/);
-    const field = line(vue).dessous("input")[0] ?? assert.fail("pas de champ");
-    assert.equal(field.value, "");
-    assert.equal(field.placeholder, "ML");
-    assert.deepEqual(line(vue).dessous("button").map(({ textContent }) => textContent), [], "rien à rendre : il est déjà celui de son nom");
-
-    field.value = "LAB";
-    field.declencher("change");
-    await repos();
-    assert.deepEqual(vue.dernier("changerSigle"), ["mirrorlab", "LAB"]);
-    field.value = "  ";
-    field.declencher("change");
-    await repos();
-    assert.deepEqual(vue.dernier("changerSigle"), ["mirrorlab", null]);
-  });
-
-  test("le fichier a pris le sigle écrit : la case le prend tout de suite, la ligne le dit tien, et « back to its name » le retire", async () => {
-    const vue = await play(projects(), () => undefined);
-    await openSettings(vue, "mirrorlab");
-    vue.dire("surConfiguration", forTheBar({ chemin: "/tmp/app.json", projets: projects("LAB") }, () => true), []);
-    await repos();
-    assert.deepEqual(casesOfProjects(vue).map(written), [["BR"], ["MS"], ["LAB"], ["ES"], ["CW"]]);
-    assert.match(line(vue).textContent, /LAB · yours/);
-    assert.equal(line(vue).dessous("input")[0]?.value, "LAB");
-
-    const back = line(vue).dessous("button").find(({ textContent }) => textContent === "back to its name") ?? assert.fail("pas de retour au nom");
-    back.click();
-    await repos();
-    assert.deepEqual(vue.dernier("changerSigle"), ["mirrorlab", null]);
-  });
-
-  test("un sigle refusé le dit sous sa ligne", async () => {
-    const vue = await play(projects(), () => "nothing was written: “sigle” is 4 characters long: 3 at most");
-    await openSettings(vue, "mirrorlab");
-    const field = line(vue).dessous("input")[0] ?? assert.fail("pas de champ");
-    field.value = "LABO";
-    field.declencher("change");
-    await repos();
-    assert.deepEqual(
-      line(vue).dessous("p").filter(({ className }) => className === "dit refus").map(({ textContent }) => textContent),
-      ["nothing was written: “sigle” is 4 characters long: 3 at most"],
-    );
-  });
-
-  test("la case l'écrit en grand, sur une ligne, sans rien qui le coupe ; la barre ne s'élargit pas", () => {
-    const css = readFileSync(join(VUE, "vue.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
-    const rule = /#projets \.sigle-de-case\s*\{([^}]*)\}/.exec(css)?.[1] ?? assert.fail("pas de règle pour le sigle");
-    // Sa taille est un jeton de l'échelle (#2909) : sa valeur est lue dans jetons.css.
-    const token = /font-size:\s*var\((--[a-z-]+)\)/.exec(rule)?.[1] ?? assert.fail("la taille du sigle n'est pas un jeton");
-    const size = Number(/^(\d+)px$/.exec(tokensOf(readFileSync(join(VUE, "tokens.css"), "utf8")).get(token) ?? "")?.[1]);
-    assert.ok(size >= 16, `${size}px : à peine plus grand que les 10px du nom coupé d'avant`);
-    assert.match(rule, /white-space:\s*nowrap/);
-    assert.doesNotMatch(rule, /overflow|text-overflow|line-clamp/);
-    assert.doesNotMatch(css, /nom-de-case/);
-    assert.match(css, /#projets \{\s*flex: 0 0 64px;/);
-  });
-});

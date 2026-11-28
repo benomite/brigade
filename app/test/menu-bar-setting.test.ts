@@ -9,10 +9,9 @@ import { describe, test, type TestContext } from "node:test";
 import { forTheBar } from "../src/bar.ts";
 import { changeMenuBar, EXAMPLE, readConfiguration, type Project } from "../src/config.ts";
 import { PALETTE } from "../src/colors.ts";
-import { BANNER } from "../src/facts.ts";
-import { TABS, HEADINGS } from "../src/tabs.ts";
+
+import { HEADINGS } from "../src/tabs.ts";
 import { EFFORTS, MODELS } from "../src/projects/projects.ts";
-import { personal } from "../src/settings-personal/share.ts";
 import { followConfiguration } from "../src/tracking.ts";
 import { type Fake, type Played, playTheVue, openRead, repos } from "./helpers/false-vue.ts";
 
@@ -69,9 +68,6 @@ describe("`barreDeMenus` dans le fichier des projets", () => {
     assert.equal(forTheBar(tracked.configuration()).barreDeMenus, false);
   });
 
-  test("c'est une préférence d'affichage : elle suit le chef d'un appareil à l'autre", () => {
-    assert.deepEqual(personal({ projets: [], barreDeMenus: false }), { projets: [], barreDeMenus: false });
-  });
 });
 
 describe("la ligne de Settings", () => {
@@ -83,13 +79,10 @@ describe("la ligne de Settings", () => {
         configuration: forTheBar({ chemin: "/tmp/app.json", projets: projects, ...(menuBar === undefined ? {} : { barreDeMenus: menuBar }) }, () => true),
         palette: PALETTE,
         exemple: EXAMPLE,
-        onglets: TABS,
         rubriques: HEADINGS,
         gestes: {},
-        banniere: BANNER,
         calibrage: { modeles: MODELS, efforts: EFFORTS },
-        code: undefined,
-      }),
+        }),
       espace: () => [],
       changerBarreDeMenus: changeMenuBar,
     });
@@ -151,13 +144,10 @@ describe("une question cliquée dans le menu", () => {
         configuration: forTheBar({ chemin: "/tmp/app.json", projets: [{ nom: "brigade", dossier: "/tmp/brigade" }, { nom: "mirrorlab", dossier: "/tmp/mirrorlab" }] }, () => true),
         palette: PALETTE,
         exemple: EXAMPLE,
-        onglets: TABS,
         rubriques: HEADINGS,
         gestes: {},
-        banniere: BANNER,
         calibrage: { modeles: MODELS, efforts: EFFORTS },
-        code: undefined,
-      }),
+        }),
       espace: () => [],
     });
     assert.equal(vue.element("fiche").hidden, true);

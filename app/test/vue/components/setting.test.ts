@@ -8,6 +8,7 @@ import { join, relative } from "node:path";
 import { describe, test } from "node:test";
 import { saysOfSetting, BY_PR, PROPOSES, rowOfSetting } from "../../../src/vue/components/setting/setting.js";
 import { levelOf } from "../../../src/vue/levels.js";
+import { levelSetting } from "../../../src/vue/station/page/SettingLevel.js";
 import { Fake } from "../../helpers/false-vue.ts";
 
 const doc = { createElement: (balise: string) => new Fake(balise) };
@@ -19,9 +20,9 @@ describe("la rangée de réglage", () => {
   test("son nom et la marque de son niveau, sa valeur, son contrôle, puis ce qu'il a rendu", () => {
     const field = new Fake("input");
     const refusal = new Fake("p");
-    const row = rowOfSetting(doc, { nom: "cooks at once", cle: "cooks", niveau: levelOf(doc, "cooks"), valeur: ["2"], controle: [field], dessous: [refusal] });
+    const row = rowOfSetting(doc, { nom: "cooks at once", cle: "dossier", niveau: levelOf(doc, "dossier"), valeur: ["2"], controle: [field], dessous: [refusal] });
     assert.equal(row.className, "reglage");
-    assert.equal(row.dataset.cle, "cooks");
+    assert.equal(row.dataset.cle, "dossier");
     assert.deepEqual(
       row.children.map((pose: Fake) => pose.className),
       ["nom", "valeur", "champ", ""],
@@ -35,7 +36,7 @@ describe("la rangée de réglage", () => {
 
   test("un réglage gardé dans le dépôt — son niveau « project », ou `depot` — dit sur sa rangée qu'un changement ouvre une PR", () => {
     for (const row of [
-      rowOfSetting(doc, { nom: "calibration ceiling", niveau: levelOf(doc, "branche"), controle: [new Fake("select")] }),
+      rowOfSetting(doc, { nom: "calibration ceiling", niveau: levelSetting(doc, "project"), controle: [new Fake("select")] }),
       rowOfSetting(doc, { nom: "max cook duration", depot: true, controle: [new Fake("input")] }),
     ]) {
       assert.equal(row.dataset.depot, "");
@@ -45,7 +46,7 @@ describe("la rangée de réglage", () => {
       assert.equal(row.children.indexOf(line as Fake), 3);
     }
     // `depot: false` l'emporte sur le niveau.
-    assert.equal(rowOfSetting(doc, { nom: "x", niveau: levelOf(doc, "branche"), depot: false }).dataset.depot, undefined);
+    assert.equal(rowOfSetting(doc, { nom: "x", niveau: levelSetting(doc, "project"), depot: false }).dataset.depot, undefined);
   });
 
   test("ce que le dernier changement a rendu : rien, en route, fait, la PR ouverte et son bouton, ou le refus en une ligne", () => {

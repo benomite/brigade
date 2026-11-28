@@ -12,9 +12,9 @@ import { describe, test, type TestContext } from "node:test";
 import { forTheBar } from "../src/bar.ts";
 import { addProject, changeColor, colorProjects, EXAMPLE, readConfiguration, type Project } from "../src/config.ts";
 import { choice, colorsRead, DISTINCT, gap, gapLab, STATES, PALETTE, CLOSE, close, ROLES, draw } from "../src/colors.ts";
-import { BANNER } from "../src/facts.ts";
+
 import { EFFORTS, MODELS } from "../src/projects/projects.ts";
-import { TABS, HEADINGS } from "../src/tabs.ts";
+import { HEADINGS } from "../src/tabs.ts";
 import { followConfiguration } from "../src/tracking.ts";
 import type { Terminal } from "../src/terminals.ts";
 import { type Fake, type Played, tokensOf, playTheVue, openRead, repos } from "./helpers/false-vue.ts";
@@ -285,13 +285,10 @@ describe("les couleurs dans la vue", () => {
         configuration: forTheBar({ chemin: "/tmp/app.json", projets: projects }, () => true),
         palette: PALETTE,
         exemple: EXAMPLE,
-        onglets: TABS,
         rubriques: HEADINGS,
         gestes: {},
-        banniere: BANNER,
         calibrage: { modeles: MODELS, efforts: EFFORTS },
-        code: undefined,
-      }),
+        }),
       espace: () => [SECOND],
       ...(tint === undefined ? {} : { colorer: tint }),
     });
