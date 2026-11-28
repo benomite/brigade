@@ -10,6 +10,7 @@ import type { Sondes } from "../../src/bac-a-sable/detection.ts";
 import type { Git } from "../../src/kitchen/kitchen.ts";
 import { projectHosts } from "../../src/bac-a-sable/kitchen-sandbox.ts";
 import { launcherOf } from "../../src/bac-a-sable/kitchen-launch.ts";
+import { readProjects, worktreesOf, type KitchenProject } from "../../src/kitchen/projects.ts";
 
 // The simulated Mac's places are a Mac's: on Windows, the host's temporary
 // directory is not a path the sandbox profile takes. Only Linux's bwrap test
@@ -95,4 +96,19 @@ test("the project's hosts are the base ones when the base branch declares none",
   const hosts = await projectHosts(async () => Promise.reject(new Error("no such path")), posix.join(root, "depot"), "main");
   assert.ok(hosts.some((regle) => regle.hote === "github.com"));
   assert.ok(!hosts.some((regle) => regle.hote === "registry.npmjs.org"));
+});
+
+test("worktrees sit beside the project's clone, outside the station dir, and the Mac sandbox accepts them (#4783)", () => {
+  const station = `${home}/.config/brigade/station`;
+  const [project] = readProjects("secondes benomite/secondes main CLONE=/Users/chef/Brigade/secondes\n", station);
+  const wts = worktreesOf(project as KitchenProject);
+  assert.equal(wts, "/Users/chef/Brigade/.brigade-worktrees/secondes");
+  assert.ok(!wts.startsWith(station));
+  const forbidden = mac({ existe: () => true });
+  const launcher = launcherOf({ ...place(forbidden), state: `${station}/kitchen/secondes`, clone: (project as KitchenProject).clone, worktrees: wts });
+  assert.ok("launch" in launcher, "refused" in launcher ? launcher.refused : "");
+  const wt = posix.join(wts, "7-github");
+  assert.ok(settingsOf(launcher.launch("cook", wt, true, CALIBRATION, "ticket").args).sandbox.filesystem.allowWrite.includes(wt));
+  const before = launcherOf({ ...place(forbidden), worktrees: `${station}/kitchen/secondes/worktrees` });
+  assert.ok("refused" in before, "the old layout must stay refused");
 });

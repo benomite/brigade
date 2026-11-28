@@ -11,7 +11,7 @@ import { lirePortes } from "../station/portes.ts";
 import { ghCli } from "./github.ts";
 import { launcherOf } from "../bac-a-sable/kitchen-launch.ts";
 import { gitCli, openKitchen } from "./kitchen.ts";
-import { projectsFile, readProjects, type KitchenProject } from "./projects.ts";
+import { projectsFile, readProjects, worktreesOf, type KitchenProject } from "./projects.ts";
 
 masquerLaConsole();
 const root = process.env.BRIGADE_STATION_DIR;
@@ -33,7 +33,7 @@ function kitchenOf(project: KitchenProject) {
   let risk: string[] = [];
   let release: "auto" | "chef" = "auto";
   let hosts: Regle[] = REGLES_DE_BASE;
-  const worktrees = join(state, "worktrees");
+  const worktrees = worktreesOf(project);
   const launcher = launcherOf({ project: project.name, env: process.env, claude: claudeBin, state, clone: project.clone, worktrees, hosts: () => hosts, probes: sondesDeLaMachine(claudeBin), portsFile, portOf });
   if ("refused" in launcher) return launcher;
   return {
