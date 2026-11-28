@@ -118,39 +118,30 @@ file lacks without changing any value it has. Where a project cooks is not in th
 file: it is read from the project's issues on GitHub (the claim comments of its stations) and from the stations you
 paired.
 
-### On a new computer: your stations and their projects (#1434)
+### On a new computer: connect GitHub, then add a project (#1434, #4799)
 
-On first launch the file does not exist: the app creates it, empty (`{ "projets": [] }`). **As long
-as it has no project, the app opens on the stations you have already paired and the projects each
-carries** — in place of All projects, the round **T** still marked. Since #4511 no station is paired any more: the list
-is empty, and says that a station's kitchen serves the projects of its `kitchen/projects` file. Before, it read:
+On first launch the file does not exist: the app creates it, empty (`{ "projets": [] }`), and opens on **All projects**
+(Home) with an empty list of projects. There is no tour, no welcome screen and no list of stations to open a project
+from (#4799 removed them): Home offers the GitHub connection and **Add a project** (below), and **T** and the **+**
+at the foot of the bar lead there.
 
-```
-Open one of your projects on this PC: one click, no folder to choose.
-● Mac          online
-  [brigade]
-● parade-box   online
-  [brigade] [parade] [cantine]
-[pick one of your repositories instead]
-```
-
+- **When this computer is not signed in to GitHub**, Home shows `connect to GitHub` (under the stations of the account),
+  and **Add a project** shows the same button in place of the repositories: it runs the sign-in
+  (`gh auth login --web`, `app/src/connection-github.ts`), without a terminal. The screen shows the one-time code to type,
+  `Type the code A1B2-C3D4 on the GitHub page that opened in your browser.`, and the page opens — by `gh`, or by the app.
+  Signed in, the account is read again; a clone that was held for want of an account starts again by itself.
 - **A project opens in one click, with no folder to choose.** The app
   (`app/src/local-copy.ts`, #1429, #4511) reuses a copy that already exists, or clones the
   repository into the folder the app manages (`~/Brigade/<name>`, or
-  `BRIGADE_PROJECTS_DIR`). Each of its steps is said under the station, in its sentence —
+  `BRIGADE_PROJECTS_DIR`). Each of its steps is said under the list of repositories, in its sentence —
   `Cloning benomite/parade into … — 42%.` —, and the other projects wait: one clone at a time.
   Opened, the project enters the projects file with its repository and the branch its origin points
-  to, and its space opens.
+  to (`app/src/first-launch.ts`), and its space opens.
 - **A clone that fails says why in one sentence** — `GitHub denies this computer's GitHub account access to
-  benomite/parade, so it cannot be cloned: …` —, under its station; what `gh` and `git` wrote is in
+  benomite/parade, so it cannot be cloned: …` —; what `gh` and `git` wrote is in
   the `?` hover. A button opens the page that lifts it when the sentence names one (`get Git`,
-  `open the page on GitHub`), and `try again` replays it.
-- **When this computer is not signed in to GitHub**, the account, at the head of the screen under the welcome sentence
-  `Welcome to brigade. Add the first project its kitchen will cook.`, shows `connect to GitHub`, and the stations' sentence says why they wait: the button runs the
-  sign-in (`gh auth login --web`, `app/src/connection-github.ts`), without a terminal. The screen shows the one-time code to type, `Type the code A1B2-C3D4 on the
-  GitHub page that opened in your browser.`, and the page opens — by `gh`, or by the app. Signed in,
-  the stations are read again; a clone that was held for want of an account starts again by itself.
-  The same button appears under a clone refused for that reason.
+  `open the page on GitHub`), and `try again` replays it. The same button as the account's appears under a clone
+  refused for want of an account.
 - **A tool the app does not ship is no longer checked first** (#4511: the check was the old runtime's): the step that
   needs it says it is missing when it fails — no `gh`, no Git, no `claude` —, with the page that gets it; the app
   installs nothing (#4266). The missing-tool screen (#4059) still opens when **log in** on a lost Max connection finds
@@ -162,63 +153,10 @@ Open one of your projects on this PC: one click, no folder to choose.
   with `log in` (recommended) — the same login as the `log in` of a lost Max connection (`claude auth login`) — and
   `Try again`. What the login says shows under the sentence; when it ends, the opening starts again by itself. An
   answer that cannot be read holds nothing back: the project opens, and the first cook says a lost connection.
-- **When the stations cannot be read** — no `gh`, no network, GitHub limiting the account —, the
-  head says why in the runtime's sentence, its detail in the hover, with the button of the page that
-  lifts it (`get the GitHub CLI`) and `read again`. With no station paired yet, the sentence says
-  what to do. The screen is never blank.
-- **The screen asks for your project, never for your account** (#1540, #2475): under the stations' sentence,
-  one empty field, `The project to work on` (`owner/repo`), and `open this project`. An `owner/repo` (or a
-  `github.com` address) is cloned by the runtime; a bare name is completed with the account the screen says
-  connected, and with none a sentence says so and nothing starts; a folder path is not a repository, and the
-  sentence says so (#3181: no folder is asked for). What was typed is kept between two renderings. No default
-  names the chef's machines or projects.
-- **Your repositories** are one click away: `pick one of your repositories instead`, or the **+** at the foot of
-  the bar, open **Add a project** (below). **T** opens All projects.
 
 *Code: `app/src/first-launch.ts` and `app/src/connection-github.ts` (main process),
-`app/src/vue/first-launch.js` (the screen), `app/src/tools-required.ts` and `app/src/vue/tools-required/` (the
-missing-tool screen). Captures (in git history): `docs/captures/1434/`, `docs/captures/4059/`, `docs/captures/4057/`.*
-
-### On first launch: visit a real kitchen, or add my project (#4087, epic #4086; born as the tour of #3165)
-
-After GitHub sign-in, **no project opens and none is added**: nothing is cloned, nothing is written to `~/Brigade`.
-Under the GitHub account, the first-launch screen shows **two choices side by side**, of the same weight:
-`visit a real kitchen` and `add my project` (which opens **Add a project**, the same screen as **+**).
-
-**`visit a real kitchen`** shows Brigade's own kitchen, `benomite/brigade`, **read-only**, over the whole window. Its
-rail is read on GitHub by the same read-only reads as a project's rail and what awaits a human (`app/src/visit.ts`,
-under the budget of the chef's token): no clone, no project added to the projects file, no second started. The head
-says `Brigade's own kitchen`, its repository, and `Read-only: you watch the kitchen cook, nothing here acts on its
-tickets.`; the visit shows **no gesture that acts on tickets** — no create, move, comment, close or launch — even when
-the signed-in account can write to `benomite/brigade`: the visit decides this, not the account's permission. A rail
-that cannot be read says so in one line (`Brigade's kitchen cannot be read right now.`, its reason on hover), with
-`read again`. **`leave the visit`**, in the head, is there at every step: it lands back on the screen the visit was
-started from — the welcome screen on first launch.
-
-Over it, **the guided tour** (`Tour of a real kitchen · N of 6`), in a bubble at the bottom of the window. Six steps,
-in this order, each one outlining an element of the kitchen in the accent and saying in one or two sentences what it
-is, with Brigade's word for it:
-
-| Step | Outlines | When the moment has nothing to show |
-|---|---|---|
-| The rail | the row of columns, named as the screen shows them | — |
-| A cook | the first card of Taken | `No cook is running right now.`, and the last served ticket instead |
-| The pass | the first card of Pass | `Nothing is in the pass right now.`, and the last delivery it judged — the last served ticket — instead |
-| Served | the last served ticket | `No ticket was served in the last 24 h.`, on the Served column |
-| TODO | the first red card awaiting a human, in the column of its step (#3458), and what a card asks | `Nothing awaits a human right now.` |
-| The second | the second's column, which says `Your second opens with your own project.` | — |
-
-With nothing served in 24 h either, the step says so and outlines the column where it would happen. Until the rail is
-read, the steps that need an example say `Reading the rail…`, and follow the reading. Each step has `next`; the last
-has a single call to action, `add my project`, which leaves the visit and opens **Add a project**.
-
-**The visit never starts by itself.** The **?** tile at the foot of the bar, under **+** (`Replay the visit`), starts it
-again from its first step, read-only and without clone, whatever the projects file holds.
-
-*Code: `app/src/vue/home/choice/choice.js` (the two choices), `app/src/vue/visit/visit.js` (the kitchen's screen,
-steps, bubble), `app/src/visit.ts` (the read-only read of `benomite/brigade`, its channel in `app/src/main.ts` and
-`app/src/preload.cjs`) and the wiring in `app/src/vue/vue.js` (`commencerLaVisite`, `lireLaCuisineVisitee`,
-`poserLaVisite`). Tests: `app/test/visit/`. Captures (in git history): `docs/captures/4087/`.*
+`app/src/vue/addition-project/` (the account, the connection and the Add a project screen), `app/src/tools-required.ts`
+and `app/src/vue/tools-required/` (the missing-tool screen).*
 
 ### Add a project: pick a repository, one click opens it (#3181)
 
@@ -262,140 +200,15 @@ Pick the repository of your project.
 - **On the phone**, which adds no project, the screen says one line: `A project is added from a computer, and this phone
   reads it from GitHub.`
 
-Who cooks the project is asked on its page (below, #3166; later, the Stations tab, `Choose who cooks it`, #3195), not on this screen.
+Who cooks the project is asked on the Stations tab (`Choose who cooks it`, #3195), not on this screen.
 
 A newcomer signed in to GitHub is in their new project's page two clicks after opening **Add a project**: the **+**,
 then the repository (`app/test/journey-project-end-to-end.test.ts` plays it on the view).
 
-*Code: `app/src/vue/journey-project/addition.js` (the screen), its wiring in `app/src/vue/vue.js` (`ouvrirAjout`,
+*Code: `app/src/vue/addition-project/addition.js` (the screen), its wiring in `app/src/vue/vue.js` (`ouvrirAjout`,
 `lireLesDepotsDeLAjout`, `choisirLeDepot`, `collerUnDepot`), `app/src/first-launch.ts` (`ouvrirDUneStation`:
-the copy, then the projects file, with the branch GitHub gave), `app/src/vue/journey-project/account.js` (the account,
+the copy, then the projects file, with the branch GitHub gave), `app/src/vue/addition-project/account.js` (the account,
 `app/src/connection-github.ts`).*
-
-### A project with open issues: what the second proposes to cook first (#3268)
-
-A repository picked on **Add a project** that has open issues opens on a screen before the questions below, titled
-`Brigade read your <N> open issues — here are the ones to cook first`, `N` being the number of open issues of the
-repository (pull requests do not count). While the app reads them and the second's triage answers, the page says
-`Brigade is reading your open issues. Nothing is awaited from you.` Each proposed issue is a line: `#<number> <title>`, a
-priority (`prio:1`, `prio:2` or `prio:3`, the scale of the second) in a list you can change, and the reason for that
-priority in one line. `drop` removes a line; `put them on the rail` puts every remaining line on the rail, with the
-priorities on screen, and the page goes on to the questions; `not now` goes on without putting anything. Issues that
-already carry `fire` are counted in `N` but not proposed; when all of them do, there is no screen. A project with no open
-issue shows none of this and goes directly to the questions.
-
-There is one triage, the second's: the section `A project just set up` of its role (`app/src/second/role.md`) is given
-as it is to `claude -p` with the issues, and the answer is read as `{number, prio, reason}` per issue. Putting on the rail
-is the second's gesture too: the `prio:<n>` label replaces the issue's (`changerLaPriorite`, as on a ticket's sheet), then
-`product` and `fire` are put on it. A reading or a triage that fails (GitHub, `claude` absent or silent for 100 s, an
-answer that is not a list) is said on the screen with its cause and `Try again` / `not now`: no list and no priority is
-invented. A line GitHub refuses stays on screen with its cause; the others are on the rail.
-
-*Code: `app/src/departure-of-project.ts` (reading, triage, putting on the rail; channels `departDuProjet` and `mettreSurLeRail`
-in `app/src/main.ts`), `app/src/vue/journey-first-project/departure.js` (the screen), its wiring in `app/src/vue/vue.js`
-(`lireLeDepart`, `mettreLeDepartSurLeRail`). Tests: `app/test/departure-of-project.test.ts`, `app/test/journey-first-project/`
-(including the timing check on 100 issues, a real process standing in for `claude`).*
-
-### A project not ready yet: one question at a time on its page (#3166, epic #3164)
-
-A repository picked on **Add a project** opens on its page (#3181). Until the project is ready, that page shows, **in
-the rail's place, one question at a time**, under a line that says where you are — `1 of 2: who cooks it`, `2 of 2: its
-setup for Brigade`. Nothing else competes with it: while a question is asked, the project's menu, its kitchen switch, its
-bands and the centre are not laid (`main[data-parcours]`, `journey-first-project.css`); the header keeps the project's
-name, and the second stays on the right.
-
-| Question | Asked when | What it says | Its gesture |
-|---|---|---|---|
-| Who cooks it — `Who cooks <owner/repo>?` (the station choice of the Stations tab, `stations-tab/choix.js`, #3195) | no station cooks the project yet: none serves it or was asked to (the Stations tab's reading), and this computer's station does not serve it | one sentence for the recommended choice: an online station of yours (`<name> is online: it cooks the project's tickets; you can add a server or another computer later.`), otherwise this computer (`This computer cooks the project's tickets while it is on; you can add a server or another computer later.`); with neither, nothing is recommended (`None of your stations is online right now: the one you choose takes the project when it comes back.`) | one button per choice — `this computer` first, its host name beside it, then your stations, online ones first —, the recommended one set apart; an offline station is never recommended, and says beside it since when it is offline and how to bring it back (#3187). One click gives the project to it — this computer by `servirUnProjet`, a station of yours by its selection (`choisirLesProjets`), the gestures of the Stations tab's `Choose who cooks it` — and the page moves on; an offline station chosen, the page says `<name> is offline: it takes <owner/repo> when it comes back.` A refusal is said in one line, its cause and its gesture, GitHub's answer on hover. Under the choices, `Add a server` (#4347, below): the server, once it checks in, is given the project by the same click, and the page moves on |
-| Its setup for Brigade — `<owner/repo> is being set up for Brigade` | the project is not set up yet (the reading of #2628, `checkRepoSetup`) | what is awaited, and from whom — below | the button of the state, if any |
-
-The line counts only the questions the project has: one already set up, or already cooked by a station, shows `1 of 1`.
-Until the setup is read, the count is not said (`Who cooks it`). No question is shown as done for something you did not
-do, nor announced for something with nothing to do. While the setup question is asked, the notice of a project not set
-up (`Set up for Brigade`, #2628) is not laid: the question alone says what happens. The second does the setup in its
-column on the right (#3164); each state says in one sentence what is awaited and from whom:
-
-| State | What the page says | Read from |
-|---|---|---|
-| reading | `Reading whether <owner/repo> is set up for Brigade… Nothing is awaited from you.` | `checkRepoSetup` not answered yet |
-| unreadable | `Whether <owner/repo> is set up for Brigade could not be read. Waiting for you to try again.`, the reason on hover, `Try again` | `checkRepoSetup` failed — it is never taken for set up |
-| the second starts | `The second is starting, in its column on the right: it reads your repository first. Nothing is awaited from you yet.` | the second's terminal has no title yet |
-| the second reads | `The second is reading your repository, in its column on the right. Nothing is awaited from you yet.` | the title `claude` gives its terminal starts with a working sign (`◐`…), as `app/src/input.ts` reads it |
-| you answer | `The second is waiting for your answer, in its column on the right.` | the title starts with `✳` (at its prompt) |
-| you merge | `The setup pull request is waiting for your merge: its card is red on the rail, counted in TODO.`, why on hover, `open its card` | the card `Merge the setup pull request` (#3169) is on the rail |
-| the second cannot start | `The second could not start: its column says why. Waiting for you to set the project up from here instead.`, `Set up for Brigade` | the second's terminal says it cannot start (#1435) |
-| set up from here | `The app is setting <owner/repo> up for Brigade. Nothing is awaited from you.`; failed: `The setup failed: <reason>. Waiting for you to try again.`, `Try again` | `runRepoSetup` running, or failed |
-
-The setup is read again at each reading of the project's rail while it is not set up: once the setup pull request is
-merged, the next reading says it is (#3170). **Ready**, the rail takes the page back, and above it the second asks for
-the project's first ticket (#3306). That panel comes only when you answered a question; a project that had nothing left
-to do opens on its rail.
-
-**Ready, but no station serves it (#3400).** When the setup was read not done and then done — its pull request merged,
-or `Set up for Brigade` — and no station serves the project, the page asks at once, above the rail: `Which station
-serves <owner/repo>?`, then `<owner/repo> is set up for Brigade, but no station serves it: its fire tickets wait on the
-rail until one does.` The choices are those of `Who cooks it` (`this computer` first, then your stations), and `not now`.
-`this computer` adds the project to this computer's served projects (`servirUnProjet`, the Settings group `projects
-this Mac serves`): the page says `This computer serves <owner/repo>: its station takes its fire tickets at its next
-turn, within two minutes.` and `close`. A station serves the project when this computer's list has it, a station says it
-serves it, or its stations say where it cooks; a station it was only given to does not serve it yet. Nothing is asked
-while this computer's list or your stations are not read, nor when a station already serves it; `not now` is not asked
-again while the app runs.
-
-**The first ticket, written in the app (#3306).** You never open GitHub and never see or type a label:
-
-| State | What the panel shows |
-|---|---|
-| the question | `the second`, then `<owner/repo> is ready. What do you want to change first?`, a field for your answer, `send to the second` (lit once the field is not empty) and `not now` |
-| the second writes | `The second is writing the ticket from your answer. Nothing is awaited from you.`, and your answer; after a change, `The second is rewriting the ticket with your changes.` |
-| the draft | `Is this the right first ticket?`, the issue's title and body, `Yes, put it on the rail` (recommended; what it does on hover), then a field `What should change in this ticket` and `ask for changes` |
-| putting it on the rail | the same draft, every gesture waiting, `Putting it on the rail…` |
-| on the rail | `#<n> is on the rail: the kitchen serves it.` and `close` |
-
-The second writes the draft with `claude -p` in the project's folder, launched like its triage of #3268, from your answer
-— and, on `ask for changes`, from the draft you saw and your changes: the draft is shown again, and nothing is created.
-Only `yes` creates the issue, from this computer's `gh`, with the labels of the second's first ticket (`product`,
-`prio:1`, `fire`): it is on the rail. A draft the app cannot read, or a creation GitHub refuses, says so in one line,
-the cause on hover, and the gesture stays. The second in its column does not offer a first ticket any more: it leaves
-it to this panel.
-
-**What opens it.** The project's first reading decides, the one that says whether this computer's GitHub account can
-write to its repository (`lectureSeule`, #3163): a project you cannot write to shows none of this and opens read-only; a
-reading that fails decides nothing, the next one does. Write access lost on the way closes it the same way. Only a
-repository picked on **Add a project** opens it, and it is held while the app runs: it is not written anywhere, and a
-project reopened after a restart opens on its rail, with the notice of #2628 if it is not set up.
-
-*Code: `app/src/vue/journey-first-project/` (the questions, their states), `app/src/vue/first-ticket/` (the first
-ticket), `app/src/first-ticket.ts` (the draft and the creation, played by `app/src/main.ts`), their wiring in
-`app/src/vue/vue.js` (`suivreLeParcours`, `poserLeProjetAPreparer`). Tests: `app/test/journey-first-project/`,
-`app/test/first-ticket/`, `app/test/acceptation-4511/`. Captures (in git history): `docs/captures/3166/`, `docs/captures/3306/`.*
-
-### Your first ticket, told step by step as it really happens (#3302)
-
-Rather than a tutorial, the first ticket of the chef's first project is told above its rail, one short line at each
-real step, as the readings of the rail show it: the kitchen word first, then what it means.
-
-| Word | What the line says | When |
-|---|---|---|
-| `Taken` | a cook took the ticket: a claude session that works in its own copy of the repository (a worktree) | a reading shows it taken (or already in pass) |
-| `Pull request` | the cook handed over its work as a pull request, with `open the PR of #<ticket>` | the reading carries its open pull request |
-| `In pass` | the pass is checking it: the gates, the CI, and a review by another session | a reading shows it in pass |
-| `Sent back` | the pass sent the work back to a cook, and why — the station's reason, word for word | the issue carries a send-back (`brigade:renvoi`) of a higher rank than the last one told |
-| `Taken again` | a cook took it again, to fix what the pass said | taken, right after a send-back |
-| `Served` | the pass merged the PR of #<ticket>, with `open the PR of #<ticket>` | the ticket is among the served ones, with its merged pull request |
-
-**Which project, which ticket.** The chef's first project is the first one **Add a project** adds while the projects
-file has no other project than `benomite/brigade` (which the app added by itself before #4087); a chef who already had one is told nothing.
-Its first ticket is the first one a reading shows taken or in pass. A step that passed between two readings is not
-made up.
-
-**Dismissed for good.** The story is kept in the view's storage (`brigade.recit-premier-ticket`), across restarts, and stays
-after the ticket is served until `dismiss`; dismissed, it never comes back. A stored trace the app cannot read decides
-nothing: nothing is told, and nothing is written over it.
-
-*Code: `app/src/vue/story-first-ticket/`, `etapesDesTickets` in `app/src/facts.ts`, its wiring in `app/src/vue/vue.js`
-(`suivreLeParcours`, `poserLeRecitDuPremierTicket`). Tests: `app/test/story-first-ticket/`.
-Captures (in git history): `docs/captures/3302/`.*
 
 ### The age of the rail is on hover, and visible only when stale (#2054, #3523)
 
@@ -528,13 +341,11 @@ Tests: `app/test/stations-tab/`, `app/test/vue/project/stations-served.test.ts`,
 ### Add a server, from the app (#4347)
 
 A server station is added from the app: nobody needs to open [installation-station.md](installation-station.md) for it.
-`Add a server` sits next to the station list on three screens:
+`Add a server` sits next to the station list on two screens:
 
 1. **The Stations tab** of a project, under the top line — whatever its state, except on a narrow screen, which sets
    nothing.
 2. **The station choice `Who cooks <project>?`** of that tab (`Choose who cooks it`, `Add a station`), under its list.
-3. **The page of a new project, `1 of 2: who cooks it`** (`Who cooks <owner/repo>?`, the onboarding of a project added
-   with **Add a project**), under its choices.
 
 One click opens its panel, under the button; a second click closes it. While it is open on the Stations tab, the top
 line's gestures are not laid. The panel says:
@@ -1250,8 +1061,8 @@ are each their own component: `app/src/vue/home/projects/ProjectsBlock.js` and `
   tab; it came back to the home with #3195, since it is about the account and not about a project. The stations under
   your account are read again each time the home opens.
 
-With no project at all, the first launch takes the home's place on a computer and shows its stations and their
-projects (`first-launch.js`). Captures (in git history): `docs/captures/2638/`.
+With no project at all, the home shows an empty list of projects, with the GitHub connection and **Add a project**.
+Captures (in git history): `docs/captures/2638/`.
 
 **The station block (#2640, epic #2497).** Three states, in `StationBlock.js`. **No station on this computer**: one
 recommended button, **Install this computer's station**, and no other setting. A click runs `installerLaStation` of the
@@ -1424,7 +1235,7 @@ the "?" next to the title.
   as the desktop's first launch): GitHub gives a one-time code, the bridge opens `https://github.com/login/device` in
   the phone's browser, and the screen shows *Type the code A1B2-C3D4 on the GitHub page that opened in your browser.*,
   with **open the GitHub page again**. While it waits, the button says `signing in…` and is inactive: nothing starts
-  twice. The code is the same brick as the desktop's first launch (`connexionDite`, `first-launch.js`).
+  twice. The code is the same brick as the desktop's (`connexionDite`, `addition-project/connection.js`).
 - **Signed in**: the app goes to "All projects", with one line at the top — *Signed in to GitHub as `benomite`.*
   (*This phone is signed in to GitHub.* when GitHub did not say the account). The token stays in the phone's vault
   (`Coffre.java`, encrypted by a key of Android's Keystore); the view never sees it, and only the account name is kept in
@@ -1443,38 +1254,6 @@ HTTP — github.com does not answer a WebView (CORS) —, asks again at the pace
 and keeps asking through a lost network until the code expires. On the desktop, nothing of this is shown. The screen is
 `app/src/vue/connection-github.js`; the captures are `telephone-lancement`, `telephone-connexion-code`,
 `telephone-connexion-refus` and `telephone-connecte` of `scripts/capture-ecran` (git history: `docs/captures/2500/`).
-
-### Right after the first served ticket: the phone offer (#3303)
-
-On the page of the chef's **first project** — of the projects read, the one whose station records the earliest add
-(`delai.ajouteLe`, #1401) —, once its first ticket is served, a line under *First ticket served …* says **Brigade can
-call you on your phone when it needs you**, with `set up my phone` (recommended) and `no thanks`. It is not shown on
-another project, before that ticket is served, on the phone itself, or when a phone is already signed in.
-
-- **`set up my phone`** shows, in the same line, `download the Android app` and *Sign in with the same GitHub account*:
-  there is no pairing code since #2500, the phone signs in to the same GitHub account. The link is the `apkUrl` of
-  `latest-android.json` (`apkLink`, `app/src/update/android.ts`), read by the main process whatever version runs;
-  when the manifest cannot be read, it is the releases page, `https://github.com/benomite/brigade/releases`. Nothing
-  goes through Settings.
-- **`no thanks`**, or following the link, hides the offer for good: the choice is kept in the view's storage
-  (`localStorage`, key `brigade.offre-telephone`). A storage that cannot be read does not show the offer, so that a
-  refusal is never forgotten.
-- **A phone already signed in hides it.** Once signed in, the Android app leaves a trace on the chef's GitHub account:
-  a secret gist, described `brigade — phone`, holding `brigade-telephone.json`
-  (`{ "brigade": "telephone", "format": 1, "connecteLe": "<ISO>" }`, `app/src/phone-connected.ts`). It writes it
-  once, after its first list of gists read, only if no gist of the account holds that file; a write that fails is
-  retried at its next read. The desktop reads the account's gists for that file with its own `gh`
-  (`telephoneConnecte`, `app/src/stations/github.ts`) before showing the offer. Until that read says no phone is signed
-  in — not read yet, or unreadable —, the offer is not shown; an answer other than "signed in" is read again after
-  5 minutes, so a phone signed in while the offer shows takes it away. A phone signed in with an app older than this
-  trace leaves none until it is updated.
-- **Pairing stays where it is**: on the phone, its *sign in with GitHub* screen (#2500). The desktop has no other
-  pairing entry; declining the offer changes nothing there.
-
-*Code: `app/src/vue/offer-phone/offer-phone.js`, its wiring in `app/src/vue/vue.js`, `app/src/main.ts`
-(`lienDeLApk`, `telephoneConnecte`) and `app/src/preload.cjs`; the trace in `app/src/phone-connected.ts`, posed by
-`app/src/read-github-phone.ts`. Tests: `app/test/vue/offer-phone.test.ts`, `app/test/phone-connected.test.ts`,
-`app/test/stations/stations.test.ts`, `app/test/update/android.test.ts`. Captures (in git history): `docs/captures/3303/`.*
 
 ### Reading projects, rail and TODO from GitHub on the phone (#2501, epic #2498)
 
@@ -1816,15 +1595,6 @@ carries one of the app's brands, including the one from before the English renam
   that runs. On desktop Linux, and when the app is launched from the repository, nothing is registered: the station
   does not start at login there, only when the app opens, and it then outlives the app
   (`app/src/station-background/registration.ts`).
-- **A screen tells the newcomer first (#4081).** On a Mac, registering the launchd agent makes macOS show its
-  "Background Items Added" notice. On the first launch of the installed app on a Mac where the station is not registered
-  yet, the app first shows a screen, "Brigade runs in the background", that says the station keeps running with the
-  app closed and that macOS will tell about it, with one button, **continue**; the app stays hidden behind it, and
-  the registration waits until the button is pressed. The button pressed, the file `avis-de-fond-vu` next to the
-  projects file notes it: on the next launches the screen does not come back, and the registration runs without
-  waiting. If that file cannot be written, the screen comes back at the next launch. On Windows, on desktop Linux,
-  and on a Mac where the installer already put the agent, no screen shows (`app/src/first-launch/`,
-  `app/src/vue/first-launch/`).
 - **Only one per machine and per account.** The app that opens attaches to the station that runs — whoever started
   it, `station/app.pid` names the process that holds it, which removes it when it stops; a mark written before the
   system started does not count, its pid may have gone to another process — and never starts a second one: same process, same pid
@@ -1906,20 +1676,6 @@ own cooks and its ticked capabilities (`fournit`), which the station declares in
 the repository. **The station then serves the project** (#1830): the station opens the project's kitchen on its computer and takes the tickets it can cook, whatever other stations serve it (#2713) — a ticket only that computer can cook leaves for it on its own; there is no second gesture. **A value nobody says** — neither the first
 station nor the clone — is read in one sentence above the button; no field appears after the click.
 
-**The flow of a new project** (#1111), under that line, in place of the empty space: the four steps
-its main station publishes in its tracking (`onboarding`, #1110) — *Repository*, *Cooking machine*,
-*Repository preparation*, *First ticket* —, each `done`, `now` or `to come`, with its sentence. At the
-top, what is expected of the chef: the gesture of the current step, a button that opens its GitHub page
-(where how to do it is written alongside), or "Nothing to do… step N of 4". The preparation step shows its
-ticket (`#433`, a button that opens it) and its state — `in progress`, `failed`, `to review`; on failure,
-the reason in one sentence and the time of the next attempt (`Next retry at 10:14 AM, in 10 min.`, then
-`Its retry is due now.` once the time has passed). The "within a minute" of the trust is no longer stated
-past the minute, nor once the flow is published. When ready, only `<projet> is ready: post
-your first ticket with the fire label`, "post the first ticket" and "dismiss" remain: once dismissed, or the page
-left, it does not come back (until the next app launch, and never once the first ticket is
-on the rail). The pages it opens are those the station published, and no others
-(`autoriserSurGitHub`). The module is `app/src/vue/onboarding/journey.js`.
-
 **What holds the kitchen back** (#1119): its main station publishes, in the project's line of its tracking, `acces`
 (repository access refused, #1117: the reason and the gesture) and `worktree` (a worktree that cannot be prepared,
 #1118: the ticket, the reason, the time of the next attempt, and `acces` when access is what refuses).
@@ -1936,7 +1692,7 @@ for itself.`, the code on hover) then the action below — never the raw text of
 path. Screenshots (in git history):
 `docs/captures/1178/`. The station clears it when the gesture is done: the page re-read
 (each read of the stations) goes back to its message, without reloading the app. The module is
-`app/src/vue/onboarding/repository-held.js`.
+`app/src/vue/installation-project/repository-held.js`.
 
 **What blocks the project** (#1399, epic #1393): every blocker its principal station publishes (`blocages` in its
 tracking, #1394) is one row in a card under the stations line, on Rail, headed by one sentence —
@@ -1991,14 +1747,6 @@ Every other gesture rewrites the selections as they are. Screenshots (in git his
 `app/src/vue/project/choice.js`; the write is `choisir` in `app/src/projects/projects.ts`.
 
 **"Cook it on a station that has it" is no longer offered** (#4679): it opened the form of a declared station, which the app no longer reads. The card lists the other issues of the choice.
-
-**The decision facing a station with no sandbox** (#1113): when the published state says `decisionAttendue`,
-the *Cooking machine* step puts the runtime's sentence up as a warning — the cooks of this machine
-would run in `restricted mode: no sandbox` (what it covers and what it cannot, named), nothing goes out before the chef's choice — and two buttons: "choose another
-station" (recommended: it opens the choice of machines for the move) and "continue without sandbox"
-(`continuerSansBacASable` of the bridge, whose answer is stated under the stations line). Since #4511 the app has no
-runtime beside it to record the choice: it says so in one sentence, and nothing is recorded. Screenshot (in git history):
-`docs/captures/1113/`.
 
 ### Where a project cooks, and moving it in one gesture (#1095)
 
@@ -2076,7 +1824,6 @@ On the left, a column of tiles, Slack or Discord style:
 | **T**, round, at the top | the "All projects" screen. **In yellow**: the app's code, or a brigade clone among your projects, is behind its origin — hovering says which, and by how much |
 | one **short label** per project, in the file's order | its space. At most 3 characters, large, on one line, never cut (`app/src/acronym.ts`) — see below |
 | **+**, dotted, at the bottom | add a project |
-| **?**, under **+** | `Replay the visit`: the read-only visit of a real kitchen, from its first step (#4087) — not on the phone |
 
 - **The full name is read on hover** over the tile, and **at the top of the space** once inside, to
   the left of the tabs.

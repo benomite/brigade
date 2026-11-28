@@ -212,14 +212,6 @@ describe("les faits que l'app dessine", () => {
         mot: "open",
         ton: "vert",
         arretee: false,
-        // Où en est chaque ticket, pour le récit du premier ticket (#3302) : ceux du rail, puis les servis et leur PR mergée.
-        etapesDesTickets: [
-          { ticket: 14, etat: "pris", pr: null, renvoi: null },
-          { ticket: 21, etat: "BLOQUÉ", pr: null, renvoi: null },
-          { ticket: 216, etat: "servi", pr: { numero: 219, url: "https://github.com/benomite/brigade/pull/219" }, renvoi: null },
-          { ticket: 201, etat: "servi", pr: { numero: 207, url: "https://github.com/benomite/brigade/pull/207" }, renvoi: null },
-          { ticket: 188, etat: "servi", pr: null, renvoi: null },
-        ],
         tick: "last tick 9 s before the reading",
         compteurs: [
           { libelle: "rail", nombre: 2 },

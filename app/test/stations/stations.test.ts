@@ -127,17 +127,6 @@ describe("les stations lues sur un GitHub de test", { concurrency: 7 }, () => {
     assert.equal(reread !== undefined && "nom" in reread ? reread.nom : null, "box-2");
   });
 
-  // La trace du téléphone connecté (#3303, phone-connected.ts), lue par le `gh` du poste.
-  test("un gist qui porte la trace du téléphone : connecté ; aucun : non ; un `gh` en panne : lève", { skip: WITHOUT_POSIX }, async (t) => {
-    const github = oneGitHub(t);
-    const readOnes = githubOfStations({ gh: github.gh, delaiMs: 30_000 });
-    github.station("box", published());
-    assert.equal(await readOnes.telephone?.(), false);
-    writeFileSync(join(github.repertoire, "t.gist.json"), JSON.stringify({ id: "t", description: DESCRIPTION_OF_PHONE, public: false, updated_at: new Date().toISOString(), files: { [FILE_PHONE]: { filename: FILE_PHONE, content: "{}" } } }));
-    assert.equal(await readOnes.telephone?.(), true);
-    github.panne(true);
-    await assert.rejects(readOnes.telephone?.() ?? Promise.resolve());
-  });
   test("le code tapé appaire la station : elle apparaît sur la home, « online · version X · no project »", { skip: WITHOUT_POSIX }, async (t) => {
     const github = oneGitHub(t);
     github.station("box1", published());

@@ -16,7 +16,7 @@ import {
   RETRY,
   VERIFICATION,
 } from "../../../src/vue/addition-project/installation-of-repository.js";
-import { setStepProject } from "../../../src/vue/journey-project/step-project.js";
+import { setStepProject } from "../../../src/vue/addition-project/step-project.js";
 import { Fake } from "../../helpers/false-vue.ts";
 
 const doc = { createElement: (balise: string) => new Fake(balise) };

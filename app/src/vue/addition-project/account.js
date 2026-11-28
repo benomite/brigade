@@ -8,8 +8,7 @@
 // compte est relu (`tenirLeCompte`, `apresLaConnexion`) : l'écran dit celui que l'ordinateur tient désormais.
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément (bricks.js), et rend des éléments.
 
-import { buttonAction } from "../bricks.js";
-import { sentence } from "../onboarding/journey.js";
+import { buttonAction, sentence } from "../bricks.js";
 import { buttonOfThePage, connectionSaid, actions } from "./connection.js";
 import { lineError } from "../components/line-error/line-error.js";
 import { READ_OF, THIS_COMPUTER } from "../lexicon.js";

@@ -200,7 +200,7 @@ describe("les polices : Archivo pour l'interface, JetBrains Mono pour ce qui se 
     const mono = rules(read("vue.css")).filter(({ declarations }) => declarations.get("font-family") === "var(--police-mono)");
     assert.deepEqual(
       mono.map(({ selecteurs: selectors }) => selectors),
-      [[".mono", "pre", "code", "#projets button", ".carte dd", "#rail h4 > span:last-child", ".premier-lancement .formulaire-du-premier input", ".ajout-d-un-projet .depot button"]],
+      [[".mono", "pre", "code", "#projets button", ".carte dd", "#rail h4 > span:last-child", ".ajout-d-un-projet .depot button"]],
     );
     // Le bon porte la sienne, dans sa feuille : `.bon p`, les phrases d'un ticket que la box écrit.
     assert.deepEqual(rules(read("components/slip/slip.css")).filter(({ declarations }) => declarations.get("font-family") === "var(--police-mono)").map(({ selecteurs: selectors }) => selectors), [[".bon p"]]);
