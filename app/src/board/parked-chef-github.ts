@@ -24,7 +24,7 @@ export function whyParked(comments: readonly Comment[]): { texte: string; le: st
   return { texte: (said.body as string).trim(), le: the };
 }
 
-// Le commentaire d'une PR que la passe approuve mais qui touche une zone à risque (`riskZoneComment`, runtime/src/epics.ts,
+// Le commentaire d'une PR que la passe approuve mais qui touche une zone à risque (`riskZoneComment`,
 // #4489) : le chef la merge, par le geste `merge`. Il dit la PR et ses fichiers.
 const OF_THE_RISK_ZONE = /^\s*The pass approves PR #(\d+), but /;
 const isTrusted = ({ body, author_association }: Comment) => typeof body === "string" && OF_TRUST.includes(String(author_association));
