@@ -1,7 +1,6 @@
 // Le geste avec jugement : ce qu'un clic écrit dans le second quand il faut lire, juger,
 // rédiger ou arbitrer — une demande en prose, pas une commande, et **rien ne l'envoie** :
-// c'est l'Entrée du chef qui la fait partir, jamais l'app (docs/superpowers/specs/
-// 2026-10-13-app-poste-de-travail-design.md, « Le modèle, en quatre règles »). Deux clics
+// c'est l'Entrée du chef qui la fait partir, jamais l'app. Deux clics
 // l'écrivent : une carte de T'attend — la carte dit le geste (le bloc `attend` de `status`,
 // mot pour mot), le second lit l'issue, en tire une réponse courte (ce qui se passe, la question, sa recommandation, l'offre du détail), et c'est lui qui répond dessus. L'app n'explique rien, n'agit sur rien et ne lit pas l'écran : elle écrit une
 // phrase, sans Entrée (terminals.ts, `inscrire`).
