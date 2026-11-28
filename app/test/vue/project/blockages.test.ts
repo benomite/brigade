@@ -6,7 +6,6 @@
 // d'une station ; la vue est jouée contre le faux pont (helpers/false-vue.ts).
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { blocage as ofRuntime } from "../../../../runtime/src/installation/blocages/blocages.ts";
 import type { Home } from "../../../src/home.ts";
 import { forTheBar } from "../../../src/bar.ts";
 import { EXAMPLE, type Project } from "../../../src/config.ts";
@@ -23,6 +22,26 @@ import { Fake, playTheVue, repos } from "../../helpers/false-vue.ts";
 const doc = { createElement: (balise: string) => new Fake(balise) };
 const TOKENS = "https://github.com/settings/personal-access-tokens";
 const OUTPUT = "GraphQL: Could not resolve to a Repository with the name 'benomite/parade'.\nfailed to run git: exit status 128";
+
+// A blockage as the station writes it (formerly runtime/src/installation/blocages/blocages.ts, `blocage`): the
+// sanitising is replayed here for what these tests feed it, a raw command output given as message or cause
+// being replaced by the station's fallback sentences and kept in `detail`.
+const FALLBACK_MESSAGE = "Something blocks this project, and the station could not say it in one sentence: the details hold what it saw.";
+const FALLBACK_CAUSE = "The station did not recognise what went wrong.";
+const isRawOutput = (text: string) => /[\r\n]|\bexit (?:status|code) -?\d+|^\s*(?:fatal|error)\s*:/i.test(text);
+function ofRuntime(entry: { id: string; message: string; cause: string; action?: string; link?: string; detail?: string }): Blockage {
+  const rawMessage = isRawOutput(entry.message);
+  const rawCause = isRawOutput(entry.cause);
+  const detail = [rawMessage ? entry.message : null, rawCause ? entry.cause : null, entry.detail ?? null].filter((part): part is string => part !== null).join("\n\n");
+  return {
+    id: entry.id,
+    message: rawMessage ? FALLBACK_MESSAGE : entry.message,
+    cause: rawCause ? FALLBACK_CAUSE : entry.cause,
+    ...(entry.action === undefined ? {} : { action: entry.action }),
+    ...(entry.link === undefined ? {} : { link: entry.link }),
+    ...(detail === "" ? {} : { detail }),
+  };
+}
 
 // Tels que le runtime les écrit : l'un avec la page où le lever, l'autre avec le geste de l'app ; et un troisième
 // dont le producteur n'a donné que la sortie de git pour message — le runtime l'a assaini.

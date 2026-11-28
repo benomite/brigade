@@ -6,9 +6,6 @@
 // (`SuiviDuProjet`) et relus par `lireSuivi`, comme l'app relit le gist d'une station.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import type { EchecDuWorktree as OfRuntime } from "../../../runtime/src/echec-du-worktree.ts";
-import type { AccesBloque as AccessOfRuntime } from "../../../runtime/src/projets/acces.ts";
-import { refus as refusalOfRuntime } from "../../../runtime/src/projets/refus.ts";
 import type { Home } from "../../src/home.ts";
 import { forTheBar } from "../../src/bar.ts";
 import { EXAMPLE, type Project } from "../../src/config.ts";
@@ -28,13 +25,23 @@ const STATIONS: SeenOfStations = { a: A, stations: [BOX] };
 const HOME: Home = { projets: [], stations: [], sante: { ton: "vert", dit: "Max ✓  ·  GitHub ✓", survol: "" } };
 const PARADE: Project = { nom: "parade", dossier: "/tmp/parade", depot: "benomite/parade", base: "main" };
 
-// Ce que le runtime écrit (runtime/src/projets/acces.ts, echec-du-worktree.ts), mot pour mot.
+// What the station wrote (formerly runtime/src/projets/acces.ts `AccesBloque` and echec-du-worktree.ts `EchecDuWorktree`), word for word.
+type AccessOfRuntime = { bloque: "fetch" | "push"; raison: string; geste: string };
+type OfRuntime = { ticket: number; raison: string; prochainEssai: string | null; acces?: AccessOfRuntime };
 const ACCESS: AccessOfRuntime = {
   bloque: "fetch",
   raison: "parade-box cannot fetch from benomite/parade: github.com asks for a username and no credential helper answers (git: fatal: could not read Username for 'https://github.com').",
   geste: "Run `gh auth setup-git` on parade-box, under the account that runs it.",
 };
 const FAILURE: OfRuntime = { ticket: 433, raison: "git fetch : fatal: No space left on device", prochainEssai: "2026-10-19T12:10:00.000Z" };
+
+const CLONE_FAILED_REFUSAL = {
+  status: "refused",
+  code: "clone-failed",
+  message: "The station could not fetch a copy of this project's repository.",
+  action: "Check that the repository exists and that the station's GitHub account can see it; the station retries by itself.",
+  noRemedy: "The station retries by itself, and what blocks it is on GitHub, out of the app's reach.",
+};
 
 const tracking = (within: object) => JSON.stringify({ brigade: "projets-suivi", projets: [{ nom: "parade", etat: "servi", dit: "", autoriser: [], serviLe: null, cuitSur: null, ici: false, bascule: null, ...within }] });
 
@@ -132,7 +139,7 @@ const CLONE = {
 };
 
 test("un clone en échec : la cause et le compte de la station en clair, le geste et sa page GitHub, le prochain essai ; la sortie de git derrière « details » seulement", () => {
-  const [readOne] = readTracking(tracking({ etat: "refuse", dit: `${CLONE.raison} ${CLONE.geste}`, clone: CLONE, refus: refusalOfRuntime("clone-failed") }));
+  const [readOne] = readTracking(tracking({ etat: "refuse", dit: `${CLONE.raison} ${CLONE.geste}`, clone: CLONE, refus: CLONE_FAILED_REFUSAL }));
   assert.deepEqual(readOne?.clone, CLONE);
   const openEntries: string[] = [];
   const doc = { createElement: (balise: string) => new Fabrique(balise) };
@@ -205,8 +212,15 @@ test("lireSuivi ne croit que ce qui a la forme : un accès sans geste, un échec
   assert.deepEqual(slip?.worktree, { ...FAILURE, acces: ACCESS });
 });
 
-// Ce que le runtime publie (runtime/src/projets/refus.ts), tel quel.
-const REFUSAL = refusalOfRuntime("proxy-port-set");
+// What the station publishes for these refusals (formerly runtime/src/projets/refus.ts, `refus`), word for word;
+// the remedy was retired, so each carries `noRemedy`.
+const REFUSAL = {
+  status: "refused",
+  code: "proxy-port-set",
+  message: "This project's settings choose a network port that the station reserves for itself.",
+  action: "Remove the port setting from the app.",
+  noRemedy: "The app cannot change the station's configuration for this project yet.",
+};
 
 test("un projet refusé par la station : la page dit pourquoi et ce que le chef fait, sans le texte brut ni chemin", async () => {
   const raw = "BRIGADE_PROXY_PORT is set in /etc/brigade/en-service: refused";
@@ -217,7 +231,7 @@ test("un projet refusé par la station : la page dit pourquoi et ce que le chef 
   assert.doesNotMatch(block.textContent, /en-service|\/etc\//);
   assert.doesNotMatch(block.textContent, /within a minute/);
   // Le remède retiré, aucun bouton ne prétend lever le refus d'ici (#4503).
-  assert.equal(block.dessous("button").some((b) => "remedy" in REFUSAL && b.textContent === REFUSAL.remedy.description), false);
+  assert.equal(block.dessous("button").some((b) => b.textContent === REFUSAL.noRemedy), false);
 });
 
 test("sans refus, la page est inchangée ; un refus sans phrase ou sans action ne dit rien", async () => {

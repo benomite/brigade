@@ -2,17 +2,11 @@
 // passe en tête de la bande, au-dessus de tout, marquée à part, avec ce qui est attendu, son geste et
 // depuis combien de temps tout est à l'arrêt ; la case du projet la dit, autrement qu'une alerte
 // (alerts.ts, « L'urgence »). Une décision qui ne retient qu'une partie du rail ne change rien.
-// Ce que la box rend est écrit ici par le runtime lui-même — `faits` et `status`, joués
-// dans ce process sur un vrai journal (runtime/src/etat.ts) : la forme que
-// la bande lit est tenue contre celle que le runtime écrit.
+// Ce que la box rend est ce que l'ancien runtime (runtime/src/etat.ts) écrivait — `faits` et `status`, figés dans
+// fixtures/old-runtime-emergency.json : la forme que la bande lit est tenue contre celle qu'il écrivait.
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { describe, test, type TestContext } from "node:test";
-import { decrireEtat, faits as runtimeFacts, lireEtat } from "../../runtime/src/etat.ts";
-import type { Fait } from "../../runtime/src/evenements.ts";
-import { ouvrirJournal } from "../../runtime/src/journal.ts";
+import { readFileSync } from "node:fs";
+import { describe, test } from "node:test";
 import { alerts, signalOf, holdBands, type Alert, type Band } from "../src/alerts.ts";
 import { putAside } from "../src/awaiting.ts";
 import { forTheBar } from "../src/bar.ts";
@@ -25,49 +19,31 @@ import { TABS, HEADINGS } from "../src/tabs.ts";
 import { playTheVue, repos } from "./helpers/false-vue.ts";
 
 const DAY = "2026-10-15";
-const STATION = "box/claude";
-const LIMITS = { turns: 100, durationMs: 3_600_000, tokens: 2_000_000, idleMs: 600_000 };
-const pr = (ticket: number) => `https://exemple.test/pull/${ticket}`;
 const hour = (h: string) => `${DAY}T${h}.000Z`;
 const reading = (command: string, text: string, a: string): Reading => ({ projet: "parade", demande: 1, a, sorties: [{ commande: command, texte: text }] });
 
-// Une cuisine dont le test tient l'horloge, où tout va bien hors du rail — runtime en marche,
-// version à jour —, et ce que l'app en dessine : `faits` et `status`
-// écrits par le runtime, lus comme le process principal les lit.
-function kitchen(t: TestContext) {
-  const directory = mkdtempSync(join(tmpdir(), "brigade-app-urgence-"));
-  let instant = hour("08:00:00");
-  const log = ouvrirJournal(directory, { maintenant: () => new Date(instant) });
-  t.after(() => {
-    log.fermer();
-    rmSync(directory, { recursive: true, force: true });
-  });
-  const note = (done: Fait, ticket: number | null = null, author = "runtime") => void log.ajouter({ project: "parade", ticket, author, ...done });
-  const a = (h: string) => void (instant = hour(h));
-  const arrive = (ticket: number, zone: string[]) =>
-    note(
-      { type: "ticket.arrived", payload: { title: `Ticket ${ticket}`, priority: null, createdAt: `2026-10-01T00:00:${ticket % 60}Z`, url: `https://exemple.test/${ticket}`, card: { waitsFor: [], zone, problems: [] } } },
-      ticket,
-      "github",
-    );
-  // Le ticket déjà sur le rail, pris, cuisiné, livré avec sa PR.
-  const cook = (ticket: number) => {
-    note({ type: "ticket.taken", payload: { station: STATION, leaseUntil: "2026-11-30T00:00:00.000Z" } }, ticket, `station:${STATION}`);
-    note({ type: "cook.launched", payload: { run: `${ticket}-aa`, limits: LIMITS, stream: `runs/${ticket}-aa.jsonl`, branch: `cook/${ticket}-aa`, worktree: `worktrees/${ticket}-aa` } }, ticket);
-    note({ type: "cook.exited", payload: { run: `${ticket}-aa`, outcome: "ok", code: 0, signal: null, turns: 3, tokens: 1000, durationMs: 1000 } }, ticket);
-    note({ type: "ticket.passing", payload: { station: STATION } }, ticket, `station:${STATION}`);
-    note({ type: "pass.started", payload: { run: `${ticket}-aa`, pr: pr(ticket), number: ticket, sha: `sha-${ticket}` } }, ticket, "pass");
-  };
-  // Verte, et laissée au chef : à merger à la main.
-  const retain = (ticket: number) => note({ type: "pass.held", payload: { reason: "review-required" } } as never, ticket, "pass");
-  const render = (h: string) => {
-    const now = new Date(hour(h));
-    const state = lireEtat(log, now);
-    return { faits: runtimeFacts(state, now), status: `${decrireEtat(state, now).join("\n")}\n` };
+// Ce que le runtime d'avant la #4775 rendait de la cuisine de ces tests, figé dans fixtures/old-runtime-emergency.json
+// (`faits`, la forme, et `status`, le texte, de l'ancien `faits` et `decrireEtat`, runtime/src/etat.ts, à 10:00:00) :
+//   plain : une cuisine où tout va bien hors du rail — runtime en marche, manager activé, la station box/claude annoncée ;
+//   allHeld : l'exemple du ticket — #535, #536, #537 arrivés, #535 livré et laissé au chef (une livraison à merger à la
+//     main qui tient toutes les zones du rail) ;
+//   allHeldThenStopped : le même, après le « stop » du chef.
+type Scenario = "plain" | "allHeld" | "allHeldThenStopped";
+const RENDERED = JSON.parse(readFileSync(new URL("./fixtures/old-runtime-emergency.json", import.meta.url), "utf8")) as Record<Scenario, { faits: Record<string, unknown>; status: string }>;
+
+// Une cuisine figée, et ce que l'app en dessine : `faits` et `status` de l'ancien runtime, lus comme le process principal
+// les lit.
+function kitchen(initial: Scenario = "plain") {
+  let scenario = initial;
+  const note = (done: { type: string }) => {
+    assert.equal(done.type, "kitchen.stopped", `pas d'état figé pour ${done.type}`);
+    assert.equal(scenario, "allHeld");
+    scenario = "allHeldThenStopped";
   };
   // La bande, d'après `faits` tel que la box l'a rendu — ou tel qu'un `retoucher` le donne.
   const band = (h: string, retoucher: (facts: Record<string, unknown>) => Record<string, unknown> = (facts) => facts): Band => {
-    const rendered = render(h);
+    assert.equal(h, "10:00:00");
+    const rendered = RENDERED[scenario];
     const readOne = hour(h);
     const bands = holdBands({ etablir: 1, minimum: 0 });
     bands.ouvrir(["parade"]);
@@ -75,24 +51,11 @@ function kitchen(t: TestContext) {
     bands.faits(reading("facts", `${JSON.stringify(retoucher({ ...rendered.faits }))}\n`, readOne));
     return bands.status(putAside(reading("status", rendered.status, readOne)));
   };
-  note({ type: "runtime.started", payload: { pid: 1, host: "box", node: "v26" } } as Fait);
-  note({ type: "manager.enabled", payload: {} }, null, "chef");
-  note({ type: "station.announced", payload: { station: STATION, engine: "claude", provides: ["opus"], maxCooks: 2 } });
-  return { noter: note, a, arriver: arrive, cuisiner: cook, retenir: retain, rendre: render, bande: band };
+  return { noter: note, bande: band };
 }
 
 // L'exemple du ticket : une livraison à merger à la main qui tient toutes les zones du rail.
-function allHeld(t: TestContext) {
-  const served = kitchen(t);
-  const { a, arriver: arrive, cuisiner: cook, retenir: retain } = served;
-  arrive(535, ["runtime", "app"]);
-  arrive(536, ["runtime/src"]);
-  arrive(537, ["app/src"]);
-  cook(535);
-  a("08:30:00");
-  retain(535);
-  return served;
-}
+const allHeld = () => kitchen("allHeld");
 
 describe("l'urgence dans la bande", () => {
   test("une cause que l'app ne nomme pas se dit avec le mot de la box, sans rien inventer", () => {
@@ -115,14 +78,14 @@ describe("l'urgence dans la bande", () => {
 });
 
 describe("sans urgence, rien ne change", () => {
-  test("une cuisine qui va bien : la bande reste vide, la case sans signal", (t) => {
-    const { bande: band } = kitchen(t);
+  test("une cuisine qui va bien : la bande reste vide, la case sans signal", () => {
+    const { bande: band } = kitchen();
     assert.deepEqual(band("10:00:00"), { projet: "parade", alertes: [], signal: undefined });
   });
 
-  test("le « stop » du chef retient la cuisine lui-même : sa ligne, pas celle de l'urgence", (t) => {
-    const { noter: note, bande: band } = allHeld(t);
-    note({ type: "kitchen.stopped", payload: {} }, null, "chef");
+  test("le « stop » du chef retient la cuisine lui-même : sa ligne, pas celle de l'urgence", () => {
+    const { noter: note, bande: band } = allHeld();
+    note({ type: "kitchen.stopped" });
     const readEntry = band("10:00:00");
     assert.deepEqual(
       readEntry.alertes.map(({ sujet: subject }) => subject),

@@ -1,14 +1,10 @@
 // La limite que GitHub pose au compte, sur chaque projet qu'elle tient (ticket 2147) : `facts` porte l'entrée `github`
 // `{ limit, since, backAt }` (le contrat du runtime, ticket 2144), et la bande de chaque projet dit une ligne — quelle
 // limite en clair, depuis quand, retour vers quand — qui tombe d'elle-même au premier `facts` qui ne la porte plus.
-// Les payloads sont ceux du runtime (runtime/src/etat.ts, `faits`), l'entrée `github` ajoutée telle que le contrat la dit.
+// Les payloads sont ceux de l'ancien runtime (runtime/src/etat.ts, `faits`), l'entrée `github` ajoutée telle que le contrat la dit.
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { describe, test, type TestContext } from "node:test";
-import { faits as runtimeFacts, lireEtat } from "../../runtime/src/etat.ts";
-import { ouvrirJournal } from "../../runtime/src/journal.ts";
+import { readFileSync } from "node:fs";
+import { describe, test } from "node:test";
 import { holdBands, type Alert } from "../src/alerts.ts";
 import { forTheBar } from "../src/bar.ts";
 import type { Reading } from "../src/box.ts";
@@ -31,18 +27,9 @@ const hm = (instant: string) => {
 const LINE = `GitHub is rate-limiting calls: too many writes per minute, since ${hm(SINCE)}, back around ${hm(RETURN)}`;
 const PROJECTS = ["brigade", "mirrorlab"];
 
-// Le `facts` d'une cuisine saine, écrit par le runtime — puis le même, l'entrée `github` posée.
-function payload(t: TestContext): string {
-  const directory = mkdtempSync(join(tmpdir(), "brigade-app-limite-github-"));
-  const now = new Date(`${DAY}T15:30:00.000Z`);
-  const log = ouvrirJournal(directory, { maintenant: () => now });
-  t.after(() => {
-    log.fermer();
-    rmSync(directory, { recursive: true, force: true });
-  });
-  log.ajouter({ project: "brigade", ticket: null, author: "runtime", type: "runtime.started", payload: { pid: 1, host: "box", node: "v26" } });
-  return JSON.stringify(runtimeFacts(lireEtat(log, now), now));
-}
+// Le `facts` d'une cuisine saine, tel que l'ancien runtime l'écrivait (runtime/src/etat.ts, `faits`, runtime en marche, à
+// 15:30), figé dans fixtures/old-runtime-banner-limit-github.json — puis le même, l'entrée `github` posée.
+const payload = (): string => JSON.stringify(JSON.parse(readFileSync(new URL("./fixtures/old-runtime-banner-limit-github.json", import.meta.url), "utf8")));
 const limit = (healthy: string, github: unknown = { limit: "secondary-writes", since: SINCE, backAt: RETURN }) => JSON.stringify({ ...JSON.parse(healthy), github });
 const reading = (project: string, text: string, a: string): Reading => ({ projet: project, demande: 1, a, sorties: [{ commande: "facts", texte: `${text}\n` }] });
 const github = (alerts: readonly Alert[]) => alerts.filter(({ sujet: subject }) => subject === "github");
@@ -64,8 +51,8 @@ describe("la ligne de la limite", () => {
     for (const not of [undefined, null, "secondary-writes", [], 3]) assert.deepEqual(limitRead(not), {});
   });
 
-  test("`facts` la porte telle que le contrat la dit ; une entrée d'une autre forme ne refuse pas le payload", (t) => {
-    const healthy = payload(t);
+  test("`facts` la porte telle que le contrat la dit ; une entrée d'une autre forme ne refuse pas le payload", () => {
+    const healthy = payload();
     const readOne = understand(limit(healthy));
     assert.ok(!("informe" in readOne), JSON.stringify(readOne));
     assert.deepEqual(readOne.github, { limit: "secondary-writes", since: SINCE, backAt: RETURN });
@@ -77,8 +64,8 @@ describe("la ligne de la limite", () => {
 });
 
 describe("la bande de chaque projet du compte", () => {
-  test("le même payload sur brigade et mirrorlab : la même ligne sur chacun, aussitôt, et chacun signalé", (t) => {
-    const limit_ = limit(payload(t));
+  test("le même payload sur brigade et mirrorlab : la même ligne sur chacun, aussitôt, et chacun signalé", () => {
+    const limit_ = limit(payload());
     const bands = holdBands();
     bands.ouvrir(PROJECTS);
     for (const project of PROJECTS) {
@@ -88,8 +75,8 @@ describe("la bande de chaque projet du compte", () => {
     }
   });
 
-  test("le payload suivant sans `github` : la ligne est partie, sans rien relire d'autre", (t) => {
-    const healthy = payload(t);
+  test("le payload suivant sans `github` : la ligne est partie, sans rien relire d'autre", () => {
+    const healthy = payload();
     let instant = Date.parse(`${DAY}T15:30:01.000Z`);
     const bands = holdBands({ maintenant: () => instant });
     bands.ouvrir(PROJECTS);
@@ -103,8 +90,8 @@ describe("la bande de chaque projet du compte", () => {
     }
   });
 
-  test("une seule ligne quand la box dit aussi l'ancienne `limiteGithub` : celle qui nomme la limite", (t) => {
-    const two = JSON.stringify({ ...JSON.parse(limit(payload(t))), limiteGithub: RETURN });
+  test("une seule ligne quand la box dit aussi l'ancienne `limiteGithub` : celle qui nomme la limite", () => {
+    const two = JSON.stringify({ ...JSON.parse(limit(payload())), limiteGithub: RETURN });
     const bands = holdBands();
     bands.ouvrir(["brigade"]);
     assert.deepEqual(github(bands.faits(reading("brigade", two, `${DAY}T15:30:01.000Z`)).alertes).map(({ dit: said }) => said), [LINE]);
@@ -112,8 +99,8 @@ describe("la bande de chaque projet du compte", () => {
 });
 
 describe("à l'écran", () => {
-  test("l'espace de chaque projet montre la ligne en tête, et la perd au payload suivant", async (t) => {
-    const healthy = payload(t);
+  test("l'espace de chaque projet montre la ligne en tête, et la perd au payload suivant", async () => {
+    const healthy = payload();
     const projects: Project[] = PROJECTS.map((name) => ({ nom: name, dossier: `/tmp/${name}` }));
     const vue = await playTheVue({
       demarrage: () => ({

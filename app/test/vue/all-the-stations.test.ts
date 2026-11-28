@@ -5,7 +5,7 @@
 // devant un faux document (helpers/false-vue.ts).
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import type { Faits as FactsOfRuntime } from "../../../runtime/src/etat.ts";
+import type { Facts as FactsOfRuntime } from "../../src/facts.ts"; // the app's own Facts (the old runtime's etat.ts is gone)
 import type { Home } from "../../src/home.ts";
 import { forTheBar } from "../../src/bar.ts";
 import { EXAMPLE, type Project } from "../../src/config.ts";

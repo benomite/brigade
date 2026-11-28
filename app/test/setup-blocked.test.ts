@@ -2,15 +2,10 @@
 // et sa cause et son geste dans l'entrée `setup` du bloc `attend`. L'app le dit dans la bande
 // d'alertes du projet — ce texte-là, mot pour mot — et sur la pastille de sa case ; quand le
 // runtime ne le dit plus, bande et pastille reviennent d'elles-mêmes. Ce que la box rend est écrit
-// ici par le runtime lui-même, sur un vrai journal, comme alertes.test.ts.
+// ici par l'ancien runtime (runtime/src/etat.ts), figé dans fixtures/old-runtime-setup.json, comme alerts.test.ts.
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { describe, test, type TestContext } from "node:test";
-import { decrireEtat, faits as runtimeFacts, lireEtat } from "../../runtime/src/etat.ts";
-import type { Fait } from "../../runtime/src/evenements.ts";
-import { ouvrirJournal } from "../../runtime/src/journal.ts";
+import { readFileSync } from "node:fs";
+import { describe, test } from "node:test";
 import { alerts, entryOfSetup, holdBands, type Alert, type Band } from "../src/alerts.ts";
 import { putAside } from "../src/awaiting.ts";
 import { forTheBar } from "../src/bar.ts";
@@ -23,7 +18,6 @@ import { TABS, HEADINGS } from "../src/tabs.ts";
 import { playTheVue, repos } from "./helpers/false-vue.ts";
 
 const DAY = "2026-10-14";
-const STATION = "box/claude";
 const reading = (command: string, text: string): Reading => ({ projet: "parade", demande: 1, a: `${DAY}T10:00:01.000Z`, sorties: [{ commande: command, texte: text }] });
 
 // Ce que le runtime écrit de l'entrée, après sa tête et son « depuis » (runtime/test/attend.test.ts).
@@ -32,25 +26,23 @@ const REFUSAL_NETWORK =
 const SETUP_A_FIX =
   "setup impossible: `.claude/brigade/worktree-setup.sh` fails twice identically (code de sortie 1) — what it said is on #15 — to fix: the project's setup, then merge into the integration branch; setups start again on their own as soon as the integration branch moves; until then, none is launched, for any ticket";
 
-// Une cuisine saine — runtime en marche, une station, version à jour — dont le
-// test tient l'horloge. `bande` : ce que l'app en dessine, lu comme le process principal le lit.
-function kitchen(t: TestContext) {
-  const directory = mkdtempSync(join(tmpdir(), "brigade-app-setup-"));
-  let instant = `${DAY}T09:00:00.000Z`;
-  const log = ouvrirJournal(directory, { maintenant: () => new Date(instant) });
-  t.after(() => {
-    log.fermer();
-    rmSync(directory, { recursive: true, force: true });
-  });
-  const note = (done: Fait, ticket: number | null = null, author = "runtime") => void log.ajouter({ project: "parade", ticket, author, ...done });
-  note({ type: "runtime.started", payload: { pid: 1, host: "box", node: "v26" } });
-  note({ type: "station.announced", payload: { station: STATION, engine: "claude", provides: ["opus"], maxCooks: 2 } });
-  note({ type: "manager.enabled", payload: {} }, null, "chef");
-  const render = () => {
-    const now = new Date(`${DAY}T10:00:00.000Z`);
-    const state = lireEtat(log, now);
-    return { faits: `${JSON.stringify(runtimeFacts(state, now))}\n`, status: `${decrireEtat(state, now).join("\n")}\n` };
+// Ce que le runtime d'avant la #4775 rendait d'une cuisine saine — runtime en marche, une station, version à jour —
+// à 10:00:00, puis après chaque geste de ces tests, figé dans fixtures/old-runtime-setup.json (`faits`, la forme, et
+// `status`, le texte, de l'ancien `faits` et `decrireEtat`, runtime/src/etat.ts) :
+//   healthy ; blockedHost : deux échecs à l'identique refusés par l'hôte cdn.sheetjs.com:443 bloquent le setup à 9 h 30,
+//   sur la base `ba5e0001` ; blockedNoHost : le même, sans hôte refusé ; blockedRemote : le même, et une station distante
+//   annoncée ; unblocked : la branche d'intégration a bougé à 9 h 45, les setups reprennent ; reblocked : bloqué de nouveau.
+type Scenario = "healthy" | "blockedHost" | "blockedNoHost" | "blockedRemote" | "unblocked" | "reblocked";
+const RENDERED = JSON.parse(readFileSync(new URL("./fixtures/old-runtime-setup.json", import.meta.url), "utf8")) as Record<Scenario, { faits: unknown; status: string }>;
+
+// Une cuisine figée, et ce que l'app en dessine : `bande`, lu comme le process principal le lit.
+function kitchen() {
+  let scenario: Scenario = "healthy";
+  const note = (done: { type: string; payload: { station: string } }) => {
+    assert.ok(done.type === "station.announced" && done.payload.station === "mac/claude" && scenario === "blockedNoHost", `pas d'état figé pour ${done.type}`);
+    scenario = "blockedRemote";
   };
+  const render = () => ({ faits: `${JSON.stringify(RENDERED[scenario].faits)}\n`, status: RENDERED[scenario].status });
   const bands = holdBands({ etablir: 1, minimum: 0 });
   bands.ouvrir(["parade"]);
   bands.veiller(["parade"]);
@@ -59,19 +51,12 @@ function kitchen(t: TestContext) {
     bands.faits(reading("facts", rendered.faits));
     return bands.status(putAside(reading("status", rendered.status)));
   };
-  // Deux échecs à l'identique, le second bloque (#643) — à 9 h 30, sur la base `ba5e0001`.
   const block = (hosts: string[]) => {
-    instant = `${DAY}T09:30:00.000Z`;
-    for (const ticket of [14, 15]) {
-      note({ type: "ticket.arrived", payload: { title: `Ticket ${ticket}`, priority: null, createdAt: `2026-10-01T00:00:${ticket}Z`, url: `https://exemple.test/${ticket}` } }, ticket, "github");
-      note({ type: "setup.failed", payload: { station: STATION, why: "code de sortie 1", hosts } }, ticket, `station:${STATION}`);
-    }
-    note({ type: "setup.blocked", payload: { station: STATION, why: "code de sortie 1", hosts, base: "ba5e0001ffff" } }, 15, `station:${STATION}`);
+    scenario = hosts.length === 0 ? "blockedNoHost" : scenario === "unblocked" ? "reblocked" : "blockedHost";
   };
-  // La branche d'intégration a bougé : les setups reprennent.
   const unblock = () => {
-    instant = `${DAY}T09:45:00.000Z`;
-    note({ type: "setup.unblocked", payload: { station: STATION, base: "ba5e0002ffff" } }, null, `station:${STATION}`);
+    assert.equal(scenario, "blockedHost");
+    scenario = "unblocked";
   };
   return { noter: note, rendre: render, bande: band, bloquer: block, debloquer: unblock };
 }
@@ -84,8 +69,8 @@ function theLine(band: Alert[]): Alert {
 }
 
 describe("le setup du projet bloqué, dans la bande d'alertes", () => {
-  test("un hôte refusé : la ligne reprend la cause et le geste du runtime, mot pour mot — c'est la seule cause de la cuisine retenue, et toute la cuisine l'attend", (t) => {
-    const { bande: band, bloquer: block } = kitchen(t);
+  test("un hôte refusé : la ligne reprend la cause et le geste du runtime, mot pour mot — c'est la seule cause de la cuisine retenue, et toute la cuisine l'attend", () => {
+    const { bande: band, bloquer: block } = kitchen();
     block(["cdn.sheetjs.com:443"]);
     const { alertes: readEntries, signal } = band();
 
@@ -106,14 +91,14 @@ describe("le setup du projet bloqué, dans la bande d'alertes", () => {
     assert.deepEqual(signal, { etat: "alerte", dit: line.dit });
   });
 
-  test("sans hôte refusé : la ligne dit que le setup est à corriger, et l'issue où lire ce qu'il a dit", (t) => {
-    const { bande: band, bloquer: block } = kitchen(t);
+  test("sans hôte refusé : la ligne dit que le setup est à corriger, et l'issue où lire ce qu'il a dit", () => {
+    const { bande: band, bloquer: block } = kitchen();
     block([]);
     assert.equal(theLine(band().alertes).releve, SETUP_A_FIX);
   });
 
-  test("débloqué, le runtime ne le dit plus : la ligne sort de la bande et la pastille s'éteint, sans geste ; rebloqué, elles reviennent", (t) => {
-    const { bande: band, bloquer: block, debloquer: unblock } = kitchen(t);
+  test("débloqué, le runtime ne le dit plus : la ligne sort de la bande et la pastille s'éteint, sans geste ; rebloqué, elles reviennent", () => {
+    const { bande: band, bloquer: block, debloquer: unblock } = kitchen();
     block(["cdn.sheetjs.com:443"]);
     assert.equal(band().signal?.etat, "alerte");
 
@@ -126,10 +111,10 @@ describe("le setup du projet bloqué, dans la bande d'alertes", () => {
     assert.equal(theLine(band().alertes).releve, REFUSAL_NETWORK);
   });
 
-  test("une station distante cuisine encore : la cuisine est ouverte, la ligne le dit, moins grave — et la pastille est en alerte", (t) => {
-    const { noter: note, bande: band, bloquer: block } = kitchen(t);
+  test("une station distante cuisine encore : la cuisine est ouverte, la ligne le dit, moins grave — et la pastille est en alerte", () => {
+    const { noter: note, bande: band, bloquer: block } = kitchen();
     block([]);
-    note({ type: "station.announced", payload: { station: "mac/claude", engine: "claude", provides: ["opus"], maxCooks: 1, remote: true } });
+    note({ type: "station.announced", payload: { station: "mac/claude" } });
     const { alertes: readEntries, signal } = band();
     const line = theLine(readEntries);
     assert.equal(line.ton, "jaune");
@@ -139,8 +124,8 @@ describe("le setup du projet bloqué, dans la bande d'alertes", () => {
     assert.equal(signal?.etat, "alerte");
   });
 
-  test("le bloc `attend` laissé dans `status` se lit aussi ; absent, la ligne reprend la tête et dit que la cause n'est pas dans la lecture", (t) => {
-    const { rendre: render, bloquer: block } = kitchen(t);
+  test("le bloc `attend` laissé dans `status` se lit aussi ; absent, la ligne reprend la tête et dit que la cause n'est pas dans la lecture", () => {
+    const { rendre: render, bloquer: block } = kitchen();
     block(["cdn.sheetjs.com:443"]);
     const rendered = render();
     const facts = understand(rendered.faits);
@@ -194,8 +179,8 @@ describe("le setup du projet bloqué, à l'écran", () => {
       espace: () => [],
     });
 
-  test("la pastille de la case dit l'alerte, la bande porte le texte du runtime ; débloqué, l'une s'éteint et l'autre se cache", async (t) => {
-    const { bande: band, bloquer: block, debloquer: unblock } = kitchen(t);
+  test("la pastille de la case dit l'alerte, la bande porte le texte du runtime ; débloqué, l'une s'éteint et l'autre se cache", async () => {
+    const { bande: band, bloquer: block, debloquer: unblock } = kitchen();
     block(["cdn.sheetjs.com:443"]);
     const vue = await open();
     const pill = () => vue.element("projets").children[1]?.children.find((pose) => pose.className === "signal");
