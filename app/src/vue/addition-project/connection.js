@@ -5,7 +5,7 @@
 // même bouton, les mêmes mots. Une phrase y garde ses mots entre accents graves en code, son détail au survol.
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément (bricks.js), et rend des éléments.
 
-import { buttonAction, hover, sentence } from "../bricks.js";
+import { buttonAction, sentence } from "../bricks.js";
 import { lineError } from "../components/line-error/line-error.js";
 
 /** @typedef {import("../bricks.js").Fabrique} Fabrique */
@@ -29,15 +29,6 @@ function created(doc, balise, text) {
   return pose;
 }
 
-// Une phrase — ses mots entre accents graves, `gh`, posés en code, comme partout (bricks.js) —, et son
-// détail — ce que `gh` ou `git` a dit — au survol, jamais à plat.
-/** @param {Fabrique} doc @param {string} balise @param {string} text @param {string | undefined} detail */
-export function sentenceAndDetail(doc, balise, text, detail) {
-  const pose = created(doc, balise);
-  pose.append(sentence(doc, "span", text));
-  if (detail !== undefined && detail.trim() !== "") pose.append(hover(doc, detail));
-  return pose;
-}
 
 /** @param {Fabrique} doc @param {any[]} buttons */
 export function actions(doc, buttons) {

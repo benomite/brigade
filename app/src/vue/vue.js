@@ -60,9 +60,7 @@ import { holdBanner } from "./update/banner.js";
 import { setConnected, setTheListGitHub, holdConnectionGitHub } from "./connection-github.js";
 import { setTheIdentities, holdTheIdentities } from "./identities-github.js";
 import { setTheProjectsServed, holdTheProjectsServed } from "./projects-served/projects-served.js";
-import { setTheProjectsOfTheStation, projectsServedBy } from "./station/page/StationProjects.js";
 import { buttonAction, caseATick, hover, sentence } from "./bricks.js";
-import { confirmationOfAction } from "./components/confirmation/confirmation.js";
 import { lineError } from "./components/line-error/line-error.js";
 import { rowOfSetting as rowOfTheFamily } from "./components/setting/setting.js";
 import { button as buttonOfTheFamily } from "./components/button/button.js";
@@ -80,7 +78,7 @@ import { setOpinionOfTodo } from "./todo/opinion-todo.js";
 import { setTheOthers } from "./todo/others.js";
 import { LIST_OF_CHEF, isRed, tidyTheRail } from "./todo/todo.js";
 import { kitchenBoardGrid } from "./kitchen-board/kitchen-board.js";
-import { COOKS, OF_RAIL, columnOfPlan, NOT_READY, PASS as COLUMN_PASS, NOTHING_OF_READY, aOneAction, whatAwaitingYou, lineParked, planOfTheKitchen, setTheBandOfTop, setTheTodo } from "./kitchen/kitchen.js";
+import { COOKS, OF_RAIL, columnOfPlan, NOT_READY, PASS as COLUMN_PASS, NOTHING_OF_READY, aOneAction, whatAwaitingYou, lineParked, planOfTheKitchen, setTheTodo } from "./kitchen/kitchen.js";
 import { lineOfAlerts } from "./line-of-status/line-of-status.js";
 import { setRepositoryHeld } from "./installation-project/repository-held.js";
 import { setBlockages } from "./project/blockages.js";
@@ -89,14 +87,12 @@ import { setDelay } from "./project/delay.js";
 import { setChoice, withoutTheChoice } from "./project/choice.js";
 import { mountTheCardProject } from "./card-project/mount-card-project.js";
 import { levelOf, LEVELS_SAID } from "./levels.js";
-import { setPageOfStation as setTheShellOfStation } from "./station/page/StationPage.js";
 import { lineOfAlert, capRead } from "./stations-of-cooking.js";
 import { displacementTracking, isOneComputer, topOf, nameOfTaking, servingOf, ONE_MINUTE_MS } from "./stations-tab/state.js";
 import { choiceOfDisplacement } from "./stations-tab/choice.js";
 import { serverSeen } from "./add-server/add-server.js";
 import { keyOf, OR_DISPLACE, setTheTabOfStations, WHO_COOKED as WHO_COOKED_TAB, WHO_OF_OTHER } from "./stations-tab/stations-tab.js";
 import { BY_DEFAULT as ENGINE_BY_DEFAULT } from "./engine/engines.js";
-import { setTheCalls } from "./calls-of-the-station.js";
 import { cookOfTicket, duration as durationOfCook, action as actionOfCook, setTheActivityOfCook } from "./activity-of-cook.js";
 import { setAge, setTrials } from "./cadence.js";
 import { setRankOfTrial } from "./card/trial.js";
@@ -110,7 +106,7 @@ import { choiceOfStation, HERE } from "./stations-tab/choice.js";
 import { setTheRequestOfStation, holdTheRequestsOfStation, addTheStation } from "./installation-project/installation-project.js";
 import { repositoryPastesBy, NOT_ONE_REPOSITORY } from "./addition-project/step-project.js";
 import { buttonOfAddition, stateOfTheLine, linesOfProjects, nowOfTheLine } from "./home/projects/projects.js";
-import { additionsOfProject as additionsOfRecorded, detailsOf, stateSays, issueOfTheAddition, readOfAccount, lineOfTheRecorded, lineFade, yourOf, oneLineByMachine } from "./stations-of-account.js";
+import { additionsOfProject as additionsOfRecorded, issueOfTheAddition } from "./stations-of-account.js";
 import { tellTheRead, setTheRead } from "./rail-read-stale.js";
 import { setToolsOfSecond } from "./tools-of-second.js";
 import { NO_STATION } from "./cooks/without-station.js";
@@ -124,11 +120,8 @@ import { haltStation, actionOfStop, WITHOUT_ACTION } from "./project/stations/St
 import { connectionAtTheStation, linesOfTheStationLocale } from "./project/stations/LocalStation.js";
 import { mountThePanel } from "./project/panel-second/panel-second.js";
 import { setAddition, setBlockOfProjects } from "./home/projects/ProjectsBlock.js";
-import { setBlockOfThePromise } from "./home/promise/PromiseBlock.js";
-import { holdBlockOfTheStation } from "./home/station/StationBlock.js";
 import { holdTheKnowledge } from "./know-how/know-how.js";
 import { holdTheReport } from "./report/action.js";
-import { casesOfVersions, caseOfHere, setVersionsOfStations, statusRead } from "./station-version/station-version.js";
 import { lineEmpty } from "./components/line-empty/line-empty.js";
 import { lineReadOnly } from "./read-only/read-only.js";
 import { THIS_COMPUTER, CANCEL, YES, ADD_ONE_PROJECT, NOT_STILL, READ_OF, NOT_REACHED } from "./lexicon.js";
@@ -211,8 +204,6 @@ const content = element("contenu");
 const center = element("centre");
 const rail = element("rail");
 const card = element("fiche");
-const readTab = element("lu-onglet");
-const tabReading = element("lecture-onglet");
 const note = element("note");
 const tabsTerminals = element("terminaux");
 const closeShell = element("fermer-shell");
@@ -396,119 +387,11 @@ const projectsOfTheHome = document.createElement("section");
 projectsOfTheHome.id = "accueil-projets";
 projectsOfTheHome.className = "liste";
 projectsOfTheHome.ariaLabel = "Projects";
-// Toutes les stations — une ligne par machine, un clic ouvre sa page —, et « + station » : elles valent pour le compte, pas
-// pour un projet. Sous l'onglet Stations de chaque projet depuis le ticket 2638, elles reviennent sur l'accueil, un bloc à
-// elles sous la station de cet ordinateur (ticket 3195) : l'onglet ne montre que les stations qui servent le projet.
-const ALL_THE_STATIONS = "All stations";
-const stationsOfTheHome = document.createElement("section");
-stationsOfTheHome.id = "toutes-les-stations";
-stationsOfTheHome.className = "bloc-de-l-accueil";
-stationsOfTheHome.ariaLabel = ALL_THE_STATIONS;
-stationsOfTheHome.dataset.bloc = "toutes-les-stations";
-// Ses lignes dans une carte, comme celles des projets au-dessus.
-const listOfStations = document.createElement("div");
-listOfStations.className = "liste";
-listOfStations.ariaLive = "polite";
-// « + station », sous la liste : le champ du code s'ouvre dessous, et nulle part ailleurs. Il est posé
-// une fois : une relecture ne vide pas ce que le chef tape.
-const openThePairing = /** @type {HTMLButtonElement} */ (button("+ station", undefined));
-openThePairing.className = "ajout-de-station";
-const formOfPairing = document.createElement("form");
-formOfPairing.hidden = true;
-const codeTape = document.createElement("input");
-codeTape.placeholder = "the code a new station shows, like 7KQ2-M9XD";
-codeTape.ariaLabel = "pairing code";
-codeTape.autocomplete = "off";
-codeTape.spellcheck = false;
-const pairing = buttonOfTheFamily(document, "pair", undefined, { sorte: "recommande", type: "submit" });
-const giveUpPairing = /** @type {HTMLButtonElement} */ (button(CANCEL, undefined, "discret"));
-const pairingSays = document.createElement("p");
-pairingSays.ariaLive = "polite";
-formOfPairing.append(codeTape, pairing, giveUpPairing, pairingSays);
-// Les stations enregistrées sous le compte GitHub du chef (ticket 1706, stations-of-account.js) : dans la liste des
-// stations, une ligne pour chaque machine qu'aucune station appairée ne nomme (ticket 1778) — un clic ouvre sa page, où se
-// cochent les projets qu'elle sert ; sous la liste, ce que leur lecture a de plus à dire. Lues à chaque ouverture de l'accueil, ou
-// à la demande ; rien n'est posé avant la première réponse, ni sur un pont qui ne les lit pas.
-const blockOfRecorded = document.createElement("section");
-blockOfRecorded.className = "stations-du-compte";
-blockOfRecorded.ariaLive = "polite";
-blockOfRecorded.hidden = true;
-// La version de la station de cet ordinateur à côté de celle de la box (ticket 2191, station-version/) : sous la liste,
-// côte à côte, et ce poste dit en retard quand une station plus haute est publiée. Rien sur le téléphone, qui n'en a pas.
-const versionsOfStations = document.createElement("div");
-versionsOfStations.ariaLive = "polite";
-stationsOfTheHome.append(block("h2", ALL_THE_STATIONS), listOfStations, versionsOfStations, blockOfRecorded, openThePairing, formOfPairing);
 /** @type {import("./stations-of-account.js").StateOfAccount} */
 const stateOfRecorded = {};
 let recordedAbsent = true;
 let readOfRecorded = 0;
-/** @type {import("./stations-of-account.js").ActionsOfAccount} */
-const actionsOfRecorded = {
-  ouvrirLaStation: (id) => openStation(id),
-  relire: () => {
-    void readTheRecorded();
-  },
-  seConnecter: () => void itselfConnectAGitHub(),
-  ouvrirLaPage: (url) => void brigade.ouvrirLaPage?.(url),
-  copier: (command) => {
-    void navigator.clipboard?.writeText(command)?.catch(() => {});
-    stateOfRecorded.copiee = command;
-    setStationsOfTheHome();
-  },
-};
-// La page d'une station, ouverte d'un clic sur sa ligne : son état et les projets qu'elle
-// sert — une liste qui se lit seulement, chacun menant à l'onglet Stations de son projet. Rien ne s'y tape au terminal.
-const pageOfStation = document.createElement("section");
-pageOfStation.id = "station";
-pageOfStation.className = "carte";
-const inHeadOfStation = document.createElement("header");
-const projectsOfTheStation = document.createElement("div");
-projectsOfTheStation.ariaLive = "polite";
-const returnALHome = /** @type {HTMLButtonElement} */ (button("‹ All projects", undefined, "discret"));
-returnALHome.className = "retour";
-// Le plafond de cooks, sous l'en-tête : ce que `status` en dit, et ce qui retient la station.
-const capOfStation = document.createElement("div");
-capOfStation.className = "plafond-de-station";
-capOfStation.ariaLive = "polite";
-// La ligne de mise à jour, sous l'en-tête ; et, au bas de la page, « remove the station » et sa confirmation.
-const versionOfStation = document.createElement("p");
-versionOfStation.className = "version-de-station";
-const removalOfStation = document.createElement("div");
-removalOfStation.className = "retrait-de-station";
-// Ses sections, sous son état (ticket 2641, épique 2497) : identité, connexions, dossiers et bac à sable, capacités,
-// cooks — posées par la coque de station/page/StationPage.js.
-const sectionsOfStation = document.createElement("div");
-sectionsOfStation.className = "sections-de-station";
-pageOfStation.append(returnALHome, inHeadOfStation, capOfStation, versionOfStation, sectionsOfStation, projectsOfTheStation, removalOfStation);
-// L'accueil a les projets et la station de cet ordinateur (ticket 2638, épique 2497) — chacun son composant, sous
-// accueil/ —, puis toutes les stations (ticket 3195). La version de l'app et la ligne de santé l'ont quitté sans aller ailleurs : la ligne d'une
-// version plus haute, en tête de l'app (update/banner.js), dit la version qui tourne et l'installe.
-const blockOfThePromise = setBlockOfThePromise(document);
 const blockOfProjects = setBlockOfProjects(document, projectsOfTheHome);
-// Les premiers réglages de la station qu'on vient d'installer : se connecter à GitHub (le geste que l'app a déjà), puis
-// choisir les projets qu'elle sert, sur sa page.
-const blockOfTheStation = holdBlockOfTheStation(document, {
-  installer: async () => (brigade.installerLaStation === undefined ? { refus: "this app cannot install the station on this device" } : brigade.installerLaStation()),
-  etapes: [
-    {
-      nom: "GitHub",
-      dit: "the station reads and pushes your projects through your GitHub account",
-      ...(brigade.seConnecterAGitHub === undefined
-        ? {}
-        : {
-            geste: {
-              libelle: "Connect to GitHub",
-              faire: async () => {
-                const start = await brigade.seConnecterAGitHub?.();
-                return start !== undefined && "refus" in start ? start : undefined;
-              },
-            },
-          }),
-    },
-    { nom: "Projects", dit: "choose which projects this station serves, on its page — you can do it later" },
-  ],
-  ouvrir: (id) => openStation(id),
-});
 
 // La cuisine d'un projet de l'app (ticket 983), en tête de son espace : les stations qui la font, en une
 // ligne — chacune avec ce qu'elle en dit, un clic ouvre sa page —, et « + station » pour en ajouter
@@ -683,13 +566,6 @@ let current;
 let adds = false;
 // La dernière demande de lecture : une par écran affiché, et seules ses lectures s'affichent.
 let request = 0;
-// L'onglet de contenu dont la commande est lue, et sa demande. Indéfini : à relire.
-/** @type {string | undefined} */
-let tracking = "";
-let requestTab = 0;
-// Les onglets de contenu, dits par le process principal au démarrage (tabs.ts).
-/** @type {readonly import("../tabs.ts").Tab[]} */
-let TABS = [];
 // Les couleurs qu'un projet peut prendre, dites de même (colors.ts) : un nom, une valeur.
 /** @type {readonly { nom: string, valeur: string }[]} */
 let PALETTE = [];
@@ -764,7 +640,6 @@ let homeSeen;
 let phoneSeen;
 // La station dont la page est ouverte, par son gist. Aucune : c'est l'accueil — ou un projet.
 /** @type {string | undefined} */
-let stationOpen;
 // Ce que `faits` a rendu en dernier pour chaque projet, et la demande à laquelle il répond :
 // une par barre posée. Sans entrée, le projet n'a pas encore été lu.
 /** @type {Map<string, Drawable>} */
@@ -1036,8 +911,6 @@ const readEntry = () => {
   const openOne = active();
   return openOne === PARAMETERS ? undefined : openOne;
 };
-// Settings est ouvert : il ne lit rien, et n'a ni sortie ni heure à poser.
-const settingsShown = () => current !== undefined && active() === PARAMETERS;
 // L'onglet de la conversation est montré (écran étroit) : le second prend la place du centre. Une page ouverte
 // par-dessus — Settings, le journal — le couvre, comme elle couvre Rail.
 const conversationShown = () => current !== undefined && active() === undefined && tabOf(current) === CONVERSATION;
@@ -1050,7 +923,6 @@ const showsARight = () => {
 
 function show() {
   const visible = active();
-  const relays = TABS.find(({ id }) => id === visible);
   const right = showsARight();
   // Le second et les shells, à droite : chaque cadre y est posé une fois, et y reste. Un seul est
   // montré — celui que le chef a choisi ; caché, aucun ne perd ce qu'il avait reçu.
@@ -1131,29 +1003,18 @@ function show() {
       : [block("span", "open a shell on"), ...choice.machines.map(({ id, titre: title }) => button(title, () => void openOn(choice.projet, id))), button(CANCEL, () => void ((choiceOfMachine = undefined), show()), "discret")]),
   );
 
-  // L'explication d'un onglet relayé n'est pas écrite à plat : une icône d'aide la porte.
-  // Settings n'en a pas : il n'a que des réglages.
-  const tracked = settingsShown() ? undefined : TABS.find(({ id }) => id === readEntry());
-  const explanation =
-    tracked === undefined || current === undefined
-      ? ""
-      : `the output of ${gesture(current, tracked.commande)}, as the station returns it${tracked.precision === undefined ? "" : ` (${tracked.precision})`} — re-read on its own every thirty seconds, while this tab is shown`;
-  note.replaceChildren(
-    ...(notWritten !== "" ? [notWritten] : explanation === "" ? [] : [hover(document, explanation)]),
-  );
+  note.replaceChildren(...(notWritten !== "" ? [notWritten] : []));
   note.hidden = (note.childElementCount === 0 && note.textContent === "") || conversationShown();
   // Une page se pose par-dessus le rail : il reste dessous, tel quel, et rien de lui ne se clique au travers.
-  content.hidden = relays === undefined && visible !== PARAMETERS;
+  content.hidden = visible !== PARAMETERS;
   rail.inert = !content.hidden || !card.hidden;
   // Settings est une seule page, sans sous-pages (ticket 1700) : son seul groupe, celui du projet, et rien d'autre.
   state.hidden = current === undefined || visible !== PARAMETERS;
-  readTab.hidden = relays === undefined;
   // Au centre, seul un fichier des projets illisible a sa raison à la place de l'espace.
   message.hidden = current !== undefined;
   setSecond(openable, right?.terminal);
   setTheGroups();
   draw();
-  readTheTab();
   right?.ajuste.fit();
   const focuses = aFocus === undefined ? undefined : views.get(aFocus);
   aFocus = undefined;
@@ -1341,16 +1202,6 @@ function activerHeading(id) {
   show();
 }
 
-// Seul l'onglet de contenu affiché est lu sur la box : en changer, passer à un
-// terminal ou quitter l'espace arrête sa lecture. Rien ne reste de l'onglet d'avant.
-function readTheTab() {
-  const relays = TABS.find(({ id }) => id === readEntry());
-  const wanted = current === undefined || relays === undefined ? "" : JSON.stringify([current.nom, relays.id]);
-  if (wanted === tracking) return;
-  tracking = wanted;
-  if (current !== undefined && relays !== undefined && !settingsShown()) wait(current, readTab, tabReading);
-  brigade.onglet(current?.nom, relays?.id, ++requestTab);
-}
 
 /** @param {Terminal} terminal */
 function receive(terminal) {
@@ -1430,15 +1281,6 @@ function propos(text) {
 // l'attend. Elle ne sait pas pourquoi : ce qu'elle a obtenu est affiché au-dessus.
 // Ce qui se dit, au survol, d'une lecture de GitHub qui n'a pas rendu la file sur le téléphone.
 const AT_PHONE = "GitHub was reached, and did not give this project's queue as the app expects. This phone tries again every 30 s.";
-const ACTION = [
-  "The station was reached, and this command did not answer there as the app expects: from here, this project can no longer be controlled.",
-  "What the app got is above; it knows no more.",
-  "",
-  "The step that brings a runtime up to date, on its station:",
-  "  sudo git -C <brigade clone> pull",
-  "  sudo systemctl restart brigade@<project>",
-  "(docs/runtime/exploitation.md, “Piloter”, line “Mettre à jour”)",
-].join("\n");
 
 // Ce que l'app dit quand le geste de la box a refusé le projet : le nom qu'elle
 // lui a donné, et d'où il vient. Le refus lui-même est au-dessus, mot pour mot.
@@ -1525,51 +1367,6 @@ function obtainedInOneLine(project, receivedOne, morePilotable) {
   return [saidOne];
 }
 
-// Ce qu'une lecture donne à voir, dans le panneau de l'espace, à côté du terminal et dans
-// un onglet de contenu : un des sept états, dit en toutes lettres, et dessous ce
-// que l'app a obtenu. Celle d'un onglet n'a rien de mis à part : ce n'est pas `status`.
-/**
- * @param {Shown | Reading} receivedOne @param {HTMLElement} head @param {HTMLElement} body
- */
-function render(receivedOne, head, body) {
-  // Le projet a pu quitter le fichier depuis la demande : il n'y a plus rien à lui écrire.
-  const project = projectOf(receivedOne.projet);
-  if (project === undefined) return;
-  const hour = hourOf(receivedOne.a);
-  if ("sorties" in receivedOne) {
-    const putting = "attend" in receivedOne;
-    head.dataset.etat = "pilotable";
-    head.textContent = `${putting ? "controllable — " : ""}read at ${hour}`;
-    // Ce que la box a dit n'est pas montré : l'état se lit dans la phrase de la tête ; seul le bloc `attend`, mis à part, reste.
-    body.replaceChildren(...(putting ? [aside(project, receivedOne.attend, true)] : []));
-  } else if (receivedOne.cas === "projet-inconnu") {
-    head.dataset.etat = "inconnu";
-    head.textContent = `REACHED, BUT UNKNOWN TO THE STATION — tried at ${hour}, the next follows on its own`;
-  } else if (receivedOne.cas === "sans-droit") {
-    head.dataset.etat = "sans-droit";
-    head.textContent = `REACHED, BUT WITHOUT THE RIGHT TO THE ACTION — tried at ${hour}, the next follows on its own`;
-  } else if (receivedOne.cas === "commande-manque") {
-    head.dataset.etat = "commande-manque";
-    head.textContent = `REACHED, BUT A COMMAND IS MISSING ON THE STATION — tried at ${hour}, the next follows on its own`;
-  } else if (receivedOne.cas === "node-inapte") {
-    head.dataset.etat = "node-inapte";
-    head.textContent = `REACHED, BUT THE STATION'S NODE DOES NOT SUIT THE RUNTIME — tried at ${hour}, the next follows on its own`;
-  } else if (receivedOne.atteinte) {
-    head.dataset.etat = "plus-pilotable";
-    head.textContent = `REACHED, BUT NO LONGER CONTROLLABLE — tried at ${hour}, the next follows on its own`;
-  } else {
-    head.dataset.etat = "pas-joint";
-    head.textContent = `NOT REACHED — tried at ${hour}, the next follows on its own`;
-  }
-  // Chaque état de pilotage a son ton, et sa forme : en niveaux de gris, ils ne se confondent pas.
-  const your = TONES_OF_STEERING[head.dataset.etat ?? ""];
-  delete head.dataset.ton;
-  if (your !== undefined) {
-    head.dataset.ton = your;
-    head.prepend(brandOfPill(document, your));
-  }
-  if ("erreur" in receivedOne) body.replaceChildren(...obtainedInOneLine(project, receivedOne, ACTION));
-}
 
 // Une ligne de Settings (ticket 1700) : la rangée de réglage de l'app (components/setting, ticket 2920) — son nom, sa
 // valeur en vigueur, son contrôle, qui s'applique dès qu'il change ; puis, sous elle, ce que le contrôle a ouvert ou rendu
@@ -1827,11 +1624,6 @@ async function removeOfTheApp(project) {
   await readRemoval(project);
 }
 
-// Le ton de chaque état de pilotage : pilotable, vert ; joint sans l'être plus — plus pilotable,
-// inconnu de la box, sans le droit, une commande ou le bon node qui manque —, jaune ; pas joint,
-// rouge. Ce sont les mots que `rendre` pose déjà : rien n'est déduit de plus.
-/** @type {Record<string, string>} */
-const TONES_OF_STEERING = { pilotable: "vert", "plus-pilotable": "jaune", inconnu: "jaune", "sans-droit": "jaune", "commande-manque": "jaune", "node-inapte": "jaune", "pas-joint": "rouge" };
 
 // Un mot d'état et sa pastille. La couleur est celle que le mot a dans la liste
 // fermée, et sa forme celle de son ton ; un mot qui n'y est pas s'affiche tel quel,
@@ -3349,14 +3141,12 @@ function setTheRail(project) {
       issueOfTheKitchen === undefined ? [] : withItsAction(lineOfAlerts(document, alerts), `open #${issueOfTheKitchen.ticket}`, () => void openIssue(project, issueOfTheKitchen.ticket)),
       rereadable(outsideLine !== undefined ? [signOutsideLine(outsideLine)] : outdated !== undefined ? signStale(outdated, held.a) : held.pause !== undefined ? [] : freshness(held.a)),
     ].find((lines) => lines.length > 0 && aOneAction(lines)) ?? [];
-  // La bande du haut (ticket 4354) : les cartes du supervisor et du closer sur une ligne.
-  const bandOfTop = setTheBandOfTop(document, { roles: held.tableau.rolesCuisine, alerte: issueOfTheKitchen?.ticket, maintenant: Date.now(), deplies: unfoldsOf(project.nom) });
   const age = held.publieLe === undefined ? undefined : ageOfRail(held.publieLe, held.a);
   // Sans ligne d'état ni bandeau, la rangée des colonnes la porte : l'âge n'est jamais perdu, jamais une ligne de plus.
   if (age !== undefined) for (const carrier of [status[0], grid]) if (carrier !== undefined && !carrier.title) carrier.title = age;
   // Les lectures retenues pour le quota GitHub : une ligne au-dessus du rail, qui part avec la pause.
   const lineOfPause = held.pause === undefined ? [] : [setThePause(document, held.pause)];
-  set(...lineOfPause, bandOfTop, ...status, grid, ...underTheColumns, ...(outside.length === 0 ? [] : [block("h3", "outside the columns — their state is none of the six, and nothing says they await you"), slips(outside, undefined, false, true)]));
+  set(...lineOfPause, ...status, grid, ...underTheColumns, ...(outside.length === 0 ? [] : [block("h3", "outside the columns — their state is none of the six, and nothing says they await you"), slips(outside, undefined, false, true)]));
   renderTheKeyboard(resumption);
   placeTheRow(project, grid, scrolls);
   if (sameRail) rail.scrollTop = topOfRail;
@@ -3852,62 +3642,7 @@ async function pass() {
   setCode();
 }
 
-// Une ligne de l'accueil : sa pastille, son nom, ce qui s'y passe — et, au survol, ce qu'elle tait.
-// Toute la ligne est un bouton : un clic n'importe où l'ouvre. Elle ne porte aucun autre geste.
-/** @param {string} name @param {{ ton: string, dit: string, survol: string, raison?: { phrase: string, survol: string } }} ligne @param {() => void} openThe */
-function lineOfHome(name, { ton: your, dit: said, survol: hover, raison: reason }, openThe) {
-  const created = document.createElement("button");
-  created.type = "button";
-  created.className = "ligne";
-  created.title = hover;
-  created.ariaLabel = `${name} — ${said}${reason === undefined ? "" : ` — ${reason.phrase}`}`;
-  const called = block("strong", name);
-  called.className = "mono";
-  const suite = block("span", "›");
-  suite.className = "ouvrir";
-  suite.ariaHidden = "true";
-  const why = block("span", reason?.phrase ?? "");
-  why.className = "pourquoi";
-  why.title = reason?.survol ?? "";
-  created.append(pill(said, your), called, block("span", said), ...(reason === undefined ? [] : [why]), suite);
-  created.addEventListener("click", openThe);
-  return created;
-}
 
-// La ligne d'une station sur l'accueil : un clic l'ouvre ; à côté, le bouton de ce qui l'empêche de cuire.
-// Une station aussi enregistrée sous le compte GitHub du chef (ticket 1778) : ce qui lui est choisi se fond dans sa ligne
-// (stations-of-account.js, `ligneFondue`) ; ses cases à cocher sont sur la page de la station.
-/** @param {import("../home.ts").LineOfStation} presence @param {import("../stations-of-account.ts").StationRecorded} [recordedOne] */
-function lineOfStationOfTheHome(presence, recordedOne) {
-  const vue = stationsViews?.stations.find(({ id }) => id === presence.id);
-  const station = lineFade(presence, vue?.projets ?? [], recordedOne);
-  const line = lineOfHome(station.nom, station, () => openStation(station.id));
-  const actions = [];
-  // Une station qui ne cuit pas encore : le bouton de sa raison, un geste que l'app fait (stations/reason.ts).
-  if (station.raison !== undefined) {
-    const { geste: gesture, libelle: wording } = station.raison.bouton;
-    const remedy = /** @type {HTMLButtonElement} */ (button(wording, undefined));
-    remedy.className = "remede-de-station";
-    remedy.ariaLabel = `${wording} — ${station.nom}`;
-    remedy.addEventListener("click", () => {
-      if (gesture === "ouvrir-la-page") openStation(station.id);
-      else if (gesture === "ajouter-un-projet") openAddition();
-      else {
-        remedy.disabled = true;
-        void brigade.relireLesStations().finally(() => (remedy.disabled = false));
-      }
-    });
-    actions.push(remedy);
-  }
-  if (actions.length === 0) return line;
-  const rank = document.createElement("div");
-  rank.className = "ligne-et-geste";
-  const aSide = document.createElement("span");
-  aSide.className = "gestes-de-la-ligne";
-  aSide.append(...actions);
-  rank.append(line, aSide);
-  return rank;
-}
 
 // Le N de « TODO (N) » d'un projet dont le rail est lu, que l'accueil montre aussi (ticket 3458) : le même compte, des mêmes
 // cartes. Rien tant que ce qui attend le chef n'est pas lu — la box muette, la liste pas lue : l'accueil garde alors ce que
@@ -3963,191 +3698,13 @@ function setHome() {
   setTheCardsOfChef();
 }
 
-// La page d'une station : en tête, son nom, sa pastille et son état en une phrase — « online · 2 cooks
-// running », « offline for 12 min » (home.ts) ; sa machine et sa version ne se lisent
-// qu'au survol de l'icône d'aide, jamais dans la page. Dessous, les projets qu'elle sert, à lire.
-function setPageOfStation() {
-  const station = stationsViews?.stations.find(({ id }) => id === stationOpen);
-  const line = homeSeen?.stations?.find(({ id }) => id === stationOpen);
-  const recordedOne = recordedOpen();
-  if (station === undefined && recordedOne !== undefined) {
-    // Une machine seulement enregistrée sous le compte du chef : ni plafond, ni retrait — que son état et ses projets.
-    const title = block("h2", recordedOne.name);
-    title.className = "mono";
-    const sentence = stateSays(recordedOne);
-    const sentenceSaid = block("span", sentence);
-    sentenceSaid.className = "phrase";
-    inHeadOfStation.replaceChildren(title, pill(sentence, yourOf(recordedOne)), sentenceSaid, hover(document, detailsOf(recordedOne)));
-    setTheSectionsOfStation({ id: recordedOne.id, nom: recordedOne.name });
-    capOfStation.replaceChildren();
-    versionOfStation.replaceChildren();
-    removalOfStation.replaceChildren();
-  } else if (station === undefined) {
-    inHeadOfStation.replaceChildren(block("p", stationsViews === undefined ? READ_OF("your stations on GitHub") : "this station is no longer paired with this app"));
-    setTheSectionsOfStation(undefined);
-    capOfStation.replaceChildren();
-    versionOfStation.replaceChildren();
-    removalOfStation.replaceChildren();
-  } else {
-    const title = block("h2", station.nom);
-    title.className = "mono";
-    const sentence = line?.phrase ?? station.dit;
-    const stateSays = block("span", sentence);
-    stateSays.className = "phrase";
-    // Illisible, ce qui se lit au survol est pourquoi.
-    const details = station.etat === "illisible" ? station.ligne : (line?.survol ?? station.machine);
-    inHeadOfStation.replaceChildren(title, pill(sentence, line?.ton), stateSays, ...(details === "" ? [] : [hover(document, details)]), ...(line?.note === undefined ? [] : [block("p", line.note)]), setTheCalls(document, line?.appels));
-    setCap(line);
-    versionOfStation.replaceChildren(...(station.versionDit ? [block("span", station.versionDit)] : []));
-    setTheSectionsOfStation({ id: station.id, nom: station.nom });
-    setRemovedTheStation(station);
-  }
-  setProjects();
-}
 
-// Ce que les sections de la page posées disent : la station, son nom, et la station de ce poste. Elles ne se reposent
-// que lorsque l'un d'eux change — une relecture de l'accueil ne les redessine pas — ; la dernière demandée l'emporte.
-let sectionsOfStationSet = "";
-/** @param {{ id: string, nom: string } | undefined} station */
-function setTheSectionsOfStation(station) {
-  if (station === undefined) {
-    sectionsOfStationSet = "";
-    return sectionsOfStation.replaceChildren();
-  }
-  const locale = projectsSeen?.locale ?? null;
-  const vue = stationsViews?.stations.find(({ id }) => id === station.id);
-  const max = vue?.max ?? null;
-  const setEntries = JSON.stringify([station.id, station.nom, locale, max, vue?.maxDepuis ?? null]);
-  if (setEntries === sectionsOfStationSet) return;
-  sectionsOfStationSet = setEntries;
-  const rests = () => {
-    sectionsOfStationSet = "";
-    setTheSectionsOfStation(station);
-  };
-  // Le compte GitHub ne se lit que pour la station de cet ordinateur : c'est son `gh`.
-  const account = station.id === locale ? (brigade.compteGitHub?.() ?? Promise.resolve(undefined)).catch(() => undefined) : Promise.resolve(undefined);
-  const connections = {
-    claude: max === null ? null : { etat: max, depuis: vue?.maxDepuis ?? null },
-    gestes: {
-      changerGitHub: async () => {
-        const start = (await brigade.seConnecterAGitHub?.()) ?? { refus: "GitHub sign-in could not be started: the app gave no answer." };
-        // Un refus se dit sous la rangée, en ligne d'erreur (sections/connexions.js).
-        if ("refus" in start) return { refus: start.refus };
-        rests();
-      },
-    },
-  };
-  const settings = brigade.lireReglagesDeLaStation === undefined ? undefined : { lire: async () => (await brigade.lireReglagesDeLaStation?.()) ?? { refus: NOT_REACHED("folders and sandbox") }, ecrire: async (/** @type {any} */ c) => (await brigade.ecrireReglagesDeLaStation?.(c)) ?? { refus: "nothing was changed" } };
-  void account.then((github) => setTheShellOfStation(document, { station, locale, reglages: settings, connexions: { ...connections, github } })).then((page) => {
-    if (sectionsOfStationSet === setEntries) sectionsOfStation.replaceChildren(page);
-  });
-}
 
-// L'enregistrement de la station dont la page est ouverte : celui de la machine que la ligne de la liste a fondue avec sa
-// présence, ou, seulement enregistrée, celui qui porte cet id (stations-of-account.js, `uneLigneParMachine`).
-function recordedOpen() {
-  const readEntries = recordedAbsent ? undefined : stateOfRecorded.stations;
-  if (readEntries?.state !== "listed") return undefined;
-  const line = oneLineByMachine(homeSeen?.stations ?? [], readEntries.stations).find((one) => ("appairee" in one ? one.appairee.id : one.enregistree.id) === stationOpen);
-  return line?.enregistree;
-}
 
-// Le plafond de cooks de la station, comme sa box le dit — `3 at most — 8 cores`, ou `5 at most — set by you,
-// replaces 3 (8 cores)`. Il se lit seulement : une station prend autant de tickets qu'elle déclare de places, et sa déclaration
-// se change sur sa machine. Une station dont aucun projet lu ne dit le plafond n'a rien de tout cela.
-/** @param {import("../home.ts").LineOfStation | undefined} line */
-function setCap(line) {
-  if (line?.plafond === undefined) return capOfStation.replaceChildren();
-  const { plafond: cap } = line;
-  const lines = [];
-  const said = block("p", `Cooks at once: ${cap.dit}`);
-  said.className = "plafond";
-  said.append(levelOf(document, "cooks"));
-  lines.push(said);
-  capOfStation.replaceChildren(...lines);
-}
 
-// Sur la page d'une station, les projets qu'elle sert : ceux dont l'onglet Stations la montre parmi les stations qui le
-// servent (station/page/StationProjects.js), chacun un lien vers cet onglet. Elle se lit seulement ; ce qu'elle sert se
-// change depuis l'onglet du projet. Tant que les stations ne sont pas lues, le vide n'est pas sûr : la page le dit.
-function setProjects() {
-  const station = stationsViews?.stations.find(({ id }) => id === stationOpen);
-  const recordedOne = recordedOpen();
-  const openOne = station !== undefined ? { id: station.id, nom: station.nom } : recordedOne === undefined ? undefined : { id: recordedOne.id, nom: recordedOne.name };
-  if (openOne === undefined) return projectsOfTheStation.replaceChildren();
-  const now = Date.now();
-  const projects = projectsServedBy(
-    openOne,
-    configuration.projets.map(({ nom: name }) => name),
-    (name) => {
-      const project = projectOf(name);
-      return project === undefined ? [] : servingOf(readOfServing(project, now).base);
-    },
-  );
-  const readable = stationsViews !== undefined && station?.etat !== "illisible";
-  projectsOfTheStation.replaceChildren(
-    setTheProjectsOfTheStation(document, { projets: projects, lisible: readable }, {
-      ouvrir: (name) => {
-        const project = projectOf(name);
-        if (project === undefined) return;
-        retain(name, STATIONS);
-        void open(project);
-      },
-    }),
-  );
-}
 
-// La station dont « remove the station » demande confirmation, par son gist.
-/** @type {string | undefined} */
-let removalOfStationRequest;
-// Ce que le retrait a refusé, en une ligne ; son détail est au survol.
-let removalOfStationRefuses = "";
 
-// « Remove the station », en bas de sa page : un clic ouvre la confirmation, qui dit ce que ça change
-// en une ligne ; « cancel » la referme et laisse la station en place, « remove » la retire de l'app
-// et ramène à l'accueil. Rien de la station n'est touché : un code neuf l'appaire de nouveau.
-/** @param {import("../stations/stations.ts").StationVue} station */
-function setRemovedTheStation(station) {
-  if (removalOfStationRequest !== station.id) {
-    const remove = /** @type {HTMLButtonElement} */ (buttonOfTheFamily(document, "remove the station", undefined, { sorte: "danger" }));
-    remove.addEventListener("click", () => {
-      removalOfStationRequest = station.id;
-      removalOfStationRefuses = "";
-      setRemovedTheStation(station);
-    });
-    return removalOfStation.replaceChildren(remove, ...(removalOfStationRefuses === "" ? [] : [block("p", removalOfStationRefuses)]));
-  }
-  removalOfStation.replaceChildren(
-    confirmationOfAction(
-      document,
-      { titre: `Remove ${station.nom} from this app?`, prix: `${station.nom} leaves the home and is no longer read; it keeps running, and pairs again with a new code`, oui: "remove", non: CANCEL },
-      {
-        non: () => {
-          removalOfStationRequest = undefined;
-          setRemovedTheStation(station);
-        },
-        oui: () => void removeTheStation(station),
-      },
-    ),
-  );
-}
 
-/** @param {import("../stations/stations.ts").StationVue} station */
-async function removeTheStation(station) {
-  removalOfStationRequest = undefined;
-  let rendered;
-  try {
-    rendered = await brigade.retirerLaStation(station.id);
-  } catch (error) {
-    rendered = { refus: `${station.nom} was not removed: ${error instanceof Error ? error.message : String(error)}` };
-  }
-  if ("refus" in rendered) {
-    removalOfStationRefuses = rendered.refus;
-    return setPageOfStation();
-  }
-  removalOfStationRefuses = "";
-  openAll();
-}
 
 // Ce qu'une station dit du projet qu'on lui a confié, en quelques mots, et le ton de sa pastille. Une station
 // ajoutée est verte quand elle sert le projet, grise sinon.
@@ -4824,44 +4381,6 @@ async function entrust() {
   validateTrust.disabled = false;
 }
 
-// « + station » ouvre le champ du code, sous la liste des stations ; « cancel » le referme, vide.
-openThePairing.addEventListener("click", () => {
-  formOfPairing.hidden = false;
-  openThePairing.hidden = true;
-  codeTape.focus();
-});
-giveUpPairing.addEventListener("click", () => closeThePairing());
-function closeThePairing() {
-  formOfPairing.hidden = true;
-  openThePairing.hidden = false;
-  codeTape.value = "";
-  pairingSays.textContent = "";
-  pairingSays.title = "";
-}
-// Le code tapé part au process principal, qui cherche sur GitHub la station qui le montre : elle
-// est appairée, le champ se referme, et la liste la montre — rien d'autre ne le dit. Ou le refus se lit
-// sous le champ, en une ligne ; ce que GitHub en a dit, au survol.
-formOfPairing.addEventListener("submit", (event) => {
-  event.preventDefault();
-  void pair();
-});
-async function pair() {
-  pairing.disabled = true;
-  pairingSays.textContent = "looking for the station that shows this code, on GitHub…";
-  pairingSays.title = "";
-  try {
-    const rendered = await brigade.appairer(codeTape.value);
-    if ("refus" in rendered) {
-      pairingSays.textContent = rendered.refus;
-      pairingSays.title = rendered.detail ?? "";
-    } else closeThePairing();
-  } catch (error) {
-    pairingSays.textContent = "nothing was paired: the app could not ask GitHub";
-    pairingSays.title = error instanceof Error ? error.message : String(error);
-  }
-  pairing.disabled = false;
-}
-
 // La mise à jour d'un clone n'est pas lancée : sa commande s'écrit dans un shell, dans
 // l'espace d'un projet, que l'on montre — c'est sa note qui dit ce qui a été écrit, et que
 // rien n'est parti. Sans projet qui s'ouvre, la raison se lit sous les clones.
@@ -4940,7 +4459,7 @@ function wait(project, head, body) {
 // la fenêtre (ticket 3159) : rechargée (Cmd+R), la vue s'y rouvre ; l'app relancée, elle s'ouvre sur l'accueil, comme avant.
 const KEY_OF_THE_SCREEN = "brigade.ecran";
 function holdTheScreen() {
-  const screen = current !== undefined ? { projet: current.nom } : adds ? { ajout: true } : stationOpen !== undefined ? { station: stationOpen } : {};
+  const screen = current !== undefined ? { projet: current.nom } : adds ? { ajout: true } : {};
   try {
     window.sessionStorage?.setItem(KEY_OF_THE_SCREEN, JSON.stringify(screen));
   } catch {
@@ -4959,7 +4478,6 @@ function resumeTheScreen() {
   const project = configuration.projets.find(({ nom: name }) => name === readOne.projet);
   if (project !== undefined) current = project;
   else if (readOne.ajout === true) adds = true;
-  else if (typeof readOne.station === "string") stationOpen = readOne.station;
 }
 
 // La fenêtre s'est rechargée (ticket 3159) : les terminaux ouverts avant sont restés au process principal, chacun dans son
@@ -4995,8 +4513,7 @@ function mark() {
   all.hidden = refuses || adds || current !== undefined;
   // À la largeur d'un téléphone, l'accueil est la liste des cartes qui attendent le chef (ticket 2915) : elle prend la place
   // de « Tous les projets », sauf sous une station, qui la couvre comme lui.
-  const underOnePage = stationOpen !== undefined;
-  const onTheCards = narrow() && !all.hidden && !underOnePage;
+  const onTheCards = narrow() && !all.hidden;
   cardsOfChef.hidden = !onTheCards;
   if (onTheCards) {
     all.hidden = true;
@@ -5006,7 +4523,6 @@ function mark() {
   tint();
   principal.hidden = !refuses && current === undefined;
   columnSecond.hidden = current === undefined;
-  readTheTab();
   setTheRequestOfStationHere();
 }
 
@@ -5015,70 +4531,19 @@ function mark() {
 function openAll() {
   current = undefined;
   adds = false;
-  stationOpen = undefined;
   mark();
   setCode();
   setHome();
-  setBlockStation();
-  setStationsOfTheHome();
-  all.replaceChildren(blockOfThePromise, blockOfProjects, blockOfTheStation.racine, stationsOfTheHome);
+  all.replaceChildren(blockOfProjects);
   brigade.tous(++request);
   void readTheRecorded();
 }
 
-// La liste des stations de l'accueil (ticket 1778) : une ligne par machine, dans l'ordre des noms. Une machine appairée
-// se dit par sa présence, telle que le process principal l'a dite (home.ts) — en ligne ou non, ce qu'elle fait, les
-// projets qu'elle sert —, et, enregistrée aussi sous le compte GitHub du chef, les projets qui lui y sont choisis s'y
-// fondent ; une machine seulement enregistrée se dit par son enregistrement (stations-of-account.js). Jamais deux lignes
-// pour une même machine : ses deux lectures ne peuvent plus se contredire.
-function setStationsOfTheHome() {
-  const stations = homeSeen?.stations;
-  const readEntries = recordedAbsent ? undefined : stateOfRecorded.stations;
-  const lines = oneLineByMachine(stations ?? [], readEntries?.state === "listed" ? readEntries.stations : []);
-  // Sans station dans la liste : sa lecture en route, ou, quand le compte n'en a aucune non plus, rien — dessous, la
-  // lecture du compte dit comment en installer une. Les appairées pas encore lues, la liste n'est pas dite vide.
-  const inRoute = stations === undefined || (!recordedAbsent && readEntries === undefined);
-  const withoutNo = readEntries?.state === "listed" && readEntries.unreadable.length === 0;
-  listOfStations.replaceChildren(
-    ...(lines.length > 0
-      ? lines.map((line) => ("appairee" in line ? lineOfStationOfTheHome(line.appairee, line.enregistree) : lineOfTheRecorded(document, line.enregistree, actionsOfRecorded)))
-      : inRoute
-        ? [block("p", "your stations: first read on GitHub in progress…")]
-        : withoutNo
-          ? []
-          : [block("p", `${NOT_STILL("station")} Install one, then pair it here with “+ station”.`)]),
-  );
-  setTheVersions();
-  const below = recordedAbsent ? [] : readOfAccount(document, stateOfRecorded, actionsOfRecorded, stations !== undefined && lines.length === 0);
-  blockOfRecorded.hidden = below.length === 0;
-  blockOfRecorded.replaceChildren(...below);
-}
 
-// Le bloc de la station de l'accueil (ticket 2640) : celle de cet ordinateur — installée quand les stations du chef la
-// nomment, ou que son statut se lit —, et les autres du chef. Rien n'est dit tant que les stations ne sont pas lues.
-function setBlockStation() {
-  const locale = projectsSeen?.locale ?? null;
-  const allEntries = stationsViews?.stations ?? [];
-  const saidOne = (/** @type {import("../stations/stations.ts").StationVue} */ { id, nom: name, ligne: line }) => ({ id, nom: name, phrase: line });
-  const here = locale === null ? undefined : allEntries.find(({ id }) => id === locale);
-  if (stationsViews === undefined && statusRead(statusOfTheStationSeen) === undefined) return blockOfTheStation.lire(undefined);
-  // Sans id local, la page de sa station ne s'ouvrirait nulle part : elle n'est pas dite installée.
-  if (locale === null || (here === undefined && statusRead(statusOfTheStationSeen) === undefined)) return blockOfTheStation.lire({ station: null });
-  const readOne = statusRead(statusOfTheStationSeen) !== undefined;
-  const version = readOne ? caseOfHere(WORKSTATION.nom, statusOfTheStationSeen).phrase : undefined;
-  const sentence = readOne ? `version ${statusRead(statusOfTheStationSeen)?.stationVersion}` : "installed";
-  const theOne = here === undefined ? { id: locale, nom: WORKSTATION.nom, phrase: sentence } : saidOne(here);
-  blockOfTheStation.lire({ station: version === undefined ? theOne : { ...theOne, version }, autres: allEntries.filter(({ id }) => id !== locale).map(saidOne) });
-}
 // Le statut de la station de cet ordinateur (`statutDeLaStation`, le contrat du ticket 2189) : la version qui tourne ici, la
 // dernière publiée, et si elle est en retard. Tant que le pont ne le lit pas, la case de ce poste dit sa version inconnue.
 /** @type {unknown} */
 let statusOfTheStationSeen;
-function setTheVersions() {
-  if (phoneSeen !== undefined) return versionsOfStations.replaceChildren();
-  const cases = casesOfVersions({ stations: stationsViews?.stations, locale: projectsSeen?.locale ?? null, poste: WORKSTATION.nom, statut: statusOfTheStationSeen });
-  versionsOfStations.replaceChildren(setVersionsOfStations(document, cases));
-}
 
 // Les stations du compte, lues par le process principal (stations-of-account.ts du runtime). Une relecture garde ce qui
 // est posé jusqu'à sa réponse : le bloc ne clignote pas. Seule la dernière demandée est posée.
@@ -5095,7 +4560,6 @@ async function readTheRecorded() {
   recordedAbsent = readOne === undefined;
   if (readOne !== undefined) stateOfRecorded.stations = readOne;
   followTheExpected();
-  setStationsOfTheHome();
   // La page d'un projet dit les stations du compte qui refusent de l'avoir (ticket 1790).
   if (current !== undefined) {
     setStationsOfProject();
@@ -5136,7 +4600,6 @@ function followTheExpected() {
 async function chooseForOneRecorded(id, repositories) {
   stateOfRecorded.envoi = id;
   delete stateOfRecorded.refus;
-  setStationsOfTheHome();
   /** @type {import("../stations-of-account.ts").Choice} */
   let rendered;
   try {
@@ -5159,7 +4622,6 @@ async function chooseForOneRecorded(id, repositories) {
       followTheExpected();
     }
   }
-  setStationsOfTheHome();
   return rendered;
 }
 
@@ -5223,7 +4685,6 @@ const actionsOfFirst = {
 function setTheFirst() {
   if (first.connexion === undefined) delete stateOfRecorded.connexion;
   else stateOfRecorded.connexion = first.connexion;
-  setStationsOfTheHome();
   if (adds) setTheAddition();
 }
 
@@ -5393,23 +4854,6 @@ brigade.surConnexionGitHub?.((end) => {
   accountOfJourney.apresLaConnexion();
 });
 
-// La page d'une station, à la place de l'accueil : « T » reste l'entrée affichée, et un geste y ramène.
-/** @param {string} id */
-function openStation(id) {
-  current = undefined;
-  adds = false;
-  stationOpen = id;
-  removalOfStationRequest = undefined;
-  removalOfStationRefuses = "";
-  sectionsOfStationSet = "";
-  sectionsOfStation.replaceChildren();
-  mark();
-  setPageOfStation();
-  all.replaceChildren(pageOfStation);
-  returnALHome.focus();
-}
-returnALHome.addEventListener("click", () => openAll());
-
 // Les choix d'une liste, précédés de celui qui n'en est pas un : rien n'est choisi d'avance.
 /** @param {HTMLSelectElement} list @param {readonly string[]} choice @param {string} no */
 function propose(list, choice, no) {
@@ -5439,7 +4883,6 @@ function openAddition() {
   const alreadyThe = adds;
   current = undefined;
   adds = true;
-  stationOpen = undefined;
   delete stateOfTheAddition.refus;
   // Une ouverture ratée, laissée là, ne reste pas sur un nouvel ajout ; celle qui court, si.
   if (first.ouverture?.echec !== undefined) delete first.ouverture;
@@ -5521,11 +4964,8 @@ async function pasteOneRepository(text) {
 async function open(project) {
   current = project;
   recordedAReread = true;
-  stationOpen = undefined;
   notWritten = notWrittenSecond = "";
   adds = false;
-  // Comme le panneau : l'onglet de contenu laissé là est relu tout de suite.
-  tracking = undefined;
   mark();
   // Dès maintenant : la carte et la bannière du projet quitté ne restent pas sur celui-ci
   // pendant que son espace s'ouvre.
@@ -5627,7 +5067,7 @@ brigade.surFaits((receivedOne) => {
   followTheSetup(receivedOne.projet);
   setTheCardsOfChef();
   // L'accueil affiché dit ce qui attend le chef du même compte que « TODO (N) » : une lecture qui le change le repose.
-  if (current === undefined && !adds && stationOpen === undefined && todosOfTheHome.has(receivedOne.projet) && todosOfTheHome.get(receivedOne.projet) !== accountOfTodo(receivedOne.projet)) setHome();
+  if (current === undefined && !adds && todosOfTheHome.has(receivedOne.projet) && todosOfTheHome.get(receivedOne.projet) !== accountOfTodo(receivedOne.projet)) setHome();
   if (current?.nom === receivedOne.projet) {
     draw();
     void setOrdinary(current);
@@ -5636,12 +5076,6 @@ brigade.surFaits((receivedOne) => {
 });
 // Ce que l'onglet de contenu affiché a rendu : une lecture ratée s'y lit comme
 // dans le panneau, et n'en retire rien.
-brigade.surContenu((receivedOne) => {
-  if (receivedOne.demande !== requestTab) return;
-  if (receivedOne.projet !== current?.nom || current.sansStation === true) return;
-  // Settings ne lit rien.
-  if (!settingsShown()) render(receivedOne, readTab, tabReading);
-});
 // Les clones relus : leur état remplace celui d'avant, dans Settings et sur la case « T ».
 brigade.surCode((seenOne) => {
   codeSeen = seenOne;
@@ -5662,14 +5096,10 @@ void Promise.resolve(brigade.avisDeVersion()).then((opinion) => bannerOfVersion.
 // échoue le laisse inconnu — la case le dit, sans erreur.
 brigade.surStatutDeLaStation?.((status) => {
   statusOfTheStationSeen = status;
-  setTheVersions();
-  setBlockStation();
 });
 void Promise.resolve(brigade.statutDeLaStation?.()).then(
   (status) => {
     statusOfTheStationSeen = status;
-    setTheVersions();
-    setBlockStation();
   },
   () => undefined,
 );
@@ -5677,9 +5107,6 @@ void Promise.resolve(brigade.statutDeLaStation?.()).then(
 brigade.surStations((seenOne) => {
   stationsViews = seenOne;
   setTheRequestOfStationHere();
-  setTheVersions();
-  setBlockStation();
-  if (stationOpen !== undefined) setPageOfStation();
   setStationsOfProject();
   if (current !== undefined) setCooking(current);
   // L'onglet Stations dit qui cuit le projet, et l'état de chaque station, d'après ce qu'elles publient (ticket 3195).
@@ -5688,22 +5115,16 @@ brigade.surStations((seenOne) => {
 // L'accueil redit : ses lignes remplacent celles d'avant, s'il est affiché — et l'en-tête de la page d'une station.
 brigade.surAccueil((seenOne) => {
   homeSeen = seenOne;
-  setStationsOfTheHome();
   if (current !== undefined) setCooking(current);
   // Le plafond de chaque station, sur l'onglet Stations (ticket 1292), suit cette lecture.
   if (current !== undefined && tabOf(current) === STATIONS) setRail(current);
   if (current !== undefined || adds) return;
-  if (stationOpen === undefined) setHome();
-  else setPageOfStation();
+  setHome();
 });
 // Les projets des stations relus : leurs blocs remplacent ceux d'avant ; le parcours ouvert garde ses choix.
 brigade.surProjetsDesStations((seenOne) => {
   projectsSeen = seenOne;
-  setBlockStation();
-  setProjects();
   setStationsOfProject();
-  // La station de ce poste se connaît par cette lecture : la page d'une station ouverte sait si elle est la sienne.
-  if (stationOpen !== undefined && current === undefined && !adds) setPageOfStation();
   // L'accès au dépôt et le refus de la station : la ligne d'alerte de Rail les dit (ticket 1185). Apparue ou partie,
   // le rail se repose : elle n'y est que quand elle dit quelque chose.
   if (current !== undefined) {
@@ -5884,7 +5305,6 @@ function display() {
   if (expected !== undefined) firstAOpen = undefined;
   if (expected !== undefined) void open(expected);
   else if (same !== undefined) void open(same);
-  else if (stationOpen !== undefined && !adds) openStation(stationOpen);
   else if (adds) openAddition();
   // L'app s'ouvre sur « Tous les projets », en tête de la barre : sans projet, l'accueil offre la connexion à GitHub et
   // « Add a project ».
@@ -5896,7 +5316,6 @@ const startup = await brigade.demarrage();
 WORKSTATION = startup.poste ?? WORKSTATION;
 const example = startup.exemple;
 PALETTE = startup.palette;
-TABS = startup.onglets;
 HEADINGS = startup.rubriques;
 BANNER = startup.banniere;
 // Une lecture arrivée pendant le démarrage est plus récente que celle qu'il rend.
@@ -5918,7 +5337,7 @@ const phone = startup.telephone;
 phoneSeen = phone;
 brigade.surTelephone?.((seenOne) => {
   phoneSeen = seenOne;
-  if (current === undefined && !adds && stationOpen === undefined) setHome();
+  if (current === undefined && !adds) setHome();
 });
 // Le chef touche la notification d'une carte de TODO (le ticket 2747) : le projet s'ouvre, puis la fiche de la carte.
 // Le chef a choisi un projet dans le menu de la barre des menus : le projet s'ouvre, et la fiche d'un ticket ouverte

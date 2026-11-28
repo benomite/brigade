@@ -13,9 +13,6 @@
 import { recommendationOf } from "../bricks.js";
 import { answerSaid, seenOfTheCard } from "../card-todo.js";
 import { button } from "../components/button/button.js";
-import { hourUtc } from "../activity-of-cook.js";
-import { brand } from "../components/pill/pill.js";
-import { NOT_STILL } from "../lexicon.js";
 import { parkedTodo } from "../parked/parked-todo.js";
 import { CHEF, chefRecords } from "../parked/records.js";
 import { isRed } from "../todo/todo.js";
@@ -220,61 +217,7 @@ export function setTheTodo(doc, { cartes: cards, ouvrir: open, gestes: actions, 
   return opinion;
 }
 
-// Il y a combien de temps, en un seul ordre de grandeur : « 2 h ago ».
-/** @param {number} ms */
-const itYA = (ms) => {
-  const minutes = Math.floor(Math.max(0, ms) / 60_000);
-  return minutes < 1 ? "just now" : minutes < 60 ? `${minutes} min ago` : minutes < 1440 ? `${Math.floor(minutes / 60)} h ago` : `${Math.floor(minutes / 1440)} d ago`;
-};
 
-/**
- * La bande du haut (ticket 4354) : une carte pour le supervisor, une pour le closer, sur une ligne — son nom, un point d'état
- * (au travail, au repos, en alerte) et deux ou trois mots. Un clic sur une carte déplie son détail dessous : ce qu'il fait,
- * sa dernière action et son heure ; `deplies` garde ce qui est déplié d'un rendu à l'autre. `alerte` : l'issue que la cuisine a
- * ouverte sur elle-même, que le supervisor dit. Le message du haut, s'il y en a un, se pose juste dessous (vue.js).
- * @param {Fabrique} doc
- * @param {{ roles: readonly RoleOfKitchen[] | undefined, alerte: number | undefined, maintenant: number, deplies: Set<string> }} bande
- */
-export function setTheBandOfTop(doc, { roles, alerte: alert, maintenant: now, deplies: unfoldedOnes }) {
-  const frame = doc.createElement("div");
-  frame.className = "bande-du-haut";
-  const line = doc.createElement("div");
-  line.className = "cartes-des-agents";
-  frame.append(line);
-  const role = (/** @type {string} */ name) => roles?.find((oneOf) => oneOf.role === name);
-  /** @param {string} name @param {string} your @param {string} words */
-  const card = (name, your, words) => {
-    const it = role(name);
-    const latest = it?.latest ?? null;
-    const detail = doc.createElement("p");
-    detail.className = "detail-de-l-agent";
-    detail.dataset.agent = name;
-    detail.textContent = [it?.does, latest === null ? NOT_STILL("action") : `last: ${latest.what} · ${hourUtc(latest.at)}`].filter(Boolean).join(" · ");
-    const setOne = button(
-      doc,
-      "",
-      () => {
-        if (unfoldedOnes.delete(name)) detail.remove();
-        else {
-          unfoldedOnes.add(name);
-          frame.append(detail);
-        }
-        setOne.ariaExpanded = String(unfoldedOnes.has(name));
-      },
-      { sorte: "discret" },
-    );
-    setOne.className += " carte-d-agent";
-    setOne.dataset.agent = name;
-    setOne.ariaExpanded = String(unfoldedOnes.has(name));
-    setOne.replaceChildren(brand(doc, your), Object.assign(doc.createElement("strong"), { textContent: name }), Object.assign(doc.createElement("span"), { textContent: words }));
-    line.append(setOne);
-    if (unfoldedOnes.has(name)) frame.append(detail);
-  };
-  card("supervisor", alert === undefined ? "gris" : "rouge", alert === undefined ? "ok" : `alert: #${alert}`);
-  const cleanup = role("closer")?.latest ?? null;
-  card("closer", "gris", cleanup === null ? NOT_STILL("tidy") : `tidied ${itYA(now - Date.parse(cleanup.at))}`);
-  return frame;
-}
 
 // Un message porte un geste : un bouton, à lui ou à ce qui le suit.
 /** @param {readonly any[]} message */

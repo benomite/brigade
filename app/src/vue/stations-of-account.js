@@ -17,9 +17,6 @@
 // (addition-project/connection.js) ; une lecture qui échoue, une ligne, son détail au survol.
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément (bricks.js), et rend des éléments.
 
-import { buttonAction, hover } from "./bricks.js";
-import { lineError } from "./components/line-error/line-error.js";
-import { buttonOfThePage, connectionSaid, actions, sentenceAndDetail } from "./addition-project/connection.js";
 import { NOT_STILL } from "./lexicon.js";
 
 /** @typedef {import("./bricks.js").Fabrique} Fabrique */
@@ -53,7 +50,6 @@ import { NOT_STILL } from "./lexicon.js";
  */
 
 export const NO = `${NOT_STILL("station")} Install one on the machine that will cook.`;
-export const NO_HELP = "The installer asks that machine to sign in to GitHub: sign it in to this same account, and the station appears here within a minute.";
 export const UNREADABLE = "your stations could not be read";
 export const REREAD = "read again";
 export const COPY = "copy";
@@ -72,9 +68,6 @@ export const HELD = (until) => {
 // L'état d'une station du compte, en mots : retenue par la limite de GitHub, en ligne, ou hors ligne.
 /** @param {Pick<StationRecorded, "available" | "heldUntil">} station */
 export const stateSays = (station) => (station.heldUntil ? HELD(station.heldUntil) : station.available ? IN_LINE : OUTSIDE_LINE);
-// Le ton de sa pastille : vert en ligne, jaune retenue, gris hors ligne.
-/** @param {Pick<StationRecorded, "available" | "heldUntil">} station */
-export const yourOf = (station) => (station.heldUntil ? "jaune" : station.available ? "vert" : "gris");
 
 // Ce qu'une station a fait d'un dépôt choisi pour elle, tel que son gist le dit (stations-of-account.ts, `ajouts`) — rien tant
 // qu'elle ne l'a pas lu.
@@ -118,47 +111,7 @@ const PLATFORMS = { linux: "Linux", macos: "macOS", windows: "Windows" };
 /** @param {string} platform */
 export const platformSaid = (platform) => PLATFORMS[platform] ?? platform;
 
-// Ce qu'une station sert, en mots : rien encore choisi, rien, ou les projets eux-mêmes — comme la ligne d'une station
-// appairée les nomme.
-/** @param {readonly string[] | null} selection */
-export function servesSays(selection) {
-  if (selection === null) return NOT_STILL("project chosen");
-  if (selection.length === 0) return "no project";
-  return selection.join(", ");
-}
 
-// Une ligne par machine (ticket 1778) : les stations appairées, telles que l'accueil les dit, puis celles du compte qu'aucune
-// ne nomme, dans l'ordre des noms. Une machine se reconnaît à son nom — l'enregistrement porte « le même nom que sur sa
-// présence », sans égard à la casse, comme un nom de machine. Appairée, sa
-// ligne est celle de sa présence, et son enregistrement l'accompagne (`enregistree`) : ce qui lui est choisi s'y fond
-// (`ligneFondue`). Deux enregistrements d'un même nom — un dossier d'état perdu en laisse un ancien, hors ligne — n'en
-// font qu'un : celui qui est en ligne, sinon le dernier vu.
-/**
- * @template {{ nom: string }} A
- * @param {readonly A[]} paired @param {readonly StationRecorded[]} recorded
- * @returns {Array<{ appairee: A, enregistree?: StationRecorded } | { enregistree: StationRecorded }>}
- */
-export function oneLineByMachine(paired, recorded) {
-  const key = (/** @type {string} */ name) => name.toLowerCase();
-  /** @type {Map<string, StationRecorded>} */
-  const byName = new Map();
-  for (const station of recorded) {
-    const name = key(station.name);
-    const heldOne = byName.get(name);
-    if (heldOne === undefined || (station.available && !heldOne.available) || (station.available === heldOne.available && station.lastSeen > heldOne.lastSeen)) byName.set(name, station);
-  }
-  const taken = new Set(paired.map(({ nom: name }) => key(name)));
-  // Les appairées gardent l'ordre où l'accueil les dit (celui des noms) ; chaque autre se glisse à son nom.
-  const remaining = [...byName.values()].filter(({ name }) => !taken.has(key(name))).sort((a, b) => a.name.localeCompare(b.name));
-  /** @type {Array<{ appairee: A, enregistree?: StationRecorded } | { enregistree: StationRecorded }>} */
-  const lines = [];
-  for (const pairedOne of paired) {
-    while (remaining.length > 0 && (remaining[0]?.name ?? "").localeCompare(pairedOne.nom) < 0) lines.push({ enregistree: /** @type {StationRecorded} */ (remaining.shift()) });
-    const recordedOne = byName.get(key(pairedOne.nom));
-    lines.push(recordedOne === undefined ? { appairee: pairedOne } : { appairee: pairedOne, enregistree: recordedOne });
-  }
-  return [...lines, ...remaining.map((recordedOne) => ({ enregistree: recordedOne }))];
-}
 
 // Le nom d'un dépôt choisi tel qu'une station nomme le projet qu'elle en fait : celui du dépôt, en minuscules.
 /** @param {string} repository */
@@ -173,47 +126,8 @@ export function projectsServed(projects, selection) {
   return [...projects, ...(selection ?? []).filter((repository) => !heldOnes.has(nameOfChosen(repository)))];
 }
 
-// La ligne d'une machine appairée, ce que son enregistrement lui choisit fondu dedans : ses projets sont `projetsServis`.
-// Elle sert alors des projets : ni « runs no kitchen », ni la raison « not added to any project », ni la note qui dit
-// qu'attendre sans projet est normal. Son état reste celui de sa présence. Une ligne qui ne dit pas ses projets (illisible,
-// téléphone) est rendue telle quelle.
-/**
- * @template {{ dit: string, raison?: { cle: string }, note?: string }} L
- * @param {L} line @param {readonly string[]} projects — ceux de sa présence @param {StationRecorded | undefined} recordedOne
- * @returns {L}
- */
-export function lineFade(line, projects, recordedOne) {
-  const servedOnes = projectsServed(projects, recordedOne?.selection ?? null);
-  if (servedOnes.length === projects.length) return line;
-  const pieces = line.dit.split(" · ");
-  const saidOnes = projects.length === 0 ? ["runs no kitchen", "no project"] : [projects.join(", ")];
-  if (!saidOnes.includes(pieces.at(-1) ?? "")) return line;
-  const { raison: reason, note, ...remains } = line;
-  return /** @type {L} */ ({
-    ...remains,
-    dit: [...pieces.slice(0, -1), servedOnes.join(", ")].join(" · "),
-    ...(reason === undefined || reason.cle === "sans-projet" ? {} : { raison: reason }),
-    ...(note === undefined || projects.length === 0 ? {} : { note }),
-  });
-}
 
-/** @param {Fabrique} doc @param {string} balise @param {string} [text] */
-function created(doc, balise, text) {
-  const pose = doc.createElement(balise);
-  if (text !== undefined) pose.textContent = text;
-  return pose;
-}
 
-// Le ton et sa forme, comme partout dans la vue (vue.js, `pastille`) : un disque plein, un anneau creux.
-/** @param {Fabrique} doc @param {StationRecorded} station */
-function pillOf(doc, station) {
-  const pose = created(doc, "span");
-  pose.className = "pastille";
-  pose.dataset.ton = yourOf(station);
-  pose.dataset.forme = station.available ? "disque" : "anneau";
-  pose.title = stateSays(station);
-  return pose;
-}
 
 // Le dernier signe de vie d'une station, à la minute, en temps universel.
 /** @param {string} instant */
@@ -223,77 +137,6 @@ const vueSays = (instant) => `last sign of life ${instant.slice(0, 16).replace("
 /** @param {StationRecorded} station */
 export const detailsOf = (station) => [platformSaid(station.platform), station.machine, `version ${station.version}`, vueSays(station.lastSeen)].filter((piece) => piece !== "").join(" · ");
 
-// La ligne d'une station : toute la ligne est le bouton qui ouvre sa page, comme une ligne de l'accueil (vue.js,
-// `ligneDAccueil`), avec la même flèche ; elle dit, comme elle, en ligne ou non, puis les projets qu'elle sert. Ses
-// détails sont au survol ; ses cases à cocher sont sur sa page.
-/** @param {Fabrique} doc @param {StationRecorded} station @param {ActionsOfAccount} action */
-function lineOf(doc, station, action) {
-  const said = `${stateSays(station)} · ${servesSays(station.selection)}`;
-  const line = created(doc, "button");
-  line.type = "button";
-  line.className = "ligne";
-  line.title = detailsOf(station);
-  line.ariaLabel = `${station.name} — ${said}`;
-  line.dataset.station = station.id;
-  const name = created(doc, "strong", station.name);
-  name.className = "mono";
-  const suite = created(doc, "span", "›");
-  suite.className = "ouvrir";
-  suite.ariaHidden = "true";
-  line.append(pillOf(doc, station), name, created(doc, "span", said), suite);
-  line.addEventListener("click", () => action.ouvrirLaStation(station.id));
-  return line;
-}
 
-// Sans station : la phrase, puis la commande d'installation de chaque système, chacune avec son bouton qui la copie.
-/** @param {Fabrique} doc @param {StateOfAccount} state @param {ActionsOfAccount} action */
-function commentInstaller(doc, state, action) {
-  const head = created(doc, "p", NO);
-  head.className = "attendu";
-  head.append(hover(doc, NO_HELP));
-  const lines = INSTALLER.map(({ systeme: system, commande: command }) => {
-    const line = created(doc, "p");
-    line.className = "installer";
-    const code = created(doc, "code", command);
-    const copy = buttonAction(doc, state.copiee === command ? COPIED : COPY, () => action.copier(command));
-    copy.children[0].ariaLabel = `${COPY}: ${system}`;
-    line.append(created(doc, "span", system), code, copy);
-    return line;
-  });
-  return [head, ...lines, actions(doc, [buttonAction(doc, REREAD, action.relire)])];
-}
 
-// La ligne d'une station seulement enregistrée, dans la liste des stations de l'accueil : un clic ouvre sa page.
-/** @param {Fabrique} doc @param {StationRecorded} station @param {ActionsOfAccount} action */
-export function lineOfTheRecorded(doc, station, action) {
-  return lineOf(doc, station, action);
-}
 
-// Ce que la lecture du compte dit sous la liste des stations, d'après ce que la vue en tient : rien tant qu'elle est en
-// route ou que tout est listé ; la connexion qui manque, la lecture qui échoue, les enregistrements illisibles ; et,
-// `vide` — la liste n'a aucune station —, comment en installer une. Aucun titre : ce n'est pas une seconde liste.
-/** @param {Fabrique} doc @param {StateOfAccount} state @param {ActionsOfAccount} action @param {boolean} empty */
-export function readOfAccount(doc, state, action, empty) {
-  const { stations } = state;
-  if (stations === undefined) return [];
-  if (stations.state === "sign-in-required") {
-    const head = sentenceAndDetail(doc, "p", stations.reason, undefined);
-    head.className = "attendu";
-    return [head, ...connectionSaid(doc, state.connexion, stations.action.label, action)];
-  }
-  if (stations.state === "unavailable") {
-    const link = stations.link;
-    return [
-      lineError(doc, UNREADABLE, [stations.reason, stations.detail ?? ""].filter((piece) => piece.trim() !== "").join("\n")),
-      actions(doc, [...(link === undefined ? [] : [buttonAction(doc, buttonOfThePage(link), () => action.ouvrirLaPage(link), { recommande: true })]), buttonAction(doc, REREAD, action.relire, { recommande: link === undefined })]),
-    ];
-  }
-  if (stations.unreadable.length > 0) {
-    const howMany = stations.unreadable.length;
-    return [
-      lineError(doc, `${howMany} more station${howMany > 1 ? "s" : ""} cannot be read`, stations.unreadable.map(({ id, reason }) => `${id}: ${reason}`).join("\n")),
-      actions(doc, [buttonAction(doc, REREAD, action.relire)]),
-    ];
-  }
-  return empty ? commentInstaller(doc, state, action) : [];
-}
