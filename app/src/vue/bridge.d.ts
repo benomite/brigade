@@ -3,24 +3,21 @@ import type { Home } from "../home.ts";
 import type { Shown } from "../bar.ts";
 import type { Reading } from "../box.ts";
 import type { PALETTE, Role } from "../colors.ts";
-import type { BANNER, Drawable } from "../facts.ts";
-import type { Tab, Heading } from "../tabs.ts";
-import type { Block } from "../ordinary.ts";
+import type { Drawable } from "../facts.ts";
+import type { Heading } from "../tabs.ts";
 import type { StateOfUpdate } from "../update/state.ts";
 import type { Opinion as OpinionOfVersion } from "../update/opinion.ts";
 import type { Opinion, Removal } from "../removal.ts";
-import type { Request as RequestOfReport, RenderedOfReport } from "./report/opening.ts";
 import type { RepositoryOfChef } from "../projects/github.ts";
-import type { Addition, Chosen, DefaultsOfTheMachine, Move, EFFORTS, MODELS, Removal as RemovalOfAStation, SeenOfProjects } from "../projects/projects.ts";
-import type { Pairing, RemovalOfStation, SeenOfStations } from "../stations/stations.ts";
+import type { Move, EFFORTS, MODELS, SeenOfProjects } from "../projects/projects.ts";
+import type { SeenOfStations } from "../stations/stations.ts";
 import type { Open, Terminal } from "../terminals.ts";
 import type { AccountGitHub, StartOfConnection, EndOfConnection } from "../connection-github.ts";
-import type { Opening, Progress, StationsOfChef } from "../first-launch.ts";
-import type { Choice, StationsOfAccount } from "../stations-of-account.ts";
+import type { Opening, Progress } from "../first-launch.ts";
 
 export type Bridge = {
   // `poste` : le nom que l'écran donne à cet ordinateur (« this Mac », « this PC »), et s'il est un Mac — les raccourcis du terminal en dépendent.
-  demarrage(): Promise<{ poste?: { nom: string; mac: boolean }; configuration: Shown; palette: typeof PALETTE; exemple: string; rubriques: readonly Heading[]; banniere: typeof BANNER; calibrage: { modeles: typeof MODELS; efforts: typeof EFFORTS }; stations?: SeenOfStations; projetsDesStations?: SeenOfProjects; accueil?: Home; miseAJour?: StateOfUpdate; telephone?: Phone }>;
+  demarrage(): Promise<{ poste?: { nom: string; mac: boolean }; configuration: Shown; palette: typeof PALETTE; exemple: string; rubriques: readonly Heading[]; calibrage: { modeles: typeof MODELS; efforts: typeof EFFORTS }; stations?: SeenOfStations; projetsDesStations?: SeenOfProjects; accueil?: Home; miseAJour?: StateOfUpdate; telephone?: Phone }>;
   // Change la couleur d'onglet ou d'accent d'un projet, par le nom d'une couleur de la palette ou
   // une couleur libre `#rrggbb` (colors.ts). Rend la raison, si elle ne l'a pas été. Écrite, elle
   // arrive par `surConfiguration`.

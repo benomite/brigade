@@ -4,7 +4,7 @@ import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSyn
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { assembler, construire, IDENTIFIANT } from "../../packaging/construire.ts";
+import { assembler, IDENTIFIANT } from "../../packaging/construire.ts";
 import { PACKAGES } from "../helpers/posix.ts";
 
 const MACH_O = Buffer.from([0xcf, 0xfa, 0xed, 0xfe, 0x0c, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00]);

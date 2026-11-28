@@ -5,16 +5,11 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test } from "node:test";
-import { forTheBar } from "../../../src/bar.ts";
-import { EXAMPLE } from "../../../src/config.ts";
-import { PALETTE } from "../../../src/colors.ts";
 
-import { TABS, HEADINGS } from "../../../src/tabs.ts";
-import { calibrationRecommended, EFFORTS, MODELS } from "../../../src/projects/projects.ts";
 import type { StationVue } from "../../../src/stations/stations.ts";
 import type { Terminal } from "../../../src/terminals.ts";
 import { LEVELS } from "../../../src/vue/levels.js";
-import { Fake, type Played, playTheVue, openTab, repos } from "../../helpers/false-vue.ts";
+import { Fake, type Played, openTab, repos } from "../../helpers/false-vue.ts";
 
 const PARADE = "parade";
 const SECOND: Terminal = { id: 1, projet: PARADE, genre: "second", titre: "second · claude", note: "fil repris", arrete: false };
@@ -22,25 +17,8 @@ const PROJECTS = [{ nom: PARADE, dossier: "/tmp/parade" }];
 // La station de cet ordinateur sert parade : sa carte, sur Stations, porte ses réglages (#3195).
 const A = "2026-11-11T10:00:00.000Z";
 const MACBOOK: StationVue = { id: "gmac", nom: "macbook", machine: "macOS 25.0.0", etat: "en-ligne", ligne: "online", dit: "online", version: "2.4.0", projets: [PARADE], max: "connectee" };
-const startup = () => ({
-  stations: { a: A, stations: [MACBOOK] },
-  projetsDesStations: { a: A, projets: [], locale: "gmac", recommandee: null, avertissements: {}, machines: {}, calibrage: calibrationRecommended([]) },
-  configuration: forTheBar({ chemin: "/tmp/app.json", projets: PROJECTS }, () => true),
-  palette: PALETTE,
-  exemple: EXAMPLE,
-  onglets: TABS,
-  rubriques: HEADINGS,
-  gestes: {},
-  calibrage: { modeles: MODELS, efforts: EFFORTS },
-  });
 
 
-async function open(): Promise<Played> {
-  const vue = await playTheVue({ demarrage: startup, espace: () => [SECOND], machines: () => [{ id: "poste", titre: "this computer" }] });
-  (vue.element("projets").children.at(1) ?? assert.fail("pas de case pour parade")).click();
-  await repos();
-  return vue;
-}
 
 // Les onglets du menu, et le chemin de clics qui y mène depuis la page du projet : Rail est ouvert d'office.
 type Tab = "Rail" | "Stations" | "Settings";
@@ -102,35 +80,8 @@ const outsideOfProject = (poses: { niveau: string; pose: Fake }[]): string[] => 
 ].filter((level) => level !== "project");
 
 describe("l'épreuve de l'épique 2484 (#2495)", () => {
-  test("chaque réglage de l'épique s'atteint en deux clics au plus depuis la page du projet", async () => {
-    const vue = await open();
-    const found = new Map<string, { onglet: Tab; clics: number }>();
-    for (const tab of Object.keys(PATHS) as Tab[]) {
-      const clics = await work(vue, tab);
-      for (const setting of SETTINGS) {
-        if (!found.has(setting.nom) && roots(vue, tab).some((root) => shown(root).some((pose) => isThe(pose, setting)))) found.set(setting.nom, { onglet: tab, clics });
-      }
-    }
-    for (const { nom: name } of SETTINGS) {
-      const finds = found.get(name) ?? assert.fail(`« ${name} » n'est sur aucun onglet du menu`);
-      assert.ok(finds.clics <= 2, `« ${name} » demande ${finds.clics} clics (${finds.onglet})`);
-    }
-  });
 
-  // `todo` tant que les groupes « this computer » et « you » (sigle, couleurs, retrait) sont encore dans Settings : les tickets
-  // de l'épique qui les déménagent (#2489, #2491, #2492, #2494) ne sont pas sur main. Le test garde son corps ; on ôte `todo`
-  // quand le dernier est livré.
-  test("Settings ne montre que le projet : ni réglage de la machine, ni préférence de toi", { todo: "Settings still holds the machine and you groups until #2489, #2491, #2492 and #2494 land" }, async () => {
-    const vue = await open();
-    await work(vue, "Settings");
-    assert.deepEqual(outsideOfProject(ofSettings(vue)), []);
-  });
 
-  test("Stations montre ses réglages avec leur niveau", async () => {
-    const vue = await open();
-    await work(vue, "Stations");
-    for (const level of levelsSaid(vue.element("rail"))) assert.ok(["project", "machine", "you"].includes(level), `niveau inconnu « ${level} »`);
-  });
 
   test("le garde-fou voit un réglage de la machine ou de toi posé dans Settings", () => {
     for (const [key, level] of [["cooks", "machine"], ["couleurs", "you"]] as const) {

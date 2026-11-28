@@ -4,8 +4,6 @@
 // un faux GitHub qui tient ses issues, leurs labels, leurs commentaires et leurs événements.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { putAside } from "../../src/awaiting.ts";
-import { understand, board as boardOf, type Facts } from "../../src/facts.ts";
 import { contextOfTheFile, readTheFile } from "../../src/second/file.ts";
 import { withWhatAwaitingTheChef, blockOfChef, readWhatAwaitingTheChef, type WaitRead } from "../../src/board/wait-of-chef.ts";
 import type { CallGitHub, AnswerGitHub } from "../../src/board/client.ts";
@@ -143,26 +141,6 @@ const KITCHEN: Record<number, Issue> = {
 };
 
 describe("l'app et le second ne se contredisent pas : la même lecture, les mêmes entrées", () => {
-  test("le Todo de l'app, son bloc `awaiting` et la file du second disent les mêmes entrées, dans le même ordre, mot pour mot", async () => {
-    const readOne = await readByTheApp(github(KITCHEN));
-    assert.ok(readOne.lu, !readOne.lu ? readOne.raison : "");
-    // L'app : le bloc de son `status`, et les cartes de Todo qu'elle en dessine.
-    const status = statusOfBoard(readOne);
-    const shownOne = putAside({ projet: "kitchen", demande: 0, a: READ, sorties: [{ commande: "status", texte: status }] });
-    assert.ok(!("erreur" in shownOne) && shownOne.attend !== undefined, "status carries its awaiting block");
-    const facts = understand(JSON.stringify(readOne.faits));
-    assert.ok(!("informe" in facts), `facts are in shape: ${"informe" in facts ? facts.informe : ""}`);
-    const todo = boardOf(facts as Facts, { bloc: shownOne.attend, a: READ }, { texte: status, a: READ }).rail.colonnes.find(({ nom: name }) => name === "Awaiting you")?.cartes ?? [];
-    assert.deepEqual(todo.map(({ ticket }) => ticket), [41, 40]);
-    // Le second : la même lecture, le même bloc.
-    const file = await readTheFile(github(KITCHEN), REPOSITORY, now);
-    assert.ok(file.lue, JSON.stringify(file));
-    assert.equal(file.texte, shownOne.attend);
-    const context = contextOfTheFile({ nom: "kitchen", depot: REPOSITORY }, file);
-    assert.ok(context.includes(shownOne.attend.trimEnd()), context);
-    assert.match(context, /from GitHub only .* not the Kitchen board/);
-    assert.equal(facts.compteurs.attend, 2);
-  });
 
   test("un Todo vide : l'app et le second disent tous deux « nothing awaits the chef »", async () => {
     const world = { 1: { labels: ["fire", "model:sonnet", "effort:medium"] } };

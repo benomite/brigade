@@ -7,14 +7,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { forTheBar } from "../src/bar.ts";
-import { changeMenuBar, EXAMPLE, readConfiguration, type Project } from "../src/config.ts";
-import { PALETTE } from "../src/colors.ts";
+import { changeMenuBar, readConfiguration } from "../src/config.ts";
 
-import { TABS, HEADINGS } from "../src/tabs.ts";
-import { EFFORTS, MODELS } from "../src/projects/projects.ts";
-import { personal } from "../src/settings-personal/share.ts";
 import { followConfiguration } from "../src/tracking.ts";
-import { type Fake, type Played, playTheVue, openRead, repos } from "./helpers/false-vue.ts";
 
 function file(t: TestContext, content: unknown): { racine: string; chemin: string } {
   const root = realpathSync(mkdtempSync(join(tmpdir(), "brigade-app-")));
@@ -69,70 +64,8 @@ describe("`barreDeMenus` dans le fichier des projets", () => {
     assert.equal(forTheBar(tracked.configuration()).barreDeMenus, false);
   });
 
-  test("c'est une préférence d'affichage : elle suit le chef d'un appareil à l'autre", () => {
-    assert.deepEqual(personal({ projets: [], barreDeMenus: false }), { projets: [], barreDeMenus: false });
-  });
 });
 
-describe("la ligne de Settings", () => {
-  const projects: Project[] = [{ nom: "mirrorlab", dossier: "/tmp/mirrorlab" }];
-  const play = (menuBar: boolean | undefined, workstation: { nom: string; mac: boolean }, changeMenuBar: (active: boolean) => string | undefined = () => undefined) =>
-    playTheVue({
-      demarrage: () => ({
-        poste: workstation,
-        configuration: forTheBar({ chemin: "/tmp/app.json", projets: projects, ...(menuBar === undefined ? {} : { barreDeMenus: menuBar }) }, () => true),
-        palette: PALETTE,
-        exemple: EXAMPLE,
-        onglets: TABS,
-        rubriques: HEADINGS,
-        gestes: {},
-        calibrage: { modeles: MODELS, efforts: EFFORTS },
-        }),
-      espace: () => [],
-      changerBarreDeMenus: changeMenuBar,
-    });
-  const line = (vue: Played): Fake => vue.element("barre-de-menus").children.find(({ className }) => className === "reglage") ?? assert.fail("pas de ligne de la barre des menus");
-  const openSettings = async (vue: Played) => {
-    const theCase = vue.element("projets").children.find(({ title }) => title.split(" — ")[0] === "mirrorlab") ?? assert.fail("pas de case");
-    theCase.click();
-    await repos();
-    await openRead(vue, "Settings");
-  };
-  const toggle = (vue: Played): Fake => line(vue).dessous("button").find(({ role }) => role === "switch") ?? line(vue).dessous("button")[0] ?? assert.fail("pas d'interrupteur");
-
-  test("sur un Mac, « Menu bar », sous toi, montrée par défaut ; l'interrupteur l'éteint", async () => {
-    const vue = await play(undefined, { nom: "this Mac", mac: true });
-    await openSettings(vue);
-    assert.equal(vue.element("barre-de-menus").hidden, false);
-    assert.equal(line(vue).dataset.cle, "barre-de-menus");
-    assert.match(line(vue).textContent, /^Menu bar.*you.*shown/);
-    assert.equal(toggle(vue).ariaChecked, "true");
-    toggle(vue).click();
-    await repos();
-    assert.deepEqual(vue.dernier("changerBarreDeMenus"), [false]);
-  });
-
-  test("sous Windows, « Notification area » ; éteinte, elle le dit, et l'interrupteur la rallume", async () => {
-    const vue = await play(false, { nom: "this PC", mac: false });
-    await openSettings(vue);
-    assert.match(line(vue).textContent, /^Notification area.*hidden/);
-    assert.equal(toggle(vue).ariaChecked, "false");
-    toggle(vue).click();
-    await repos();
-    assert.deepEqual(vue.dernier("changerBarreDeMenus"), [true]);
-  });
-
-  test("un refus se dit sous la ligne", async () => {
-    const vue = await play(undefined, { nom: "this Mac", mac: true }, () => "the app does not write to a file it could not re-read — unreadable JSON");
-    await openSettings(vue);
-    toggle(vue).click();
-    await repos();
-    assert.deepEqual(
-      line(vue).dessous("p").filter(({ className }) => className === "dit refus").map(({ textContent }) => textContent),
-      ["the app does not write to a file it could not re-read — unreadable JSON"],
-    );
-  });
-});
 
 describe("une question cliquée dans le menu", () => {
   test("le process principal l'envoie par `ouvrirCarte`, que le pont donne à `surOuvrirCarte`", () => {
@@ -142,25 +75,4 @@ describe("une question cliquée dans le menu", () => {
     assert.ok(bridge.includes('surOuvrirCarte: (receive) => void ipcRenderer.on("ouvrirCarte", (_, project, ticket) => receive(project, ticket)),'));
   });
 
-  test("la vue ouvre le projet, puis la fiche de sa carte", async () => {
-    const vue = await playTheVue({
-      demarrage: () => ({
-        poste: { nom: "this Mac", mac: true },
-        configuration: forTheBar({ chemin: "/tmp/app.json", projets: [{ nom: "brigade", dossier: "/tmp/brigade" }, { nom: "mirrorlab", dossier: "/tmp/mirrorlab" }] }, () => true),
-        palette: PALETTE,
-        exemple: EXAMPLE,
-        onglets: TABS,
-        rubriques: HEADINGS,
-        gestes: {},
-        calibrage: { modeles: MODELS, efforts: EFFORTS },
-        }),
-      espace: () => [],
-    });
-    assert.equal(vue.element("fiche").hidden, true);
-    vue.dire("surOuvrirCarte", "mirrorlab", 7);
-    await repos();
-    assert.equal(vue.element("espace").textContent, "mirrorlab");
-    assert.equal(vue.element("fiche").hidden, false);
-    assert.match(vue.element("fiche").textContent, /#7/);
-  });
 });

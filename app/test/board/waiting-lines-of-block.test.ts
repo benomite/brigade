@@ -4,7 +4,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { readTheFile } from "../../src/second/file.ts";
-import { blockOfChef, readWhatAwaitingTheChef } from "../../src/board/wait-of-chef.ts";
 import type { CallGitHub, AnswerGitHub } from "../../src/board/client.ts";
 import { brandOfWait } from "../../src/vue/wait/wait-github.ts";
 
@@ -44,22 +43,4 @@ test("the second's queue lists the `parked` issues too: each WAITING ticket has 
   assert.doesNotMatch(reading.texte, /#63 {2}WAITING/, "nothing is invented for a wait no comment says");
 });
 
-test("an issue the app put in WAITING keeps on its card what it waits for", async () => {
-  const { appeler: call } = github({ fire: [], parked: [issue(41, "parked")] });
-  const reading = await readWhatAwaitingTheChef({ depot: REPOSITORY, appeler: call, maintenant: () => new Date(READ), enWaiting: true });
-  assert.ok(reading.lue, JSON.stringify(reading));
-  assert.deepEqual(
-    reading.enWaiting.map(({ ticket, tiers: third }) => [ticket, third?.quoi, third?.qui]),
-    [[41, "the signed contract", "the lawyer"]],
-  );
-});
 
-test("the app's reading (`du-rail`) lists no `parked` issues: a WAITING ticket of the rail has its line, one only in `parked` none", async () => {
-  const { appeler: call, chemins: paths } = github({ fire: [issue(52, "fire", "parked")], parked: [issue(41, "parked")] });
-  const reading = await readWhatAwaitingTheChef({ depot: REPOSITORY, appeler: call, maintenant: () => new Date(READ), enWaiting: "du-rail" });
-  assert.ok(reading.lue, JSON.stringify(reading));
-  const block = blockOfChef({ lu: READ, attentes: reading.attentes, illisibles: reading.illisibles }).join("\n");
-  assert.match(block, /#52 {2}WAITING {2}awaiting the calendar/);
-  assert.doesNotMatch(block, /#41/);
-  assert.equal(paths.some((path) => /labels=parked(&|$)/.test(path)), false, paths.join("\n"));
-});

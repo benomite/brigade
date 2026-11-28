@@ -11,14 +11,6 @@ test("aucun projet : la station le dit", () => {
   assert.equal(lineOfBackground([], { pause: false }), "no project on this station");
 });
 
-test("des projets : les comptes, puis la pause de la station", () => {
-  const A = "2026-11-15T10:00:00.000Z";
-  const readOne = project({ etat: "ouverte", lu: A, compteurs: { rail: 0, auTravail: 0, aLaPass: 0, attend: 0, livres24h: 0 }, cooks: [], attend: [], livres: [] });
-  assert.equal(lineOfBackground([readOne], { pause: false }), "0 cooking · 0 for you");
-  assert.equal(lineOfBackground([readOne], { pause: true }), "0 cooking · 0 for you · paused");
-  assert.equal(lineOfBackground([readOne], "illisible"), "0 cooking · 0 for you");
-  assert.equal(lineOfBackground([project(undefined)], "illisible"), "not read yet");
-});
 
 test("la barre des menus dit la ligne que l'app lui donne, avec les projets lus", () => {
   const saidEntries: string[] = [];

@@ -7,7 +7,7 @@ import { forTheBar } from "../../../src/bar.ts";
 import { EXAMPLE } from "../../../src/config.ts";
 import { PALETTE } from "../../../src/colors.ts";
 import { holdFacts } from "../../../src/facts.ts";
-import { TABS, HEADINGS } from "../../../src/tabs.ts";
+import { HEADINGS } from "../../../src/tabs.ts";
 import { EFFORTS, MODELS } from "../../../src/projects/projects.ts";
 import { putAside } from "../../../src/awaiting.ts";
 import type { CallGitHub, AnswerGitHub } from "../../../src/board/client.ts";
@@ -39,7 +39,7 @@ const github = (assignees: string[]): CallGitHub => async (address) => {
 
 const startup = () => ({
   configuration: forTheBar({ chemin: "/tmp/app.json", projets: [{ nom: PARADE, dossier: "/tmp/parade" }] }, () => true),
-  palette: PALETTE, exemple: EXAMPLE, onglets: TABS, rubriques: HEADINGS,
+  palette: PALETTE, exemple: EXAMPLE, rubriques: HEADINGS,
   calibrage: { modeles: MODELS, efforts: EFFORTS }, telephone: { github: { compte: "chef" } },
 });
 

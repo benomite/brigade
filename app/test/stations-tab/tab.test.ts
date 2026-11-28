@@ -10,7 +10,7 @@ import { forTheBar } from "../../src/bar.ts";
 import { EXAMPLE, type Project } from "../../src/config.ts";
 import { PALETTE } from "../../src/colors.ts";
 
-import { TABS, HEADINGS } from "../../src/tabs.ts";
+import { HEADINGS } from "../../src/tabs.ts";
 import { calibrationRecommended, EFFORTS, machineProposed, MODELS, type Move, type ProjectSeen, type SeenOfProjects } from "../../src/projects/projects.ts";
 import type { StationVue, SeenOfStations } from "../../src/stations/stations.ts";
 import { ADD, STOP, DISPLACE, DETAILS } from "../../src/vue/stations-tab/stations-tab.js";
@@ -33,7 +33,6 @@ async function thePage(stations: StationVue[], seenOne: SeenOfProjects, relocate
       configuration: forTheBar({ chemin: "/tmp/app.json", projets: [PARADE] }),
       palette: PALETTE,
       exemple: EXAMPLE,
-      onglets: TABS,
       rubriques: HEADINGS,
       gestes: {},
       calibrage: { modeles: MODELS, efforts: EFFORTS },

@@ -11,7 +11,7 @@ import { EXAMPLE, type Project } from "../src/config.ts";
 import { PALETTE } from "../src/colors.ts";
 
 import { EFFORTS, MODELS } from "../src/projects/projects.ts";
-import { TABS, HEADINGS } from "../src/tabs.ts";
+import { HEADINGS } from "../src/tabs.ts";
 import type { Seen as SeenOfCode } from "../src/delay.ts";
 import type { SeenOfProjects } from "../src/projects/projects.ts";
 import type { SeenOfStations } from "../src/stations/stations.ts";
@@ -39,7 +39,6 @@ const startup = (home: Home | undefined = HOME, code: SeenOfCode | undefined = C
   configuration: forTheBar({ chemin: "/tmp/app.json", projets: PROJECTS }, () => true),
   palette: PALETTE,
   exemple: EXAMPLE,
-  onglets: TABS,
   rubriques: HEADINGS,
   gestes: {},
   calibrage: { modeles: MODELS, efforts: EFFORTS },

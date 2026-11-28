@@ -1,6 +1,6 @@
 // Test d acceptation gelé (#4181). Critère 1 : reecrirePlistAuxiliaire rend un plist que verifier-plist.ts accepte, pour des auxiliaires sans CFBundleDisplayName, au nom qui ne colle pas, ou hors de la forme attendue.
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";

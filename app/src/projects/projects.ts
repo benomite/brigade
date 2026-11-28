@@ -31,8 +31,6 @@ import type { RepositoryOfChef } from "./github.ts";
 export const MODELS = ["opus", "sonnet", "haiku"] as const;
 export const EFFORTS = ["low", "medium", "high", "xhigh", "max"] as const;
 
-export type Field = "nom" | "depot" | "base" | "stations" | "cooks" | "capacites" | "manager-modele" | "manager-effort" | "reviewer-modele" | "reviewer-effort";
-export type Reported = Partial<Record<Field, string>>;
 
 // Une station d'un projet, telle que la home la montre : toutes de la même façon, ce qu'elle en dit et les autorisations
 // GitHub qu'elle attend.
@@ -101,9 +99,6 @@ export type SeenOfProjects = {
   calibrage: CalibrationRecommended;
   sans?: string;
 };
-// `manque` : parmi le dépôt, la branche d'intégration et le plafond de cooks, ceux que la première station
-// ne dit pas et que le chef n'a pas donnés — chacun est aussi dans `signales`, sous son nom.
-export type Missing = "depot" | "base" | "cooks";
 // Ce que le formulaire d'ajout d'une station montre d'emblée pour cet ordinateur (#1307), tel que l'opération du
 // runtime le calcule (`defautsDeStation`) : les cooks que ses cœurs
 // permettent et d'où vient ce nombre, le dossier où sa station pose les espaces de travail de ses cooks, et
@@ -114,7 +109,6 @@ export type DefaultsOfTheMachine = { cooks: number; cooksDit: string; espaceDeTr
 export type FoldersOfTheStation = { clone: string; worktrees: string } | { refus: string; detail?: string };
 // Ce que le clone d'un projet sur cet ordinateur dit de lui : son dépôt, sa branche d'intégration.
 export type SaysOfClone = { depot: string | null; base: string | null };
-export type Addition = { ajoute: string } | { signales: Reported; manque?: Missing[] } | { refus: string };
 export type Removal = { retire: string } | { refus: string };
 export type { Move } from "./move.ts";
 
@@ -290,7 +284,6 @@ export type OptionsProjects = {
   // première ne dit pas : le chef ne les retape pas (#1307).
   leClone?: (name: string) => Promise<SaysOfClone | null>;
 };
-export type Chosen = { fait: string } | { refus: string; detail?: string };
 
 export type Projects = {
   vu(): SeenOfProjects | undefined;

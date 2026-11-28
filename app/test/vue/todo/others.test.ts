@@ -9,7 +9,7 @@ import { forTheBar } from "../../../src/bar.ts";
 import { EXAMPLE } from "../../../src/config.ts";
 import { PALETTE } from "../../../src/colors.ts";
 import { holdFacts, type Facts } from "../../../src/facts.ts";
-import { TABS, HEADINGS } from "../../../src/tabs.ts";
+import { HEADINGS } from "../../../src/tabs.ts";
 import { EFFORTS, MODELS } from "../../../src/projects/projects.ts";
 import { red } from "../../helpers/red.ts";
 import { FakeScreen, type Fake, type Played, playTheVue, repos } from "../../helpers/false-vue.ts";
@@ -21,7 +21,6 @@ const startup = () => ({
   configuration: forTheBar({ chemin: "/tmp/app.json", projets: [{ nom: PARADE, dossier: "/tmp/parade" }] }, () => true),
   palette: PALETTE,
   exemple: EXAMPLE,
-  onglets: TABS,
   rubriques: HEADINGS,
   gestes: {},
   calibrage: { modeles: MODELS, efforts: EFFORTS },

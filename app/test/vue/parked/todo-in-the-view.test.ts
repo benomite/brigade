@@ -6,7 +6,7 @@ import { EXAMPLE } from "../../../src/config.ts";
 import { PALETTE } from "../../../src/colors.ts";
 import { holdFacts, type Facts } from "../../../src/facts.ts";
 import { actionsOfCard } from "../../../src/card-actions.ts";
-import { TABS, HEADINGS } from "../../../src/tabs.ts";
+import { HEADINGS } from "../../../src/tabs.ts";
 import { EFFORTS, MODELS } from "../../../src/projects/projects.ts";
 import type { Terminal } from "../../../src/terminals.ts";
 import { type Fake, type Played, playTheVue, repos } from "../../helpers/false-vue.ts";
@@ -17,7 +17,7 @@ const url = (ticket: number) => `https://github.com/chef/parade/issues/${ticket}
 const SECOND: Terminal = { id: 1, projet: PARADE, genre: "second", titre: "second · claude", note: "session neuve", arrete: false };
 const startup = () => ({
   configuration: forTheBar({ chemin: "/tmp/app.json", projets: [{ nom: PARADE, dossier: "/tmp/parade" }] }, () => true),
-  palette: PALETTE, exemple: EXAMPLE, onglets: TABS, rubriques: HEADINGS,
+  palette: PALETTE, exemple: EXAMPLE, rubriques: HEADINGS,
   calibrage: { modeles: MODELS, efforts: EFFORTS }, });
 async function open(): Promise<Played> {
   const vue = await playTheVue({ demarrage: startup, espace: () => [SECOND], ouvrirIssue: () => true, gestesDeFiche: (card) => actionsOfCard(card) });

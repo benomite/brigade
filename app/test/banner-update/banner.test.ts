@@ -11,7 +11,7 @@ import { PALETTE } from "../../src/colors.ts";
 
 import { searchOneUpdate, type Workstation } from "../../src/update/opinion.ts";
 import type { StateOfUpdate } from "../../src/update/state.ts";
-import { TABS, HEADINGS } from "../../src/tabs.ts";
+import { HEADINGS } from "../../src/tabs.ts";
 import { EFFORTS, MODELS } from "../../src/projects/projects.ts";
 import { playTheVue, repos } from "../helpers/false-vue.ts";
 
@@ -34,7 +34,6 @@ const startup = (update?: StateOfUpdate) => ({
   configuration: forTheBar({ chemin: "/tmp/app.json", projets: [{ nom: "brigade", dossier: "/tmp/brigade" }] }, () => true),
   palette: PALETTE,
   exemple: EXAMPLE,
-  onglets: TABS,
   rubriques: HEADINGS,
   gestes: {},
   calibrage: { modeles: MODELS, efforts: EFFORTS },

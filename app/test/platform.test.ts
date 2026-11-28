@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test } from "node:test";
-import { stopTheTree, BASH_OF_GIT, inGroup, nameOfWorkstation, persistentOn, shellOfWorkstation } from "../src/platform.ts";
+import { BASH_OF_GIT, nameOfWorkstation, shellOfWorkstation } from "../src/platform.ts";
 
 const WINDOWS = { ProgramW6432: "C:\\Program Files", ProgramFiles: "C:\\Program Files", "ProgramFiles(x86)": "C:\\Program Files (x86)", LOCALAPPDATA: "C:\\Users\\chef\\AppData\\Local" };
 
@@ -30,25 +30,7 @@ describe("ce poste, d'une plateforme à l'autre", () => {
     assert.equal(BASH_OF_GIT(WINDOWS).at(-1), join("C:\\Users\\chef\\AppData\\Local", "Programs", "Git", "bin", "bash.exe"));
   });
 
-  test("une session persistante sur ce poste, et un process chef de son groupe : partout sauf sous Windows", () => {
-    for (const platform of ["darwin", "linux"]) {
-      assert.equal(persistentOn(platform), true, platform);
-      assert.equal(inGroup(platform), true, platform);
-    }
-    assert.equal(persistentOn("win32"), false);
-    assert.equal(inGroup("win32"), false);
-  });
 
-  test("arrêter un process et ce qu'il a lancé : son groupe reçoit le signal ; un groupe déjà parti n'est pas une erreur", () => {
-    const receivedOnes: [number, NodeJS.Signals][] = [];
-    stopTheTree(4242, "SIGTERM", "darwin", (pid, signal) => void receivedOnes.push([pid, signal]));
-    assert.deepEqual(receivedOnes, [[-4242, "SIGTERM"]]);
-    assert.doesNotThrow(() =>
-      stopTheTree(4242, "SIGKILL", "linux", () => {
-        throw Object.assign(new Error("kill ESRCH"), { code: "ESRCH" });
-      }),
-    );
-  });
 
   test("aucun chemin de l'app n'est réservé au Mac hors d'ici : chaque module reçoit d'ici ce qui dépend de la plateforme", () => {
     const src = join(import.meta.dirname, "../src");

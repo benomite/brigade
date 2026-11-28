@@ -12,7 +12,7 @@ import { forTheBar } from "../../../src/bar.ts";
 import { EXAMPLE, type Project } from "../../../src/config.ts";
 import { PALETTE } from "../../../src/colors.ts";
 import { holdFacts } from "../../../src/facts.ts";
-import { TABS, HEADINGS } from "../../../src/tabs.ts";
+import { HEADINGS } from "../../../src/tabs.ts";
 import { calibrationRecommended, EFFORTS, machineProposed, MODELS, type ProjectSeen, type SeenOfProjects } from "../../../src/projects/projects.ts";
 import { writeSettingsOfTheStation, readSettingsOfTheStation } from "../../../src/settings-of-the-station.ts";
 import type { StationVue, SeenOfStations } from "../../../src/stations/stations.ts";
@@ -45,7 +45,6 @@ async function thePage(engine: string | undefined, line: object) {
       configuration: forTheBar({ chemin: "/tmp/app.json", projets: [PARADE] }, () => true, (name) => name === "parade"),
       palette: PALETTE,
       exemple: EXAMPLE,
-      onglets: TABS,
       rubriques: HEADINGS,
       gestes: {},
       calibrage: { modeles: MODELS, efforts: EFFORTS },

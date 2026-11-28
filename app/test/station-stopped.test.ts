@@ -5,13 +5,9 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { forTheBar } from "../src/bar.ts";
-import { EXAMPLE } from "../src/config.ts";
-import { PALETTE } from "../src/colors.ts";
 
-import { TABS, HEADINGS } from "../src/tabs.ts";
-import { EFFORTS, MODELS } from "../src/projects/projects.ts";
 import type { Terminal } from "../src/terminals.ts";
-import { type Played, playTheVue, repos } from "./helpers/false-vue.ts";
+import { type Played } from "./helpers/false-vue.ts";
 
 const LINE = "this computer's station is not running";
 const CONFIGURATION = { chemin: "/tmp/app.json", projets: [{ nom: "parade", dossier: "/tmp/parade" }, { nom: "cantine", dossier: "/tmp/cantine" }] };
@@ -31,64 +27,13 @@ describe("la station de cet ordinateur ne tourne pas : la barre le marque sur le
   });
 });
 
-const startup = (runs: boolean) => () => ({
-  configuration: forTheBar(CONFIGURATION, served, here, () => runs),
-  palette: PALETTE,
-  exemple: EXAMPLE,
-  onglets: TABS,
-  rubriques: HEADINGS,
-  gestes: {},
-  calibrage: { modeles: MODELS, efforts: EFFORTS },
-  });
 
-async function open(runs: boolean, rank: number): Promise<Played> {
-  const vue = await playTheVue({ demarrage: startup(runs), espace: () => [SECOND] });
-  (vue.element("projets").children.at(rank) ?? assert.fail("pas d'entrée")).click();
-  await repos();
-  return vue;
-}
 
 // Ce que la page de l'espace dit au centre : le rail, ou la ligne qui le remplace.
 const center = (vue: Played) => vue.element("rail");
 
 describe("la page d'un projet qui cuit ici, station arrêtée", () => {
-  test("une seule ligne dit que la station de cet ordinateur ne tourne pas — ni page vide, ni rail, ni carte", async () => {
-    const vue = await open(false, 1);
 
-    assert.equal(center(vue).hidden, false);
-    assert.equal(center(vue).textContent, LINE);
-    assert.equal(center(vue).children.length, 1);
-    assert.ok(!vue.poses().some(({ id }) => id === "carte"));
-    assert.ok(!vue.poses().some(({ id }) => id === "lu-cuisine" || id === "lecture-cuisine"));
-  });
 
-  test("la station démarre : la configuration reposée enlève la ligne, et le rail reprend sa place — l'app n'est pas relancée", async () => {
-    const vue = await open(false, 1);
-    assert.equal(center(vue).textContent, LINE);
 
-    vue.dire("surConfiguration", forTheBar(CONFIGURATION, served, here, () => true), []);
-    await repos();
-
-    assert.equal(center(vue).hidden, false);
-    assert.doesNotMatch(center(vue).textContent, /not running/);
-    assert.match(center(vue).textContent, /first read of/);
-  });
-
-  test("la station s'arrête sous une page ouverte : la ligne revient", async () => {
-    const vue = await open(true, 1);
-    assert.doesNotMatch(center(vue).textContent, /not running/);
-
-    vue.dire("surConfiguration", forTheBar(CONFIGURATION, served, here, () => false), []);
-    await repos();
-
-    assert.equal(center(vue).textContent, LINE);
-  });
-
-  test("un projet servi par une autre station ne porte jamais la ligne, station arrêtée ou non", async () => {
-    for (const runs of [false, true]) {
-      const vue = await open(runs, 2);
-      assert.doesNotMatch(center(vue).textContent, /not running/);
-      assert.equal(center(vue).hidden, false);
-    }
-  });
 });

@@ -1,7 +1,6 @@
 // Test d'acceptation (#4347), critère 2 : le parcours d'appairage ne demande jamais de taper sur le serveur une autre
 // commande que la ligne montrée, ni d'ouvrir `docs/installation-station.md`.
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { setTheTabOfStations } from "../../src/vue/stations-tab/stations-tab.js";
 import { Fake } from "../helpers/false-vue.ts";

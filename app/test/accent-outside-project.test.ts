@@ -11,7 +11,7 @@ import { EXAMPLE, type Project } from "../src/config.ts";
 import { PALETTE } from "../src/colors.ts";
 
 import { EFFORTS, MODELS } from "../src/projects/projects.ts";
-import { TABS, HEADINGS } from "../src/tabs.ts";
+import { HEADINGS } from "../src/tabs.ts";
 import { type Fake, type Played, playTheVue, repos } from "./helpers/false-vue.ts";
 
 const SRC = join(import.meta.dirname, "../src");
@@ -51,7 +51,6 @@ describe("hors d'un projet, Brigade a son accent : un blanc cassé, jamais l'ora
         configuration: forTheBar({ chemin: "/tmp/app.json", projets: projects }, () => true),
         palette: PALETTE,
         exemple: EXAMPLE,
-        onglets: TABS,
         rubriques: HEADINGS,
         gestes: {},
         calibrage: { modeles: MODELS, efforts: EFFORTS },

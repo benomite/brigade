@@ -6,7 +6,7 @@ import { forTheBar } from "../src/bar.ts";
 import { EXAMPLE } from "../src/config.ts";
 import { PALETTE } from "../src/colors.ts";
 
-import { TABS, HEADINGS } from "../src/tabs.ts";
+import { HEADINGS } from "../src/tabs.ts";
 import { EFFORTS, MODELS } from "../src/projects/projects.ts";
 import { ITSELF_CONNECT } from "../src/vue/addition-project/account.js";
 import { playTheVue, repos, type Fake } from "./helpers/false-vue.ts";
@@ -17,7 +17,6 @@ const startup = () => ({
   poste: { nom: "this computer", mac: false },
   palette: PALETTE,
   exemple: EXAMPLE,
-  onglets: TABS,
   rubriques: HEADINGS,
   gestes: {},
   calibrage: { modeles: MODELS, efforts: EFFORTS },

@@ -12,7 +12,7 @@ import { header } from "../src/card.ts";
 import { type Drawable, type Facts } from "../src/facts.ts";
 import { actionsOfCard } from "../src/card-actions.ts";
 import { EFFORTS, MODELS } from "../src/projects/projects.ts";
-import { TABS, HEADINGS } from "../src/tabs.ts";
+import { HEADINGS } from "../src/tabs.ts";
 import { lineOfProject, holdHome, type Home, type ProjectOfTheHome } from "../src/home.ts";
 import type { Terminal } from "../src/terminals.ts";
 import { Fake, type Played, playTheVue, type Answers, openRead, repos } from "./helpers/false-vue.ts";
@@ -36,7 +36,6 @@ const startup = () => ({
   configuration: forTheBar({ chemin: "/tmp/app.json", projets: [PARADE] }, () => true),
   palette: PALETTE,
   exemple: EXAMPLE,
-  onglets: TABS,
   rubriques: HEADINGS,
   gestes: {},
   calibrage: { modeles: MODELS, efforts: EFFORTS },

@@ -11,7 +11,7 @@ import { forTheBar } from "../../src/bar.ts";
 import { EXAMPLE, type Project } from "../../src/config.ts";
 import { PALETTE } from "../../src/colors.ts";
 import { holdFacts, type Facts } from "../../src/facts.ts";
-import { TABS, HEADINGS } from "../../src/tabs.ts";
+import { HEADINGS } from "../../src/tabs.ts";
 import { calibrationRecommended, EFFORTS, machineProposed, MODELS, type ProjectSeen, type SeenOfProjects } from "../../src/projects/projects.ts";
 import type { StationVue, SeenOfStations } from "../../src/stations/stations.ts";
 import { NOT_SERVED, SERVED } from "../../src/vue/projects-served/projects-served.js";
@@ -50,7 +50,6 @@ async function thePage({ facts = FACTS as Facts | null, lue: readEntry = true } 
       configuration: forTheBar({ chemin: "/tmp/app.json", projets: [PARADE, CANTINE] }, () => true, (name) => name === "parade"),
       palette: PALETTE,
       exemple: EXAMPLE,
-      onglets: TABS,
       rubriques: HEADINGS,
       gestes: {},
       calibrage: { modeles: MODELS, efforts: EFFORTS },

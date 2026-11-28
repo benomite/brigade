@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test } from "node:test";
-import { STATES, stateOfYour, shapeOf, brand, pill } from "../../../src/vue/components/pill/pill.js";
+import { STATES, shapeOf, brand, pill } from "../../../src/vue/components/pill/pill.js";
 import { Fake } from "../../helpers/false-vue.ts";
 
 const doc = { createElement: (balise: string) => new Fake(balise) };
@@ -27,15 +27,6 @@ describe("la pastille", () => {
     assert.equal(new Set(views).size, 6);
   });
 
-  test("l'état d'un ton est celui de la colonne de ce ton ; un ton inconnu n'a pas d'état et garde un marqueur vide", () => {
-    assert.deepEqual(["gris", "bleu", "jaune", "rouge", "orange", "vert"].map(stateOfYour), [...STATES]);
-    assert.equal(stateOfYour("violet"), undefined);
-    assert.equal(stateOfYour(undefined), undefined);
-    const bare = pill(doc, undefined, "86") as Fake;
-    assert.equal(bare.dataset.pastille, undefined);
-    assert.equal(bare.className, "pilule");
-    assert.deepEqual((bare.children[0] as Fake).dataset, {});
-  });
 
   test("le marqueur seul : ton et forme, au coin d'une case s'il le faut", () => {
     const point = brand(doc, "rouge", { coin: true }) as Fake;

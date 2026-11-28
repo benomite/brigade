@@ -10,7 +10,7 @@ import { EXAMPLE, type Project } from "../src/config.ts";
 import { PALETTE } from "../src/colors.ts";
 
 import { EFFORTS, MODELS } from "../src/projects/projects.ts";
-import { TABS, HEADINGS } from "../src/tabs.ts";
+import { HEADINGS } from "../src/tabs.ts";
 import { type Fake, type Played, playTheVue, repos } from "./helpers/false-vue.ts";
 
 const TOKENS = readFileSync(join(import.meta.dirname, "../src/vue/tokens.css"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
@@ -34,7 +34,6 @@ describe("l'accent hors d'un projet est un blanc cassé neutre, dans un projet c
         configuration: forTheBar({ chemin: "/tmp/app.json", projets: projects }, () => true),
         palette: PALETTE,
         exemple: EXAMPLE,
-        onglets: TABS,
         rubriques: HEADINGS,
         gestes: {},
         calibrage: { modeles: MODELS, efforts: EFFORTS },

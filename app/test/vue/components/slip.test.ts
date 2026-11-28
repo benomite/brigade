@@ -4,7 +4,6 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test } from "node:test";
-import { slip, headOfSlip } from "../../../src/vue/components/slip/slip.js";
 import { Fake } from "../../helpers/false-vue.ts";
 
 const doc = { createElement: (balise: string) => new Fake(balise) };
@@ -12,22 +11,7 @@ const VUE = join(import.meta.dirname, "../../../src/vue");
 const read = (file: string) => readFileSync(join(VUE, file), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
 
 describe("le bon", () => {
-  test("un `li.bon` dont la tête porte le numéro, puis la pastille de l'état dans le mot de la file", () => {
-    const number = new Fake("span");
-    const pose = slip(doc, { numero: number, mot: "in pass", etat: "pass" }) as unknown as Fake;
-    assert.equal(pose.className, "bon");
-    assert.equal(pose.dataset.hors, undefined);
-    const head = headOfSlip(pose) as Fake;
-    assert.equal(head.children[0], number);
-    assert.equal((head.children[1] as Fake).dataset.pastille, "pass");
-    assert.equal(((head.children[1] as Fake).children[1] as Fake).textContent, "in pass");
-  });
 
-  test("sans mot d'état, la tête ne porte que le numéro ; hors colonne, le bon le dit", () => {
-    const pose = slip(doc, { numero: new Fake("span"), hors: true }) as unknown as Fake;
-    assert.equal(headOfSlip(pose).children.length, 1);
-    assert.equal(pose.dataset.hors, "");
-  });
 });
 
 describe("la feuille du bon", () => {

@@ -9,7 +9,7 @@ import { PALETTE } from "../src/colors.ts";
 import type { Kitchen } from "../src/box.ts";
 
 import { EFFORTS, MODELS } from "../src/projects/projects.ts";
-import { TABS, HEADINGS } from "../src/tabs.ts";
+import { HEADINGS } from "../src/tabs.ts";
 import type { Terminal } from "../src/terminals.ts";
 import { type Played, playTheVue, openRead, repos } from "./helpers/false-vue.ts";
 
@@ -23,7 +23,6 @@ async function open(answers = {}): Promise<Played> {
       configuration: forTheBar({ chemin: "/tmp/app.json", projets: [PARADE] }, () => true),
       palette: PALETTE,
       exemple: EXAMPLE,
-      onglets: TABS,
       rubriques: HEADINGS,
       gestes: {},
       calibrage: { modeles: MODELS, efforts: EFFORTS },

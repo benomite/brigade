@@ -3,7 +3,7 @@
 // fenêtre n'a rien rejoint.)
 import assert from "node:assert/strict";
 import { spawn, type ChildProcess } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
 import { jusqua, repertoireTemporaire } from "../../../runtime/test/outils.ts";
