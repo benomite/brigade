@@ -8,14 +8,13 @@
 import { kitchenBoardRead, type KitchenBoard } from "./board/kitchen-board.ts";
 import { ticketsOf, saysOf, type Shown } from "./awaiting.ts";
 import { THE_CHEF, wordOfState, parkedOf, type Door } from "./slip.ts";
-import { lineSetAside, lineAwaitingMe, lineUnreadable, type LineOfCard } from "./line-card.ts";
+import { lineAwaitingMe, lineUnreadable, type LineOfCard } from "./line-card.ts";
 import type { Failure, Reading } from "./box.ts";
 import type { PauseOfReads } from "./board/read.ts";
 import { withoutQuestion } from "./handover-second.ts";
 import { header, type Header } from "./card.ts";
 import { cardOfChefOfTodo, type CardOfTodo } from "./card-todo.ts";
-import { type CardOfChef, type Recommended } from "./board/todo-github.ts";
-import { WITHOUT_REASON, type SetAside } from "./board/set-aside-github.ts";
+import type { CardOfChef } from "./board/todo-github.ts";
 import { quotaRead, type QuotaGithub } from "./vue/stations-quota/quota-read.ts";
 
 export const COMMAND = "facts";
@@ -25,15 +24,7 @@ export const COMMAND = "facts";
 function chefRead(raw: unknown): CardOfChef | undefined {
   const readOne = typeof raw === "object" && raw !== null ? (raw as Record<string, unknown>) : undefined;
   if (typeof readOne?.sorte !== "string" || typeof readOne.texte !== "string") return undefined;
-  // La recommandation d'un écart du manager (#3434) : nulle, il n'en recommande aucun — ni quand elle n'a pas sa forme : aucun
-  // choix n'est mis en avant à sa place.
-  const recommended = recommendedRead(readOne.recommandee);
-  return { sorte: readOne.sorte, texte: readOne.texte, ...(recommended === undefined ? {} : { recommandee: recommended }) };
-}
-function recommendedRead(raw: unknown): Recommended | null | undefined {
-  if (raw === undefined) return undefined;
-  const readOne = typeof raw === "object" && raw !== null ? (raw as Record<string, unknown>) : undefined;
-  return typeof readOne?.texte === "string" && typeof readOne.pourquoi === "string" ? { texte: readOne.texte, pourquoi: readOne.pourquoi } : null;
+  return { sorte: readOne.sorte, texte: readOne.texte };
 }
 // Ce qu'une carte du chef attend de lui, en une phrase, selon sa sorte ; une sorte que l'app ne connaît pas est dite telle quelle.
 const WHO_M_AWAITING_OF_CHEF: Readonly<Record<string, string>> = {
@@ -51,35 +42,14 @@ const WHO_M_AWAITING_OF_CHEF: Readonly<Record<string, string>> = {
 const sentenceOfChef = (kind: string): string => WHO_M_AWAITING_OF_CHEF[kind] ?? `Waits for you: ${kind}.`;
 
 
-// Ce qui met de côté un ticket d'un projet GitHub seul (board/set-aside-github.ts, #2075) : son label, la ligne qui dit
-// pourquoi — nulle sans commentaire qui la porte —, et ses `#N` ouvrables, en https. Rien s'il n'a pas cette forme.
-function setAsideRead(raw: unknown): SetAside | undefined {
-  const readOne = typeof raw === "object" && raw !== null ? (raw as Record<string, unknown>) : undefined;
-  if (typeof readOne?.label !== "string" || (readOne.raison !== null && typeof readOne.raison !== "string") || !Array.isArray(readOne.liens)) return undefined;
-  const links = readOne.liens.flatMap((link: unknown) => {
-    const { numero: number, url } = (typeof link === "object" && link !== null ? link : {}) as { numero?: unknown; url?: unknown };
-    return typeof number === "number" && Number.isSafeInteger(number) && typeof url === "string" && openable(url) ? [{ numero: number, url }] : [];
-  });
-  return { label: readOne.label, raison: readOne.raison, liens: links };
-}
-// La ligne d'un ticket mis de côté sans commentaire qui dise pourquoi (board/set-aside-github.ts).
-export { WITHOUT_REASON };
-
 // Un ticket que le bloc `attend` nomme, et ce que `faits` en donne : son titre et l'adresse de son issue, nulle quand elle n'en
 // a pas. L'app n'en compose aucune.
-// `miseDeCote` : pour un ticket d'un projet GitHub seul que `served-elsewhere` met de côté, ce qui le
-// met de côté (board/set-aside-github.ts, #2075) — absente pour toute autre entrée.
 // Une carte qui attend un autre humain du projet que le compte connecté (vue/cards-assigned/, ticket 2985) : TODO la
 // replie sous « Awaiting others » — comme une entrée de `attend` (sa carte…), et `qui` elle attend, leurs logins
 // GitHub : l'assignation ne retient personne, tout humain du projet l'ouvre et y répond (ticket 3071).
 export type ExpectedOfOthers = Expected & { qui: string[] };
-export type Expected = { ticket: number; titre: string; url: string | null; chef?: CardOfChef; miseDeCote?: SetAside; illisible?: string };
+export type Expected = { ticket: number; titre: string; url: string | null; chef?: CardOfChef; illisible?: string };
 
-// Ce qu'un ticket en WAITING attend d'un tiers, comme le runtime le donne : `quoi`, dans
-// les mots du chef ; `qui` ; `depuis`, sa mise en attente, et `relance`, quand y revenir,
-// à l'horloge de la box ; `aLArrivee`, ce que « c'est arrivé » fera de lui, en clair. Un ticket mis de côté faute de
-// station y est aussi : le chef n'a posé aucune attente, donc `relance` est nulle et la carte n'a rien à reprendre.
-export type Third = { quoi: string; qui: string; depuis: string; relance: string | null; aLArrivee: string };
 
 // La forme, telle que le lecteur de GitHub la fige (board/read.ts).
 export type Facts = {
@@ -105,9 +75,8 @@ export type Facts = {
 // ouvre par-dessus le rail (card.ts) — ce qu'on attend de toi, en une phrase.
 // `todo` : sur une carte du chef lue de GitHub, sa question et ses choix (card-todo.ts) — ce que le chef tranche sur la
 // carte même, d'un clic ou d'un texte.
-// `etape` : la colonne de son étape. `miseDeCote` : le label qui met son ticket de côté, et les `#N` de sa ligne qui
-// s'ouvrent d'un clic (#2075).
-export type Card = Partial<LineOfCard> & { ticket: number; titre?: string; ouvrable: boolean; attendu: boolean; attend: string[]; fiche: Header; todo?: CardOfTodo; chef?: CardOfChef; qui?: string[]; etape?: string; miseDeCote?: { label: string; liens: number[] } } & Door;
+// `etape` : la colonne de son étape.
+export type Card = Partial<LineOfCard> & { ticket: number; titre?: string; ouvrable: boolean; attendu: boolean; attend: string[]; fiche: Header; todo?: CardOfTodo; chef?: CardOfChef; qui?: string[]; etape?: string } & Door;
 // `compte` : le nombre de ses cartes — ou `?`, pour TODO, tant que rien ne dit qui attend. `vide` : ce qui se lit à la
 // place des cartes quand il n'y en a pas.
 // `autres` : dans TODO, les cartes qui attendent un autre humain du projet (ticket 2985), repliées sous « Awaiting
@@ -163,8 +132,7 @@ function expectedRead(readOne: Record<string, unknown>, which: string): Expected
   const base = { ticket: whole(readOne.ticket, `${which}.ticket`), titre: typeof readOne.titre === "string" ? readOne.titre : "" };
   try {
     const chef = chefRead(readOne.chef);
-    const setAside = setAsideRead(readOne.miseDeCote);
-    return { ticket: base.ticket, titre: text(readOne.titre, `${which}.titre`), url: orNothing(readOne.url, `${which}.url`, text), ...(chef === undefined ? {} : { chef }), ...(setAside === undefined ? {} : { miseDeCote: setAside }) };
+    return { ticket: base.ticket, titre: text(readOne.titre, `${which}.titre`), url: orNothing(readOne.url, `${which}.url`, text), ...(chef === undefined ? {} : { chef }) };
   } catch (error) {
     if (error instanceof Informs) return { ticket: base.ticket, titre: base.titre, url: null, illisible: error.message };
     throw error;
@@ -305,9 +273,6 @@ export function rail(facts: Facts, awaiting?: BlockRead): Rail {
     const url = gives?.url;
     const title = gives?.titre === undefined || gives.titre === "" ? undefined : gives.titre;
     const said = saidOnes.get(ticket) ?? (ofOthers.has(ticket) ? [] : undefined);
-    // Mis de côté par un label, sur GitHub seul : il t'attend, et sa ligne dit pourquoi (#2075).
-    const setAside = said === undefined ? undefined : gives?.miseDeCote;
-    const why = setAside === undefined ? undefined : (setAside.raison ?? WITHOUT_REASON);
     // La carte du chef lue de GitHub, dans la forme de toute carte de TODO (#2434) : sa question n'est dite qu'une fois, sur
     // la carte — la ligne dit ce que sa sorte attend du chef, jamais la question.
     const ofChef = said === undefined || gives?.chef === undefined ? undefined : cardOfChefOfTodo(gives.chef);
@@ -316,9 +281,7 @@ export function rail(facts: Facts, awaiting?: BlockRead): Rail {
         ? lineUnreadable()
         : ofChef !== undefined && gives?.chef !== undefined
           ? lineAwaitingMe(sentenceOfChef(gives.chef.sorte))
-          : why !== undefined
-            ? lineSetAside(why)
-            : lineAwaitingMe(gives?.chef === undefined ? withoutQuestion(ticket) : sentenceOfChef(gives.chef.sorte));
+          : lineAwaitingMe(gives?.chef === undefined ? withoutQuestion(ticket) : sentenceOfChef(gives.chef.sorte));
     const setOne: Card = {
       ticket,
       ...line,
@@ -331,10 +294,9 @@ export function rail(facts: Facts, awaiting?: BlockRead): Rail {
       fiche: {
         ...header({ ...(title === undefined ? {} : { titre: title }), url }),
         // La carte du chef : la tête dit ce que sa sorte attend, la question est dite dessous.
-        ...(said === undefined ? {} : { attendu: ofChef !== undefined && gives?.chef !== undefined ? sentenceOfChef(gives.chef.sorte) : (why ?? withoutQuestion(ticket)) }),
+        ...(said === undefined ? {} : { attendu: ofChef !== undefined && gives?.chef !== undefined ? sentenceOfChef(gives.chef.sorte) : withoutQuestion(ticket) }),
       },
       ...(said !== undefined && gives?.chef !== undefined ? { chef: gives.chef } : {}),
-      ...(setAside === undefined ? {} : { miseDeCote: { label: setAside.label, liens: setAside.raison === null ? [] : setAside.liens.map(({ numero: number }) => number) } }),
       ...(ofChef === undefined ? {} : { todo: ofChef }),
       dit: [],
     };
@@ -444,8 +406,7 @@ export function holdFacts() {
         entryOf(given, ticket)?.url ??
         // Une carte du kanban (#4482).
         cardOfKanban(given, ticket)?.url ??
-        // Un `#N` de la ligne d'un ticket mis de côté (#2075) : une issue ou une PR du dépôt, que le rail ne porte pas.
-        given?.attend?.flatMap(({ miseDeCote: setAside }) => setAside?.liens ?? []).find((link) => link.numero === ticket)?.url;
+        undefined;
       return url != null && openable(url) ? url : undefined;
     },
     // La carte du chef d'un ticket, lue de GitHub à la dernière lecture (#2434, board/todo-github.ts) : celle à laquelle le

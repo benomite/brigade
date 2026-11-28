@@ -26,13 +26,9 @@ export type SendSeen = { commentaire: number; reponse: string; le: string } & ({
 // libre.
 export type ChoiceOfCard = { texte: string; prix: string };
 // `contexte` : ce que le commentaire d'une carte du chef lue de GitHub dit après sa question (#2434) — absent ailleurs.
-// `recommandation` : sur la carte d'un écart du manager (#3434), le rang — à partir de 1 — du choix qu'il recommande, et
-// pourquoi en une ligne ; nulle, il n'en recommande aucun : aucun choix n'est mis en avant. Absente ailleurs : le premier
-// choix est la réponse recommandée (ticket 2922).
-export type RecommendationOfCard = { rang: number; pourquoi: string };
 // `repondre` : le libellé du bouton de la réponse libre, quand ce n'est pas « send » ; `surGithub` : la carte a son bouton
 // « Open on GitHub » — celle d'un ticket que la nouvelle cuisine parque pour le chef (#4474), absents ailleurs.
-export type CardOfTodo = { sorte: string; resume?: string; question: string | null; contexte?: string; choix: ChoiceOfCard[]; prixDuTexte: string; repondre?: string; surGithub?: true; recommandation?: RecommendationOfCard | null; envoi?: SendSeen };
+export type CardOfTodo = { sorte: string; resume?: string; question: string | null; contexte?: string; choix: ChoiceOfCard[]; prixDuTexte: string; repondre?: string; surGithub?: true; envoi?: SendSeen };
 
 // Ce que la vue envoie : la question qu'elle montre — nulle sur une carte à un seul geste ; rien ne part
 // sur une carte qui a changé sous les yeux du chef —, et le rang d'un choix, à partir de 1, ou le texte
@@ -48,23 +44,10 @@ export type Rendered = { repondue: true; dit: string; commentaire?: number } | {
 // du chef (board-actions/answer-github.ts) — aucune box, aucune station ne le joue.
 const POSTED = "your answer is posted on the issue from your GitHub account";
 const PRICE_ON_GITHUB: Readonly<Record<string, string>> = {
-  resume: `${POSTED}, and the app removes what holds the ticket (\`chef-todo\`, \`parked\`, \`served-elsewhere\`): it resumes exactly where it was and its cook reads your answer`,
   merge: `${POSTED}, and the app merges the PR the card names under your GitHub account — a merge is not undone from the app`,
-  drop: `${POSTED}, and the app removes \`fire\`: the ticket is off the rail, no cook takes it, its issue stays open`,
-  close: `${POSTED}, and the app closes the issue: the ticket is not cooked`,
-  rail: `${POSTED}, and the app puts the \`prio:\` label the choice names on the issue: a stranger's issue goes on the rail`,
-  wait: `${POSTED}, and the app parks the ticket for the one the choice names, until a date seven days away, and it leaves your TODO: nothing takes it before they answer or that date comes`,
 };
 // Answer, sur la carte d'un ticket parqué pour le chef par la nouvelle cuisine (#4474).
 const PRICE_PARKED_CHEF = `${POSTED}, and the app removes \`parked:chef\`: the ticket goes back on the rail, and its cook reads your answer`;
-
-// La situation d'une carte du chef, en une ligne (#3086) : la première phrase de ce que son commentaire dit après la question,
-// entière — jamais coupée en son milieu. Le reste du commentaire est derrière « details ». Rien quand il ne dit rien.
-function situationOf(context: string): string | undefined {
-  const line = context.split("\n").find((one) => one.trim() !== "")?.trim();
-  if (line === undefined) return undefined;
-  return line.split(/(?<=[.!?])\s+/)[0];
-}
 
 // La carte du chef dans la forme de toute carte de TODO : sa question, un bouton par choix — chacun son prix —, le champ
 // libre, qui joue `resume`, et ce que le commentaire dit d'autre. Rien pour une issue sans commentaire marqué, ni pour un
@@ -75,7 +58,7 @@ export function questionOfChef({ texte: text }: CardOfChef): string | null {
 }
 
 export function cardOfChefOfTodo(card: CardOfChef): CardOfTodo | undefined {
-  const { sorte: kind, texte: text, recommandee: recommended } = card;
+  const { sorte: kind, texte: text } = card;
   const { choix: choice, contexte: context } = shapeOfChef(text);
   const question = questionOfChef(card);
   if (question === null) return undefined;
@@ -85,19 +68,7 @@ export function cardOfChefOfTodo(card: CardOfChef): CardOfTodo | undefined {
   if (kind === KIND_PARKED_CHEF) {
     return { sorte: kind, question, ...(context === "" ? {} : { contexte: context }), choix: choice.map(({ texte: wording, suite }) => ({ texte: wording, prix: PRICE_ON_GITHUB[suite] as string })), prixDuTexte: PRICE_PARKED_CHEF, repondre: "Answer", surGithub: true };
   }
-  const situation = situationOf(context);
-  // Le choix que le manager recommande, par son rang : un libellé qui n'est plus parmi les choix n'en recommande aucun.
-  const rank = recommended == null ? 0 : choice.findIndex(({ texte: wording }) => wording === recommended.texte) + 1;
-  const recommendation = recommended === undefined ? {} : { recommandation: recommended === null || rank === 0 ? null : { rang: rank, pourquoi: recommended.pourquoi } };
-  return {
-    sorte: kind,
-    ...(situation === undefined ? {} : { resume: situation }),
-    question,
-    ...(context === "" ? {} : { contexte: context }),
-    choix: choice.map(({ texte: wording, suite }) => ({ texte: wording, prix: PRICE_ON_GITHUB[suite] as string })),
-    prixDuTexte: PRICE_ON_GITHUB.resume as string,
-    ...recommendation,
-  };
+  return undefined;
 }
 
 // La même carte telle que la réponse du chef se contrôle (`reponseLue`) : sa question et ses choix, chacun son geste.

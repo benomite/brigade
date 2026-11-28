@@ -80,8 +80,6 @@ export type Bridge = {
   // `vu` : l'adresse du dernier commentaire montré sous elle, vide s'il n'y en avait pas — rien ne part
   // si quelque chose y a été écrit depuis.
   repondreQuestion(project: string, ticket: number, answer: { question: string; vu: string; choix: string } | { question: string; vu: string; texte: string }): Promise<AnswerRendered>;
-  // Un geste d'une carte mise de côté (actions-refusal.ts, ticket 3147) : `relancer` retire `served-elsewhere` de l'issue, `clore` la ferme comme terminée.
-  refus(project: string, id: "relancer" | "clore", ticket: number): Promise<Terminal | { refus: string; detail?: string } | { fait: string; detail?: string }>;
   // La mise à jour de l'app installée (mise-a-jour/etat.ts) — l'état et ses deux gestes. L'état :
   // `inactive` (lancée depuis le dépôt, elle ne regarde rien), `verification`, `a-jour`,
   // `disponible` (avec la `nouvelle` version), `telechargement` (`recus` sur `taille` octets),

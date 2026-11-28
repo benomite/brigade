@@ -1,4 +1,3 @@
-import { dayOf } from "./vue/wait/input.ts";
 
 // `signal` : ce qui demande l'attention. `repere` : la file ne dit pas tout, la fiche le détaille. `liens` : les tickets que la
 // ligne nomme et que la carte ouvre d'un clic.
@@ -8,7 +7,6 @@ export const READY = "ready, waits for a place in the kitchen";
 export const AWAITS_YOUR_DECISION = "waits for your decision";
 export const BLOCKED = "blocked";
 export const SET_ASIDE = "set aside";
-export const RELAUNCH_PAST = "follow-up date passed";
 
 
 
@@ -23,19 +21,11 @@ export function queuedLine(state: string, holds: string | undefined): LineOfCard
 }
 
 
-// Mis de côté (86) : sa raison, telle que le runtime la donne.
-export const lineSetAside = (reason: string): LineOfCard => ({ ligne: reason, signal: SET_ASIDE });
 
 
 // Qui m'attend : ce qu'on attend du chef, en une phrase.
 export const lineAwaitingMe = (sentence: string | undefined): LineOfCard => (sentence === undefined ? { ligne: AWAITS_YOUR_DECISION, repere: true } : { ligne: sentence });
 
-// En WAITING : ce qu'il attend, de qui, et le jour de sa relance, au calendrier du poste (#3075) ; la relance passée est
-// le signal.
-export const lineInWaiting = (third: { quoi: string; qui: string; relance?: string | null } | null | undefined, relaunchPast: boolean): LineOfCard =>
-  third == null
-    ? { ligne: "waits for a third party", repere: true }
-    : { ligne: `waiting for ${third.quoi} · from ${third.qui}${third.relance == null ? "" : ` · follow-up ${dayOf(new Date(third.relance))}`}`, ...(relaunchPast ? { signal: RELAUNCH_PAST } : {}) };
 
 
 

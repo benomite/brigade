@@ -39,7 +39,6 @@ import { FRESHNESS_MAX_OF_A_READ_MS } from "./vue/served/freshness.ts";
 import { readTheBoardOfRepository, type ReadOfBoardOfRepository } from "./board/read.ts";
 import { pageOfFacts } from "./read-only.ts";
 import { openStandbyOfBoard, holdReadsOfBoard } from "./board/rail.ts";
-import { playTheRefusal } from "./actions-refusal.ts";
 import { WITHOUT_DONE } from "./actions-github.ts";
 import { requestOf, requestOnTheTicket, noteOfTheRequest } from "./request.ts";
 import { actionsOfCard } from "./card-actions.ts";
@@ -575,16 +574,6 @@ ipcMain.handle("demander", (_, name: unknown, ticket: unknown) => {
 // ceux qui tranchent ce qu'on attend du chef, puis ceux que la table du chef permet pour son état,
 // dont l'action est branchée, chacun avec son prix.
 ipcMain.handle("gestesDeFiche", (_, card: unknown) => actionsOfCard(card));
-// Un geste d'une carte que la station a mise de côté (ticket 3147) : « Relaunch » retire `served-elsewhere` de l'issue,
-// « Close as already done » la ferme comme terminée — chacun par l'accès GitHub de l'app (actions-refusal.ts). « Ask the second »
-// passe par `passerAuSecond`, plus haut.
-ipcMain.handle("refus", async (_, name: unknown, id: unknown, ticket: unknown) => {
-  const aims = knownOne(name);
-  if (aims === undefined) return gone(name);
-  const rendered = await playTheRefusal(boards.dernier(aims.nom), id, ticket, clientOfLabels);
-  if ("fait" in rendered) boards.oublier();
-  return rendered;
-});
 // La question qu'une carte de T'attend pose, telle qu'elle est écrite sur son issue (question.ts) :
 // l'issue est lue par le `gh` du poste — celui du chef —, à l'ouverture de sa fiche. La vue nomme le
 // projet et le ticket ; l'adresse est celle que la box a rendue (facts.ts). Rien pour un ticket que

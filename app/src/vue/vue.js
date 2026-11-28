@@ -1457,8 +1457,7 @@ function renderSlip(project, cardItem) {
   const todoAnswered = seenOfTodo === "attente" || seenOfTodo === "jouee";
   const lineOfCard = cardItem.ligne;
   if (lineOfCard !== undefined && !(expected && cardItem.todo?.resume !== undefined) && !todoAnswered) {
-    const links = cardItem.miseDeCote?.liens;
-    const sentence = links === undefined ? block("p", lineOfCard) : lineWithItsNumbers(project, lineOfCard, links);
+    const sentence = block("p", lineOfCard);
     sentence.className = "ligne-carte";
     slip.append(sentence);
   }
@@ -1495,24 +1494,6 @@ function renderSlip(project, cardItem) {
   return slip;
 }
 
-// La ligne d'un ticket mis de côté (ticket 2075) : chacun de ses `#N` que la lecture porte s'ouvre d'un clic, sur son issue
-// ou sa PR — l'adresse reste au process principal, comme celle du ticket.
-/** @param {Project} project @param {string} line @param {number[]} links */
-function lineWithItsNumbers(project, line, links) {
-  const sentence = document.createElement("p");
-  for (const piece of line.split(/(#\d+)/)) {
-    const number = /^#\d+$/.test(piece) ? Number(piece.slice(1)) : undefined;
-    if (number === undefined || !links.includes(number)) {
-      if (piece !== "") sentence.append(piece);
-      continue;
-    }
-    const opens = clickable(piece, () => void openIssue(project, number));
-    opens.className = "lien-de-ligne mono";
-    opens.title = `open #${number} on GitHub, in the browser`;
-    sentence.append(opens);
-  }
-  return sentence;
-}
 
 
 

@@ -34,7 +34,6 @@ const bridge = {
   relireLesStations: () => ipcRenderer.invoke("relireLesStations"),
   relireBox: (request) => ipcRenderer.send("relireBox", request),
   repondreQuestion: (project, ticket, answer) => ipcRenderer.invoke("repondreQuestion", project, ticket, answer),
-  refus: (project, id, ticket) => ipcRenderer.invoke("refus", project, id, ticket),
   // La mise à jour de l'app installée (update/state.ts) : `miseAJour` rend son état
   // (`EtatDeMiseAJour` : inactive, verification, a-jour, disponible, telechargement, prete,
   // installation, erreur), `verifierMiseAJour` relit le flux des versions publiées et rend l'état
