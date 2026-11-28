@@ -1,5 +1,5 @@
 /* Le bon de l'app (ticket 2918, maquette de docs/maquettes/app/) : un ticket sur son papier, partout où un écran en montre un —
-   le rail, Cooks, la fiche, les captures. Ses règles ne nomment aucun écran : elles ne lisent que `.bon` et ses attributs
+   le rail, Cooks, la fiche. Ses règles ne nomment aucun écran : elles ne lisent que `.bon` et ses attributs
    (`data-hors`, `data-traine`). Son état est la pastille (components/pill), ses gestes les boutons (components/button). */
 .bon[data-hors] {
   flex: 0 1 240px;
@@ -110,51 +110,6 @@
   color: var(--bon-encre);
   border-top: 0;
   overflow-wrap: break-word;
-}
-/* Les captures d'un ticket d'interface : l'écran avant et après, côte à côte, chacun sous sa légende.
-   Une capture que la livraison ne porte pas garde sa place, et le dit ; une livraison qui ne les porte
-   pas toutes le dit en tête, en jaune, sur une ligne. */
-.bon div.captures {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--pas-2);
-  align-items: start;
-}
-.bon .captures figure {
-  display: flex;
-  flex-direction: column;
-  gap: var(--pas-1);
-  min-width: 0;
-  margin: 0;
-}
-.bon .captures img {
-  display: block;
-  width: 100%;
-  height: auto;
-  border: 1px solid var(--bon-trait);
-  border-radius: 0;
-}
-.bon .captures .place {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  aspect-ratio: 16 / 10;
-  font-size: var(--taille-meta);
-  font-style: italic;
-  color: var(--bon-discret);
-  border: 1px dashed var(--bon-trait);
-  border-radius: 0;
-}
-.bon .captures figcaption {
-  font-size: var(--taille-meta);
-  line-height: 1.35;
-  color: var(--bon-discret);
-}
-.bon p.captures-manquantes {
-  font-family: var(--police-interface);
-  font-weight: 600;
-  color: var(--bon-encre);
-  border-top: 2px solid var(--jaune);
 }
 .bon .confirmation {
   flex-direction: column;
