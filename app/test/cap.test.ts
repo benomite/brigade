@@ -74,7 +74,7 @@ describe("le plafond d'une station, tel que `status` le dit", () => {
 });
 
 describe("l'accueil pose le plafond sur la ligne de leur station", () => {
-  const vue = (name: string): StationVue => ({ id: "g1", nom: name, machine: "Linux", ton: "vert", dit: "online", pannes: [], etat: "en-ligne", version: "1.4.0", projets: ["brigade"], max: null, versionDit: "", ligne: "" }) as unknown as StationVue;
+  const vue = (name: string): StationVue => ({ id: "g1", nom: name, machine: "Linux", ton: "vert", dit: "online", etat: "en-ligne", version: "1.4.0", projets: ["brigade"], max: null, versionDit: "", ligne: "" }) as unknown as StationVue;
 
   test("la page peut régler une station dont un projet lu dit le plafond — et seulement celle-là", () => {
     const home = holdHome({ projets: () => [{ nom: "brigade", servi: true }], maintenant: () => Date.parse(A) });

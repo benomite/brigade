@@ -21,7 +21,7 @@ const SECOND: Terminal = { id: 1, projet: PARADE, genre: "second", titre: "secon
 const PROJECTS = [{ nom: PARADE, dossier: "/tmp/parade" }];
 // La station de cet ordinateur sert parade : sa carte, sur Stations, porte ses réglages (#3195).
 const A = "2026-11-11T10:00:00.000Z";
-const MACBOOK: StationVue = { id: "gmac", nom: "macbook", machine: "macOS 25.0.0", etat: "en-ligne", ligne: "online", pannes: [], dit: "online", version: "2.4.0", projets: [PARADE], max: "connectee" };
+const MACBOOK: StationVue = { id: "gmac", nom: "macbook", machine: "macOS 25.0.0", etat: "en-ligne", ligne: "online", dit: "online", version: "2.4.0", projets: [PARADE], max: "connectee" };
 const startup = () => ({
   stations: { a: A, stations: [MACBOOK] },
   projetsDesStations: { a: A, projets: [], locale: "gmac", recommandee: null, avertissements: {}, machines: {}, calibrage: calibrationRecommended([]) },
@@ -89,8 +89,6 @@ type Setting = { nom: string; bloc?: string; cle?: string };
 // Ceux d'une station sont dans « Details » de sa carte, sur Stations (#3195) : le clic qui ouvre le pli est le second.
 const SETTINGS: readonly Setting[] = [
   { nom: "local station settings", cle: "dossier" },
-  { nom: "duration caps", bloc: "plafonds-duree" },
-  { nom: "closer settings", bloc: "closer" },
   { nom: "project colors", cle: "couleurs" },
   { nom: "project label", cle: "sigle" },
 ];

@@ -34,7 +34,7 @@ const station = (id: string, name: string, projects: string[], state: StationVue
   machine,
   etat: state,
   ligne: "",
-  pannes: [],
+ 
   dit: state === "en-ligne" ? "online" : "offline for 3 h",
   version: "2.4.0",
   projets: projects,

@@ -21,7 +21,7 @@ const someFacts = (fields: Partial<Facts> = {}, counters: Partial<Facts["compteu
   cooks: [],
   attend: [],
   livres: [],
-  urgence: null,
+ 
   ...fields,
 });
 const cook = (ticket: number) => ({ ticket, titre: `ticket ${ticket}`, station: "box/claude" });

@@ -6,7 +6,6 @@ import { describe, test } from "node:test";
 import { forTheBar } from "../../../src/bar.ts";
 import { EXAMPLE } from "../../../src/config.ts";
 import { PALETTE } from "../../../src/colors.ts";
-import { holdBands } from "../../../src/alerts.ts";
 import { putAside } from "../../../src/awaiting.ts";
 import { BANNER, holdFacts, type Facts } from "../../../src/facts.ts";
 import { actionsOfCard } from "../../../src/card-actions.ts";
@@ -186,19 +185,4 @@ describe("le plan, colonne par colonne", () => {
     assert.equal(label(slip(column(rail, "Pass"), 33)), "mac");
   });
 
-});
-
-describe("le haut du rail, sous la bande", () => {
-  test("le disjoncteur ouvert n'est plus sur le rail : la bande de l'espace le dit — ", async () => {
-    const vue = await open({ geste: () => undefined });
-    await show(vue, { rail: [entry(21, "en attente")] });
-    const readOne = (command: string, text: string) => ({ projet: PARADE, demande: 1, a: A, sorties: [{ commande: command, texte: text }] });
-    const bands = holdBands({ etablir: 1, minimum: 0 });
-    bands.ouvrir([PARADE]);
-    bands.faits(readOne("facts", JSON.stringify(facts({ rail: [entry(21, "en attente")], etat: "retenue" }))));
-    vue.dire("surAlertes", bands.status(putAside(readOne("status", ["project    parade", "kitchen    held · breaker OPEN for 1 h 00 (3 failures in a row)", ""].join("\n")))));
-    await repos();
-    assert.match(vue.element("alertes").textContent, /breaker open/);
-    assert.doesNotMatch(vue.element("rail").textContent, /breaker open/);
-  });
 });

@@ -4,17 +4,11 @@ A window on the Mac: your projects in an icon bar, and in each one a real termin
 second runs. You no longer open a terminal, you no longer move into a folder.
 
 **The project's menu is five entries, Rail · Stations · Agents · Know-how · Settings** (#2485, #2921, #4224, #4505, #4570), next to the project name; **Rail is the
-tab opened by default**. **What the folded
-line `Caps, closer and all projects` held** (#2921, `app/src/vue/project/banner-health/`) — the duration caps (#2490), the
-closer (#2491), then the Cost row of all projects — has left the Rail tab (#3013) and the Stations tab: it is
-**a section of its own in Settings**, under the Kitchen group, titled `Caps, closer and all projects` and shown unfolded
-(#3014), with the same values, readings and actions. Settings opens over the middle as before. Each block is mounted in its own file under `app/src/vue/project/`
-(`stations/`, `bandeau-sante/`). **Stations says who cooks the project, whether it works, and how to change it** (#3195): one line at the top, one card per
+tab opened by default**. **Stations says who cooks the project, whether it works, and how to change it** (#3195): one line at the top, one card per
 station that serves the project, and the station choice — see "The Stations tab" below. Nothing else: **All stations**
 and `+ station`, which were under it since #2638, are back on the home, a block of their own (#3195).
 
-A stored "cooks" or "health" tab reopens on Rail. The alert line's
-"open Cooks" button opens Stations.
+A stored "cooks" or "health" tab reopens on Rail.
 
 What follows about the tabs (#1184) holds: only one is shown at a
 time: **Rail** says where the project stands and what you have to decide — what awaits you and its action, the
@@ -48,39 +42,14 @@ button, inactive while empty; what its comment says after the question heads the
 `details`. Every card closes on `ask the second`, a small underlined word set back under the field, never one of its
 choices. The modules are `app/src/card-todo.ts` and `app/src/vue/card-todo.js`. The card the old runtime handed in
 `attend[].carte` (its runtime prices, its captures, its single-gesture card with no question) is no longer read (#4508).
-**A kitchen held by its breaker is shown as one information line, from the head of Todo** (#2140, epic #2134, #3911): while the
-`kitchen` line of `status` says `breaker OPEN`, Todo opens on the breaker line — red, `breaker open: the latest launches
-failed in a row, no cook goes any more`, what the station writes on hover — with no button: the chef no longer resets the
-breaker, the station's supervisor re-runs the check that tripped it and closes it itself (#3911), and the station no longer
-files a breaker issue on GitHub. The line says the project's state, `held: breaker open — …`, in the same words on Home (the project's
-state, in place of `stuck` and `no manager takes`) and on Rail (#3602). On Rail the alert band does not repeat the line; on the other
-tabs, where there is no Todo, the band carries it (`app/src/vue/todo-breaker-line.js`). The phone has nothing to read it from, and
-shows no breaker line.
-**The main screen keeps only three things: the alert band, the rail and the terminals**; there is
+**The main screen keeps only two things: the rail and the terminals**; there is
 nothing at the bottom of the window. The rest is behind a tab, at the top, next to the name of the
 project: **Settings** (the state of the project, the backup and its age, the settings, the
 manager, the reliability of its cooks) — read for you, with nothing to type.
 Its page opens **over the rail**, and the rail comes back as you left it when you close it.
-**In the alert band, each alert is one line and one control** (#907): the line says what
-is wrong in one sentence, and its only button does the action (or writes the request into the second —
-"ask the second"). Nothing else is written flat. **The price is in the confirmation, on click**:
-an action that costs opens its confirmation under the line, which says its price in one line — a request to the
-second too (`ask the second…`: "ask the second to lift it", what lifting will cost, and `yes, write
-the request`, which writes it without sending it); an action without a price goes on click. **What the box says about it word
-for word** and the reason **are behind "detail"**, at the end of the line: one click unfolds them below,
-a second folds them back, and a re-read of the band does not fold them. The action itself is never
-written there — no command to copy and no instructions: the only action shown is the button of the line.
-**When GitHub limits the account's calls, every project of the account says it at once** (#2147): the box's `facts`
-carries a `github` entry `{limit, since, backAt}` (the runtime's contract, #2144), shared by every project of the
-account, and each project's band shows one yellow line — which limit in plain words, since when, back around what
-time, at your local time: `GitHub is rate-limiting calls: too many writes per minute, since 15:22, back around 15:54`
-(`the hourly quota is spent`, `too many requests at once` for the two others). GitHub's own name of the limit is behind
-"detail". Nothing is asked of you, so the line has no button; it leaves by itself at the first `facts` without the
-entry, with no reload. A limit name the app does not know still makes the line, without its plain words
-(`app/src/vue/banner-limit-github.ts`).
 **The project switch is no longer in the app** (#4681): the app has no switch at the head of the space and launches
 no `switch` command. It no longer reads whether the project is on or off either (#4682: the app launches no `manager`): the head of the rail
-carries no `project off` line, the band no "project switch" line, and the tile on the bar no off signal.
+carries no `project off` line, and the tile on the bar no off signal.
 **"All projects" is the overview of
 brigade**: one line per project, one per station, each with its pill and what is going on there in
 a few words, and one click opens it — you do not act there, you look, then go where it is decided.
@@ -1296,7 +1265,7 @@ The project's name is taken from its repository. A project the file would refuse
 check, the declared stations, the branch protection, the decisions) through the project's station; it launches none now, so
 the **Installation** block, its **Check** and the lines of what an installed project had lost (a station or a station action
 missing) are gone. What the chef still sees of a project's readiness is what GitHub and the kitchen's `facts` say: the
-repository setup (`page-project`), the stations of the Stations tab, the alerts band's other lines.
+repository setup (`page-project`), the stations of the Stations tab.
 
 ### Removing a project from the app
 
@@ -1438,10 +1407,8 @@ THIS COMPUTER'S STATION
   otherwise. **Grey** as long as nothing is read from it, or when nothing can be: a project that no station serves
   on this computer. Not read is never green.
 - **In All stations, on the home** (#3195), **one row per paired station**: its name, its dot, its state (`online`, or
-  `offline for 12 min`), what it is doing — its cooks in progress, `update failed`,
-  `Max connection lost`, or `idle` — and the projects it carries. Its machine (system, kernel) and its
-  version can only be read **on hover**. Dot **red** when its Max connection is lost,
-  **yellow** when an update failed, **green** online, **grey** offline
+  `offline for 12 min`), what it is doing — its cooks in progress, or `idle` — and the projects it carries. Its machine (system, kernel) and its
+  version can only be read **on hover**. Dot **green** online, **grey** offline
   or unreadable.
 - **A click anywhere on a row opens it**: the project's space, or the station's page
   (see "Your stations: paired by a code, read on GitHub"). **No row carries any
@@ -1472,35 +1439,13 @@ ticket that repairs it, the cause of a held kitchen, since when the oldest decis
 expiry of the Max token. The stations and their Max connection come from their gists,
 on GitHub. A `status` that the home no longer reads is dropped: the row says again what `facts` alone says of it.
 
-### Pass time
-
-*Ticket: #3512.* To know which stage of the pass costs the most before speeding it up, **a project's pass time** is a block of
-its `Caps, closer and all projects` section of Settings, right above its autonomy figures. It covers the deliveries merged in
-the **last 7 days**, each of their passes counted, sent back or not, as the station publishes them (`temps.passe`, never
-recomputed by the app):
-
-- **One line first: what weighs the most on the pass this week** — `CI waiting for runners: 62% of pass time · last 7 days,
-  12 deliveries, each of their passes counted`.
-- **One row per stage** — waiting for the pass, gates, review, CI, merge — **and per part of the CI** — waiting for
-  runners, running —, each with its median and p75 per delivery (`median 2 min · p75 5 min`); `none` when it lasted on
-  none; **`No measure yet.` when nothing measures it, never 0**.
-- Under them: the heaviest stage in total, the CI runs restarted because the branch moved (`no measure yet` when GitHub
-  was not read), and the deliveries sent back with the time of their passes sent back.
-
-With no delivery measured in the 7 days, the block says only `No measure yet. No delivery merged in the last 7 days has its
-pass measured.` How each stage is measured: "How long each stage of the pass takes" in [`runtime/README.md`](runtime/README.md).
-Captures (in git history): `docs/captures/3512/`.
-
-*Code: `app/src/vue/project/banner-health/PassTime.js`, `poserLeBandeauDeSante` in `app/src/vue/vue.js`. Test:
-`app/test/vue/project/time-of-the-pass.test.ts`.*
-
 ### Autonomy figures
 
 *Ticket: #3222, epic #3213.* Brigade's goal is autonomy (CLAUDE.md); **three figures say whether it holds**, over the
 **last 7 days** or the **last 30 days**, chosen by two buttons: **served without a human** — the share of the tickets merged
 in the period whose path from `fire` to merge never asked the chef anything (no TODO card, no `blocked-on-human`) —,
 **lead time** — the median time from `fire` to merge —, and **send-back rate** — the share of those deliveries the pass sent
-back at least once (sent back twice counts once). **A project's figures** are a block of its `Caps, closer and all projects`
+back at least once (sent back twice counts once). **A project's figures** are a block of the
 section of Settings, above the rows of all projects; **those of all projects together**, their tickets pooled, sit on the
 page that the "Autonomy" row of a project's health strip opens, in place of the home — "‹ All projects" brings you back. **"served with a human" unfolds the tickets that asked the chef something**, each with
 the question it asked and a button that opens its issue: each is a failure to fix. A period with no merged ticket says so
@@ -1695,7 +1640,7 @@ through Capacitor's native HTTP (`parCapacitor`). The reading is `app/src/read-g
   (`brigade.github.projets` in the app's storage): a relaunched app shows it before reading again.
 - **The rail and TODO of each project** are the desktop's own reading (`lireLeTableauDuDepot`, then
   `avecCeQuiAttendLeChef`, conditional reads where a 304 costs nothing), and what is done with it is what the desktop's
-  main process does — `facts` through `tenirFaits`, `status` through `mettreAPart` and `attendre`, the alert band, the
+  main process does — `facts` through `tenirFaits`, `status` through `mettreAPart` and `attendre`, the
   lines of "All projects", the cooks' activity and, in an open project's space, what is before the rail. A project on
   the phone shows the cards the desktop shows of the same project at the same reading.
 - **What does not read says so, never a blank screen.** Above the lines of "All projects", one sentence says what the
@@ -1902,46 +1847,9 @@ and the version of its machine are not written on the page: they are read on hov
   under the field, and nothing is written; when GitHub is what failed, what it answered is read on
   hover over that line.
 
-**When it breaks**, its line in All stations says so in one word (`update failed`, `Max connection lost`),
-and the fault is stated on the station's page, in one line, with a button — never a command to
-type (`app/src/outages/`, #798):
-
-```
-box   ·  (header: name, dot — the state is not repeated there)
-  offline for 12 min  [check again] ?
-
-box   online · no cook running
-  update to version 1.5.0 failed  [dismiss] ?
-  Max connection lost 12 min ago  [log in] ?
-```
-
-Each fault is **a single line** and **a single button**; the explanation ("box has given no sign
-of life…", "nothing cooks on box until you log in"), then what the button returned once
-clicked, are read only on hover over the "?". A fault that two causes describe (offline and no more
-sign of life) is stated only once: the page header does not repeat the state when the
-"offline for …" line is below it.
-
-- **Station unreachable**: no sign of life for ten minutes (a restart or an update
-  fits within that). "check again" re-reads GitHub right away: the app does not reach the
-  station, it checks whether it has spoken again.
-- **Update failed and rolled back**: the target version did not start, the station
-  stayed on its own; the next one will be tried alone. "dismiss" clears the line, as long as
-  the app is open. The reason for the failure is not stated here: it is in the projects' queue.
-- **Max connection lost**: nothing cooks on the station any more. "log in" runs `claude auth login`,
-  which opens the login page in your browser; the station sees the connection restored within
-  the minute, and the kitchen resumes on its own. **Only the station of this computer** reconnects
-  this way; on a server station the button says the login is done on the server itself. A server's logins, GitHub then
-  Max, are made by the one-line installer that `Add a server` shows and copies (see "Add a server, from the app" below);
-  rerun on a server where the station is already installed, the same line redoes only the Max connection
-  ([installation-station.md](installation-station.md), step 5).
-- What the app knows about it, the station publishes in its gist ([docs/runtime/](runtime/README.md), "Une
-  station par machine"): versions and dates, no reason and no command. An offline station
-  no longer states its connection — what it published before going silent is no longer reliable.
-
 **Its update line and its removal** (#880). Under the page header, a single line says
 where the station stands: `up to date · on this version for 3 days`. An offline station is not said
-to be up to date with anything: no line. A failed update is already stated by its fault: the line does not
-repeat it and does not say "up to date" on top of it, it keeps only `on this version for 3 days`.
+to be up to date with anything: no line. A failed update does not say "up to date": the line keeps only `on this version for 3 days`.
 The "since when" is not published by the station: the app deduces it from the moment it saw the station
 move to its version, and keeps it in `versions-vues.json`, next to `app.json`. It does not know
 since when a station has been on its version the first time it reads it: the line then says
@@ -2201,64 +2109,6 @@ station publishes in its tracking. Before any ticket of the chef is served it sa
 the final duration the station froze (« First ticket served 2 h 34 min after the project was added »), which a second
 served ticket does not change. The preparation ticket of the repository does not count. No `delai`, no line.
 Screenshots (in git history): `docs/captures/1401/`. The module is `app/src/vue/project/delay.js`.
-
-**Health strip: duration caps** (#2490, epic #2484), in the `Caps, closer and all projects` section of the project's
-Settings (#3014), then the closer's; they are read on GitHub when Settings opens, then at most once a minute while it stays open.
-**Duration caps** lists, with its current value and where it comes from, each cap above which the kitchen flags a drift:
-first the **lost time per ticket** (#2670's `lostTimeMaxMin`, the threshold on the median lost time of recent tickets,
-as the station publishes it), then the durations the
-repository declares — `drift.gatesSeconds` (100 s by default) —, then, folded behind one line
-("Other drift thresholds · 1 set in the repository"), every other `drift.*` threshold of `projet.json`. Each cap is one
-settings row (`composants/reglage`, #2920): no **save** — a `drift.*` field applies on its `change` (left, or Enter) when
-it changes the repository's value. Kept in the repository, its row says `a change opens a pull request, applied once merged`: the app proposes the change by a pull request, on GitHub, with the chef's `gh` token
-(`app/src/caps-duration.ts`, `proposerLeFichier`: the file is read again on the integration branch — the repository's
-default branch when the project does not name one — for its `sha`, only `drift.<key>` changes, a missing file is created
-with `version` and `integrationBranch`; a new branch `brigade/setting-…` starts from the integration branch's head, the
-file is written on it, and the PR opens towards the integration branch). While it runs the row says `opening the pull
-request…`; then `150 s proposed in` and a `pull request #<n>` link that opens it in the browser. The value shown stays
-the one in force: the runtime reads the new one at its next fetch once the PR is merged.
-An empty field proposes the cap's removal (`removal proposed in`). A value the runtime would refuse (zero, a fraction for
-a whole threshold) proposes nothing and says so under the field, what was typed staying in it; a step GitHub refuses
-(reading the branch head, creating the branch, writing the file, opening the PR) is the error line `nothing was proposed`,
-its detail on hover — nothing claims success.
-**The lost-time threshold is not editable here yet**: `lostTimeMaxMin` is not a `drift.*` threshold, the only keys this
-block writes, and the station reads it from its clone's working tree — its row says so, the reason on hover. The caps
-are edited nowhere else in the project view. Screenshots (in git history): `docs/captures/2490/`. Module:
-`app/src/vue/project/banner-health/DurationCaps.js`.
-
-**Health strip: the closer** (#2491, epic #2484). Under the duration caps, the **Closer** block, in four parts, all
-read on the project's integration branch, on GitHub, with the chef's `gh` token (`app/src/closer-health.ts`) — when Health
-opens, then at most once a minute while it stays open; each part that fails to read is one line, its detail on hover, and
-does not take the others along.
-**What it did**: its last 5 passes, newest first. A pass is a closing issue the runtime opened (`fire`, titled `Closing
-pass on …`, its body marked `<!-- brigade:fermeture sha=… -->` by a trusted author — see `docs/runtime/README.md`,
-"On GitHub, the only path"); its PR merged — the PR of its cook's branch (`cook/<n>-github`) —, it says `its PR merged`:
-the lines it removed are not shown. Otherwise the row says why nothing was removed — `in progress — not cooked yet`, `in progress — its PR is in
-the pass`, `nothing removed` (closed with no PR, or its PR closed without a merge). The issue number and the PR open in the
-browser. No pass yet: `No closing pass yet on this project`, when one is opened on hover.
-**What it checks first**: what the latest pass handed it, on this project — the dead code (`3 exports referenced nowhere,
-or by tests only`), the duplicates, the drift of the latest merges (its longest window; the others on hover) and the
-ticket times (`stable since the previous pass`, or the drift found and its correction ticket) — then, folded behind one
-line (`Candidates · 5 handed to pass #2531 on 9f3c2a1`), each candidate under its pass name.
-**Extra checks**: what the chef asks the closer to check in addition, one per line, each with **remove**; a field and
-**add** (recommended, enabled once something is typed; Enter adds too). Kept in **`.claude/brigade/closer-checks.md`**, the
-part says `a change opens a pull request, applied once merged`: adding or removing one is
-proposed by a pull request towards the integration branch (`proposerLeFichier` with that path — the file created when
-missing, a check already there not doubled, `unchanged` said instead). While it runs the part says `opening the pull
-request…`; then `the check “…” proposed in` (or `the removal of “…” proposed in`) and a `pull request #<n>` link that opens
-it. The list shown stays the one in force on the integration branch until the PR is merged; a step GitHub refuses is the
-error line `nothing was proposed`, its detail on hover. **The runtime does not copy these checks into a pass's issue yet**: they wait in
-the repository until it does (the `?` says so).
-**Settings**: the closer's four settings of `closer.*` in `.claude/brigade/projet.json` — its **calibration** (a model and an
-effort, applied together on the `change` of either list once both are chosen; one without the other proposes nothing; both
-emptied, its removal is proposed), its **start condition** (`cooksBelow`, `none in flight` for 1), its **tokens cap** and its
-**removed lines cap** —, each a settings row with its value, where it comes from (`in the repository`, `the station's, or
-500 lines`) and a control that applies on `change`, with no **save**, as a duration cap: only `closer.<key>` changes, by a
-pull request towards the integration branch, which the row announces and then links (`opus / high proposed in` `pull
-request #<n>`); the runtime reads it at its next fetch once merged, a value it would refuse proposes nothing and says so. The closer on GitHub reads only the calibration and
-the removed lines cap: the two others say `not read on GitHub yet`, the reason on hover. Settings still carries its
-closer rows, which propose the same keys by a pull request (#1685). Screenshots (in git history): `docs/captures/2491/`. Module:
-`app/src/vue/project/banner-health/Closer.js`.
 
 **The project know-how** (#4239, epic #4135; its own tab since #4570, below). The **Project know-how** block: the entries of
 `.brigade/know-how.md` (the file each cook reads first and adds to, `agents/cook.md`), read on the project's integration
@@ -2703,19 +2553,12 @@ own, in one card titled `project`.
 - `Menu bar` (`Notification area` on Windows): whether the kitchen's state shows there — a `you` row that holds for the
   whole app, the same in every project's Settings (see "The kitchen's state in the menu bar and the notification area").
 
-Under these, a section of its own, **`Caps, closer and all projects`** (#3014): the duration caps, the closer and the
-autonomy figures, with the Autonomy row of all projects, as the folded line at the top of the Rail tab, then of the Stations tab, showed
-them — same values, same readings, same actions (see "Health strip: duration caps" and the closer's). The closer's last
-passes, which it shows with its settings, are the one reading laid in Settings.
-
 **Every setting is one line**, the same everywhere (`app/src/vue/components/setting/`, #2920): its name, its value in
 force, and **one** control to change it — a field, a pair of lists, a switch, a checkbox, a number, a palette, a button.
 The control applies as soon as it changes, with no Save button; a setting kept in the project's repository opens a pull
 request when it changes, and its row says so in one line (`a change opens a pull request, applied once merged`). What the control opened or returned — a confirmation, a refusal — is laid under the row. Nothing else is laid in Settings: no statistic, no history, no reading's
 text, no explanatory paragraph — what a setting implies is on hover of its value. A group with nothing to set says so in
 one line.
-
-An alert-band line whose cause is fixed on the Stations tab leads to it in one click.
 
 **The project's settings are no longer in Settings** (#4680, epic #4673). The app launches no old-runtime `setting`, `humans` or `contributor-stations` command: the project's integration branch, calibrations, ceiling and closer rows, the humans section and the contributor stations block are gone from the **project** group, and so are their bridge methods. The project's settings live in `.claude/brigade/projet.json` and change by a pull request on GitHub (`docs/reglages.md`); the duration caps and the closer are changed on Kitchen > Health, on GitHub too.
 
@@ -2738,7 +2581,7 @@ Cooks, Pass and Served (#4238), all on Rail. **The space opens with no page**: t
 tab has the whole center, over its full height. **A page opens over the rail**: it covers it entirely, without undoing it —
 it stays laid underneath, and re-read, but nothing of it can be clicked through, and nothing of it — not even its sticky
 column heads — shows through. Clicking the tab again closes the page, and **the rail comes back as you left it**,
-scrolled where it was. The alert band, above, stays visible: no page covers it, nor do the terminals, on the right.
+scrolled where it was. The terminals, on the right, stay visible: no page covers them.
 
 No **content reading** remains: the Log reading, the last command the app ran through the station to show a page, is gone (#4678). Settings is the only page; the app runs `status` for the project and `facts` for **all** projects whatever the screen: it is what the bar draws.
 
@@ -3008,9 +2851,9 @@ replaces the fault banners**: on one line (#4354), a small card for the supervis
 the name and two or three words: `ok`, or `alert: #N` in red when the kitchen opened an issue on itself; `tidied 2 h
 ago`, or `no tidy yet`. A click on a card unfolds its detail under the line — what the
 agent does, its last action and its time —; a second click folds it. When the team is read, the supervisor's and the
-closer's badges stand at the top of the view instead, and the band has no card for them (#4029). Under the line, at
+closer's badges stand at the top of the view instead, with no card for them (#4029). Under the line, at
 most one message, the
-first cause that offers the chef an action: a message with none is not shown (the breaker line); a stale reading reads
+first cause that offers the chef an action: a message with none is not shown; a stale reading reads
 again; the line of an issue the kitchen opened on itself opens that issue. Where the paragraphs below
 speak of On the rail, Taken or Waiting, read: Backlog, Cooks, and the column where the parked card waits. Captures (in git history):
 `docs/captures/4238/`.
@@ -3041,8 +2884,7 @@ is not red (#4261). The main process still files what awaits you in one list (`A
 is all: nothing to click. The count of what awaits the chef stays on the home (`N awaiting you` on a
 project's line, the count of the red cards once its rail is read; before that, the count the main process reads in
 `facts`). **What awaits you without being a ticket of the rail is under the columns, outside them**: the repository not set
-up for Brigade, an answer kept from a card that left meanwhile, then **Awaiting others (N)**, folded; the breaker line and
-its `Resume` is the status line (below), and the project switched off is too (#3454). The phone draws the same rail: no TODO
+up for Brigade, an answer kept from a card that left meanwhile, then **Awaiting others (N)**, folded. The phone draws the same rail: no TODO
 column, the red cards in their stage. Captures (in git history): `docs/captures/3458/`. Where the sections below still speak of the Awaiting
 you (Todo) column, read: the red cards, in the column of their stage.
 
@@ -3398,8 +3240,7 @@ The kanban starts right under the tabs. Above its columns, the Rail tab shows **
 
 - **One line**: the supervisor's and the closer's cards (see "the top band" above); when the team is read, its badges, one line too, stand at the top of the view instead of the two cards.
 - **The TODO line**, only when something waits for the chef: `2 wait for you`, its entries on click (above).
-- **One status line, only when something holds the kitchen**, the first of these causes, never two stacked: the breaker
-  line (#2140); an issue the kitchen filed about itself (`Kitchen idle: …`); a
+- **One status line, only when something holds the kitchen**, the first of these causes, never two stacked: an issue the kitchen filed about itself (`Kitchen idle: …`); a
   stale or offline reading.
 
 - **A kitchen-filed issue is never a need.** `The kitchen is idle: …` (`app/src/upstream.ts`, `alerteDeLaCuisine`) is
@@ -3482,22 +3323,7 @@ left aside.
 
 ### A box that does not answer at all (#728)
 
-A mute box makes everything the app reads from it fail at once: the manager, the version, the kitchen.
-The app does not make three "unchecked" alerts of it, each with an action that changes
-nothing: **after two failed readings of `facts` in a row** (`LECTURES_POUR_INJOIGNABLE`) — the box
-not reached, not the command failing —, **the band says only one line**:
-
-> station unreachable since 03:27, 4 h 45 ago — the state of the kitchen has been unknown since then
-
-**The project page says it only once (#1078)**, at the top, with what the chef can do about it, in
-plain words under the line: check that the machine is on and reachable, restart it if it no longer
-answers, then "try again" (its button rereads the box right away). The cause in plain words
-(no answer, connection refused, address not found — said from what the command wrote) is
-behind "detail". The line goes away as soon as a reading succeeds, without restarting the app. A single
-failed reading does not set it.
-
-- **The project's pill** says the same thing in one word, `unreachable`, and the bar's box carries a `×`.
-  The project's station tag beside the Stations tab is no longer green: it is red, `unreachable`.
+A mute box makes everything the app reads from it fail at once: the manager, the version, the kitchen. After two failed readings of `facts` in a row (the box not reached, not the command failing), the rail keeps its last reading and says nothing more about it.
 - **The rail's columns** show no "0": each carries `?` and says "not known while the
   station is unreachable". Nothing else of the rail is laid down (not upstream). A reached box that does not
   return the shape of `facts` is not this case: the rail is not drawn, as above.
@@ -3518,8 +3344,7 @@ limit), and the app then:
   are kept in the main process too (`faits.ts`, `tenirFaits`), so a card's sheet and its addresses still open;
 - says it with **one discreet sign** at the top of the rail, in place of the "up to date N min ago" note: `offline since
   1:35 PM` — the time of the first reading of the series that did not reach GitHub. The sign itself does not move;
-- puts **nothing in the band**: no "not verified" line, no "open Settings", no signal on the project's box in the bar
-  (`alertes.ts`, `tenirBandes`); the project switch keeps the state last read. Upstream says nothing either;
+- says nothing more: no "not verified" line, no signal on the project's box in the bar. Upstream says nothing either;
 - with nothing read before (offline from the start), shows the sign alone — no "first read in progress", no error, no
   empty rail.
 
@@ -3538,7 +3363,6 @@ says nothing about the network: it neither sets nor lifts the offline state.
 Wherever the app shows a failure, a discreet **report to brigade** button follows it — never in front of the action that
 repairs it. Its hover says what it does. It is on:
 
-- **a station in fault**, on its page: after each fault line (offline, update failed, Max connection lost);
 - **a card set aside** (`86`) — a reason that is brigade's. A delivery that awaits the chef is the project's business,
   and carries none;
 - **an error line**: a reading of the station that failed (`the station did not answer`…).
@@ -4077,28 +3901,6 @@ cache (`~/Library/Caches/electron`) weighs 129 MB, once.
   reads at launch and on return, and renders a number.
 - Say the lag of the clone of a project that is not a clone of brigade, or compare the version of
   the plugin installed on your side with the published one.
-
-## The band does not flicker (#721)
-
-The band says only what is established. A read in progress shows nothing ("first read in progress"
-is never shown); a "not verified" line appears only if the read it comes from has failed **twice in
-a row** (`LECTURES_POUR_ETABLIR`) — a read that fails and then succeeds on the next round shows
-nothing, an unreachable box is reported once and stays. The count is that of **this read alone**:
-for a subject read by two sources (the kitchen, the station, the box), the other source's receipts
-neither establish it nor undo it (#746). A line that has been shown stays at least
-`AFFICHAGE_MINIMUM` (20 s); it leaves at the first receipt that follows, `facts` being read again
-every 30 s. A verified alert, read from a successful read, is shown right away. Identical content
-from one read to the next does not redraw the band. The two thresholds are constants of
-`app/src/alerts.ts`.
-
-## A failing renewal is reported before the deadline (#760)
-
-When the renewal of the Max session fails **two rounds in a row** (`ECHECS_POUR_ALERTER`, in
-`app/src/alerts.ts`), the band of an installed project says "Max renewal failing", with the cause
-the box gives (the `renouvellement` line of `installation`, which the runtime's probe writes). A
-single failure says nothing. The line stays as long as the check (read again every 5 min) reports
-the failure, and goes away on the first successful round. A session that has already dropped
-reports itself through the disconnected station.
 
 ### The Help menu: GitHub Discussions (#3258)
 

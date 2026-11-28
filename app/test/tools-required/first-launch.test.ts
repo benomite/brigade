@@ -1,6 +1,5 @@
 // Les outils requis dans la vue jouée (#4059) : le premier lancement les vérifie d'abord — un outil qui manque prend la
 // place du compte, la connexion ne tourne pas, l'ouverture d'un projet attend et repart une fois l'outil installé —, et
-// le login Max sans Claude Code montre son écran dans l'avis.
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Home } from "../../src/home.ts";
@@ -11,7 +10,6 @@ import { BANNER } from "../../src/facts.ts";
 import { TABS, HEADINGS } from "../../src/tabs.ts";
 import type { ToolMissing, ToolRequired } from "../../src/tools-required.ts";
 import type { StationsOfChef } from "../../src/first-launch.ts";
-import type { Outage } from "../../src/outages/outages.ts";
 import { EFFORTS, MODELS } from "../../src/projects/projects.ts";
 import type { StationVue } from "../../src/stations/stations.ts";
 import { ITSELF_CONNECT } from "../../src/vue/journey-project/account.js";
@@ -109,48 +107,4 @@ test("sans git, l'ouverture d'un projet attend son écran, puis repart d'elle-m�
   button(all(vue), ALREADY_INSTALLS).click();
   await repos();
   assert.deepEqual(calls(vue, "ouvrirDUneStation").map(({ args }) => args.slice(0, 2)), [["parade", "chef/parade"]]);
-});
-
-const CONNECTION: Outage = { cle: "connexion-max:2026-10-15T11:48:00.000Z", sujet: "connexion-max", ligne: "Max connection lost 12 min ago", survol: "nothing cooks on box until you log in", bouton: { libelle: "log in", geste: "login" } };
-const BOX: StationVue = { id: "g1", nom: "box", machine: "macOS 26", etat: "en-ligne", ligne: "online · no project", pannes: [CONNECTION], dit: "online", version: "1.4.0", projets: [], max: "perdue" };
-const HOME: Home = { projets: [], stations: [{ id: "g1", nom: "box", ton: "rouge", dit: "online · Max connection lost", phrase: "online · no cook running", survol: "macOS 26" }], sante: { ton: "rouge", dit: "Max: connection lost on box", survol: "" } };
-
-test("le login Max sans Claude Code : l'écran de l'outil manquant s'ouvre dans l'avis, et se referme une fois installé", async () => {
-  let lack: ToolMissing[] = [missing("claude")];
-  const vue = await playTheVue({
-    demarrage: () => ({ ...base(), configuration: forTheBar({ chemin: "/tmp/app.json", projets: [{ nom: "parade", dossier: "/tmp/parade" }] }, () => true), stations: { a: "2026-10-15T12:00:00.000Z", stations: [BOX] }, accueil: HOME }),
-    panne: () => ({ outilManquant: "claude", refus: "the login was not launched: Claude Code is not installed on this computer" }),
-    outilsManquants: () => lack,
-    espace: () => [],
-  });
-  await openAllTheStations(vue);
-  (vue.element("toutes-les-stations").dessous("button").find(({ className }) => className === "ligne") ?? assert.fail("pas de ligne de station")).click();
-  await repos();
-  const opinion = vue.element("avis");
-  assert.equal(opinion.hidden, true);
-  button(vue.element("station"), "log in").click();
-  await repos();
-  assert.deepEqual(calls(vue, "outilsManquants").at(-1)?.args, [["claude"]]);
-  assert.equal(opinion.hidden, false);
-  assert.equal(toolMissing(opinion)?.dataset.outil, "claude");
-  assert.match(opinion.textContent, /Claude Code is not installed on this computer/);
-  lack = [];
-  button(opinion, ALREADY_INSTALLS).click();
-  await repos();
-  assert.equal(opinion.hidden, true);
-  // Un login qui part ne l'ouvre pas.
-  lack = [missing("claude")];
-  const other = await playTheVue({
-    demarrage: () => ({ ...base(), configuration: forTheBar({ chemin: "/tmp/app.json", projets: [{ nom: "parade", dossier: "/tmp/parade" }] }, () => true), stations: { a: "2026-10-15T12:00:00.000Z", stations: [BOX] }, accueil: HOME }),
-    panne: () => ({ fait: "the login page opens in your browser" }),
-    outilsManquants: () => lack,
-    espace: () => [],
-  });
-  await openAllTheStations(other);
-  (other.element("toutes-les-stations").dessous("button").find(({ className }) => className === "ligne") ?? assert.fail("pas de ligne de station")).click();
-  await repos();
-  button(other.element("station"), "log in").click();
-  await repos();
-  assert.equal(calls(other, "outilsManquants").length, 0);
-  assert.equal(other.element("avis").hidden, true);
 });

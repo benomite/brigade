@@ -274,9 +274,9 @@ describe("le menu de la page d'un projet (#2485, #2921)", () => {
 
     (tabs(vue).find((tab) => tab.textContent === "Settings") ?? assert.fail("pas d'entrée Settings")).click();
     await repos();
-    // Leur section de Settings : les plafonds, le closer, puis les lignes « Cost » et « Closer » de tous les projets (#2638).
+    // Leur section de Settings : les chiffres d'autonomie, puis les lignes de tous les projets (#2638).
     assert.equal(vue.element("etat").hidden, false);
-    assert.deepEqual(blocksOfBanner(vue), ["plafonds-duree", "closer", "temps-de-la-passe", "chiffres-autonomie", "post-mortems", "de-tous-les-projets"]);
+    assert.deepEqual(blocksOfBanner(vue), ["chiffres-autonomie", "de-tous-les-projets"]);
 
     await openTab(vue, "Rail");
     assert.equal(vue.element("etat").hidden, true);

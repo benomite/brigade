@@ -5,9 +5,9 @@ import type { StationVue, SeenOfStations } from "../../../app/src/stations/stati
 import { configuration, cuisine, demarrage, type Ecran, MAINTENANT } from "./commun.ts";
 import { PROJETS, RENDUS } from "./cuisine-figee.ts";
 
-const BOX: StationVue = { id: "box", nom: "box", machine: "Debian 12 · 8 cores", coeurs: 8, etat: "en-ligne", ligne: "online · 1 project: cantine", pannes: [], dit: "online", version: "", projets: ["cantine"], max: null };
-const MAC: StationVue = { id: "macbook", nom: "macbook", machine: "macOS 15 · 10 cores", coeurs: 10, etat: "hors-ligne", ligne: "offline for 12 min · 1 project: cantine", pannes: [], dit: "offline for 12 min", version: "", projets: ["cantine"], max: null };
-const NAS: StationVue = { id: "nas", nom: "nas", machine: "Debian 12 · 4 cores", coeurs: 4, etat: "en-ligne", ligne: "online · no project", pannes: [], dit: "online", version: "", projets: [], max: null };
+const BOX: StationVue = { id: "box", nom: "box", machine: "Debian 12 · 8 cores", coeurs: 8, etat: "en-ligne", ligne: "online · 1 project: cantine", dit: "online", version: "", projets: ["cantine"], max: null };
+const MAC: StationVue = { id: "macbook", nom: "macbook", machine: "macOS 15 · 10 cores", coeurs: 10, etat: "hors-ligne", ligne: "offline for 12 min · 1 project: cantine", dit: "offline for 12 min", version: "", projets: ["cantine"], max: null };
+const NAS: StationVue = { id: "nas", nom: "nas", machine: "Debian 12 · 4 cores", coeurs: 4, etat: "en-ligne", ligne: "online · no project", dit: "online", version: "", projets: [], max: null };
 const STATIONS: SeenOfStations = { a: MAINTENANT, stations: [BOX, MAC, NAS] };
 
 export const ecran: Ecran = {

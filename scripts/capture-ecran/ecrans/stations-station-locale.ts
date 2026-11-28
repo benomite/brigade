@@ -4,7 +4,6 @@
 // appairés (#2500). La box, l'autre station, n'y a rien.
 import type { Facts } from "../../../app/src/facts.ts";
 import type { Block, FactsStation } from "../../../app/src/ordinary.ts";
-import type { Outage } from "../../../app/src/outages/outages.ts";
 import type { SeenOfProjects } from "../../../app/src/projects/projects.ts";
 import type { StationsRead } from "../../../app/src/service.ts";
 import type { StationVue, SeenOfStations } from "../../../app/src/stations/stations.ts";
@@ -24,12 +23,12 @@ const EXPLICATION = "Cooks on this Mac run in Claude Code's sandbox: they write 
 
 // L'écran, selon ce que la station de ce Mac publie et ce que ses lectures rendent. La box, l'autre station, a perdu sa
 // connexion : rien d'elle ne se lit dans le bloc.
-export function ecranDeLaStationLocale({ dit, max, pannes, ordinaires }: { dit: string; max: StationVue["max"]; pannes: Outage[]; ordinaires: Block }): Ecran {
+export function ecranDeLaStationLocale({ dit, max, ordinaires }: { dit: string; max: StationVue["max"]; ordinaires: Block }): Ecran {
   const stations: SeenOfStations = {
     a: MAINTENANT,
     stations: [
-      { id: "macbook", nom: "macbook", machine: "macOS 15 · 10 cores", etat: "en-ligne", ligne: "online · 1 project: parade", pannes, dit: "online", version: "", projets: ["parade"], max },
-      { id: "box", nom: "box", machine: "Debian 12 · 8 cores", etat: "en-ligne", ligne: "online · 1 project: cantine", pannes: [], dit: "online", version: "", projets: ["cantine"], max: "perdue" },
+      { id: "macbook", nom: "macbook", machine: "macOS 15 · 10 cores", etat: "en-ligne", ligne: "online · 1 project: parade", dit: "online", version: "", projets: ["parade"], max },
+      { id: "box", nom: "box", machine: "Debian 12 · 8 cores", etat: "en-ligne", ligne: "online · 1 project: cantine", dit: "online", version: "", projets: ["cantine"], max: "perdue" },
     ],
   };
   return {
@@ -55,6 +54,5 @@ export function ecranDeLaStationLocale({ dit, max, pannes, ordinaires }: { dit: 
 export const ecran = ecranDeLaStationLocale({
   dit: "L'onglet Stations de « parade », qui cuit sur ce Mac (#2489) : le bloc de la station de cet ordinateur — ses dossiers, son bac à sable, sa connexion à Claude",
   max: "connectee",
-  pannes: [],
   ordinaires: { reglable: true, actif: true, limite: 2, explication: EXPLICATION },
 });

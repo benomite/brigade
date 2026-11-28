@@ -21,7 +21,7 @@
 // Et, connecté, les projets du chef, le rail et TODO de chacun, lus sur GitHub seul (le ticket 2501) : `demarrage`,
 // `faits`, `tous`, `regarder` et `relireBox` passent par la lecture d'app/src/read-github-phone.ts — celle du
 // desktop, avec le jeton du coffre, par le HTTP natif de Capacitor, à l'API de GitHub et nulle part ailleurs —, et ce qui
-// en sort arrive à la vue par ses abonnements (`surConfiguration`, `surFaits`, `surAlertes`, `surAccueil`, `surActivites`,
+// en sort arrive à la vue par ses abonnements (`surConfiguration`, `surFaits`, `surAccueil`, `surActivites`,
 // `surAmont`, `surTelephone`), tel que le process principal du desktop l'enverrait. La construction pose ce module à côté
 // de la vue (www/src/lecture-github-telephone.js), chargé à la première lecture. Les projets de la dernière liste lue
 // sont gardés : relancée, l'app les montre avant de relire. Aucune station n'est lue : pas connecté, le téléphone ne lit

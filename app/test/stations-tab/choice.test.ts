@@ -28,7 +28,7 @@ const recordedOne = (id: string, name: string, available: boolean, platform = "l
   available,
   selection: [],
 });
-const vue = (id: string, name: string, state: StationVue["etat"], machine: string): StationVue => ({ id, nom: name, machine, etat: state, ligne: "", pannes: [], dit: state === "en-ligne" ? "online" : "offline for 22 min", version: "2.4.0", projets: [], max: null });
+const vue = (id: string, name: string, state: StationVue["etat"], machine: string): StationVue => ({ id, nom: name, machine, etat: state, ligne: "", dit: state === "en-ligne" ? "online" : "offline for 22 min", version: "2.4.0", projets: [], max: null });
 
 describe("le choix de station, une seule pièce (#3195)", () => {
   test("la question « who cooks it » d'un projet pas encore prêt (#3166) pose exactement la liste du choix de l'onglet", () => {

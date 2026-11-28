@@ -1,6 +1,5 @@
 // Ce que le process principal offre à la vue (preload.cjs).
 import type { Home } from "../home.ts";
-import type { Band } from "../alerts.ts";
 import type { Seen as SeenUpstream } from "../upstream.ts";
 import type { Shown } from "../bar.ts";
 import type { Reading } from "../box.ts";
@@ -9,7 +8,6 @@ import type { BANNER, Drawable } from "../facts.ts";
 import type { ACTIONS_OF_WAIT, Input as InputOfWait } from "../wait.ts";
 import type { Tab, Heading } from "../tabs.ts";
 import type { Block } from "../ordinary.ts";
-import type { RenderedOfOutage } from "../outages/actions.ts";
 import type { StateOfUpdate } from "../update/state.ts";
 import type { Opinion as OpinionOfVersion } from "../update/opinion.ts";
 import type { Read as QuestionRead, Rendered as AnswerRendered } from "../question.ts";
@@ -121,11 +119,6 @@ export type Bridge = {
   // `vu` : l'adresse du dernier commentaire montré sous elle, vide s'il n'y en avait pas — rien ne part
   // si quelque chose y a été écrit depuis.
   repondreQuestion(project: string, ticket: number, answer: { question: string; vu: string; choix: string } | { question: string; vu: string; texte: string }): Promise<AnswerRendered>;
-  // Une ligne de la bande d'alertes dont le geste demande du jugement (alerts.ts, `{ demande: true }`) :
-  // une demande en prose est écrite dans le second, sans Entrée. La vue nomme le projet, le sujet
-  // de la ligne et ce qu'elle dit ; la phrase vient de ce que la bande en dit. Rien pour une ligne
-  // qu'elle ne dit plus.
-  demanderAlerte(project: string, subject: string, said: string): Promise<Terminal | { refus: string } | undefined>;
   // Un geste de WAITING (wait.ts), sur la carte d'un ticket ou sa fiche : sa commande part dans le second du
   // projet, comme un geste du socle, quand sa cuisine tourne sur ce poste — sinon il s'écrit sur l'issue
   // (vue/wait/wait-github.ts, ticket 3075). `saisie` : ce que le chef a rempli pour « waiting for… » — ce
@@ -235,27 +228,14 @@ export type Bridge = {
   // Ouvre dans le navigateur une page où autoriser brigade sur GitHub — une de celles qu'une station a publiées —,
   // ou une page que le parcours d'un projet neuf montre (ticket 1111) : son geste, son ticket de préparation, sa PR.
   autoriserSurGitHub(url: string): Promise<boolean>;
-  // Le bouton d'une panne, sur la ligne d'une station (outages/actions.ts) : relire GitHub, écarter la
-  // ligne, lancer le login. Rend ce qu'il a fait, ou pourquoi rien, en une ligne.
-  panne(id: string, key: string): Promise<RenderedOfOutage>;
+  // « check again » d'une station qui ne cuit pas encore : GitHub est relu tout de suite (stations/stations.ts).
+  relireLesStations(): Promise<void>;
   ouvrirLaProposition(url: string): Promise<boolean>;
   // La fiche du projet, sous Settings (ticket 4240) : un fichier du projet, le chemin relatif à son dossier — seul
   // `.brigade/fiche-projet.json` (card-project/card-project-folder.ts). `null` : il n'y est pas. Optionnels : un pont qui
   // ne les porte pas (le téléphone) ne montre pas la section.
   lireUnFichierDuProjet?(project: string, path: string): Promise<string | null>;
   ecrireUnFichierDuProjet?(project: string, path: string, text: string): Promise<void>;
-  // Les plafonds de durée du projet, sur Kitchen > Health (ticket 2490) : les seuils `drift.*` que son dépôt déclare
-  // (`.claude/brigade/projet.json`), lus sur sa branche d'intégration, sur GitHub, et changés par une pull request vers elle
-  // (ticket 2920, caps-duration.ts) : la PR rendue s'ouvre par `ouvrirLaProposition`.
-  plafondsDuree(project: string): Promise<import("../caps-duration.ts").ReadOfCaps>;
-  changerPlafondDuree(project: string, key: string, input: string): Promise<import("../caps-duration.ts").RenderedOfCap>;
-  // Le closer du projet, sur Kitchen > Health (ticket 2491) : ses passes et ce que chacune a retiré, ce que la dernière lui
-  // a remis, ses vérifications en plus (`.claude/brigade/closer-checks.md`) et ses réglages (`closer.*` de
-  // `.claude/brigade/projet.json`), lus sur sa branche d'intégration, sur GitHub (closer-health.ts). Un réglage changé
-  // ou une vérification ajoutée ou retirée s'y proposent par une pull request (ticket 2920), qui s'ouvre par `ouvrirLaProposition`.
-  closerDeSante(project: string): Promise<import("../closer-health.ts").ReadOfCloser>;
-  changerReglageDuCloser(project: string, key: string, input: string | { model: string; effort: string }): Promise<import("../closer-health.ts").RenderedOfSetting>;
-  changerVerificationDuCloser(project: string, action: "ajouter" | "retirer", input: string): Promise<import("../closer-health.ts").RenderedOfVerifications>;
   savoirDuProjet(project: string): Promise<import("./know-how/know-how-github.ts").ReadOfKnowledge>;
   changerLeSavoir(project: string, change: import("./know-how/know-how-github.ts").ChangeOfKnowledge): Promise<import("./know-how/know-how-github.ts").RenderedOfKnowledge>;
   // « Retirer la station », confirmé : son appairage est ôté de son gist (stations/stations.ts) ; la station n'est plus lue.
@@ -281,9 +261,6 @@ export type Bridge = {
   // rien n'est parti. Sa fin arrive par `surConnexionGitHub`. Sur le téléphone (le ticket 2500), le pont la mène
   // lui-même avec GitHub, sans station : le jeton qu'elle rend reste dans son coffre, et la vue ne le voit jamais.
   seConnecterAGitHub?(): Promise<StartOfConnection>;
-  // Le login de Claude Code sur cet ordinateur (ticket 4057, outages/login.ts), quand l'ouverture d'un projet le demande :
-  // ce qu'il a fait, ou pourquoi rien. Sa fin arrive par `surLoginClaude`.
-  seConnecterAClaude?(): Promise<RenderedOfOutage>;
   // Les outils que l'app ne livre pas (ticket 4059, tools-required.ts) : ceux de `outils` — les trois, sans liste — qui
   // manquent à cet ordinateur, chacun avec le lien de sa page d'installation.
   outilsManquants?(tools?: ("gh" | "git" | "claude")[]): Promise<import("../tools-required.ts").ToolMissing[]>;
@@ -323,7 +300,6 @@ export type Bridge = {
   // en cuisine avec un commentaire — la commande `design` du runtime, jouée par le process principal ; sur le téléphone, écrit
   // sur GitHub (actions-github-phone.ts). Rien pour un projet inconnu.
   gesteDeValidation(project: string, ticket: number, action: import("./validation-design/validation-design-github.ts").ActionOfValidation): Promise<import("./validation-design/validation-design-github.ts").RenderedOfValidation | undefined>;
-  ouvrirBilan(project: string, url: string): Promise<boolean>;
   // Un lien de la ligne d'un projet en lecture seule (ticket 3163, vue/read-only/) : comment obtenir l'écriture sur son
   // dépôt, ou le forker — ouvert pour le seul dépôt que la dernière lecture dit en lecture seule (read-only.ts).
   ouvrirLectureSeule?(project: string, page: import("../read-only.ts").PageOfTheReadOnly): Promise<boolean>;
@@ -365,12 +341,8 @@ export type Bridge = {
   // Un essai du projet nommé a changé : la vue relit `essais`.
   surEssais(receive: (project: string) => void): void;
   surFaits(receive: (receivedOne: Drawable) => void): void;
-  // La bande d'alertes d'un projet, redessinée à chaque lecture qui la change (alerts.ts) :
-  // vide, les quatre états ont été lus et vont bien.
-  surAlertes(receive: (band: Band) => void): void;
-  // Le chef a cliqué la notification de l'urgence d'un projet (notification.ts) : la fenêtre est
-  // déjà au premier plan, le projet s'ouvre sur sa ligne d'urgence et son geste.
-  surUrgence(receive: (project: string) => void): void;
+  // Le chef a choisi un projet dans le menu de la barre des menus : la fenêtre est déjà au premier plan, le projet s'ouvre.
+  surOuvrirProjet(receive: (project: string) => void): void;
   // Ce qui est avant le rail du projet affiché (upstream.ts) : ses issues par état — le bandeau Backlog, ticket 3460 —, ou
   // pourquoi rien n'est compté — et ce qui se lit à la place du rail quand il est vide.
   surAmont(receive: (seenOne: SeenUpstream) => void): void;
@@ -396,8 +368,6 @@ export type Bridge = {
   surOuverture?(receive: (repository: string, step: Progress) => void): void;
   // La connexion à GitHub finie : connecté, ou pourquoi pas.
   surConnexionGitHub?(receive: (end: EndOfConnection) => void): void;
-  // Le login de Claude Code fini, réussi ou non : l'ouverture qu'il retenait se retente.
-  surLoginClaude?(receive: () => void): void;
 };
 
 declare global {

@@ -126,15 +126,6 @@ describe("un projet en lecture seule", () => {
     assert.ok(!texts(vue.element("rail")).includes(CHOOSE), texts(vue.element("rail")).join(" | "));
   });
 
-  test("Settings : ce qui se propose au dépôt par une pull request n'est pas posé", async () => {
-    const vue = await open();
-    await read(vue, true);
-    assert.equal("lectureSeule" in vue.element("etat").dataset, true);
-    const css = readFileSync(join(import.meta.dirname, "..", "src", "vue", "vue.css"), "utf8");
-    const rule = /#etat\[data-lecture-seule\] :is\(([^)]*)\) \{\s*display: none !important;/.exec(css)?.[1] ?? assert.fail("pas de règle pour Settings en lecture seule");
-    for (const block of ['[data-bloc="plafonds-duree"]', '[data-bloc="closer"]']) assert.ok(rule.includes(block), block);
-  });
-
   test("l'accès gagné, la lecture suivante rend la vue ordinaire, sans rouvrir le projet ; perdu, elle redevient seule", async () => {
     const vue = await open();
     await read(vue, true);

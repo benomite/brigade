@@ -14,7 +14,7 @@
 //     lectures conditionnelles dont un 304 ne coûte rien.
 // Ce qui en est fait est ce que fait le desktop, par les mêmes modules : `facts` passe par `tenirFaits` et devient le
 // rail et ses cartes ; `status`, son bloc `attend` mis à part (`mettreAPart`), passe par `attendre` et pose TODO ; la
-// bande d'alertes, les lignes de l'accueil, l'activité des cooks et, dans l'espace d'un projet, ce qui est avant le rail
+// lignes de l'accueil, l'activité des cooks et, dans l'espace d'un projet, ce qui est avant le rail
 // suivent. La vue reçoit donc d'un projet ce que le desktop reçoit du même, à la même lecture de GitHub.
 //
 // Ce qui ne se lit pas se dit, jamais un écran vide : la liste qui ne se lit pas garde les projets connus — ceux de la
@@ -29,7 +29,6 @@
 // que GitHub a prise relance la lecture, qui la montre ; aucune station n'est jointe pour l'écrire. Et les captures d'une
 // carte (ticket 3185) : chaque image, à l'adresse que la dernière lecture donne, lue sur l'API de GitHub (`capture`).
 import { holdHome, type Home } from "./home.ts";
-import { holdBands, type Band } from "./alerts.ts";
 import { holdUpstream, type Seen as SeenUpstream } from "./upstream.ts";
 import { putAside } from "./awaiting.ts";
 import { forTheBar, type Shown } from "./bar.ts";
@@ -73,7 +72,6 @@ export type PhoneGitHub = { github: { compte: string | null }; liste?: ListRead 
 export type Tell = {
   (channel: "surConfiguration", configuration: Shown, closed: number[]): void;
   (channel: "surFaits", receivedOne: Drawable): void;
-  (channel: "surAlertes", band: Band): void;
   (channel: "surAccueil", home: Home): void;
   (channel: "surActivites", published: ActivitiesPublished): void;
   (channel: "surAmont", seenOne: SeenUpstream): void;
@@ -195,7 +193,6 @@ export function openTheReadGitHub(options: Options) {
   const readTheGists = readConditional(call, memory(""));
 
   const facts = holdFacts();
-  const bands = holdBands({ maintenant: () => now().getTime() });
   const upstreams = holdUpstream();
   let projects: ProjectOfAccount[] = [...(options.connus ?? [])];
   // La dernière lecture réussie du rail de chaque projet, par son nom : c'est elle que visent les gestes du chef, comme
@@ -269,14 +266,12 @@ export function openTheReadGitHub(options: Options) {
       const reading = readOfBoard(readOne, project, factsRequest, [FACTS]);
       tell("surFaits", facts.recevoir(reading));
       if (readOne.lu) tell("surActivites", activitiesPublished(project, readOne));
-      tell("surAlertes", bands.faits(reading));
       tellTheHome(home.faits(reading));
     }
     if (seenOnes.includes(project)) {
       const shownOne = putAside(readOfBoard(readOne, project, requestVue, [STATUS]));
       const redraws = facts.attendre(shownOne);
       if (redraws !== undefined) tell("surFaits", redraws);
-      tell("surAlertes", bands.status(shownOne));
       tellTheHome(home.status(shownOne));
     }
     if (space === project) tell("surAmont", upstreams.recevoir(readOfBoard(readOne, project, requestVue, [UPSTREAM])));
@@ -313,7 +308,6 @@ export function openTheReadGitHub(options: Options) {
     space = opened;
     upstreams.veiller(opened === undefined ? [] : [opened]);
     for (const redraws of facts.veiller(seenOnes)) tell("surFaits", redraws);
-    for (const band of bands.veiller(seenOnes)) tell("surAlertes", band);
     tellTheHome(home.veiller(seenOnes));
     return read();
   }
@@ -337,10 +331,9 @@ export function openTheReadGitHub(options: Options) {
     configuration,
     telephone: phone,
     gestes: actions,
-    // La barre est posée : chaque projet a sa bande, et son rail est lu.
+    // La barre est posée : son rail est lu.
     faits(request: number): Promise<void> {
       factsRequest = request;
-      for (const band of bands.ouvrir(projects.map(({ nom: name }) => name))) tell("surAlertes", band);
       return read();
     },
     tous: (request: number) => lookThe(projects.map(({ nom: name }) => name), request, undefined),

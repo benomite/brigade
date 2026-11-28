@@ -14,7 +14,7 @@ import type { Pairing, StationVue, SeenOfStations } from "../../src/stations/sta
 import { type Fake, playTheVue, openAllTheStations, repos } from "../helpers/false-vue.ts";
 
 const A = "2026-10-15T12:00:00.000Z";
-const BOX: StationVue = { id: "g1", nom: "box", machine: "Linux 6.1.0", etat: "en-ligne", ligne: "online · version 1.4.0 · 1 project: parade", pannes: [], dit: "online", version: "1.4.0", projets: ["parade"], max: "connectee" };
+const BOX: StationVue = { id: "g1", nom: "box", machine: "Linux 6.1.0", etat: "en-ligne", ligne: "online · version 1.4.0 · 1 project: parade", dit: "online", version: "1.4.0", projets: ["parade"], max: "connectee" };
 const HEALTH = { ton: "vert", dit: "Max ✓  ·  GitHub ✓", survol: "" } as const;
 const HOME: Home = {
   projets: [{ nom: "parade", ton: "vert", dit: "#12 cooking", survol: "read at 12:00:00 PM — open it to act" }],

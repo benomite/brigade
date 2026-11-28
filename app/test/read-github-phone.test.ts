@@ -353,7 +353,7 @@ async function phoneOfLAPK({ monde: world = WORLD, refuser: refuse, connus: know
 
 // La vue de l'app — celle du desktop, sur un écran de téléphone (helpers/false-vue.ts) — branchée sur ce pont : chaque
 // geste de la vue lui est demandé, et chaque envoi du pont arrive à la vue.
-const CHANNELS = ["surConfiguration", "surFaits", "surAlertes", "surAccueil", "surActivites", "surAmont", "surTelephone"] as const;
+const CHANNELS = ["surConfiguration", "surFaits", "surAccueil", "surActivites", "surAmont", "surTelephone"] as const;
 async function theAppOnThePhone(options: Parameters<typeof phoneOfLAPK>[0] = {}) {
   const apk = await phoneOfLAPK(options);
   let vue: Played | undefined;

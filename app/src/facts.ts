@@ -11,7 +11,6 @@
 // d'après ce que la forme dit de chaque ticket (`tiers`). Chaque carte porte ce que la file dit du ticket : sa station
 // et où elle cuit — box ou Mac — d'après la forme, le reste d'après sa ligne sous `rail`, dans `status` (slip.ts).
 // Ce sont les deux seules choses lues hors de la forme.
-import { vueOfPostMortems, type VueOfPostMortems } from "./projects/post-mortems.ts";
 import { kitchenBoardRead, type KitchenBoard } from "./board/kitchen-board.ts";
 import type { ActionOfWait } from "./wait.ts";
 import { saysOf, ticketsOf, type Shown } from "./awaiting.ts";
@@ -34,7 +33,6 @@ import { LABEL_OF_CHEF, type CardOfChef, type Recommended } from "./board/todo-g
 import { validationRead } from "./vue/validation-design/validation-design-github.ts";
 import { WITHOUT_REASON, SERVED_ELSEWHERE, type SetAside } from "./board/set-aside-github.ts";
 import { requiredRead, taskRead, type TaskHuman } from "./vue/wait-capacity/read.ts";
-import { limitRead, type LimitOfAccount } from "./vue/banner-limit-github.ts";
 import { quotaRead, type QuotaGithub } from "./vue/stations-quota/quota-read.ts";
 import type { Answered } from "./answered.ts";
 import type { PriorityShown } from "./priority.ts";
@@ -88,23 +86,6 @@ export function rolesKitchenRead(raw: unknown): RoleOfKitchen[] | undefined {
     const { role, does, latest } = oneOf as Record<string, unknown>;
     const readEntry = action(latest);
     return text(role) && text(does) && readEntry !== undefined ? [{ role, does, latest: readEntry }] : [];
-  });
-}
-
-// Un post-mortem de panne (#4023) : ses cinq champs — la cause, la durée, qui l'a vue
-// en premier, ce qui l'a corrigée, le ticket du correctif ; ces deux derniers nuls quand rien ne les a dits —, et la fin de sa panne.
-export type PostMortemOfTheOutage = { cause: string; duree: string; vuEnPremier: string; corrige: string | null; ticket: string | null; fin: string };
-
-// Le champ `postMortems` d'un `facts` : une liste. Une entrée qui n'a pas cette forme n'est pas lue, ni une liste qui n'en est
-// pas une — la vue dit alors qu'elle ne les a pas lus.
-export function postMortemsRead(raw: unknown): PostMortemOfTheOutage[] | undefined {
-  const full = (value: unknown): value is string => typeof value === "string" && value.length > 0;
-  const oupas = (value: unknown): value is string | null => value === null || full(value);
-  if (!Array.isArray(raw)) return undefined;
-  return raw.flatMap((oneOf: unknown) => {
-    if (typeof oneOf !== "object" || oneOf === null) return [];
-    const { cause, duree: duration, vuEnPremier: seenInFirst, corrige, ticket, fin: end } = oneOf as Record<string, unknown>;
-    return full(cause) && full(duration) && full(seenInFirst) && oupas(corrige) && oupas(ticket) && full(end) && !Number.isNaN(Date.parse(end)) ? [{ cause, duree: duration, vuEnPremier: seenInFirst, corrige, ticket, fin: end }] : [];
   });
 }
 
@@ -197,41 +178,16 @@ export type Wait = { raison: string; complete?: string; label?: string; colonne:
 // station y est aussi : le chef n'a posé aucune attente, donc `relance` est nulle et la carte n'a rien à reprendre.
 export type Third = { quoi: string; qui: string; depuis: string; relance: string | null; aLArrivee: string };
 
-// Une décision du chef qui retient toute la cuisine, comme le runtime la donne
-// (`DecisionUrgente`) : `decision`, ce qui la nomme en tête
-// de sa ligne du bloc `attend` (`#535`, une station, `base`, `setup`) ; `ticket`,
-// nul hors ticket ; `cause`, son mot ; `geste`, sa ligne du bloc — ce qui attend,
-// puis le geste du chef ; `url`, l'adresse de son issue, nulle sans elle.
-export type DecisionUrgent = { decision: string; ticket: number | null; cause: string; geste: string; url: string | null };
-// L'urgence : plus rien ne cuit, et c'est le chef que toute la cuisine attend.
-// `depuis` : le début de l'arrêt total, à l'horloge de la box ; `retenus` : les
-// tickets à l'arrêt ; `autres` : les autres décisions qui en retiennent aussi ;
-// `alerte` : celle que le runtime a émise pour cette urgence, nulle tant qu'il ne
-// l'a pas annoncée, absente d'un runtime d'avant ce champ.
-export type Emergency = DecisionUrgent & { depuis: string; retenus: number[]; autres: DecisionUrgent[]; alerte?: AlertEmergency | null };
-// Une décision du chef qui retient des tickets, et eux seuls : `retenus`, ceux qui l'attendent. Les
-// autres tickets cuisent (`retenues`).
-export type Held = DecisionUrgent & { retenus: number[] };
-// L'alerte d'urgence émise (`AlerteExposee`) : sa ligne, sa
-// première émission, la dernière, rappel compris, et le nombre de rappels.
-export type AlertEmergency = { libelle: string; emiseLe: string; derniereLe: string; rappels: number };
-
 // Les appels de la box à GitHub sur la dernière heure : le total, et ce qui en a fait le plus (nul quand rien n'a été appelé).
 export type CallsGithub = { total: number; topProject: { name: string; calls: number } | null; topKind: { name: string; calls: number } | null };
 
 // La forme, telle que le runtime la fige (`Faits`).
-// `cooks`, `attend`, `livres`, `urgence` : absents, c'est un runtime d'avant ce
-// champ — les seuls que la forme laisse manquer. `urgence` nulle : la
-// cuisine n'attend pas le chef tout entière — une décision qui ne retient qu'une partie
-// du rail n'en est pas une.
+// `cooks`, `attend`, `livres` : absents, c'est un runtime d'avant ce
+// champ — les seuls que la forme laisse manquer.
 export type Facts = {
   etat: string;
   lu: string;
   dernierTick: string | null;
-  // Quand GitHub limite les appels du compte : l'instant où il les rend (runtime, `limiteGithub`) ; absent sinon, et d'un runtime d'avant ce champ.
-  limiteGithub?: string;
-  // La limite que GitHub pose aux appels du compte — laquelle, depuis quand, retour vers quand (runtime, `github`) ; absente quand les appels passent (vue/banner-limit-github.ts).
-  github?: LimitOfAccount;
   // Le quota GitHub du compte et ce qui l'use (runtime, `quotaGithub`, ticket 3483) : la jauge de l'onglet Stations ; absent d'un runtime d'avant ce champ.
   quotaGithub?: QuotaGithub;
   // Le refus de l'interrupteur GitHub seul par le runtime (`githubSeul`, ticket 2161) : sa raison en une phrase, et depuis quand ; absent quand l'interrupteur est éteint ou accepté.
@@ -270,10 +226,6 @@ export type Facts = {
   // — TODO le replie sous « Awaiting others ». Absent quand rien n'attend un autre humain, et des `facts` d'une station.
   attendAutres?: ExpectedOfOthers[];
   livres?: Delivers[];
-  urgence?: Emergency | null;
-  // Les décisions du chef qui retiennent des tickets sans arrêter la cuisine : absent, c'est un
-  // runtime d'avant ce champ.
-  retenues?: Held[];
   // Les stations que le projet déclare et ce qu'elles font des tickets ordinaires (ordinary.ts) ; absent d'un runtime d'avant ce champ.
   stations?: FactsStation[];
   // Les stations d'un projet sur GitHub seul, dites de GitHub par l'app (vue/rail/github.ts, #2358) : leurs prises et
@@ -289,8 +241,6 @@ export type Facts = {
   // Les rôles de la cuisine du projet, chacun avec sa ligne et sa dernière action (ticket 1274) ; absent d'un runtime
   // d'avant ce champ.
   rolesCuisine?: RoleOfKitchen[];
-  // Les post-mortems des pannes du projet (#4023) — absent d'un runtime qui ne les donne pas.
-  postMortems?: PostMortemOfTheOutage[];
   // Ce que les cooks ont appris au projet, ses leçons et ses profils (learning.ts) : absent quand il
   // n'a ni leçon ni profil, et d'un runtime d'avant ce champ.
   apprentissage?: LearningRead;
@@ -390,9 +340,6 @@ export type Board = {
   stations?: CookingOfProject;
   // Les rôles de la cuisine du projet, sur l'onglet Cooks — absent d'un runtime qui ne les donne pas.
   rolesCuisine?: RoleOfKitchen[];
-  // Les post-mortems des pannes du projet (#4023), la liste et le compte de la section de Settings du projet, tels que
-  // projects/post-mortems.ts les met en forme à cette lecture — absent d'un runtime qui ne les donne pas.
-  postMortems?: VueOfPostMortems;
   // Ce que les cooks ont appris au projet (learning.ts) : ses leçons et ses profils, que la page
   // Reliability pose sous les causes corrigées — vides, elle le dit en une phrase.
   apprentissage: Learning;
@@ -522,48 +469,6 @@ function understandReview(value: unknown, field: string): Review {
   };
 }
 
-function understandDecision(value: unknown, field: string): DecisionUrgent {
-  const readOne = object(value, field);
-  return {
-    decision: text(readOne.decision, `${field}.decision`),
-    ticket: orNothing(readOne.ticket, `${field}.ticket`, whole),
-    cause: text(readOne.cause, `${field}.cause`),
-    geste: text(readOne.geste, `${field}.geste`),
-    url: orNothing(readOne.url, `${field}.url`, text),
-  };
-}
-
-// L'urgence : la décision qui retient le plus de tickets, depuis quand tout est à l'arrêt,
-// les tickets retenus, les autres décisions.
-function understandEmergency(value: unknown, field: string): Emergency {
-  const readOne = object(value, field);
-  const list = (raw: unknown, name: string): unknown[] => (Array.isArray(raw) ? raw : refuse(name, "a list"));
-  return {
-    ...understandDecision(readOne, field),
-    depuis: hour(readOne.depuis, `${field}.depuis`),
-    retenus: list(readOne.retenus, `${field}.retenus`).map((ticket, rank) => whole(ticket, `${field}.retenus[${rank}]`)),
-    autres: list(readOne.autres, `${field}.autres`).map((other, rank) => understandDecision(other, `${field}.autres[${rank}]`)),
-    ...(readOne.alerte === undefined ? {} : { alerte: orNothing(readOne.alerte, `${field}.alerte`, understandAlertEmergency) }),
-  };
-}
-
-function understandHeld(value: unknown, field: string): Held {
-  const readOne = object(value, field);
-  const retainedOnes = Array.isArray(readOne.retenus) ? readOne.retenus : refuse(`${field}.retenus`, "a list");
-  return { ...understandDecision(readOne, field), retenus: retainedOnes.map((ticket: unknown, rank: number) => whole(ticket, `${field}.retenus[${rank}]`)) };
-}
-
-// L'alerte émise pour l'urgence : sa ligne, ses deux heures, ses rappels.
-function understandAlertEmergency(value: unknown, field: string): AlertEmergency {
-  const readOne = object(value, field);
-  return {
-    libelle: text(readOne.libelle, `${field}.libelle`),
-    emiseLe: hour(readOne.emiseLe, `${field}.emiseLe`),
-    derniereLe: hour(readOne.derniereLe, `${field}.derniereLe`),
-    rappels: whole(readOne.rappels, `${field}.rappels`),
-  };
-}
-
 // Les captures d'une livraison d'interface : si elle les porte toutes, et chaque écran avec
 // l'adresse de sa capture avant et de sa capture après, nulle quand elle manque.
 function understandCaptures(raw: unknown, which: string): CapturesRead {
@@ -640,9 +545,9 @@ function sizeOfPrRead(said: Record<string, unknown>): SizeOfPr {
 
 // La sortie de `faits`, champ pour champ — ou en quoi elle n'est pas la forme.
 // Rien n'y est complété : un champ qui manque refuse la forme entière — sauf
-// `cooks`, `attend`, `livres`, `urgence` et l'`activite`,
+// `cooks`, `attend`, `livres` et l'`activite`,
 // l'`attente` et les `tiers` d'un ticket, qu'un runtime d'avant eux ne rend pas,
-// et qui manquent alors ici aussi — et `apprentissage`, absent quand le projet n'a ni leçon ni profil, `github` quand GitHub ne limite pas le compte,
+// et qui manquent alors ici aussi — et `apprentissage`, absent quand le projet n'a ni leçon ni profil,
 // et `attendAutres` quand rien n'attend un autre humain.
 // Un champ de plus est laissé de côté, un mot d'état inconnu est gardé.
 export function understand(output: string): Facts | { informe: string } {
@@ -661,8 +566,6 @@ export function understand(output: string): Facts | { informe: string } {
       etat: text(root.etat, "etat"),
       lu: hour(root.lu, "lu"),
       dernierTick: orNothing(root.dernierTick, "dernierTick", hour),
-      ...(root.limiteGithub === undefined ? {} : { limiteGithub: hour(root.limiteGithub, "limiteGithub") }),
-      ...limitRead(root.github),
       ...quotaRead(root.quotaGithub),
       ...refusalGitHubOnlyRead(root.githubSeul),
       ...readOnlyRead(root.lectureSeule),
@@ -767,8 +670,6 @@ export function understand(output: string): Facts | { informe: string } {
               }), ({ ticket, titre: title }, unreadable) => ({ ticket, titre: title, url: null, livre: hour(root.lu, "lu"), station: null, pr: null, illisible: unreadable }));
             }),
           }),
-      ...(root.urgence === undefined ? {} : { urgence: orNothing(root.urgence, "urgence", understandEmergency) }),
-      ...(root.retenues === undefined ? {} : { retenues: (Array.isArray(root.retenues) ? root.retenues : refuse("retenues", "a list")).map((r: unknown, rank: number) => understandHeld(r, `retenues[${rank}]`)) }),
       ...(root.stations === undefined
         ? {}
         : { stations: (Array.isArray(root.stations) ? root.stations : refuse("stations", "a list")).map((station: unknown, rank) => understandStation(station, `stations[${rank}]`)) }),
@@ -776,7 +677,6 @@ export function understand(output: string): Facts | { informe: string } {
       ...(agentsRead(root.agents) === undefined ? {} : { agents: agentsRead(root.agents) }),
       ...(cadenceRead(root.cadence) === undefined ? {} : { cadence: cadenceRead(root.cadence) }),
       ...(rolesKitchenRead(root.rolesCuisine) === undefined ? {} : { rolesCuisine: rolesKitchenRead(root.rolesCuisine) }),
-      ...(postMortemsRead(root.postMortems) === undefined ? {} : { postMortems: postMortemsRead(root.postMortems) }),
       ...(root.apprentissage === undefined ? {} : { apprentissage: learningRead(root.apprentissage) }),
     };
   } catch (error) {
@@ -1355,7 +1255,6 @@ export function board(facts: Facts, awaiting?: BlockRead, status?: StatusRead, a
     ...(facts.kitchenBoard === undefined ? {} : { kitchenBoard: facts.kitchenBoard }),
     ...(facts.stations === undefined ? {} : { stations: { ...cookingOf(facts.stations, facts.cooks, facts.lu, facts.agents, facts.rail), ...(facts.stationsSurGithub === undefined ? {} : { surGithub: facts.stationsSurGithub }) } }),
     ...(facts.rolesCuisine === undefined ? {} : { rolesCuisine: facts.rolesCuisine }),
-    ...(facts.postMortems === undefined ? {} : { postMortems: vueOfPostMortems(facts.postMortems, new Date(facts.lu)) }),
     apprentissage: learningOf(facts.apprentissage),
     etapesDesTickets: stepsOfTickets(facts),
   };
@@ -1486,8 +1385,8 @@ export function holdFacts(answeredEntries: (project: string) => ReadonlyMap<numb
       const url = given?.livres?.find((candidate) => candidate.ticket === ticket)?.pr ?? chef?.design?.url ?? cardOfKanban(given, ticket)?.pr?.url;
       return url != null && openable(url) ? url : undefined;
     },
-    // Les derniers faits lus d'un projet, et l'heure de leur lecture : c'est d'eux qu'une
-    // confirmation tire son prix (confirmation.ts). Rien, s'ils ne sont pas lus.
+    // Les derniers faits lus d'un projet, et l'heure de leur lecture : c'est d'eux que les gestes
+    // tirent leur adresse. Rien, s'ils ne sont pas lus.
     dernier(project: unknown): { faits: Facts; a: string } | undefined {
       const held = typeof project === "string" ? heldOnes.get(project) : undefined;
       return held === undefined ? undefined : { faits: held.faits, a: held.lecture.a };

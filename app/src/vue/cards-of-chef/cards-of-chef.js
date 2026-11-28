@@ -75,15 +75,12 @@ function header(doc, cards, back) {
 }
 
 // La liste : une carte par chose qui attend, d'un seul toucher (le bouton est la carte). `avis` : ce que la lecture des
-// projets a de pire à dire (GitHub qui refuse le téléphone…), posé sous la liste. `ailleurs` : la ligne sous la liste. `tete` :
-// ce qui attend le chef sans être une carte — la ligne du disjoncteur ouvert et son « Resume » (todo-breaker-line.js) —, en
-// tête de la liste ; avec elle, la liste ne dit pas que rien ne t'attend.
-/** @param {Fabrique} doc @param {{ cartes: Card[], ailleurs?: string, avis?: any[], tete?: any[], ouvrir: (card: Card) => void }} liste */
-export function setTheList(doc, { cartes: cards, ailleurs: elsewhere, avis: opinion = [], tete: head = [], ouvrir: open }) {
+// projets a de pire à dire (GitHub qui refuse le téléphone…), posé sous la liste. `ailleurs` : la ligne sous la liste.
+/** @param {Fabrique} doc @param {{ cartes: Card[], ailleurs?: string, avis?: any[], ouvrir: (card: Card) => void }} liste */
+export function setTheList(doc, { cartes: cards, ailleurs: elsewhere, avis: opinion = [], ouvrir: open }) {
   const body = created(doc, "div", "corps-des-cartes");
   body.dataset.vu = "liste";
-  body.append(...head);
-  if (cards.length > 0 || head.length === 0) body.append(created(doc, "p", "mot-des-cartes", cards.length === 0 ? NOTHING_N_AWAITING : IN_HEAD));
+  body.append(created(doc, "p", "mot-des-cartes", cards.length === 0 ? NOTHING_N_AWAITING : IN_HEAD));
   for (const card of cards) {
     const key = created(doc, "button", "carte-a-ouvrir");
     key.type = "button";

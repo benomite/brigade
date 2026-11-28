@@ -12,7 +12,6 @@ import { EXAMPLE, type Project } from "../../../src/config.ts";
 import { PALETTE } from "../../../src/colors.ts";
 import { BANNER } from "../../../src/facts.ts";
 import { TABS, HEADINGS } from "../../../src/tabs.ts";
-import type { Outage } from "../../../src/outages/outages.ts";
 import { type Choice, documentOfRequest, FILE_PROJECTS, FILE_TRACKING, readRequest, readTracking, type ProjectRequest } from "../../../src/projects/request.ts";
 import { calibrationRecommended, type Chosen, EFFORTS, machineProposed, MODELS, type ProjectSeen, holdProjects, type SeenOfProjects } from "../../../src/projects/projects.ts";
 import type { Files } from "../../../src/stations/github.ts";
@@ -145,7 +144,7 @@ describe("le suivi relu par l'app", () => {
 });
 
 describe("l'issue retenue, écrite dans la demande de la principale", () => {
-  const BOX: StationVue = { id: "g1", nom: "box", machine: "Linux 6.1.0", etat: "en-ligne", ligne: "online", pannes: [], dit: "online", version: "1.4.0", projets: ["parade"], max: null };
+  const BOX: StationVue = { id: "g1", nom: "box", machine: "Linux 6.1.0", etat: "en-ligne", ligne: "online", dit: "online", version: "1.4.0", projets: ["parade"], max: null };
   const MAC: StationVue = { ...BOX, id: "g2", nom: "macbook", machine: "macOS 25.0.0" };
   const request = (main: boolean): ProjectRequest => ({ nom: "parade", depot: "benomite/parade", base: "main", principale: main, cooks: 2, manager: { modele: "sonnet", effort: "medium" }, reviewer: { modele: "opus", effort: "high" }, ouvertLe: null, demandeLe: "2026-10-22T11:00:00.000Z" });
 
@@ -210,7 +209,7 @@ describe("l'issue retenue, écrite dans la demande de la principale", () => {
 
 describe("sur la page du projet", () => {
   const A = "2026-10-22T12:00:00.000Z";
-  const BOX = { id: "g1", nom: "box", machine: "Linux 6.1.0", coeurs: 8, etat: "en-ligne", ligne: "online · version 1.4.0 · no project", pannes: [] as Outage[], dit: "online", version: "1.4.0", projets: [] as string[], max: null } as const;
+  const BOX = { id: "g1", nom: "box", machine: "Linux 6.1.0", coeurs: 8, etat: "en-ligne", ligne: "online · version 1.4.0 · no project", dit: "online", version: "1.4.0", projets: [] as string[], max: null } as const;
   const HOME: Home = { projets: [], stations: [], sante: { ton: "vert", dit: "Max ✓  ·  GitHub ✓", survol: "" } };
   const PARADE: Project = { nom: "parade", dossier: "/tmp/parade", depot: "benomite/parade", base: "main" };
 

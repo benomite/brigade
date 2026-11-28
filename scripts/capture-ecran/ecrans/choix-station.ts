@@ -6,8 +6,8 @@ import type { StationVue, SeenOfStations } from "../../../app/src/stations/stati
 import type { Ecran } from "./commun.ts";
 import { donnees, OUVRIR, SUR_LA_BOX } from "./cuisine-demenagee.ts";
 
-const BOX: StationVue = { id: "box", nom: "box", machine: "Debian 12", coeurs: 8, etat: "hors-ligne", ligne: "offline for 22 min · no project", pannes: [], dit: "offline for 22 min", version: "", projets: ["cantine"], max: null };
-const MAC: StationVue = { id: "macbook", nom: "macbook", machine: "macOS 15", coeurs: 10, etat: "en-ligne", ligne: "online · no project", pannes: [], dit: "online", version: "", projets: [], max: null };
+const BOX: StationVue = { id: "box", nom: "box", machine: "Debian 12", coeurs: 8, etat: "hors-ligne", ligne: "offline for 22 min · no project", dit: "offline for 22 min", version: "", projets: ["cantine"], max: null };
+const MAC: StationVue = { id: "macbook", nom: "macbook", machine: "macOS 15", coeurs: 10, etat: "en-ligne", ligne: "online · no project", dit: "online", version: "", projets: [], max: null };
 
 export const CHOISIR = { cliquer: "#stations-du-projet button.ajout-de-station:not([hidden])" };
 

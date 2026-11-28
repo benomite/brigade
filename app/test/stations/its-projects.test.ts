@@ -19,7 +19,7 @@ import { type Fake, playTheVue, openAllTheStations, repos } from "../helpers/fal
 const A = "2026-10-16T12:00:00.000Z";
 // La box porte trois projets : « parade », ajouté depuis l'app ; « cantine » et « brigade », écrits à
 // la main dans sa configuration. Le macbook est la station secondaire de « parade » ; l'atelier n'a rien.
-const BOX: StationVue = { id: "g1", nom: "box", machine: "Linux 6.1.0-47-amd64", etat: "en-ligne", ligne: "online · version 1.4.0 · 3 projects: parade, cantine, brigade", pannes: [], dit: "online", version: "1.4.0", projets: ["parade", "cantine", "brigade"], max: "connectee" };
+const BOX: StationVue = { id: "g1", nom: "box", machine: "Linux 6.1.0-47-amd64", etat: "en-ligne", ligne: "online · version 1.4.0 · 3 projects: parade, cantine, brigade", dit: "online", version: "1.4.0", projets: ["parade", "cantine", "brigade"], max: "connectee" };
 const MAC: StationVue = { ...BOX, id: "g2", nom: "macbook", machine: "macOS 25.0.0", ligne: "online · version 1.4.0 · no project", projets: [] };
 const ATELIER: StationVue = { ...BOX, id: "g3", nom: "atelier", machine: "Debian 12 · 8 cores", ligne: "online · version 1.4.0 · no project", projets: [] };
 const HOME: Home = {

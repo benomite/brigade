@@ -17,14 +17,10 @@
 // pose un mot, un nombre, une couleur nommée, elle n'en calcule aucun. Sur ce qui se lit, les
 // gestes du chef, chacun collé à l'état qu'il change, sous l'une de trois formes :
 //   - direct : sa commande part dans le second au clic, s'il est libre, et sa sortie s'y lit ;
-//   - confirmé : le clic ouvre, sous le bouton, une confirmation qui dit son prix — ce qu'il
-//     interrompt, les cooks en vol et leurs tokens —, et rien ne part avant le « oui » du chef
-//     (confirmation.ts) ; « non » la referme, sans rien faire partir ;
 //   - avec jugement : une demande en prose s'écrit dans le second, et rien ne l'envoie — c'est
 //     l'Entrée du chef qui la fait partir, jamais un clic.
-// Ce qui part, et ce qu'une confirmation dit, se décident dans le process principal (actions.ts,
-// confirmation.ts, request.ts) : la vue nomme un geste, jamais une commande. Reste un bouton, sur la
-// partie closer, qui écrit dans le second le réglage du closer sans l'envoyer (boutons.ts). La vue n'y lit rien —
+// Ce qui part se décide dans le process principal (actions.ts,
+// request.ts) : la vue nomme un geste, jamais une commande. La vue n'y lit rien —
 // elle ne sait pas ce qu'est un ticket. Ce qui attend le chef lui arrive déjà
 // mis à part (awaiting.ts) : elle le pose en tête, quel que soit l'onglet.
 // Settings (tickets 1700, 2494) ne tient que les réglages du projet, dans un seul groupe, une
@@ -42,15 +38,6 @@
 // n'envoie rien à sa station, après un « yes » — ce qui se refuse et ce qui s'en dit se décident dans retrait.ts.
 // La page d'un worktree servi n'est plus nulle part dans l'app (ticket 1846) : le chef suit ce que fait le cook, sur la
 // fiche de son ticket (activity-of-cook.js), et sa PR, et essaie l'app construite une fois mergée.
-// En tête de l'espace, la bande d'alertes : est-ce que ça peut tourner ? La cuisine —
-// une alerte par chose à faire, et
-// une ligne « non vérifié » pour chaque état que la box ne dit pas. Vide, elle ne prend aucune
-// place. Ce qui s'y dit et ce que son bouton appelle se décident dans alerts.ts : la vue pose.
-// Chaque alerte tient en une ligne — ce qui ne va pas — et un contrôle — son geste (ticket 907) :
-// une demande au second quand il faut lire, juger ou agir sur la box ;
-// une ligne « non vérifié » mène à la page qui lit l'état, quand il y en a une. Le prix n'est jamais posé à côté : le
-// clic ouvre la confirmation, qui le dit. Ce que la box en écrit est derrière « detail ». Le projet
-// éteint est une ligne de la bande, sans bouton : l'app ne l'allume ni ne l'arrête.
 // Posé dans le conteneur caché de ce qui était sous cette machine, et au survol de « T », le code de l'app lui-même : à jour, ou en retard sur
 // l'origine de son clone — et de combien de commits —, avec l'heure de sa lecture ; de même
 // pour le clone d'un projet qui est celui de brigade. En retard, un bouton écrit `git pull`
@@ -76,11 +63,11 @@ import { setTheIdentities, holdTheIdentities } from "./identities-github.js";
 import { setTheProjectsServed, holdTheProjectsServed } from "./projects-served/projects-served.js";
 import { setTheProjectsOfTheStation, projectsServedBy } from "./station/page/StationProjects.js";
 import { setStepProject } from "./journey-project/step-project.js";
-import { buttonAction, caseATick, priceSays, hover } from "./bricks.js";
-import { confirmationOfAction } from "./components/confirmation/confirmation.js";
+import { buttonAction, caseATick, hover } from "./bricks.js";
 import { lineError } from "./components/line-error/line-error.js";
 import { setTheActionsOfWait, relaunchProposed } from "./wait/wait.js";
 import { rowOfSetting as rowOfTheFamily } from "./components/setting/setting.js";
+import { confirmationOfAction } from "./components/confirmation/confirmation.js";
 import { button as buttonOfTheFamily, kindOfButton } from "./components/button/button.js";
 import { slip as slipOfTheFamily, headOfSlip } from "./components/slip/slip.js";
 import { pan } from "./components/pan/pan.js";
@@ -107,7 +94,6 @@ import { kitchenBoardGrid } from "./kitchen-board/kitchen-board.js";
 import { holdSinceLastLooked } from "./since-last-looked/since-last-looked.js";
 import { COOKS, OF_RAIL, columnOfPlan, NOT_READY, PASS as COLUMN_PASS, NOTHING_OF_READY, aOneAction, whatAwaitingYou, lineParked, planOfTheKitchen, setTheBandOfTop, setTheTodo } from "./kitchen/kitchen.js";
 import { lineOfAlerts } from "./line-of-status/line-of-status.js";
-import { setLineOfBreaker } from "./todo-breaker-line.js";
 import { setRepositoryHeld } from "./onboarding/repository-held.js";
 import { setBlockages } from "./project/blockages.js";
 import { linesOfRefusal } from "./project/rail/refusal-of-station.js";
@@ -163,11 +149,7 @@ import { mountThePanel } from "./project/panel-second/panel-second.js";
 import { setAddition, setBlockOfProjects } from "./home/projects/ProjectsBlock.js";
 import { setBlockOfThePromise } from "./home/promise/PromiseBlock.js";
 import { holdBlockOfTheStation } from "./home/station/StationBlock.js";
-import { setBlockCapsDuration } from "./project/banner-health/DurationCaps.js";
 import { holdTheKnowledge } from "./know-how/know-how.js";
-import { setBlockCloser } from "./project/banner-health/Closer.js";
-import { setBlockTimeOfThePass } from "./project/banner-health/PassTime.js";
-import { setBlockPostMortems } from "./project/banner-health/PostMortems.js";
 import { holdTheReport } from "./report/action.js";
 import { casesOfVersions, caseOfHere, setVersionsOfStations, statusRead } from "./station-version/station-version.js";
 import { lineEmpty } from "./components/line-empty/line-empty.js";
@@ -185,7 +167,6 @@ const dateHour = (/** @type {number | string | Date} */ instant) => new Date(ins
 /** @typedef {import("../awaiting.ts").Shown} Shown */
 /** @typedef {import("../box.ts").Reading} Reading */
 /** @typedef {import("../facts.ts").Drawable} Drawable */
-/** @typedef {import("../alerts.ts").Alert} Alert */
 // Ce que `tabs.ts` nomme : l'onglet Paramètres, qui n'a pas de commande à lui.
 const PARAMETERS = "parametres";
 // Et la page des chiffres d'autonomie de tous les projets (ticket 3222).
@@ -221,7 +202,6 @@ let railPoseOf = "";
 // La dernière rangée posée de chaque projet : c'est d'elle que la lecture suivante reprend le défilement.
 /** @type {Map<string, HTMLElement>} */
 const rows = new Map();
-/** @typedef {import("../confirmation.ts").Confirmation} Confirmation */
 /** @typedef {import("../removal.ts").Removal} Removal */
 /** @typedef {import("../delay.ts").Seen} SeenOfCode */
 
@@ -535,14 +515,12 @@ const actionsOfRecorded = {
     setStationsOfTheHome();
   },
 };
-// La page d'une station, ouverte d'un clic sur sa ligne : son état, ses pannes et leur bouton, et les projets qu'elle
+// La page d'une station, ouverte d'un clic sur sa ligne : son état et les projets qu'elle
 // sert — une liste qui se lit seulement, chacun menant à l'onglet Stations de son projet. Rien ne s'y tape au terminal.
 const pageOfStation = document.createElement("section");
 pageOfStation.id = "station";
 pageOfStation.className = "carte";
 const inHeadOfStation = document.createElement("header");
-const outagesOfStation = document.createElement("div");
-outagesOfStation.ariaLive = "polite";
 const projectsOfTheStation = document.createElement("div");
 projectsOfTheStation.ariaLive = "polite";
 const returnALHome = /** @type {HTMLButtonElement} */ (button("‹ All projects", undefined, "discret"));
@@ -556,11 +534,11 @@ const versionOfStation = document.createElement("p");
 versionOfStation.className = "version-de-station";
 const removalOfStation = document.createElement("div");
 removalOfStation.className = "retrait-de-station";
-// Ses sections, sous ses pannes (ticket 2641, épique 2497) : identité, connexions, dossiers et bac à sable, capacités,
+// Ses sections, sous son état (ticket 2641, épique 2497) : identité, connexions, dossiers et bac à sable, capacités,
 // cooks — posées par la coque de station/page/StationPage.js.
 const sectionsOfStation = document.createElement("div");
 sectionsOfStation.className = "sections-de-station";
-pageOfStation.append(returnALHome, inHeadOfStation, capOfStation, versionOfStation, outagesOfStation, sectionsOfStation, projectsOfTheStation, removalOfStation);
+pageOfStation.append(returnALHome, inHeadOfStation, capOfStation, versionOfStation, sectionsOfStation, projectsOfTheStation, removalOfStation);
 // Les chiffres d'autonomie de tous les projets (ticket 3222) : ils valent pour l'ensemble, ils vivent donc au niveau de
 // l'app, pas dans un projet. Une ligne « Autonomy » ouvre leur page, en bas du bandeau de santé de chaque projet. Le coût
 // en tokens qu'elle montrait avant (ticket 1022), que seul l'ancien runtime calculait, en est retiré (ticket 4509).
@@ -849,8 +827,6 @@ const headingOf = (id) => HEADINGS.find(({ lectures: readings }) => readings.inc
 // La confirmation ouverte : celle d'un geste, pour un projet, à un endroit — la même ne s'ouvre
 // qu'une fois, sous le bouton cliqué. `rendu` : ce qu'elle dit, ou pourquoi le geste ne s'offre
 // pas — absent, la demande est en route. Indéfinie : aucune n'est ouverte, et rien ne part.
-/** @type {{ projet: string, cle: string, rendu?: Confirmation | { refus: string } } | undefined} */
-let aConfirm;
 // Les trois gestes de WAITING, dits de même (wait.ts) : « waiting for… » sur une carte de TODO,
 // « resume » et « it arrived » sur une carte de WAITING. La vue les nomme, elle ne sait pas ce qu'ils écrivent.
 /** @type {readonly { id: string, libelle: string }[]} */
@@ -925,12 +901,21 @@ let notWrittenSecond = "";
 // montrer ou d'écrire. Sans geste, personne ne le prend — le second ne perd pas sa frappe.
 /** @type {number | undefined} */
 let aFocus;
+// En tête de l'espace, ce qui se dit du projet avant son rail : sa ligne de lecture seule, et l'avis sur son dépôt. Vide, la
+// bande est cachée : elle ne prend aucune place.
+/** @param {Project} project */
+function setTheBand(project) {
+  const opinion = opinionOfRepository(project, "page");
+  // En lecture seule, sa ligne vient en tête du projet (ticket 3163) : elle dit pourquoi aucun geste n'est offert.
+  const repository = readOnlyOf(project);
+  const only = repository === undefined ? [] : [lineReadOnly(document, repository, (page) => void brigade.ouvrirLectureSeule?.(project.nom, page))];
+  band.hidden = opinion === undefined && only.length === 0;
+  band.replaceChildren(...only, ...(opinion === undefined ? [] : [opinion]));
+}
+
 // La bannière d'arrêt, dite de même (facts.ts) : ce qu'elle dit, et le bouton qui écrit la relance.
 /** @type {typeof import("../facts.ts").BANNER | undefined} */
 let BANNER;
-// Le calibrage que la station accepte, pour le parcours « Add a project » : donné au démarrage.
-/** @type {{ modeles: readonly string[], efforts: readonly string[] }} */
-let PROJECT_CALIBRATION = { modeles: [], efforts: [] };
 // Ce que l'accueil dit en dernier (home.ts) : une ligne par projet, une par station, la santé. Indéfini : pas encore reçu.
 /** @type {import("../home.ts").Home | undefined} */
 let homeSeen;
@@ -993,30 +978,8 @@ function markRead(project) {
   if (inRead.has(project.nom) && itselfLit(project) && project.sansStation !== true) rail.dataset.lecture = "";
   else delete rail.dataset.lecture;
 }
-// La dernière bande d'alertes de chaque projet, telle que le process principal l'a dite (alerts.ts).
-/** @type {Map<string, Alert[]>} */
-const bands = new Map();
-// La ligne du disjoncteur ouvert d'un projet, dans sa dernière bande : celle que `alerts.ts` marque `disjoncteur` (ticket 2140).
-/** @param {string} name */
-const alertOfBreaker = (name) => (bands.get(name) ?? []).find(({ disjoncteur: breaker }) => breaker === true);
 /** @type {Map<string, import("./page-project/repository-not-prepare.js").State>} */
 const repositories = new Map();
-// Ce que chaque bande dit de son projet sur sa case de la barre (alerts.ts, `signalDe`), et les
-// signaux posés : un seul par case.
-/** @type {Map<string, {etat: string, dit: string} | undefined>} */
-const signals = new Map();
-// Les lignes de la bande dont le « detail » est déplié, par projet et par endroit (`endroitDeLAlerte`) :
-// une relecture de la bande ne le replie pas sous les yeux du chef.
-/** @type {Set<string>} */
-const detailsUnfolded = new Set();
-/** @type {Map<string, HTMLElement>} */
-const reported = new Map();
-// Le projet dont le chef a cliqué la notification d'urgence (notification.ts) : sa ligne d'urgence
-// reste marquée choisie tant qu'il reste sur lui. `gesteDeLUrgence` : le bouton de cette ligne, tel
-// que la bande l'a posé en dernier — c'est lui qui prend le clavier au clic.
-let emergencyChosen = "";
-/** @type {HTMLElement | undefined} */
-let actionOfTheEmergency;
 // Dans la barre, la pastille de chaque projet qui a une box.
 /** @type {Map<string, HTMLElement>} */
 const pills = new Map();
@@ -1416,8 +1379,7 @@ function show() {
   rail.inert = !content.hidden || !card.hidden;
   // Settings est une seule page, sans sous-pages (ticket 1700) : son seul groupe, celui du projet, et rien d'autre.
   state.hidden = current === undefined || visible !== PARAMETERS;
-  // Les plafonds, le closer et les lignes de tous les projets, leur section de Settings (ticket 3014) : posés tant qu'il
-  // est ouvert, vidés sinon.
+  // Les chiffres d'autonomie et les lignes de tous les projets, leur section de Settings : posés tant qu'il est ouvert, vidés sinon.
   if (current !== undefined && settingsShown()) setTheBannerOfHealth(current);
   else bannerHealth.replaceChildren();
   readTab.hidden = relays === undefined;
@@ -1581,68 +1543,6 @@ async function ask(ticket) {
     notWrittenSecond = `nothing written: ${error instanceof Error ? error.message : String(error)}`;
   }
   show();
-}
-
-// Une ligne de la bande d'alertes dont le geste demande du jugement : une demande en prose
-// s'écrit dans le second, à droite, et rien ne l'envoie — le second lit, explique, et c'est ton
-// Entrée qui la fait partir (request.ts). La vue nomme la ligne ; la phrase vient de ce que la
-// bande en dit, dans le process principal. Le centre ne change pas.
-/** @param {Alert} alerte */
-async function askAlert({ sujet: subject, dit: said }) {
-  const project = current;
-  if (project === undefined) return;
-  notWritten = notWrittenSecond = "";
-  if (project.refus !== undefined) return show();
-  try {
-    const rendered = await brigade.demanderAlerte(project.nom, subject, said);
-    if (rendered === undefined) notWrittenSecond = `nothing written: the band no longer says “${said}”`;
-    else if ("refus" in rendered) notWrittenSecond = rendered.refus;
-    else keep(project.nom, rendered);
-  } catch (error) {
-    notWrittenSecond = `nothing written: ${error instanceof Error ? error.message : String(error)}`;
-  }
-  show();
-}
-
-// Ce que coûte une demande au second, sous son bouton : ce qu'elle fait, son prix en clair — puis un bouton par « oui »,
-// chacun avec ce qu'il engage, et le « non ». Un « oui » fait partir `leave` ; « non » referme. Rien n'y est calculé :
-// tout est dit par la ligne de la bande qui porte la demande (confirmationOfRequest).
-
-/** @param {Project} project @param {NonNullable<typeof aConfirm>} ouverte @param {(id: string) => void} leave */
-function setConfirmation(project, { rendu: rendered }, leave) {
-  const close = () => {
-    aConfirm = undefined;
-    show();
-  };
-  if (rendered === undefined || "refus" in rendered) {
-    const wait = document.createElement("section");
-    wait.className = "confirmation";
-    if (rendered === undefined) wait.append(lineEmpty(document, "what it costs: reading…"));
-    else wait.append(lineError(document, rendered.refus, "", { classe: "refus" }), button("close", close, "discret"));
-    return wait;
-  }
-  // Le prix se dit en une ligne ; le reste, et d'où c'est tiré, au survol.
-  const [price = "", ...suite] = rendered.prix;
-  const source = rendered.lu === undefined ? [] : [`according to ${gesture(project, "facts")}, read at ${hourOf(rendered.lu)}`];
-  return confirmationOfAction(
-    document,
-    {
-      titre: `⚠️ ${rendered.titre}`,
-      phrase: price,
-      aide: [...suite, ...source].join("\n"),
-      non: rendered.renoncer,
-      aCote: true,
-      choix: rendered.choix.map(({ id, libelle: wording, dit: said }) => ({
-        libelle: wording,
-        dit: said,
-        partir: () => {
-          aConfirm = undefined;
-          leave(id);
-        },
-      })),
-    },
-    { non: close },
-  );
 }
 
 // La page cliquée s'ouvre par-dessus le rail ; recliquée, elle se referme, et le rail revient tel qu'il était.
@@ -2211,67 +2111,19 @@ function markPill(name) {
     const shape = shapeOf(held.tableau.ton);
     if (shape !== undefined) setOne.dataset.forme = shape;
   }
-  // La box ne répond pas : un mot, le même que la bande (alerts.ts) — ce que le dernier rail disait n'est plus lu.
-  const silentOne = signals.get(name)?.etat === "injoignable";
-  if (silentOne) {
-    delete setOne.dataset.ton;
-    delete setOne.dataset.forme;
-    setOne.dataset.lu = "non";
-  }
   const outsideLine = outsideLines.get(name);
-  const said = silentOne
-    ? "unreachable"
-    : outsideLine !== undefined
+  const said =
+    outsideLine !== undefined
       ? `offline since ${hourShort(outsideLine)}${held !== undefined && "tableau" in held ? ` — ${held.tableau.mot ?? held.tableau.etat} when last read` : ""}`
       : held === undefined
         ? "first read in progress…"
         : "tableau" in held
           ? (held.tableau.mot ?? held.tableau.etat)
           : `no facts read — ${held.titre}`;
-  setOne.textContent = silentOne || (held !== undefined && !("tableau" in held)) ? "!" : "";
+  setOne.textContent = held !== undefined && !("tableau" in held) ? "!" : "";
   const entry = /** @type {HTMLElement} */ (setOne.parentElement);
   entry.title = `${name} — ${said}`;
   entry.ariaLabel = entry.title;
-}
-
-// Le signal d'un projet sur sa case : l'urgence — toute sa cuisine attend le chef —, une alerte, ou
-// « non vérifié » — jamais rien de plus sain que ce que la bande a dit. L'urgence n'est pas une
-// alerte de plus : elle a son signe et sa marque. Le projet affiché n'en porte pas : sa bande est sous ses yeux.
-// Cliquer le signal ouvre l'espace du projet : sa bande y est en tête, chaque alerte avec son geste
-// et son prix, la plus grave d'abord (alerts.ts) — rien à chercher, un clic de plus lance le geste.
-/** @param {string} name */
-function markSignal(name) {
-  const entry = pills.get(name)?.parentElement;
-  if (entry === null || entry === undefined) return;
-  const signal = current?.nom === name ? undefined : signals.get(name);
-  const pose = reported.get(name);
-  if (signal === undefined) {
-    pose?.remove();
-    reported.delete(name);
-    return;
-  }
-  const brand = pose ?? document.createElement("span");
-  brand.className = "signal";
-  brand.dataset.etat = signal.etat;
-  brand.textContent = signal.etat === "urgence" ? "!!" : signal.etat === "alerte" ? "!" : signal.etat === "injoignable" ? "×" : "?";
-  brand.title =
-    signal.etat === "injoignable"
-      ? `${name}: unreachable — ${signal.dit}. Click to open ${name}: its last reading is kept, with the gesture to try again`
-      : signal.etat === "urgence"
-          ? `${name}: ${signal.dit} — urgent: the whole kitchen is waiting for you, nothing cooks until you act. Click to open ${name}, with what it waits for and since when`
-        : signal.etat === "alerte"
-          ? `${name}: ${signal.dit} — alert: something needs doing. Click to open ${name}, with the alert, its action and its price`
-          : `${name}: ${signal.dit} — not verified: the app could not read this state, it is not a failure. Click to open ${name}, with what could not be read`;
-  brand.ariaLabel = brand.title;
-  if (pose === undefined) {
-    brand.addEventListener("click", (event) => {
-      event.stopPropagation();
-      const project = configuration.projets.find((candidate) => candidate.nom === name);
-      if (project !== undefined) void open(project);
-    });
-    entry.append(brand);
-    reported.set(name, brand);
-  }
 }
 
 // Le signe d'un cook coincé — sans progrès depuis la moitié de son bail —, tel que `status` l'écrit en tête du bail de
@@ -3733,7 +3585,7 @@ window.addEventListener?.("online", () => {
   if (outsideLines.size > 0) readTheFacts();
 });
 
-// La box d'un projet ne répond pas (alerts.ts, `injoignable`) : depuis quand, d'après la première
+// La box d'un projet ne répond pas (`atteinte` faux) : depuis quand, d'après la première
 // lecture ratée de la série. Le rail garde alors sa dernière lecture — il n'est plus remplacé par
 // « non joint ».
 /** @type {Map<string, string>} */
@@ -4151,7 +4003,7 @@ function restTheStationLocale(readOne) {
 function readTheStationLocale(project) {
   const name = project.nom;
   /** @type {ReadOfTheStationLocale} */
-  const readOne = { projet: name, a: Date.now(), ...(stationLocaleRead.projet === name ? { refusOrdinaires: stationLocaleRead.refusOrdinaires, reglageDit: stationLocaleRead.reglageDit, connexionDite: stationLocaleRead.connexionDite } : {}) };
+  const readOne = { projet: name, a: Date.now(), ...(stationLocaleRead.projet === name ? { refusOrdinaires: stationLocaleRead.refusOrdinaires, reglageDit: stationLocaleRead.reglageDit } : {}) };
   stationLocaleRead = readOne;
   void Promise.resolve(brigade.dossiersDeLaStation?.(name) ?? { refus: "its folders could not be read", detail: "this app does not read them" }).then(
     (rendered) => (readOne.dossiers = rendered),
@@ -4189,12 +4041,11 @@ function linesOfThisComputer(project) {
   const state = {
     poste: WORKSTATION.nom,
     projet: project.nom,
-    station: station == null ? station : { id: station.id, nom: station.nom, max: station.max, pannes: station.pannes },
+    station: station == null ? station : { id: station.id, nom: station.nom, max: station.max },
     ...(readOne.dossiers === undefined ? {} : { dossiers: readOne.dossiers }),
     ...(readOne.ordinaires === undefined ? {} : { ordinaires: readOne.ordinaires }),
     ...(readOne.refusOrdinaires === undefined ? {} : { refusOrdinaires: readOne.refusOrdinaires }),
     ...(readOne.reglageDit === undefined ? {} : { reglageDit: readOne.reglageDit }),
-    ...(readOne.connexionDite === undefined ? {} : { connexionDite: readOne.connexionDite }),
   };
   const pose = JSON.stringify(state);
   if (linesOfTheStationLocaleSet !== undefined && pose === linesOfTheStationLocalePose) return linesOfTheStationLocaleSet;
@@ -4222,21 +4073,6 @@ function linesOfThisComputer(project) {
       // Settings se repose sur la valeur écrite à sa prochaine ouverture.
       ordinaryPose = "";
       await readTheOrdinaryLocal(inProgress);
-    },
-    seConnecter: async (key) => {
-      if (station == null) return;
-      /** @type {string} */
-      let saidOne;
-      try {
-        const rendered = await brigade.panne(station.id, key);
-        ifClaudeMissing(rendered);
-        saidOne = "refus" in rendered ? rendered.refus : rendered.fait;
-      } catch (error) {
-        saidOne = `nothing was done: ${rateSays(error)}`;
-      }
-      const inProgress = stationLocaleRead;
-      inProgress.connexionDite = saidOne;
-      restTheStationLocale(inProgress);
     },
   });
   linesOfTheStationLocaleSet = created;
@@ -4267,9 +4103,8 @@ function setTheRail(project) {
   const tab = tabOf(project);
   rail.dataset.onglet = [STATIONS, AGENTS, KNOW_HOW].includes(tab) ? tab : RAIL;
   rail.ariaLabel = tab === STATIONS ? "The stations" : tab === AGENTS ? "The agents" : tab === KNOW_HOW ? "The know-how" : "The rail";
-  // Settings ouvert par-dessus : sa section des plafonds et du closer suit la lecture, comme elle le faisait sur l'onglet
-  // (ticket 3014) ; un champ en cours de frappe n'est pas reposé.
-  restTheHealth(project, true);
+  // Settings ouvert par-dessus : sa section suit la lecture, comme elle le faisait sur l'onglet (ticket 3014).
+  if (current?.nom === project.nom && settingsShown()) setTheBannerOfHealth(project);
   // Stations : la liste de ses stations (ticket 2487), et « Add a station » ; les réglages de
   // chacune (ticket 2488) ; la station de cet ordinateur (ticket 2489).
   if (tab === STATIONS) {
@@ -4926,16 +4761,6 @@ function theCardsOfChef() {
     });
   });
 }
-// Les lignes du disjoncteur ouvert, en tête de la liste (ticket 3371) : une par projet dont la dernière bande le dit ouvert, avec
-// ce que la station en écrit — écrit sous la ligne, un téléphone n'ayant pas de survol (todo-breaker-line.js).
-function theLinesOfBreaker() {
-  return configuration.projets.filter((project) => itselfLit(project)).flatMap((project) => {
-    const alert = alertOfBreaker(project.nom);
-    if (alert === undefined) return [];
-    const said = configuration.projets.length > 1 ? `${project.nom}: ${alert.dit}` : alert.dit;
-    return [setLineOfBreaker(document, { marque: pill(alert.dit, alert.ton), dit: said, ...(alert.releve === undefined ? {} : { pourquoi: alert.releve }) })];
-  });
-}
 function setTheCardsOfChef() {
   if (cardsOfChef.hidden) return;
   const cards = theCardsOfChef();
@@ -4993,7 +4818,6 @@ function setTheCardsOfChef() {
     ...setTheListOfCards(document, {
       cartes: cards,
       avis: opinion,
-      tete: theLinesOfBreaker(),
       ...(cook === undefined ? {} : { ailleurs: ELSEWHERE(cook) }),
       ouvrir: (cardItem) => {
         vueOfCards = { vu: "carte", carte: cardItem };
@@ -5066,7 +4890,7 @@ function setTheRepository(project, state) {
   requestsOfStation.preparation(project.nom, state.etape);
   if (current?.nom !== project.nom) return;
   setTheProjectAPrepare();
-  setAlerts(project);
+  setTheBand(project);
   setRail(project);
 }
 
@@ -5268,7 +5092,7 @@ function lineOfStationOfTheHome(presence, recordedOne) {
       else if (gesture === "ajouter-un-projet") openAddition();
       else {
         remedy.disabled = true;
-        void brigade.panne(station.id, "relire-la-station").finally(() => (remedy.disabled = false));
+        void brigade.relireLesStations().finally(() => (remedy.disabled = false));
       }
     });
     actions.push(remedy);
@@ -5339,14 +5163,13 @@ function setHome() {
 
 // La page d'une station : en tête, son nom, sa pastille et son état en une phrase — « online · 2 cooks
 // running », « offline for 12 min » (home.ts) ; sa machine et sa version ne se lisent
-// qu'au survol de l'icône d'aide, jamais dans la page. Dessous, ses pannes, chacune avec son bouton ;
-// puis les projets qu'elle sert, à lire.
+// qu'au survol de l'icône d'aide, jamais dans la page. Dessous, les projets qu'elle sert, à lire.
 function setPageOfStation() {
   const station = stationsViews?.stations.find(({ id }) => id === stationOpen);
   const line = homeSeen?.stations?.find(({ id }) => id === stationOpen);
   const recordedOne = recordedOpen();
   if (station === undefined && recordedOne !== undefined) {
-    // Une machine seulement enregistrée sous le compte du chef : ni pannes, ni plafond, ni retrait — que son état et ses projets.
+    // Une machine seulement enregistrée sous le compte du chef : ni plafond, ni retrait — que son état et ses projets.
     const title = block("h2", recordedOne.name);
     title.className = "mono";
     const sentence = stateSays(recordedOne);
@@ -5354,14 +5177,12 @@ function setPageOfStation() {
     sentenceSaid.className = "phrase";
     inHeadOfStation.replaceChildren(title, pill(sentence, yourOf(recordedOne)), sentenceSaid, hover(document, detailsOf(recordedOne)));
     setTheSectionsOfStation({ id: recordedOne.id, nom: recordedOne.name });
-    outagesOfStation.replaceChildren();
     capOfStation.replaceChildren();
     versionOfStation.replaceChildren();
     removalOfStation.replaceChildren();
   } else if (station === undefined) {
     inHeadOfStation.replaceChildren(block("p", stationsViews === undefined ? READ_OF("your stations on GitHub") : "this station is no longer paired with this app"));
     setTheSectionsOfStation(undefined);
-    outagesOfStation.replaceChildren();
     capOfStation.replaceChildren();
     versionOfStation.replaceChildren();
     removalOfStation.replaceChildren();
@@ -5373,12 +5194,9 @@ function setPageOfStation() {
     stateSays.className = "phrase";
     // Illisible, ce qui se lit au survol est pourquoi.
     const details = station.etat === "illisible" ? station.ligne : (line?.survol ?? station.machine);
-    // Hors ligne, la panne dessous le dit déjà, avec son bouton : l'en-tête ne le redit pas.
-    const alreadySays = station.pannes.some(({ sujet: subject }) => subject === "injoignable");
-    inHeadOfStation.replaceChildren(title, pill(sentence, line?.ton), ...(alreadySays ? [] : [stateSays]), ...(details === "" ? [] : [hover(document, details)]), ...(line?.note === undefined ? [] : [block("p", line.note)]), setTheCalls(document, line?.appels));
+    inHeadOfStation.replaceChildren(title, pill(sentence, line?.ton), stateSays, ...(details === "" ? [] : [hover(document, details)]), ...(line?.note === undefined ? [] : [block("p", line.note)]), setTheCalls(document, line?.appels));
     setCap(line);
     versionOfStation.replaceChildren(...(station.versionDit ? [block("span", station.versionDit)] : []));
-    outagesOfStation.replaceChildren(...station.pannes.map((outage) => setOutage(station, outage)));
     setTheSectionsOfStation({ id: station.id, nom: station.nom });
     setRemovedTheStation(station);
   }
@@ -5414,13 +5232,6 @@ function setTheSectionsOfStation(station) {
         // Un refus se dit sous la rangée, en ligne d'erreur (sections/connexions.js).
         if ("refus" in start) return { refus: start.refus };
         rests();
-      },
-      renouveler: async () => {
-        const outage = vue?.pannes.find(({ sujet: subject }) => subject === "connexion-max");
-        if (outage === undefined) return "Claude Code is signed in: there is nothing to renew yet.";
-        const rendered = await brigade.panne(station.id, outage.cle);
-        ifClaudeMissing(rendered);
-        return "refus" in rendered ? { refus: rendered.refus } : rendered.fait;
       },
     },
   };
@@ -5906,31 +5717,6 @@ setInterval(() => {
   if (current !== undefined && !delayOfProject.hidden) setTheDelay(current);
 }, 30_000);
 
-// Le bandeau de santé (ticket 2490, 2921), une section de Settings depuis le ticket 3014 (Rail n'a plus que la bande des
-// chiffres, ticket 3013) : les plafonds de durée et le closer. Les plafonds du dépôt se lisent sur GitHub par le process
-// principal (caps-duration.ts) — à l'ouverture de Settings, puis au plus une fois la minute tant qu'il reste ouvert, et
-// après chaque changement. Un champ en cours de frappe n'est pas reposé.
-/** @type {Map<string, import("../caps-duration.ts").ReadOfCaps>} */
-const capsRead = new Map();
-/** @type {Map<string, number>} */
-const capsReadThe = new Map();
-const capsInRead = new Set();
-/** @type {Map<string, Map<string, import("./project/banner-health/DurationCaps.js").State>>} */
-const statesOfCaps = new Map();
-/** @type {Set<string>} */
-const othersCapsOpen = new Set();
-// Le closer du bandeau de santé (ticket 2491), plus bas : sa lecture, ses états.
-/** @type {Map<string, import("../closer-health.ts").ReadOfCloser>} */
-const closerOfHealthRead = new Map();
-/** @type {Map<string, number>} */
-const closerOfHealthReadThe = new Map();
-const closerInRead = new Set();
-/** @type {Map<string, Map<string, import("./project/banner-health/DurationCaps.js").State>>} */
-const statesOfCloser = new Map();
-/** @type {Map<string, import("./project/banner-health/Closer.js").StateOfVerifications>} */
-const verificationsOfCloser = new Map();
-/** @type {Set<string>} */
-const candidatesOpen = new Set();
 // Les chiffres d'autonomie de chaque projet (autonomy/figures.js, ticket 3222), dans sa section, lus de GitHub.
 /** @type {Map<string, ReturnType<typeof holdTheFiguresOfAutonomy>>} */
 const autonomyOfProjects = new Map();
@@ -5962,177 +5748,10 @@ function autonomyOfProject(project) {
   autonomyOfProjects.set(project.nom, heldOne);
   return heldOne;
 }
-// `garder` : une relecture ne repose pas un champ où le chef est en train d'écrire ; ce que ses gestes rendent, si.
-// Les post-mortems de panne du projet (ticket 4023), d'après les derniers faits de sa box — rien de lu tant qu'elle ne les donne pas.
+// La section de Settings du projet : les chiffres d'autonomie, et les lignes de tous les projets.
 /** @param {Project} project */
-function postMortemsOf(project) {
-  const held = /** @type {{ tableau?: { postMortems?: import("../projects/post-mortems.ts").VueOfPostMortems } } | undefined} */ (heldOnes.get(project.nom));
-  return silentOnes.has(project.nom) ? undefined : held?.tableau?.postMortems;
-}
-/** @param {Project} project @param {boolean} [keep] */
-function setTheBannerOfHealth(project, keep = true) {
-  const tape = /** @type {HTMLElement | null} */ (document.activeElement);
-  if (keep && (tape?.tagName === "INPUT" || tape?.tagName === "SELECT") && tape.closest?.('[data-bloc="plafonds-duree"], [data-bloc="closer"]') && bannerHealth.contains(tape)) return;
-  const seenOne = projectsSeen?.projets.find(({ nom: name }) => name === project.nom);
-  const states = statesOfCaps.get(project.nom) ?? new Map();
-  statesOfCaps.set(project.nom, states);
-  const reading = capsRead.get(project.nom);
-  // Sous le titre de sa section de Settings, ce qui se règle ou s'ouvre : les plafonds de durée, le closer, et les lignes
-  // de tous les projets ; avant les chiffres d'autonomie, le temps de chaque phase de la pass que la station publie (ticket 3512).
-  bannerHealth.replaceChildren(
-    setBlockCapsDuration(document, {
-      ...(reading === undefined ? {} : { lecture: reading }),
-      ...(seenOne?.temps === undefined ? {} : { lostTimeMaxMin: seenOne.temps.lostTimeMaxMin }),
-      etats: states,
-      autresOuverts: othersCapsOpen.has(project.nom),
-      basculerAutres: (opened) => void (opened ? othersCapsOpen.add(project.nom) : othersCapsOpen.delete(project.nom)),
-      choisir: (key, chosen) => void states.set(key, { ...states.get(key), choisi: chosen }),
-      changer: (key, input) => void changeOneCap(project, key, input),
-      ouvrir: (url) => void brigade.ouvrirLaProposition(url),
-    }),
-    setTheCloserOfHealth(project),
-    setBlockTimeOfThePass(document, seenOne?.temps),
-    autonomyOfProject(project).poser(),
-    setBlockPostMortems(document, postMortemsOf(project)),
-    ofAllTheProjects,
-  );
-  if (Date.now() - (capsReadThe.get(project.nom) ?? 0) > 60_000) void readTheCapsDuration(project);
-  if (Date.now() - (closerOfHealthReadThe.get(project.nom) ?? 0) > 60_000) void readTheCloserOfHealth(project);
-}
-/** @param {Project} project @param {boolean} [keep] */
-function restTheHealth(project, keep = false) {
-  if (current?.nom === project.nom && settingsShown()) setTheBannerOfHealth(project, keep);
-}
-/** @param {Project} project */
-async function readTheCapsDuration(project) {
-  if (capsInRead.has(project.nom)) return;
-  capsInRead.add(project.nom);
-  capsReadThe.set(project.nom, Date.now());
-  /** @type {import("../caps-duration.ts").ReadOfCaps} */
-  let readEntry;
-  try {
-    readEntry = (await brigade.plafondsDuree?.(project.nom)) ?? { sans: NOT_REACHED("duration caps"), detail: WITHOUT_BRIDGE };
-  } catch (error) {
-    readEntry = { sans: NOT_REACHED("duration caps"), detail: error instanceof Error ? error.message : String(error) };
-  } finally {
-    capsInRead.delete(project.nom);
-  }
-  capsRead.set(project.nom, readEntry);
-  restTheHealth(project, true);
-}
-// Un champ changé : le process principal propose le plafond par une pull request sur le dépôt (ticket 2920). Tant qu'il
-// n'a pas répondu, la rangée dit qu'il s'y met ; ouverte, la PR se dit sous le champ, qui revient à la valeur en vigueur
-// — elle ne change qu'une fois la PR mergée ; déjà là, la rangée le dit ; refusé, le refus se dit sous le champ, son
-// détail au survol, et ce qui a été tapé reste.
-/** @param {Project} project @param {string} key @param {string} input */
-async function changeOneCap(project, key, input) {
-  const states = statesOfCaps.get(project.nom) ?? new Map();
-  statesOfCaps.set(project.nom, states);
-  if (states.get(key)?.enCours === true) return;
-  states.set(key, { ...states.get(key), enCours: true, dit: undefined });
-  restTheHealth(project);
-  /** @type {import("../caps-duration.ts").RenderedOfCap} */
-  let rendered;
-  try {
-    rendered = (await brigade.changerPlafondDuree?.(project.nom, key, input)) ?? { refus: "nothing was changed: nothing was sent", detail: WITHOUT_BRIDGE };
-  } catch (error) {
-    rendered = { refus: "nothing was changed: nothing was sent", detail: error instanceof Error ? error.message : String(error) };
-  }
-  if ("pr" in rendered) states.set(key, { dit: { pr: rendered.pr, numero: rendered.numero, valeur: rendered.valeur } });
-  else if ("fait" in rendered) states.set(key, { dit: { fait: rendered.fait } });
-  else states.set(key, { ...states.get(key), enCours: false, dit: rendered });
-  restTheHealth(project);
-}
-
-// Le closer du bandeau de santé (ticket 2491) : ses passes, ce qu'il vérifie en premier et en plus, ses réglages — lus sur GitHub
-// par le process principal (closer-health.ts), à l'ouverture de Settings puis au plus une fois la minute, comme les
-// plafonds. Un réglage changé se propose par une pull request (ticket 2920), qui se dit sous sa rangée — la valeur en
-// vigueur ne change qu'au merge ; une vérification ajoutée ou retirée s'écrit dans le dépôt, et la liste écrite est reprise.
-/** @param {Project} project */
-function setTheCloserOfHealth(project) {
-  const states = statesOfCloser.get(project.nom) ?? new Map();
-  statesOfCloser.set(project.nom, states);
-  const verifications = verificationsOfCloser.get(project.nom) ?? {};
-  verificationsOfCloser.set(project.nom, verifications);
-  const reading = closerOfHealthRead.get(project.nom);
-  return setBlockCloser(document, {
-    ...(reading === undefined ? {} : { lecture: reading }),
-    etats: states,
-    verifications,
-    valeurs: PROJECT_CALIBRATION,
-    candidatsOuverts: candidatesOpen.has(project.nom),
-    basculerCandidats: (opened) => void (opened ? candidatesOpen.add(project.nom) : candidatesOpen.delete(project.nom)),
-    ouvrir: (url) => void brigade.ouvrirBilan(project.nom, url),
-    ouvrirLaPr: (url) => void brigade.ouvrirLaProposition(url),
-    choisir: (key, chosen) => void states.set(key, { ...states.get(key), choisi: chosen }),
-    changer: (key, input) => void changeOneSettingOfCloser(project, key, input),
-    taper: (input) => void (verifications.saisie = input),
-    changerVerification: (gesture, input) => void changeOneVerificationOfCloser(project, gesture, input),
-  });
-}
-/** @param {Project} project */
-async function readTheCloserOfHealth(project) {
-  if (closerInRead.has(project.nom)) return;
-  closerInRead.add(project.nom);
-  closerOfHealthReadThe.set(project.nom, Date.now());
-  /** @type {import("../closer-health.ts").ReadOfCloser} */
-  let readEntry;
-  try {
-    const without = { sans: NOT_REACHED("the closer"), detail: WITHOUT_BRIDGE };
-    readEntry = (await brigade.closerDeSante?.(project.nom)) ?? { reglages: without, verifications: without, passes: without };
-  } catch (error) {
-    const without = { sans: NOT_REACHED("the closer"), detail: error instanceof Error ? error.message : String(error) };
-    readEntry = { reglages: without, verifications: without, passes: without };
-  } finally {
-    closerInRead.delete(project.nom);
-  }
-  closerOfHealthRead.set(project.nom, readEntry);
-  restTheHealth(project, true);
-}
-/** @param {Project} project @param {string} key @param {string | { model: string, effort: string }} input */
-async function changeOneSettingOfCloser(project, key, input) {
-  const states = statesOfCloser.get(project.nom) ?? new Map();
-  statesOfCloser.set(project.nom, states);
-  if (states.get(key)?.enCours === true) return;
-  states.set(key, { ...states.get(key), enCours: true, dit: undefined });
-  restTheHealth(project);
-  /** @type {import("../closer-health.ts").RenderedOfSetting} */
-  let rendered;
-  try {
-    rendered = (await brigade.changerReglageDuCloser?.(project.nom, key, input)) ?? { refus: "nothing was changed: nothing was sent", detail: WITHOUT_BRIDGE };
-  } catch (error) {
-    rendered = { refus: "nothing was changed: nothing was sent", detail: error instanceof Error ? error.message : String(error) };
-  }
-  // Comme un plafond : la PR ouverte se dit, la valeur en vigueur reste jusqu'au merge.
-  if ("pr" in rendered) states.set(key, { dit: { pr: rendered.pr, numero: rendered.numero, valeur: rendered.valeur } });
-  else if ("fait" in rendered) states.set(key, { dit: { fait: rendered.fait } });
-  else states.set(key, { ...states.get(key), enCours: false, dit: rendered });
-  restTheHealth(project);
-}
-/** @param {Project} project @param {"ajouter" | "retirer"} gesture @param {string} input */
-async function changeOneVerificationOfCloser(project, gesture, input) {
-  const state = verificationsOfCloser.get(project.nom) ?? {};
-  if (state.enCours !== undefined) return;
-  verificationsOfCloser.set(project.nom, { ...state, enCours: gesture === "ajouter" ? "ajouter" : `retirer:${input}`, dit: undefined });
-  restTheHealth(project);
-  /** @type {import("../closer-health.ts").RenderedOfVerifications} */
-  let rendered;
-  try {
-    rendered = (await brigade.changerVerificationDuCloser?.(project.nom, gesture, input)) ?? { refus: "nothing was changed: nothing was sent", detail: WITHOUT_BRIDGE };
-  } catch (error) {
-    rendered = { refus: "nothing was changed: nothing was sent", detail: error instanceof Error ? error.message : String(error) };
-  }
-  // Proposée par une PR (ticket 2920) : la liste en vigueur ne change qu'au merge, la PR se dit sous le champ. Ajoutée, le
-  // champ se vide ; retirée, ce qui y était tapé reste.
-  const guard = gesture === "ajouter" ? {} : { saisie: state.saisie };
-  if ("pr" in rendered) verificationsOfCloser.set(project.nom, { ...guard, dit: { pr: rendered.pr, numero: rendered.numero, geste: rendered.geste, verification: rendered.verification } });
-  else if ("fait" in rendered) verificationsOfCloser.set(project.nom, { ...guard, dit: { fait: rendered.fait } });
-  else verificationsOfCloser.set(project.nom, { ...state, enCours: undefined, dit: rendered });
-  if (!("refus" in rendered)) {
-    const readEntry = closerOfHealthRead.get(project.nom);
-    if (readEntry !== undefined) closerOfHealthRead.set(project.nom, { ...readEntry, verifications: { liste: rendered.liste } });
-  }
-  restTheHealth(project);
+function setTheBannerOfHealth(project) {
+  bannerHealth.replaceChildren(autonomyOfProject(project).poser(), ofAllTheProjects);
 }
 
 // Les blocages du projet affiché (ticket 1399). Les gestes que l'app sait faire pour en lever un, par l'identifiant
@@ -6480,41 +6099,6 @@ async function entrust() {
   validateTrust.disabled = false;
 }
 
-// Ce que le bouton d'une panne a rendu, par `<gist> <clé>` : redit à chaque relecture, tant que la
-// panne est sur la ligne de sa station.
-/** @type {Map<string, string>} */
-const outagesSaid = new Map();
-
-// Une panne, sous la ligne de sa station : ce qui ne va pas, en une ligne, et son bouton — relire,
-// écarter, se connecter (outages/outages.ts). Jamais une commande à taper.
-/** @param {import("../stations/stations.ts").StationVue} station @param {import("../outages/outages.ts").Outage} outage */
-function setOutage({ id, nom: name, projets: projects }, outage) {
-  const pose = document.createElement("p");
-  pose.className = "panne";
-  pose.dataset.sujet = outage.sujet;
-  const button = buttonOfTheFamily(document, outage.bouton.libelle, () => void playOutage(id, outage.cle, button));
-  // L'explication, et ce que le bouton a rendu, ne se lisent qu'au survol.
-  const said = outagesSaid.get(`${id} ${outage.cle}`);
-  pose.append(block("span", outage.ligne), button, hover(document, said === undefined ? outage.survol : `${outage.survol}. ${said}`));
-  // La station est en panne : « report to brigade » à la suite (ticket 1977), le journal lu dans un projet qu'elle sert.
-  pose.append(...report.poser({ ...(projects[0] === undefined ? {} : { projet: projects[0] }), reference: { station: name }, panne: `station ${name}: ${outage.ligne}` }));
-  return pose;
-}
-/** @param {string} id @param {string} key @param {HTMLButtonElement} button */
-async function playOutage(id, key, button) {
-  button.disabled = true;
-  let said;
-  try {
-    const rendered = await brigade.panne(id, key);
-    ifClaudeMissing(rendered);
-    said = "refus" in rendered ? rendered.refus : rendered.fait;
-  } catch (error) {
-    said = `nothing was done: ${error instanceof Error ? error.message : String(error)}`;
-  }
-  outagesSaid.set(`${id} ${key}`, said);
-  setPageOfStation();
-}
-
 // « + station » ouvre le champ du code, sous la liste des stations ; « cancel » le referme, vide.
 openThePairing.addEventListener("click", () => {
   formOfPairing.hidden = false;
@@ -6573,140 +6157,6 @@ async function putADay(clone) {
   setCode();
 }
 
-// La bande d'alertes du projet affiché, en tête de l'espace : une ligne par chose à faire — ce
-// qui ne va pas, ce que la box en a écrit, mot pour mot, puis le geste et son prix. Le geste y est
-// collé, sous sa forme : un geste du socle, direct ou confirmé — sa confirmation s'ouvre sous la
-// ligne ; une demande au second, quand il faut lire, juger ou agir hors de l'app ; l'onglet qui lit
-// l'état que la file ne dit pas. Une ligne « non vérifié » dit un état que la box ne dit pas. L'urgence,
-// toujours la première, porte sa marque en tête : ce n'est pas une ligne comme les autres. Vide,
-// la bande est cachée : elle ne prend aucune place. Un projet sans box n'en a pas — rien n'en est
-// lu, et l'espace le dit.
-/** @param {Project} project */
-function setAlerts(project) {
-  const alerts = !itselfLit(project) ? [] : (bands.get(project.nom) ?? []);
-  actionOfTheEmergency = undefined;
-  const opinion = opinionOfRepository(project, "page");
-  // En lecture seule, sa ligne vient en tête du projet (ticket 3163) : elle dit pourquoi aucun geste n'est offert.
-  const repository = readOnlyOf(project);
-  const only = repository === undefined ? [] : [lineReadOnly(document, repository, (page) => void brigade.ouvrirLectureSeule?.(project.nom, page))];
-  band.hidden = alerts.length === 0 && opinion === undefined && only.length === 0;
-  band.replaceChildren(...only, ...(opinion === undefined ? [] : [opinion]), ...alerts.map((alert) => setAlert(project, alert)));
-}
-
-// L'endroit d'une ligne de la bande : son sujet, et ce qu'elle dit — l'urgence par son seul sujet,
-// sa phrase change à chaque lecture (« at a standstill for 5 h 00 »). Ce qui y est ouvert — sa
-// confirmation, son détail — ne se referme pas sous les yeux du chef.
-/** @param {Alert} alerte */
-const placeOfTheAlert = ({ sujet: subject, dit: said }) => (subject === "urgence" ? "alerte:urgence" : `alerte:${subject}:${said}`);
-
-// Une ligne de la bande (ticket 907) : une seule ligne — ce qui ne va pas — et un seul contrôle, le
-// geste qui le lève. Son prix n'est pas posé à côté : le clic ouvre la confirmation, qui le dit. Ce
-// que la ligne sait de plus — pourquoi, ce que la box en écrit mot pour mot — est replié derrière « detail », dessous.
-/** @param {Project} project @param {Alert} alert */
-function setAlert(project, alert) {
-  const { sujet: subject, verifie: checks, ton: your, dit: said, pourquoi: why, releve: reading } = alert;
-  const line = document.createElement("div");
-  line.className = "alerte";
-  line.dataset.sujet = subject;
-  line.dataset.ton = your;
-  if (!checks) line.dataset.verifie = "non";
-  if (subject === "urgence" && emergencyChosen === project.nom) line.dataset.choisie = "oui";
-  const place = placeOfTheAlert(alert);
-  const head = document.createElement("p");
-  head.className = "ligne";
-  const brand = subject === "urgence" ? block("span", "URGENT") : undefined;
-  if (brand !== undefined) brand.className = "urgent";
-  head.append(pill(said, your), ...(brand === undefined ? [] : [brand]), block("strong", said));
-
-  // Le détail : ce que la ligne sait de plus, à plat une fois déplié — le pourquoi, et le brut de la box,
-  // entier. Pas le geste : le seul geste montré est le contrôle de la ligne, un bouton — jamais une
-  // commande à recopier (règles de la langue visuelle, ticket 830).
-  const key = `${project.nom}\u0000${place}`;
-  const unfolded = detailsUnfolded.has(key);
-  /** @type {HTMLElement[]} */
-  const detail = [
-    ...(why === undefined || why.trim() === "" ? [] : [block("p", why)]),
-    ...(reading === undefined || reading.trim() === "" ? [] : [exact("pre", reading)]),
-  ];
-  if (detail.length > 0) {
-    const unfold = button("detail", () => {
-      if (detailsUnfolded.has(key)) detailsUnfolded.delete(key);
-      else detailsUnfolded.add(key);
-      setAlerts(project);
-    }, "discret");
-    unfold.className = "detail";
-    unfold.ariaExpanded = String(unfolded);
-    unfold.title = unfolded ? "fold the detail" : "what the station says, as is — and why";
-    head.append(unfold);
-  }
-  const [control, ...openOne] = setControl(project, alert, place);
-  if (control !== undefined) head.append(control);
-  line.append(head);
-  // Ce que le chef peut y faire, en clair sous la ligne : pas replié derrière « detail ».
-  if (alert.consignes !== undefined && alert.consignes.length > 0) {
-    const instructions = document.createElement("ul");
-    instructions.className = "consignes";
-    instructions.append(...alert.consignes.map((instruction) => block("li", instruction)));
-    line.append(instructions);
-  }
-  if (unfolded && detail.length > 0) {
-    const unfoldedOnes = document.createElement("div");
-    unfoldedOnes.className = "detail";
-    unfoldedOnes.append(...detail);
-    line.append(unfoldedOnes);
-  }
-  // Une confirmation ouverte passe dessous, sur toute la largeur.
-  line.append(...openOne);
-  return line;
-}
-
-// Le contrôle d'une ligne de la bande, et sa confirmation quand elle est ouverte. Une demande au second dont le geste coûte : le clic ouvre une confirmation qui dit ce que coûtera le
-// lever — un « oui » écrit la demande dans le second, sans l'envoyer. Sans prix, elle s'écrit au clic.
-// Un onglet : il s'ouvre. Sans appel, la ligne n'a pas de contrôle : rien à faire depuis l'app.
-/** @param {Project} project @param {Alert} alert @param {string} place @returns {HTMLElement[]} */
-function setControl(project, alert, place) {
-  const { sujet: subject, geste: lifted, bouton: wording, appel: call, prix: price } = alert;
-  if (call === undefined) return [];
-  const word = wording ?? lifted;
-  /** @type {HTMLElement[]} */
-  let pose;
-  if ("demande" in call) {
-    // Un prix « none… » est un prix nul : pas de confirmation, la demande s'écrit au clic.
-    const cost = /^none\b/i.test(price.trim()) ? "" : priceSays(price);
-    const key = JSON.stringify(["demande", "", place]);
-    const openOne = aConfirm?.projet === project.nom && aConfirm.cle === key ? aConfirm : undefined;
-    const request = button(cost === "" ? word : `${word}…`, () => {
-      if (cost === "") return void askAlert(alert);
-      notWritten = notWrittenSecond = "";
-      aConfirm = openOne === undefined ? { projet: project.nom, cle: key, rendu: confirmationOfRequest(cost) } : undefined;
-      show();
-    });
-    request.dataset.geste = "demande";
-    request.ariaExpanded = cost === "" ? null : String(openOne !== undefined);
-    request.title = cost === "" ? "writes into the second a request about this line — nothing is sent: you press Enter" : "says first what lifting it costs — then writes the request into the second, without sending it";
-    pose = openOne === undefined ? [request] : [request, setConfirmation(project, openOne, () => void askAlert(alert))];
-  } else if ("relire" in call) {
-    // Réessayer maintenant : la box est relue tout de suite, au lieu d'attendre le tour des trente secondes.
-    pose = [button(word, () => readTheFacts())];
-  } else {
-    const { onglet: tab } = call;
-    pose = [button(word, () => (leaves.get(project.nom) === tab ? undefined : activer(tab)))];
-  }
-  const [first] = pose;
-  if (subject === "urgence" && first !== undefined) actionOfTheEmergency = first;
-  return pose;
-}
-
-// La confirmation d'une demande au second : ce que coûtera le lever, en une ligne — le prix que la
-// ligne de la bande en dit —, et ce que fait le « oui » : il écrit la demande, rien ne part.
-/** @param {string} price @returns {Confirmation} */
-const confirmationOfRequest = (price) => ({
-  titre: "ask the second to lift it",
-  prix: [price, "the second reads, explains, and acts only with you"],
-  choix: [{ id: "demande", libelle: YES("write the request"), dit: "written into the second, not sent: your Enter sends it" }],
-  renoncer: "no, write nothing",
-});
-
 // La bannière d'arrêt : la cuisine est à l'arrêt quand la box le dit, d'un mot.
 /** @param {Project} project */
 function setStopFlag(project) {
@@ -6729,7 +6179,7 @@ function draw() {
   if (current !== undefined && readOnlyOf(current) !== undefined) state.dataset.lectureSeule = "";
   else delete state.dataset.lectureSeule;
   if (current === undefined) return;
-  setAlerts(current);
+  setTheBand(current);
   setStopFlag(current);
   setRail(current);
 }
@@ -6818,7 +6268,6 @@ function mark() {
   // La fiche d'un projet ne reste pas ouverte quand le chef en quitte l'espace.
   if (openOne !== undefined && openOne.projet.nom !== current?.nom) closeCard();
   // L'espace affiché ne porte pas de signal : il le reprend en le quittant.
-  for (const project of configuration.projets) markSignal(project.nom);
   all.hidden = refuses || adds || current !== undefined;
   // À la largeur d'un téléphone, l'accueil est la liste des cartes qui attendent le chef (ticket 2915) : elle prend la place
   // de « Tous les projets », sauf sous une page de l'app, une station ou le premier lancement, qui la couvrent comme lui.
@@ -7033,14 +6482,13 @@ const toolsOfJourney = holdTheTools({
     resume?.();
   },
 });
-const toolsOfLogin = holdTheTools({ pont: brigade, outils: ["claude"], rendre: () => setTheToolsHere() });
 /** @param {ReturnType<typeof holdTheTools>} heldOnes */
 const actionsOfTools = (heldOnes) => ({ ouvrir: (/** @type {string} */ url) => void brigade.ouvrirLaPage?.(url), verifier: () => void heldOnes.verifier(true) });
 let opinionOfTools = false;
 function setTheToolsHere() {
   const onTheFirst = screenOfFirst !== undefined && screenOfFirst.parentElement === all && !all.hidden;
   if (onTheFirst) setTheFirst();
-  const heldOnes = [...(onTheFirst ? [] : [toolsOfJourney]), toolsOfLogin].find(({ etat: state }) => state.manque !== undefined);
+  const heldOnes = [...(onTheFirst ? [] : [toolsOfJourney])].find(({ etat: state }) => state.manque !== undefined);
   if (heldOnes === undefined) {
     if (opinionOfTools) opinion.hidden = true;
     opinionOfTools = false;
@@ -7053,15 +6501,10 @@ function setTheToolsHere() {
     }, "discret"));
   opinion.hidden = false;
 }
-/** @param {import("../outages/actions.ts").RenderedOfOutage} rendered */
-function ifClaudeMissing(rendered) {
-  if ("outilManquant" in rendered) void toolsOfLogin.verifier();
-}
 /** @type {import("./first-launch.js").ActionsOfFirst} */
 const actionsOfFirst = {
   ouvrir: (station, project, repository, base) => void openOfAStation(station, project, repository, base),
   seConnecter: () => void itselfConnectAGitHub(),
-  ...(brigade.seConnecterAClaude === undefined ? {} : { seConnecterAClaude: () => void itselfConnectAClaude() }),
   changerDeCompte: () => void itselfConnectAGitHub(),
   relireLeCompte: () => void accountOfJourney.lire(),
   relire: () => void rereadTheFirst(),
@@ -7314,7 +6757,7 @@ function setTheRequestOfStationHere() {
 /** @param {Project} project */
 function restThePage(project) {
   if (current?.nom !== project.nom) return;
-  setAlerts(project);
+  setTheBand(project);
   setRail(project);
 }
 
@@ -7529,22 +6972,6 @@ async function openOfAStation(station, project, repository, base) {
   setTheFirst();
 }
 
-// Le login de Claude Code qu'une ouverture retenue demande (ticket 4057) : celui de la panne « Max connection lost ». Ce qu'il
-// rend se dit sous le projet ; sa fin arrive par `surLoginClaude`, et l'ouverture repart.
-async function itselfConnectAClaude() {
-  /** @type {import("../outages/actions.ts").RenderedOfOutage} */
-  let rendered;
-  try {
-    rendered = (await brigade.seConnecterAClaude?.()) ?? { refus: "the login was not launched: the app gave no answer" };
-  } catch (error) {
-    rendered = { refus: `the login was not launched: the app failed while launching it (${error instanceof Error ? error.message : String(error)})` };
-  }
-  ifClaudeMissing(rendered);
-  if (first.ouverture?.echec?.state !== "login") return;
-  first.ouverture.login = rendered;
-  setTheFirst();
-}
-
 async function itselfConnectAGitHub() {
   // Une connexion qui ne peut pas partir — sans `gh` — ne tourne pas : l'écran de l'outil manquant la remplace, et le
   // bouton revient tel quel une fois l'outil installé.
@@ -7585,10 +7012,6 @@ brigade.surOuverture?.((repository, step) => {
   setTheFirst();
 });
 // Le login de Claude Code fini : l'ouverture qu'il retenait repart — connecté, la cuisine démarre ; sinon, « log in » revient.
-brigade.surLoginClaude?.(() => {
-  const retainedOne = first.ouverture?.echec?.state === "login" ? first.ouverture : undefined;
-  if (retainedOne !== undefined) void openOfAStation(retainedOne.station, retainedOne.projet, retainedOne.depot, retainedOne.base);
-});
 // Sur le téléphone, la connexion à GitHub est celle de son premier écran (connection-github.js) : elle n'est pas d'ici.
 brigade.surConnexionGitHub?.((end) => {
   if (phoneSeen !== undefined) return;
@@ -7749,10 +7172,7 @@ async function open(project) {
   recordedAReread = true;
   stationOpen = undefined;
   pageOfTheApp = undefined;
-  if (emergencyChosen !== project.nom) emergencyChosen = "";
   notWritten = notWrittenSecond = "";
-  // Une confirmation ouverte sur un autre projet ne reste pas ouverte : rien n'en part.
-  if (aConfirm?.projet !== project.nom) aConfirm = undefined;
   adds = false;
   // Comme le panneau : l'onglet de contenu laissé là est relu tout de suite.
   tracking = undefined;
@@ -7828,36 +7248,6 @@ brigade.surActivites((published) => {
 });
 // Les faits d'un projet : ils remplacent ceux d'avant, partout où ils se dessinent —
 // sa pastille dans la barre, et son espace s'il est affiché — sa ligne de l'accueil vient par `surAccueil`.
-// La bande d'alertes d'un projet : posée tout de suite si c'est celui qui est affiché.
-brigade.surAlertes(({ projet: project, alertes: alerts, signal }) => {
-  const breakerBefore = JSON.stringify(alertOfBreaker(project));
-  bands.set(project, alerts);
-  const breaker = alertOfBreaker(project);
-  signals.set(project, signal);
-  markSignal(project);
-  // La pastille dit la même chose que la bande, en un mot.
-  markPill(project);
-  // Le disjoncteur a changé : sa ligne à côté de l'entrée TODO aussi.
-  if (JSON.stringify(breaker) !== breakerBefore) setTheCardsOfChef();
-  if (current?.nom !== project) return;
-  setAlerts(current);
-  // Le disjoncteur a changé : l'onglet Stations et la ligne de TODO le disent aussitôt.
-  if (JSON.stringify(breaker) !== breakerBefore) setRail(current);
-});
-// Le chef a cliqué la notification de l'urgence d'un projet : la fenêtre est déjà devant. Le projet
-// s'ouvre — s'il ne l'est pas déjà —, la fiche d'un ticket ouverte par-dessus se referme, et la ligne
-// d'urgence, en tête de la bande, est marquée choisie : son geste prend le clavier, prêt à trancher.
-brigade.surUrgence(async (name) => {
-  const project = configuration.projets.find((candidate) => candidate.nom === name);
-  if (project === undefined) return;
-  emergencyChosen = name;
-  if (current?.nom !== name) await open(project);
-  // Le chef a pu cliquer ailleurs pendant que l'espace s'ouvrait.
-  if (current?.nom !== name) return;
-  if (openOne !== undefined) closeCard();
-  setAlerts(current);
-  actionOfTheEmergency?.focus();
-});
 // Ce qui n'est pas encore sur le rail d'un projet : le sien se repose, s'il est affiché.
 brigade.surAmont((seenOne) => {
   upstreams.set(seenOne.projet, seenOne);
@@ -8096,7 +7486,6 @@ function display() {
   for (const name of [...heldOnes.keys()]) if (!configuration.projets.some((project) => project.nom === name)) heldOnes.delete(name);
   silentOnes.clear();
   pills.clear();
-  reported.clear();
   bar.replaceChildren(
     ...configuration.projets.map((project) => {
       const entry = icon("", project.nom, () => void open(project));
@@ -8117,7 +7506,6 @@ function display() {
         entry.append(setOne);
         pills.set(project.nom, setOne);
         markPill(project.nom);
-        markSignal(project.nom);
       }
       return entry;
     }),
@@ -8191,7 +7579,6 @@ projectsSeen ??= startup.projetsDesStations;
 homeSeen ??= startup.accueil;
 updateVue ??= startup.miseAJour;
 bannerOfVersion.suivre(updateVue);
-PROJECT_CALIBRATION = startup.calibrage;
 let configuration = startup.configuration;
 if (brigade.iconeDeFond !== undefined) {
   void readTheIconOfBackground();
@@ -8207,6 +7594,16 @@ brigade.surTelephone?.((seenOne) => {
   if (current === undefined && !adds && stationOpen === undefined) setHome();
 });
 // Le chef touche la notification d'une carte de TODO (le ticket 2747) : le projet s'ouvre, puis la fiche de la carte.
+// Le chef a choisi un projet dans le menu de la barre des menus : le projet s'ouvre, et la fiche d'un ticket ouverte
+// par-dessus se referme.
+brigade.surOuvrirProjet(async (name) => {
+  const project = configuration.projets.find((candidate) => candidate.nom === name);
+  if (project === undefined) return;
+  if (current?.nom !== name) await open(project);
+  // Le chef a pu cliquer ailleurs pendant que l'espace s'ouvrait.
+  if (current?.nom !== name) return;
+  if (openOne !== undefined) closeCard();
+});
 brigade.surOuvrirCarte?.((name, ticket) => void openTicketSinceTheCosts(name, ticket));
 // GitHub refuse la connexion de ce téléphone : elle est effacée, et l'app se rouvre sur la connexion à GitHub.
 async function forgetThePhone() {

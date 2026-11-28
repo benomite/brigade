@@ -45,7 +45,7 @@ export { buttonOfThePage, connectionSaid, CONNECTION_IN_ROUTE, actions, sentence
  * @typedef {{
  *   poste: string,
  *   stations?: StationsOfChef,
- *   ouverture?: { station: string, projet: string, depot: string, base?: string, etape?: Progress, echec?: Extract<Opening, { state: "failed" | "login" }>, login?: import("../outages/actions.ts").RenderedOfOutage },
+ *   ouverture?: { station: string, projet: string, depot: string, base?: string, etape?: Progress, echec?: Extract<Opening, { state: "failed" | "login" }> },
  *   connexion?: Connection,
  *   compte?: AccountGitHub,
  *   saisie?: { projet: string },
@@ -56,7 +56,6 @@ export { buttonOfThePage, connectionSaid, CONNECTION_IN_ROUTE, actions, sentence
  * @typedef {{
  *   ouvrir: (station: string, project: string, repository: string, base?: string) => void,
  *   seConnecter: () => void,
- *   seConnecterAClaude?: () => void,
  *   relire: () => void,
  *   ouvrirLaPage: (url: string) => void,
  *   ajouterUnProjet: () => void,
@@ -85,8 +84,6 @@ export const REPOSITORY_UNKNOWN = "its station does not say which GitHub reposit
 export const WITHOUT_KITCHEN = "does not cook";
 /** @param {string} project */
 export const openingOf = (project) => `Opening ${project}…`;
-// Le geste qui connecte Claude Code sur cet ordinateur : le mot du bouton de la panne « Max connection lost » (outages/outages.ts).
-export const ITSELF_CONNECT_A_CLAUDE = "log in";
 
 // Ce que le chef a tapé, lu : un dépôt `owner/repo` — ou un nom seul, complété par le compte connecté —, sinon pourquoi
 // rien ne s'ouvre. Rien n'est deviné : l'adresse de GitHub se reconnaît, le reste se refuse. Le nom du projet est celui du
@@ -115,7 +112,7 @@ function created(doc, balise, text) {
 // sous le formulaire quand il vient de là (station vide) — ou sous la liste de l'écran « Add a project » (addition.js).
 /**
  * @param {Fabrique} doc @param {NonNullable<StateOfFirst["ouverture"]>} opening @param {{ connexion?: Connection }} state
- * @param {Pick<ActionsOfFirst, "ouvrir" | "seConnecter" | "seConnecterAClaude" | "ouvrirLaPage">} action
+ * @param {Pick<ActionsOfFirst, "ouvrir" | "seConnecter" | "ouvrirLaPage">} action
  */
 export function openingSaid(doc, opening, state, action) {
   if (opening.echec === undefined) {
@@ -126,15 +123,8 @@ export function openingSaid(doc, opening, state, action) {
   }
   const { echec: failure } = opening;
   const retry = buttonAction(doc, RETRY, () => action.ouvrir(opening.station, opening.projet, opening.depot, opening.base));
-  // Claude Code pas connecté (ticket 4057) : rien n'a commencé. « log in » lance son login ; la copie repart quand il finit.
-  if (failure.state === "login") {
-    const login = opening.login;
-    return [
-      lineError(doc, sentence(doc, "span", failure.reason), undefined, { classe: "refus" }),
-      ...(login === undefined || "outilManquant" in login ? [] : ["fait" in login ? sentence(doc, "p", login.fait) : lineError(doc, sentence(doc, "span", login.refus), undefined, { classe: "refus" })]),
-      actions(doc, [...(action.seConnecterAClaude === undefined ? [] : [buttonAction(doc, ITSELF_CONNECT_A_CLAUDE, () => action.seConnecterAClaude?.(), { recommande: true })]), retry]),
-    ];
-  }
+  // Claude Code pas connecté (ticket 4057) : rien n'a commencé. Le chef s'y connecte, puis réessaie.
+  if (failure.state === "login") return [lineError(doc, sentence(doc, "span", failure.reason), undefined, { classe: "refus" }), actions(doc, [retry])];
   const refusal = lineError(doc, sentence(doc, "span", failure.reason), failure.detail, { classe: "refus" });
   const link = "link" in failure ? failure.link : undefined;
   return [

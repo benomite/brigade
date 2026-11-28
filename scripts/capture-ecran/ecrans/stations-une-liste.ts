@@ -12,8 +12,8 @@ const INSTANT = Date.parse(MAINTENANT);
 const IL_Y_A = (minutes: number) => new Date(INSTANT - minutes * 60_000).toISOString();
 
 // Ce que les gists de présence disent, tel que l'app le lit (stations/stations.ts).
-const BOX: StationVue = { id: "f0a1", nom: "parade-box", machine: "Debian 12 · 8 cores", coeurs: 8, etat: "en-ligne", ligne: "", pannes: [], dit: "online", version: "2.4.0", projets: ["brigade", "calculus-workspace", "espace", "mirrorscreen", "mirrorlab"], max: null };
-const MAC: StationVue = { id: "f0b2", nom: "macbook-air-de-benoit", machine: "macOS 15 · 8 cores", coeurs: 8, etat: "en-ligne", ligne: "", pannes: [], dit: "online", version: "2.4.0", projets: [], max: null };
+const BOX: StationVue = { id: "f0a1", nom: "parade-box", machine: "Debian 12 · 8 cores", coeurs: 8, etat: "en-ligne", ligne: "", dit: "online", version: "2.4.0", projets: ["brigade", "calculus-workspace", "espace", "mirrorscreen", "mirrorlab"], max: null };
+const MAC: StationVue = { id: "f0b2", nom: "macbook-air-de-benoit", machine: "macOS 15 · 8 cores", coeurs: 8, etat: "en-ligne", ligne: "", dit: "online", version: "2.4.0", projets: [], max: null };
 const STATIONS: SeenOfStations = { a: MAINTENANT, stations: [MAC, BOX] };
 
 // Ce que les gists d'enregistrement disent, tel que l'app le reçoit (`StationRecorded`) : chacune vue il y a une minute,

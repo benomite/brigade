@@ -301,7 +301,7 @@ function paired(...stations: StationVue[]): { stations: SeenOfStations; accueil:
   const lines: LineOfStation[] = stations.map((station) => lineOfStation(station, 0));
   return { stations: { a: SEEN, stations }, accueil: { projets: [], stations: lines, sante: { ton: "vert", dit: "Max ✓  ·  GitHub ✓", survol: "" } } };
 }
-const presence = (id: string, name: string, projects: string[]): StationVue => ({ id, nom: name, machine: "Debian 12", etat: "en-ligne", ligne: "", pannes: [], dit: "online", version: "1.4.0", projets: projects, max: null });
+const presence = (id: string, name: string, projects: string[]): StationVue => ({ id, nom: name, machine: "Debian 12", etat: "en-ligne", ligne: "", dit: "online", version: "1.4.0", projets: projects, max: null });
 
 const section = (vue: Played) => vue.element("toutes-les-stations");
 // Les lignes de la liste des stations : chaque bouton `ligne`, par le nom qu'il porte.

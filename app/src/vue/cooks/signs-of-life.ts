@@ -15,8 +15,8 @@ export function signsOf(readOne: StationsDuCompte): SignsOfLife {
 }
 
 // La station de cet ordinateur, que l'app voit tourner (son process, workstation/station.ts), n'est pas tue, même quand le quota
-// GitHub l'empêche d'écrire son signe de vie : son dernier signe est cet instant. `id` : son gist (outages/login.ts,
-// `gistLocal`), nul quand elle ne tourne pas ici — rien ne change alors.
+// GitHub l'empêche d'écrire son signe de vie : son dernier signe est cet instant. `id` : son gist (stations/local-gist.ts,
+// `localGist`), nul quand elle ne tourne pas ici — rien ne change alors.
 export function withTheStationLocale<S extends { lastSeen: string; id?: string }>(signs: readonly S[], id: string | null, now: number): S[] {
   if (id === null) return [...signs];
   const instant = new Date(now).toISOString();

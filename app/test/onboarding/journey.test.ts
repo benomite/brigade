@@ -11,7 +11,6 @@ import { EXAMPLE, type Project } from "../../src/config.ts";
 import { PALETTE } from "../../src/colors.ts";
 import { BANNER } from "../../src/facts.ts";
 import { TABS, HEADINGS } from "../../src/tabs.ts";
-import type { Outage } from "../../src/outages/outages.ts";
 import { readOnboarding, type Onboarding } from "../../src/projects/request.ts";
 import { calibrationRecommended, EFFORTS, machineProposed, MODELS, type SeenOfProjects } from "../../src/projects/projects.ts";
 import type { SeenOfStations } from "../../src/stations/stations.ts";
@@ -234,7 +233,7 @@ describe("le parcours, posé", () => {
 
 // La page de « mirrorlab », confiée à sa box, telle que la vue la joue.
 const A = "2026-10-13T10:04:00.000Z";
-const BOX = { id: "g1", nom: "box", machine: "Linux 6.1.0", coeurs: 8, etat: "en-ligne", ligne: "online · version 1.4.0 · 1 project: mirrorlab", pannes: [] as Outage[], dit: "online", version: "1.4.0", projets: [] as string[], max: null } as const;
+const BOX = { id: "g1", nom: "box", machine: "Linux 6.1.0", coeurs: 8, etat: "en-ligne", ligne: "online · version 1.4.0 · 1 project: mirrorlab", dit: "online", version: "1.4.0", projets: [] as string[], max: null } as const;
 const STATIONS: SeenOfStations = { a: A, stations: [BOX] };
 const MIRRORLAB: Project = { nom: "mirrorlab", dossier: "/tmp/mirrorlab", depot: REPOSITORY, base: "main" };
 const CANTINE: Project = { nom: "cantine", dossier: "/tmp/cantine", depot: "benomite/cantine", base: "main" };

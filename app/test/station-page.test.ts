@@ -102,7 +102,7 @@ describe("la coque de la page d'une station", () => {
 // L'app jouée : la page d'une station ouverte depuis le bloc de la station de l'accueil (#2638) monte la coque — celle de
 // cet ordinateur par « Station settings », une autre par sa ligne sous « Your other stations ».
 const A = "2026-11-06T12:00:00.000Z";
-const MAC: StationVue = { id: "gist-mac", nom: "mac", machine: "macOS 25.0.0", etat: "en-ligne", ligne: "online", pannes: [], dit: "online", version: "1.4.0", projets: ["parade"], max: "connectee" };
+const MAC: StationVue = { id: "gist-mac", nom: "mac", machine: "macOS 25.0.0", etat: "en-ligne", ligne: "online", dit: "online", version: "1.4.0", projets: ["parade"], max: "connectee" };
 const PC: StationVue = { ...MAC, id: "gist-pc", nom: "pc", machine: "Windows 11" };
 const startup = () => ({
   configuration: forTheBar({ chemin: "/tmp/app.json", projets: [{ nom: "parade", dossier: "/tmp/parade" }] }, () => true),

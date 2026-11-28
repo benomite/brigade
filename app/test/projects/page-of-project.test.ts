@@ -16,14 +16,13 @@ import { EXAMPLE, type Project } from "../../src/config.ts";
 import { PALETTE } from "../../src/colors.ts";
 import { BANNER } from "../../src/facts.ts";
 import { TABS, HEADINGS } from "../../src/tabs.ts";
-import type { Outage } from "../../src/outages/outages.ts";
 import { calibrationRecommended, EFFORTS, machineProposed, MODELS, stationRecommended, type Addition, type DefaultsOfTheMachine, type SeenOfProjects } from "../../src/projects/projects.ts";
 import type { SeenOfStations } from "../../src/stations/stations.ts";
 import { type Fake, type Played, playTheVue, openTab, repos } from "../helpers/false-vue.ts";
 
 const A = "2026-10-19T12:00:00.000Z";
-const BOX = { id: "g1", nom: "parade-box", machine: "Linux 6.1.0", coeurs: 8, etat: "en-ligne", ligne: "online · version 1.4.0 · no project", pannes: [] as Outage[], dit: "online", version: "1.4.0", projets: [] as string[], max: null } as const;
-const MAC = { id: "g2", nom: "macbook", machine: "macOS 25.0.0", coeurs: 12, etat: "en-ligne", ligne: "online · version 1.4.0 · no project", pannes: [] as Outage[], dit: "online", version: "1.4.0", projets: [] as string[], max: null } as const;
+const BOX = { id: "g1", nom: "parade-box", machine: "Linux 6.1.0", coeurs: 8, etat: "en-ligne", ligne: "online · version 1.4.0 · no project", dit: "online", version: "1.4.0", projets: [] as string[], max: null } as const;
+const MAC = { id: "g2", nom: "macbook", machine: "macOS 25.0.0", coeurs: 12, etat: "en-ligne", ligne: "online · version 1.4.0 · no project", dit: "online", version: "1.4.0", projets: [] as string[], max: null } as const;
 const STATIONS: SeenOfStations = { a: A, stations: [BOX, MAC] };
 const HOME: Home = { projets: [], stations: [], sante: { ton: "vert", dit: "Max ✓  ·  GitHub ✓", survol: "" } };
 // Ce que le process principal propose de chaque station, et le calibrage : sans autre projet, la valeur mesurée.

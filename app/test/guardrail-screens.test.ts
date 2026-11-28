@@ -1,5 +1,4 @@
-// Garde-fou (#835) : « l'app parle moins » doit tenir dans le temps. Chaque écran — l'accueil, la bande
-// d'alertes, la fiche d'une carte, la page des coûts de l'app, Settings, le bandeau du second — est joué tel que la vue
+// Garde-fou (#835) : « l'app parle moins » doit tenir dans le temps. Chaque écran — l'accueil, la fiche d'une carte, la page des coûts de l'app, Settings, le bandeau du second — est joué tel que la vue
 // le pose, dans deux états : une lecture en échec, et une décision qui attend le chef. Le texte *visible
 // par défaut* (celui des éléments, sans le survol, sans un `details` replié) ne porte jamais une commande à
 // recopier, un mode d'emploi, un code de sortie, ni une phrase de prix sous un bouton ; une lecture qui
@@ -15,7 +14,6 @@ import { actionsOfCard } from "../src/card-actions.ts";
 import { EFFORTS, MODELS } from "../src/projects/projects.ts";
 import { TABS, HEADINGS } from "../src/tabs.ts";
 import { lineOfProject, holdHome, type Home, type ProjectOfTheHome } from "../src/home.ts";
-import { holdBands, type Alert } from "../src/alerts.ts";
 import type { Terminal } from "../src/terminals.ts";
 import { Fake, type Played, playTheVue, type Answers, openRead, openTheCosts, repos } from "./helpers/false-vue.ts";
 
@@ -102,20 +100,9 @@ const PARADE_AT_THE_HOME: ProjectOfTheHome = { nom: "parade", servi: true };
 async function home(): Promise<Plays> {
   const vue = await open({}, false);
   vue.dire("surFaits", { ...NOT_JOINED, titre: "facts: the box did not answer", demande: vue.dernier("faits")[0] as number });
-  const bands = holdBands({ etablir: 1, minimum: 0 });
-  bands.ouvrir(["parade"]);
-  vue.dire("surAlertes", bands.faits(NOT_JOINED));
   vue.dire("surAccueil", holdHome({ projets: () => [PARADE_AT_THE_HOME] }).faits(NOT_JOINED) ?? assert.fail("l'accueil ne change pas"));
   await repos();
   return { vue, racine: vue.element("tous") };
-}
-
-async function alerts(): Promise<Plays> {
-  const vue = await open();
-  const bands = holdBands({ etablir: 1, minimum: 0 });
-  bands.ouvrir(["parade"]);
-  vue.dire("surAlertes", bands.faits(NOT_JOINED));
-  return { vue, racine: vue.element("alertes") };
 }
 
 // Une carte qui t'attend, sur le rail.
@@ -184,7 +171,6 @@ async function second(): Promise<Plays> {
 const SCREENS: Screen[] = [
   // L'accueil n'a plus de ligne de lecture en échec à part : celle du projet le dit (plus bas).
   { nom: "accueil", echec: home, lectures: 0 },
-  { nom: "bande d'alertes", echec: alerts, lectures: 0 },
   { nom: "fiche d'une carte", echec: failedCard, lectures: 3 },
   { nom: "Autonomy, au niveau de l'app", echec: costs, lectures: 1 },
   { nom: "Settings", echec: settings, lectures: 0 },
@@ -238,22 +224,11 @@ describe("une lecture en échec tient en une ligne, son détail n'est qu'au surv
 
 // ─── L'état « en attente de décision » ───────────────────────────────────────
 
-const COMMAND_OF_THE_BOX = "do what #535 waits for, as the box writes it";
-const URGENT: Alert = { sujet: "urgence", verifie: true, ton: "rouge", dit: "the whole kitchen is waiting for your merge of #535 — at a standstill for 5 h 28", releve: "#535  livraison verte — à merger à la main", geste: COMMAND_OF_THE_BOX, bouton: "ask the second", appel: { demande: true }, prix: "none" };
-const RESUME: Alert = { sujet: "cuisine", verifie: true, ton: "rouge", dit: "kitchen stopped by your “stop”: no cook goes, until “resume”", geste: "resume the kitchen: `brigade parade garde-fous -- resume`", bouton: "ask the second", appel: { demande: true }, prix: "cost: queued tickets start again at once, on your quota" };
-const QUEUED = [URGENT, RESUME];
-
-async function bandQueued(): Promise<Plays> {
-  const vue = await open();
-  vue.dire("surAlertes", { projet: "parade", alertes: QUEUED, signal: { etat: "urgence", dit: "x" } });
-  return { vue, racine: vue.element("alertes") };
-}
 // L'accueil devant un projet où une décision attend : sa ligne, telle que home.ts la dit.
 const ONE_DECISION = "attend     1 décision attend le chef depuis 5 h 28\n  #535  depuis 5 h 28  merge à faire  Titre\nfin attend\n";
-const QUEUED_FACTS: Facts = { etat: "ouverte", lu: A, dernierTick: A, compteurs: { rail: 1, auTravail: 0, aLaPass: 0, attend: 1, livres24h: 0 }, dernierEvenement: null, rail: [], cooks: [], attend: [], livres: [], urgence: null };
+const QUEUED_FACTS: Facts = { etat: "ouverte", lu: A, dernierTick: A, compteurs: { rail: 1, auTravail: 0, aLaPass: 0, attend: 1, livres24h: 0 }, dernierEvenement: null, rail: [], cooks: [], attend: [], livres: [] };
 async function homeQueued(): Promise<Plays> {
   const vue = await open({}, false);
-  vue.dire("surAlertes", { projet: "parade", alertes: QUEUED, signal: { etat: "urgence", dit: "x" } });
   const line = lineOfProject(PARADE_AT_THE_HOME, { a: A, faits: QUEUED_FACTS }, { texte: "cuisine    ouverte", attend: ONE_DECISION });
   const seenOne: Home = { ...holdHome({ projets: () => [PARADE_AT_THE_HOME] }).vu(), projets: [line] };
   vue.dire("surAccueil", seenOne);
@@ -263,7 +238,7 @@ async function homeQueued(): Promise<Plays> {
 const queuedCard = () => openCard({ lireQuestion: () => ({ a: A, aucune: true }), lireDiscussion: () => undefined });
 
 describe("en attente de décision, aucun écran n'écrit à plat une commande ni un prix", () => {
-  for (const [name, play] of [["accueil", homeQueued], ["bande d'alertes", bandQueued], ["fiche d'une carte", queuedCard]] as const) {
+  for (const [name, play] of [["accueil", homeQueued], ["fiche d'une carte", queuedCard]] as const) {
     test(name, async () => {
       const { racine: root } = await play();
       const said = visible(root);
@@ -275,22 +250,6 @@ describe("en attente de décision, aucun écran n'écrit à plat une commande ni
 });
 
 describe("en attente de décision, chaque geste attendu est un bouton, pas du texte", () => {
-  test("bande d'alertes : une ligne, un contrôle — la commande écrite nulle part, pas même derrière « detail », le prix dans la confirmation", async () => {
-    const { racine: root } = await bandQueued();
-    for (const alert of QUEUED) {
-      const line = () => root.children.find((pose) => pose.dataset.sujet === alert.sujet) ?? assert.fail(`pas de ligne « ${alert.sujet} »`);
-      const [control, ...others] = buttons(line()).filter(({ className }) => className !== "detail");
-      assert.ok(control?.textContent.startsWith(alert.bouton ?? "") === true && others.length === 0, `« ${alert.bouton} » n'est pas le seul contrôle de sa ligne`);
-      assert.ok(!visible(line()).includes(alert.geste), `${alert.sujet} : le geste est écrit à plat`);
-      assert.ok(!hovers(line()).some((said) => said.includes(alert.prix)), `${alert.sujet} : le prix est posé à côté du bouton`);
-      // Déplié, le détail montre le brut de la box, jamais le geste à recopier.
-      const unfold = buttons(line()).find(({ className }) => className === "detail");
-      if (unfold === undefined) continue;
-      unfold.click();
-      assert.ok(!visible(line()).includes(alert.geste), `${alert.sujet} : le geste est écrit derrière « detail »`);
-    }
-  });
-
   // L'accueil (#870) : on n'y agit pas. Ce qu'on peut faire en premier, c'est ouvrir le projet qui
   // attend — toute sa ligne est ce bouton, et elle ne porte aucun autre geste.
   test("accueil : la ligne du projet qui attend est le bouton qui l'ouvre, sans autre geste", async () => {
@@ -300,7 +259,6 @@ describe("en attente de décision, chaque geste attendu est un bouton, pas du te
     assert.equal(line.children[0]?.dataset.ton, "jaune");
     assert.match(line.title, /1 decision awaits you/);
     assert.match(visible(line), /waiting for the chef/);
-    assert.ok(!visible(vue.element("tous")).includes(COMMAND_OF_THE_BOX), "le geste de la box est écrit sur l'accueil");
     line.click();
     await repos();
     assert.equal(vue.element("espace").textContent, "parade", "le clic n'ouvre pas le projet");

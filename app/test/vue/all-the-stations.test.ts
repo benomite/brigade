@@ -12,7 +12,6 @@ import { EXAMPLE, type Project } from "../../src/config.ts";
 import { PALETTE } from "../../src/colors.ts";
 import { BANNER, holdFacts, type Facts } from "../../src/facts.ts";
 import { TABS, HEADINGS } from "../../src/tabs.ts";
-import type { Outage } from "../../src/outages/outages.ts";
 import { calibrationRecommended, EFFORTS, machineProposed, MODELS, type ProjectSeen, type SeenOfProjects } from "../../src/projects/projects.ts";
 import type { SeenOfStations } from "../../src/stations/stations.ts";
 import { type Fake, type Played, playTheVue, openTab, repos } from "../helpers/false-vue.ts";
@@ -21,7 +20,7 @@ const A = "2026-10-27T10:04:12.000Z";
 const PARADE = "parade";
 
 // Les stations appairées du compte : la box, qui sert parade, ce Mac et un PC.
-const pairedOne = (id: string, name: string, projects: string[] = []) => ({ id, nom: name, machine: "Linux 6.1.0", coeurs: 8, etat: "en-ligne", ligne: "online", pannes: [] as Outage[], dit: "online", version: "1.4.0", projets: projects, max: null }) as const;
+const pairedOne = (id: string, name: string, projects: string[] = []) => ({ id, nom: name, machine: "Linux 6.1.0", coeurs: 8, etat: "en-ligne", ligne: "online", dit: "online", version: "1.4.0", projets: projects, max: null }) as const;
 const BOX = pairedOne("gbox", "box", [PARADE]);
 const MAC = pairedOne("gmac", "macbook");
 const PC = pairedOne("gpc", "pc");

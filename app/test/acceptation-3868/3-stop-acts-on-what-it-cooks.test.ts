@@ -10,7 +10,7 @@ const NOW = Date.parse("2026-11-19T12:00:00.000Z");
 const REPOSITORY = "benomite/brigade";
 // The box as the app reads it: one registration (the GitHub-only service, `parade-box`) and one claims line from the
 // project's kitchen (`box/claude`, cooking #3864).
-const BOX: StationVue = { id: "gbox", nom: "parade-box", machine: "Linux 6.1.0", etat: "en-ligne", ligne: "", pannes: [], dit: "online", version: "2.4.0", projets: ["brigade"], max: null };
+const BOX: StationVue = { id: "gbox", nom: "parade-box", machine: "Linux 6.1.0", etat: "en-ligne", ligne: "", dit: "online", version: "2.4.0", projets: ["brigade"], max: null };
 const MAC: StationVue = { ...BOX, id: "gmac", nom: "macbook", machine: "macOS 25.0.0", projets: [] };
 const KITCHEN: LineOfStation = { station: "box/claude", distante: true, etat: "cooking", dit: "", survol: "", presente: true, cooks: [{ ticket: 3864, titre: "ticket 3864", station: "box/claude" }], agents: [] };
 const servingOnes = () => servingOf({ projet: "brigade", lignes: [KITCHEN], stations: [BOX, MAC], locale: "gmac", maintenant: NOW });

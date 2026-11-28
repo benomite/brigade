@@ -54,8 +54,7 @@ export function valueProposed(key: KeyCap, input: unknown): { valeur: number | n
   return slip ? { valeur: count } : { refus: `${cap.nom.toLowerCase()} must be ${cap.entier ? "a whole number" : "a number"} greater than zero` };
 }
 
-// Le fichier tel que GitHub le rend : son contenu lu, et son `sha` — null quand la branche ne l'a pas. Le closer de
-// Health (closer-health.ts) le relit de même.
+// Le fichier tel que GitHub le rend : son contenu lu, et son `sha` — null quand la branche ne l'a pas.
 export type FileRead = { contenu: Record<string, unknown>; sha: string } | { contenu: null; sha: null };
 
 export async function readTheFile(client: ClientOfThePriority, repository: string, branch: string | null): Promise<FileRead> {
