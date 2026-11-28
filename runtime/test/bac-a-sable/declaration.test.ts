@@ -10,10 +10,9 @@ import { configurer, type Cook, type Reglages } from "../../src/bac-a-sable/conf
 import { DECLARATION_BAC_A_SABLE, DeclarationRefusee, lireDeclarationBacASable } from "../../src/bac-a-sable/declaration.ts";
 import { SEATBELT, type Sondes } from "../../src/bac-a-sable/detection.ts";
 import { configBacASableLocal, dansLeBacASableLocal, type BacASableLocal } from "../../src/bac-a-sable/local.ts";
-import { argumentsClaude } from "../../src/claude.ts";
-import { lireALaBase } from "../../src/depot.ts";
+import { argumentsClaude } from "../../src/claude-launch.ts";
 import { reglesDuProjet } from "../../src/reseau.ts";
-import { ENV_GIT, git, repertoireTemporaire, temporaireDuFichier } from "../outils.ts";
+import { ENV_GIT, git, lireALaBase, repertoireTemporaire, temporaireDuFichier } from "../outils.ts";
 
 const rienNeReste = temporaireDuFichier();
 

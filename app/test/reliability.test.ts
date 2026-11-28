@@ -1,9 +1,8 @@
 // La dérive de la fiabilité des cooks, dans `status` (#987) : l'app en lit les lignes `drift`, écrites ici par les
-// fonctions mêmes du runtime — elle lit ce que la box écrit, pas une copie de sa forme. La vue ne pose plus la
+// phrases mêmes du runtime (ex-`direJaugeEn`, runtime/src/mesures.ts), recopiées ci-dessous. La vue ne pose plus la
 // section de fiabilité (#2921, la page Cooks est supprimée).
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { direJaugeEn } from "../../runtime/src/mesures.ts";
 import { lineOfProject, type ReadFacts } from "../src/home.ts";
 import type { Facts } from "../src/facts.ts";
 import { driftOf } from "../src/reliability.ts";
@@ -19,8 +18,9 @@ const A = "2026-10-19T10:00:00.000Z";
 
 describe("la dérive, dans `status`, et l'accueil", () => {
   const drift = (line: string) => `${"drift".padEnd(11)}${line} — \`brigade parade measures\``;
-  const LOST_DRIFT = drift([{ measure: "gates_s", observed: 150, limit: 100 }, { measure: "tokens_perdus", observed: 842_809, limit: 400_000 }].map(direJaugeEn).join(" · "));
-  const COST_ONLY = drift(direJaugeEn({ measure: "tokens_ticket", observed: 1_038_705, limit: 400_000 }));
+  // Les jauges telles que le runtime les disait : « <titre> <mesure> for a threshold of <seuil> », jointes par « · ».
+  const LOST_DRIFT = drift(["gates 150 s for a threshold of 100 s", "tokens lost over the last 10 merges 842,809 for a threshold of 400,000"].join(" · "));
+  const COST_ONLY = drift("tokens of the costliest ticket of the last 10 merges 1,038,705 for a threshold of 400,000");
 
   test("les tokens perdus au-delà de leur seuil sont la fiabilité ; les autres seuils non", () => {
     assert.deepEqual(driftOf(["project    parade", COST_ONLY, LOST_DRIFT].join("\n")), [

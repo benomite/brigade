@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { blockOfChef, readWhatAwaitingTheChef } from "../../src/board/wait-of-chef.ts";
 import type { CallGitHub, AnswerGitHub } from "../../src/board/client.ts";
-import { corpsDuParking } from "../../../runtime/src/attente-github/marque.ts";
+import { parkingBody as corpsDuParking } from "../parking-body.ts";
 
 const REPOSITORY = "acme/kitchen";
 const READ = "2026-11-18T12:00:00.000Z";

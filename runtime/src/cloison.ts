@@ -9,11 +9,8 @@ import { execFileSync } from "./sans-invite.ts";
 import { constants, copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, delimiter, dirname, isAbsolute, join, relative, resolve } from "node:path";
-import type { Fait } from "./evenements.ts";
-import type { EtatDeCloison } from "./events/partition.ts";
 import { FICHIER_DU_JETON } from "./jeton-claude.ts";
-import type { Runtime } from "./runtime.ts";
-import { ConfigInvalide } from "./runtime.ts";
+import { InvalidConfig } from "./invalid-config.ts";
 
 export type Lancement = { commande: string; args: string[] };
 
@@ -105,26 +102,26 @@ export function configCloison(env: Record<string, string | undefined>, lieux: { 
   const bin = env.BRIGADE_SANDBOX_BIN;
   const brut = env.BRIGADE_SANDBOX_HIDDEN ?? "";
   if (!bin) {
-    if (brut !== "") throw new ConfigInvalide("BRIGADE_SANDBOX_HIDDEN is set without BRIGADE_SANDBOX_BIN: nothing would be hidden — set the path of `bwrap`, or remove the variable");
+    if (brut !== "") throw new InvalidConfig("BRIGADE_SANDBOX_HIDDEN is set without BRIGADE_SANDBOX_BIN: nothing would be hidden — set the path of `bwrap`, or remove the variable");
     return null;
   }
-  if (!isAbsolute(bin) || !existsSync(bin)) throw new ConfigInvalide(`invalid BRIGADE_SANDBOX_BIN: “${bin}” — expected the absolute path of \`bwrap\` (/usr/bin/bwrap), and it must exist`);
+  if (!isAbsolute(bin) || !existsSync(bin)) throw new InvalidConfig(`invalid BRIGADE_SANDBOX_BIN: “${bin}” — expected the absolute path of \`bwrap\` (/usr/bin/bwrap), and it must exist`);
   const home = env.HOME;
-  if (!home) throw new ConfigInvalide("BRIGADE_SANDBOX_BIN is set, but HOME is not: the partition does not know where the account keeps its credentials");
+  if (!home) throw new InvalidConfig("BRIGADE_SANDBOX_BIN is set, but HOME is not: the partition does not know where the account keeps its credentials");
   // Séparés comme les chemins d'un PATH : `:` en POSIX.
   const masques = [...new Set(brut.split(delimiter).filter(Boolean))];
   if (masques.length === 0) {
-    throw new ConfigInvalide(`BRIGADE_SANDBOX_BIN is set without BRIGADE_SANDBOX_HIDDEN: the partition would hide nothing — set the directories that hold the state and the secrets of all projects, separated by “${delimiter}” (/var/lib/brigade${delimiter}/etc/brigade)`);
+    throw new InvalidConfig(`BRIGADE_SANDBOX_BIN is set without BRIGADE_SANDBOX_HIDDEN: the partition would hide nothing — set the directories that hold the state and the secrets of all projects, separated by “${delimiter}” (/var/lib/brigade${delimiter}/etc/brigade)`);
   }
   // Le répertoire temporaire du runtime, là où lui et ce qu'il lance écrivent
   // (le juge y part, `$TMPDIR` d'un cook y mène) : rendu en écriture comme
   // /tmp. Hors de /tmp — /dev/shm, que `--dev` remplace —, il ne serait sinon
   // qu'une place vide.
   const temporaire = resolve(env.TMPDIR || tmpdir());
-  if (sous(temporaire, "/usr")) throw new ConfigInvalide(`invalid TMPDIR: “${temporaire}” would open the system to writing in the partition — set a temporary directory of its own`);
+  if (sous(temporaire, "/usr")) throw new InvalidConfig(`invalid TMPDIR: “${temporaire}” would open the system to writing in the partition — set a temporary directory of its own`);
   for (const masque of masques) {
     const refuser = (pourquoi: string): never => {
-      throw new ConfigInvalide(`invalid BRIGADE_SANDBOX_HIDDEN: “${masque}” ${pourquoi}`);
+      throw new InvalidConfig(`invalid BRIGADE_SANDBOX_HIDDEN: “${masque}” ${pourquoi}`);
     };
     if (!isAbsolute(masque)) refuser("is not an absolute path");
     // Un répertoire vide prend sa place : un fichier ne se masque pas ainsi,
@@ -143,14 +140,14 @@ export function configCloison(env: Record<string, string | undefined>, lieux: { 
   ];
   for (const [variable, chemin] of aCouvrir) {
     if (chemin && !masques.some((masque) => sous(masque, chemin))) {
-      throw new ConfigInvalide(`${variable} (${chemin}) is not under any directory of BRIGADE_SANDBOX_HIDDEN (${masques.join(", ")}): a cook would read it despite the partition — add it there, or move it`);
+      throw new InvalidConfig(`${variable} (${chemin}) is not under any directory of BRIGADE_SANDBOX_HIDDEN (${masques.join(", ")}): a cook would read it despite the partition — add it there, or move it`);
     }
   }
 
   const prives = [...new Set([...PRIVES_PAR_DEFAUT, ...(env.BRIGADE_SANDBOX_PRIVATE ?? "").split(":").filter(Boolean)])];
   for (const nom of prives) {
     if (nom.includes("/") || nom === "." || nom === "..") {
-      throw new ConfigInvalide(`invalid BRIGADE_SANDBOX_PRIVATE: “${nom}” — expected names of entries of the account's home directory, separated by “:” (.cargo:.gradle)`);
+      throw new InvalidConfig(`invalid BRIGADE_SANDBOX_PRIVATE: “${nom}” — expected names of entries of the account's home directory, separated by “:” (.cargo:.gradle)`);
     }
   }
 
@@ -332,36 +329,4 @@ export function configCloison(env: Record<string, string | undefined>, lieux: { 
 // Le lancement tel qu'il part : dans la cloison s'il y en a une, tel quel sinon.
 export function envelopper(cloison: Cloison | null | undefined, lancement: Lancement, acces: Acces): Lancement {
   return cloison ? cloison.envelopper(lancement, acces) : lancement;
-}
-
-const AUTEUR = "runtime";
-
-// Écrit l'état de la cloison au journal s'il a changé : c'est là que le chef
-// le lit (`npm run partition`), sans variable ni fichier d'unité.
-export function annoncerCloison(runtime: Runtime, etat: EtatDeCloison): void {
-  const { journal, projet } = runtime;
-  const noter = (fait: Fait) => journal.ajouter({ project: projet, ticket: null, author: AUTEUR, ...fait });
-  journal.base.transaction(() => {
-    const dernier = journal.duType("isolation.configured", 1)[0]?.payload;
-    if (JSON.stringify(dernier) !== JSON.stringify(etat)) noter({ type: "isolation.configured", payload: etat });
-  });
-}
-
-// Ce que le runtime dit de sa cloison au démarrage, et que `npm run partition`
-// répète : sans elle, les projets se voient — c'est un choix, il se lit.
-export function direFichiers(sandbox: EtatDeCloison["sandbox"]): string {
-  return sandbox
-    ? `every launch (setup, cook, gates, reviewer, judges) runs in \`${sandbox.bin}\` — hidden: ${sandbox.hidden.join(", ")}; machine read-only; Max credentials read-only (${sandbox.credentials})`
-    : "none (BRIGADE_SANDBOX_BIN is not set): a cook reads everything the service account reads — the state, the clone, the worktrees and the secrets of the other projects included";
-}
-
-export function direReseau(proxy: EtatDeCloison["proxy"]): string {
-  if (!proxy) return "open (BRIGADE_PROXY_PORT is not set): a cook reaches everything the machine reaches";
-  const filtre =
-    proxy.enforced === true
-      ? "a direct send is refused by the kernel: the unit filters"
-      : proxy.enforced === false
-        ? "BUT a direct send goes out: the unit does not seem to filter anything (IPAddressDeny), and a process that ignores HTTPS_PROXY would get out freely"
-        : "the unit's filter could not be probed from here";
-  return `allowlist, through the door 127.0.0.1:${proxy.port} — ${filtre}`;
 }

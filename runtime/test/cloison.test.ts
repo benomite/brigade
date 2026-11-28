@@ -6,9 +6,8 @@ import { chmodSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync,
 import { delimiter, join, sep } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { posixOnly } from "./support/plateforme.ts";
-import { annoncerCloison, configCloison, envelopper } from "../src/cloison.ts";
-import { jouerSetup } from "../src/gates.ts";
-import { ConfigInvalide, demarrer } from "../src/runtime.ts";
+import { InvalidConfig } from "../src/invalid-config.ts";
+import { configCloison, envelopper } from "../src/cloison.ts";
 import { depotGit, ENV_ENFANT, FAUX_BWRAP, git, horloge, lancementsDuFauxBwrap, repertoireTemporaire } from "./outils.ts";
 
 // Une machine d'essai : l'état et le clone d'un projet sous une racine que la
@@ -25,7 +24,7 @@ const refus = (fn: () => unknown) => {
   try {
     fn();
   } catch (erreur) {
-    assert.ok(erreur instanceof ConfigInvalide, String(erreur));
+    assert.ok(erreur instanceof InvalidConfig, String(erreur));
     return erreur.message;
   }
   return assert.fail("aucun refus");
@@ -397,36 +396,5 @@ describe("la cloison", { concurrency: 8 }, () => {
 
     const jugement = demande(envelopper(cloison, { commande: "claude", args: [] }, { cwd: "/tmp", depot: null }).args);
     assert.equal(jugement.some((arg) => arg.startsWith(git) || arg.includes("vues-git")), false);
-  });
-
-  test("le setup d'un worktree part dans la cloison, et ses exports reviennent par le canal", async (t) => {
-    const { lieux, env } = machine(t);
-    const temoin = repertoireTemporaire(t);
-    const worktree = join(lieux.repertoireEtat, "worktrees/17-abc");
-    mkdirSync(join(worktree, ".claude/brigade"), { recursive: true });
-    writeFileSync(join(worktree, ".claude/brigade/worktree-setup.sh"), '#!/usr/bin/env bash\necho "export BASE_DE_TEST=ticket_$1"\n');
-    chmodSync(join(worktree, ".claude/brigade/worktree-setup.sh"), 0o755);
-
-    const setup = await jouerSetup({ worktree, ticket: 17, env: { ...ENV_ENFANT, FAUX_BWRAP_TEMOIN: temoin }, delaiMs: 60_000, cloison: configCloison(env, lieux) });
-
-    assert.equal(setup.pret && setup.env.BASE_DE_TEST, "ticket_17");
-    const [recu = []] = lancementsDuFauxBwrap(temoin);
-    assert.ok(paires(recu, "--bind").includes(`${worktree} → ${worktree}`));
-    assert.equal(recu[recu.indexOf("--") + 3], "bash");
-  });
-
-  test("l'état de la cloison entre au journal quand il change, et pas à chaque démarrage", (t) => {
-    const repertoireEtat = repertoireTemporaire(t);
-    const runtime = demarrer({ repertoireEtat, projet: "brigade", maintenant: horloge() });
-    t.after(() => runtime.arreter("test"));
-    const ouverte = { sandbox: null, proxy: null };
-    const posee = { sandbox: { bin: "/usr/bin/bwrap", hidden: ["/var/lib/brigade"], credentials: "/home/brigade/.claude/.credentials.json" }, proxy: { port: 18443, enforced: true } };
-
-    annoncerCloison(runtime, ouverte);
-    annoncerCloison(runtime, ouverte);
-    annoncerCloison(runtime, posee);
-    annoncerCloison(runtime, posee);
-
-    assert.deepEqual(runtime.journal.duType("isolation.configured", 10).map((evenement) => evenement.payload), [ouverte, posee]);
   });
 });

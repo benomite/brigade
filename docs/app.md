@@ -1043,7 +1043,7 @@ nothing; their Enter sends it. A stopped second is launched first and nothing is
 (`app/src/main.ts`). Test: `app/test/handover-second.test.ts`.*
 
 **Answering a card on the card (#2434).** A card of the chef read from GitHub — a `chef-todo` issue, or a `hors-cuisine`
-`product-question` (below) — has the shape of every Todo card (#1281, `runtime/src/carte-todo/forme.ts`): its
+`product-question` (below) — has the shape of every Todo card (#1281): its
 question, one button per choice, a free-text field with `send`, and `ask the second`. GitHub is the only state, and the app
 plays the gesture itself. The convention of the marked comment is extended, not changed:
 
@@ -1246,7 +1246,7 @@ closes it. The buttons and the form are `app/src/vue/wait/wait.js`; what the che
   each session start (`app/src/second/parking.ts`, `park` / `unpark`).
 - **Park.** *waiting for…* parks the ticket (`parquer`, `app/src/vue/wait/wait-github.ts`): it posts the parking
   comment — the marker `<!-- brigade:parked {…} -->` with who, for what and until when, then
-  `**PARKED: waits for <who>.** <what>`: the very text of `corpsDuParking` (`runtime/src/attente-github/marque.ts`),
+  `**PARKED: waits for <who>.** <what>`: the very text the station writes,
   which the station writes too —, then sets the `parked` label. A comment GitHub posted but whose label it refused is
   said: the ticket is not parked.
 - **Unpark.** *resume* (the person answered) and *it arrived, back to the kitchen* (the fact happened) unpark it
@@ -2216,7 +2216,7 @@ default branch when the project does not name one — for its `sha`, only `drift
 with `version` and `integrationBranch`; a new branch `brigade/setting-…` starts from the integration branch's head, the
 file is written on it, and the PR opens towards the integration branch). While it runs the row says `opening the pull
 request…`; then `150 s proposed in` and a `pull request #<n>` link that opens it in the browser. The value shown stays
-the one in force: the runtime reads the new one at its next fetch once the PR is merged (`reglages-projet/en-vigueur.ts`).
+the one in force: the runtime reads the new one at its next fetch once the PR is merged.
 An empty field proposes the cap's removal (`removal proposed in`). A value the runtime would refuse (zero, a fraction for
 a whole threshold) proposes nothing and says so under the field, what was typed staying in it; a step GitHub refuses
 (reading the branch head, creating the branch, writing the file, opening the PR) is the error line `nothing was proposed`,
@@ -3178,7 +3178,7 @@ section. With the section laid, `right now` is not repeated under it.
   counts no duration (apart from the age of `right now`, above) and adds nothing up: two cooks in flight on the same ticket are each read
   under their own run.
 - **The line read is the one `status` writes under its `rail` line** —
-  `  #<ticket>  <state>  <priority>  <detail>  <title>` (`runtime/src/etat.ts`, `decrireEtat`). It is,
+  `  #<ticket>  <state>  <priority>  <detail>  <title>` (the runtime's `status` command). It is,
   with the number at the head of a line of the `awaiting` block, **the second thing
   the app reads outside the shape of `facts`**, and one more contract on a text. It is bounded
   by the state and the title that `facts` gives for this ticket, and its detail is split only if it has the
@@ -3966,7 +3966,7 @@ instructions (`rôle : …`).
   `pty.ts` (the real pty, against a fake `claude`), `box.ts` (the station watch and its states, against a
   stand-in gesture that each test writes: no network), `attend.ts` (the `awaiting` block taken by
   its edge, on outputs copied from the runtime; and the number at the head of a line, on the block
-  the runtime itself writes — the test calls `decrireAttentes` of `runtime/src/attend.ts`),
+  the runtime itself writes),
   `acronym.ts` (a project's short label: unique among the projects, 3 characters at most, the one written by the chef first; in the played view, the tile, the full name on hover and in the space's header, the row under Settings), `couleurs.ts` (a project's colors: drawn without duplicates as
   long as the palette is not exhausted, written to the file — and only those that are missing —,
   changed one by one; in the played view, the tinted tile, the space's accent, the choice under

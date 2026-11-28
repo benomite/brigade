@@ -35,7 +35,7 @@ All four are written in English and answer in your language.
 The manifest declares these four files and an empty `agents` list. Both keys are needed: when a manifest does not
 name `commands` or `agents`, Claude Code loads every `.md` of the plugin's `commands/` or `agents/` folder. The gates
 check that every file the manifest names exists. `agents/` holds only `kitchen/`: the runtime reads
-`agents/kitchen/second-judge.md` (the second judge's brief, `runtime/src/second-juge.ts`) as a file, never as a plugin
+`agents/kitchen/second-judge.md` (the second judge's brief) as a file, never as a plugin
 agent.
 
 ## Publishing a change

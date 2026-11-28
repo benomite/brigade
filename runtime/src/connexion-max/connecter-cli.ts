@@ -23,7 +23,7 @@ import { accessSync, chmodSync, constants, existsSync, lstatSync, mkdirSync, sta
 import { userInfo } from "node:os";
 import { delimiter, dirname, join } from "node:path";
 import { enProcess, Sortie, type Appel } from "../appel.ts";
-import { PATH_DE_SYSTEMD } from "../installateur.ts";
+import { SYSTEMD_PATH } from "../systemd-path.ts";
 import { COMPTE } from "./connexion.ts";
 import { connecterMax, ConnexionNonFaite, MasqueDuJeton, type Lancement, type ModeDeLancement } from "./connecter.ts";
 import { FICHIER_DU_JETON, fichierDeCreation } from "../jeton-claude.ts";
@@ -63,8 +63,8 @@ export const SERVEUR: Machine = {
   jeton: "/etc/brigade/claude-token",
   creation: fichierDeCreation("/etc/brigade/claude-token"),
   environnement: "/etc/brigade/jeton.env",
-  redemarrer: () => executer("systemctl", ["restart", "brigade-station.service"], { PATH: PATH_DE_SYSTEMD }, false),
-  path: PATH_DE_SYSTEMD,
+  redemarrer: () => executer("systemctl", ["restart", "brigade-station.service"], { PATH: SYSTEMD_PATH }, false),
+  path: SYSTEMD_PATH,
   lien: "/usr/local/bin/claude",
   installeur: "curl -fsSL https://claude.ai/install.sh | bash",
   home: async (compte) => {
@@ -139,7 +139,7 @@ export async function principal({ args, dire, redire }: Appel, machine: Machine 
   // Sous le compte de la station, quel que soit qui lance l'étape.
   const lancer = (commande: string, arguments_: string[], mode: ModeDeLancement) =>
     root
-      ? executer("runuser", ["-u", machine.compte, "--", "env", "-i", ...Object.entries(env).map(([nom, valeur]) => `${nom}=${valeur}`), commande, ...arguments_], { PATH: PATH_DE_SYSTEMD }, mode, machine)
+      ? executer("runuser", ["-u", machine.compte, "--", "env", "-i", ...Object.entries(env).map(([nom, valeur]) => `${nom}=${valeur}`), commande, ...arguments_], { PATH: SYSTEMD_PATH }, mode, machine)
       : executer(commande, arguments_, env, mode, machine);
 
   // Le jeton et sa date, 600 et 644, au compte de la station ; puis l'unité
@@ -155,7 +155,7 @@ export async function principal({ args, dire, redire }: Appel, machine: Machine 
       poser(machine.creation, `${creation}\n`, 0o644);
       poser(machine.environnement, `${FICHIER_DU_JETON}=${machine.jeton}\n`, 0o644);
       if (root) {
-        const chown = await executer("chown", [`${machine.compte}:`, dirname(machine.jeton), machine.jeton, machine.creation], { PATH: PATH_DE_SYSTEMD }, false);
+        const chown = await executer("chown", [`${machine.compte}:`, dirname(machine.jeton), machine.jeton, machine.creation], { PATH: SYSTEMD_PATH }, false);
         if (chown.code !== 0) throw new Error(`chown a rendu ${chown.code ?? "un signal"} — ${derniereLigne(chown.sortie)}`);
         const relance = await machine.redemarrer();
         if (relance.code !== 0) throw new Error(`la station ne redémarre pas (code ${relance.code ?? "signal"}) — ${derniereLigne(relance.sortie)}`);

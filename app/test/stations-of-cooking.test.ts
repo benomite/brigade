@@ -7,7 +7,7 @@
 // La vue est jouée telle qu'elle est, devant un faux document (helpers/false-vue.ts).
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import type { Faits as FactsOfRuntime } from "../../runtime/src/etat.ts";
+import type { Facts as FactsOfRuntime } from "../src/facts.ts"; // the app's own Facts (the old runtime's etat.ts is gone)
 import { forTheBar } from "../src/bar.ts";
 import { EXAMPLE } from "../src/config.ts";
 import { PALETTE } from "../src/colors.ts";
@@ -35,7 +35,7 @@ const startup = () => ({
   code: undefined,
 });
 
-type OfRuntime = FactsOfRuntime["stations"][number];
+type OfRuntime = NonNullable<FactsOfRuntime["stations"]>[number];
 // Une station telle que le runtime la rend dans `facts` (runtime/src/etat.ts, #1183), mot pour mot.
 const station = (name: string, more: Partial<OfRuntime> = {}): OfRuntime => ({
   station: name,

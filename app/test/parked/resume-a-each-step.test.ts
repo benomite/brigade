@@ -2,14 +2,26 @@
 // étapes — au backlog, en cuisson (`taken`), à la pass (`in-pass`) — reprend exactement où il était quand la personne
 // répond (« resume ») et quand son fait arrive (« it arrived, back to the kitchen ») : les deux gestes de l'app, que le
 // second joue aussi (`deparquer`). Sa reprise à la date est celle du tour de la station
-// (runtime/test/parked/parquer-a-chaque-etape.test.ts). L'étape est lue comme la station la lit (`etatDuTicket`).
+// (runtime/test/parked/parquer-a-chaque-etape.test.ts). L'étape est lue comme la station la lisait (`etatDuTicket`, copie locale).
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { corpsDuParking } from "../../../runtime/src/attente-github/marque.ts";
-import { estParque, etatDuTicket } from "../../../runtime/src/github-etat/etats.ts";
+import { parkingBody as corpsDuParking } from "../parking-body.ts";
 import type { ClientOfThePriority } from "../../src/priority.ts";
 import type { BoardRead } from "../../src/board/read.ts";
 import { waitOnGithub, park } from "../../src/vue/wait/wait-github.ts";
+
+// The old station's reading of a ticket (github-etat/etats.ts, deleted in #4775), kept as small local copies: a ticket is
+// parked when it carries `parked` or one of the waiting labels from before it (#4260); else `in-pass` (with an open,
+// unmerged PR) is "pass", `taken` is "taken".
+const LABELS_BEFORE_PARKED = ["waiting", "set-aside:failures", "blocked-on-human", "decision", "question", "product-question"];
+const estParque = (labels: readonly string[]) => labels.includes("parked") || LABELS_BEFORE_PARKED.some((label) => labels.includes(label));
+function etatDuTicket(issue: { state: string; labels: readonly string[]; pr: { state: string; merged: boolean } | null }): "parked" | "pass" | "taken" | null {
+  if (issue.state !== "open") return null;
+  if (estParque(issue.labels)) return "parked";
+  if (issue.labels.includes("in-pass")) return issue.pr !== null && issue.pr.state === "open" && !issue.pr.merged ? "pass" : null;
+  if (issue.labels.includes("taken")) return "taken";
+  return null;
+}
 
 const REPOSITORY = "acme/shop";
 const TICKET = 40;

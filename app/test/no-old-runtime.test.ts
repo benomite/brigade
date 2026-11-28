@@ -44,13 +44,13 @@ describe("l'app n'importe rien de l'ancien runtime", () => {
   const allowed = allowedOfRuntime();
 
   test("la cuisine et ce qu'elle importe sont permis, le reste de runtime/src non", () => {
-    assert.ok(allowed.has("kitchen/decide.ts") && allowed.has("porte-journal.ts") && !allowed.has("etat.ts"));
+    assert.ok(allowed.has("kitchen/decide.ts") && allowed.has("porte-journal.ts") && !allowed.has("profils/definition.ts"));
     assert.deepEqual(forbiddenOfRuntime(`import { LABELS } from "../../runtime/src/kitchen/decide.ts";`, allowed), []);
     assert.deepEqual(forbiddenOfRuntime(`// lu dans runtime/src/kitchen/), voir runtime/src/kitchen/projects.ts`, allowed), []);
     assert.deepEqual(forbiddenOfRuntime(`await ofRuntime<typeof import("x")>("kitchen", "projects.ts");`, allowed), []);
-    assert.deepEqual(forbiddenOfRuntime(`import { lire } from "../../runtime/src/etat.ts";`, allowed), ["etat.ts"]);
-    assert.deepEqual(forbiddenOfRuntime(`const m = await ${"import"}("../../runtime/src/journal.ts");`, allowed), ["journal.ts"]);
-    assert.deepEqual(forbiddenOfRuntime(`await ofRuntime<M>("etat.ts");`, allowed), ["etat.ts"]);
+    assert.deepEqual(forbiddenOfRuntime(`import { lire } ${"from"} "../../runtime/src/profils/definition.ts";`, allowed), ["profils/definition.ts"]);
+    assert.deepEqual(forbiddenOfRuntime(`const m = await ${"import"}("../../runtime/src/carnet/carnet.ts");`, allowed), ["carnet/carnet.ts"]);
+    assert.deepEqual(forbiddenOfRuntime(`await ofRuntime<M>("profils/definition.ts");`, allowed), ["profils/definition.ts"]);
   });
 
   test("aucun fichier de app/src ne nomme runtime/src hors de la cuisine", () => {

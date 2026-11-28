@@ -181,3 +181,4 @@ export function lireExposition(texte: string): ConnexionMax | null {
     return null;
   }
 }
+

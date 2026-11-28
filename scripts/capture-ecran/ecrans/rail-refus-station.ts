@@ -1,5 +1,5 @@
 // Le rail de « parade » quand deux stations refusent le projet (#3198, épique #3196) : une ligne chacune sous la ligne d'alerte
-// — son nom, sa raison et le geste qui la lève, tels que la station les écrit (runtime/src/projets/refus.ts).
+// — son nom, sa raison et le geste qui la lève, tels que la station les écrit (the old station's refusal type).
 import type { Facts } from "../../../app/src/facts.ts";
 import { configuration, cuisine, demarrage, type Ecran, MAINTENANT, type Rendu } from "./commun.ts";
 import { FACTS } from "./cooks-stations-commun.ts";

@@ -1,14 +1,8 @@
 // « Will not start: <pourquoi>. » (ticket 3147) : chaque raison que la station sait produire a une phrase en mots simples ;
-// une raison sans phrase tombe sur la phrase générique, jamais sur le message brut seul. La liste des raisons est lue dans
-// le code de la station : une raison de plus, sans phrase, fait échouer ce test.
+// une raison sans phrase tombe sur la phrase générique, jamais sur le message brut seul.
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { describe, test } from "node:test";
 import { START_OF_REFUSAL, REASONS_OF_REFUSAL, reasonOfRefusal, REFUSAL_GENERIC, refusalInClear } from "../src/refusal.ts";
-
-const ROOT = resolve(import.meta.dirname, "..", "..");
-const read = (path: string) => readFileSync(resolve(ROOT, path), "utf8");
 
 describe("les raisons de refus en mots simples", () => {
   test("chaque raison reconnaît son exemple et le dit en une phrase qui n'est pas le message brut", () => {
@@ -23,17 +17,8 @@ describe("les raisons de refus en mots simples", () => {
     }
   });
 
-  test("les raisons des tickets 86 du runtime (mise-de-cote.ts, `RAISONS`) ont toutes leur phrase", () => {
-    const source = read("runtime/src/mise-de-cote.ts");
-    const block = /const RAISONS: Record<string, string> = \{([\s\S]*?)\n\};/.exec(source)?.[1] ?? assert.fail("le tableau RAISONS du runtime ne se lit plus");
-    const saidEntries = [...block.matchAll(/^\s+(?:"[^"]+"|[a-z]+|\[[A-Z_]+\]): "([^"]+)",?$/gm)].map((finds) => finds[1] ?? "");
-    assert.ok(saidEntries.length >= 11, `${saidEntries.length} raisons lues seulement`);
-    for (const saidOne of saidEntries) {
-      const reason = reasonOfRefusal(saidOne);
-      assert.ok(reason !== null, `« ${saidOne} » n'a pas de phrase en mots simples (refusal.ts)`);
-      assert.notEqual(refusalInClear(saidOne), refusalInClear(null), saidOne);
-    }
-    // Les motifs que `direMiseDeCote` compose, et le « sans motif ».
+  test("les motifs de mise de côté et le « sans motif » ont leur phrase", () => {
+    // Les motifs que la station compose (ancien `direMiseDeCote`) : conservés tels quels.
     assert.equal(reasonOfRefusal("attend : un humain — aucune station ne fournit macos ; brancher une station")?.id, "sans-station");
     assert.equal(reasonOfRefusal("attend : station absente (box/claude) — il repart seul")?.id, "station-absente");
     assert.equal(reasonOfRefusal("attend : mis de côté, sans motif")?.id, "sans-motif");

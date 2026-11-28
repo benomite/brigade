@@ -8,7 +8,7 @@ import { format } from "node:util";
 import { ecrireSecret } from "../src/droits.ts";
 import { JETON_MASQUE, masquerIdentifiants } from "../src/identifiants.ts";
 import { configJeton, direJeton, environnementClaude, FICHIER_DU_JETON, masquerLaConsole, VARIABLE_DU_JETON } from "../src/jeton-claude.ts";
-import { ConfigInvalide } from "../src/runtime.ts";
+import { InvalidConfig } from "../src/invalid-config.ts";
 import { exposer, REMEDE } from "./aides/droits.ts";
 import { repertoireTemporaire } from "./outils.ts";
 
@@ -60,7 +60,7 @@ test("un fichier de jeton qu'on ne pourrait pas lire, ou que d'autres liraient, 
   ] as const) {
     assert.throws(
       () => configJeton({ [FICHIER_DU_JETON]: valeur }, lieux),
-      (erreur: unknown) => erreur instanceof ConfigInvalide && /^BRIGADE_CLAUDE_TOKEN_FILE invalide/.test(erreur.message) && motif.test(erreur.message),
+      (erreur: unknown) => erreur instanceof InvalidConfig && /^BRIGADE_CLAUDE_TOKEN_FILE invalide/.test(erreur.message) && motif.test(erreur.message),
       valeur,
     );
   }

@@ -3,7 +3,6 @@
 // pull request (#2920). Le fichier proposé est de ceux que le runtime lit — c'est sa valeur qu'il applique, une fois mergé.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { reglagesDuTexte, SEUILS_DU_PROJET, seuilsDuProjet } from "../../runtime/src/reglages-projet/reglages.ts";
 import { changeTheCap, FILE, readTheCaps, CAPS, valueProposed } from "../src/caps-duration.ts";
 import { PROPOSES } from "../src/box.ts";
 import type { ClientOfThePriority } from "../src/priority.ts";
@@ -82,12 +81,6 @@ function github(file: unknown | null, refusal: Partial<Record<Step, AnswerGitHub
 const value = (reading: Awaited<ReturnType<typeof readTheCaps>>, key: string) => ("plafonds" in reading ? reading.plafonds.find((cap) => cap.cle === key)?.valeur : assert.fail(`non lus : ${JSON.stringify(reading)}`));
 
 describe("les plafonds de durée, dans le dépôt du projet", () => {
-  test("l'app connaît exactement les seuils `drift.*` du runtime, entiers là où il n'en lit que d'entiers", () => {
-    const runtime = SEUILS_DU_PROJET.drift as Record<string, { entier: boolean }>;
-    assert.deepEqual(CAPS.map(({ cle: key }) => key).sort(), Object.keys(runtime).sort());
-    for (const { cle: key, entier: whole } of CAPS) assert.equal(whole, runtime[key]?.entier, key);
-  });
-
   test("lus sur la branche d'intégration : ce que le dépôt déclare, null pour le reste ; les durées en tête", async () => {
     const { client, demandes: requests } = github(PROJECT);
     const readEntry = await readTheCaps({ depot: REPOSITORY, branche: "main", client });
@@ -130,7 +123,7 @@ describe("les plafonds de durée, dans le dépôt du projet", () => {
     // Le fichier proposé garde le reste, et le runtime le lit : son seuil, une fois mergé, est celui proposé.
     const text = repository.texte("pr") ?? assert.fail("pas de fichier proposé");
     assert.deepEqual(JSON.parse(text).defaultCalibrations, PROJECT.defaultCalibrations);
-    assert.deepEqual(seuilsDuProjet(reglagesDuTexte(text)).drift, { ticketTokens: 900, gatesSeconds: 150 });
+    assert.deepEqual(JSON.parse(text).drift, { ticketTokens: 900, gatesSeconds: 150 });
   });
 
   test("vide, le retrait du plafond est proposé ; la valeur déjà là n'ouvre rien", async () => {
@@ -142,7 +135,6 @@ describe("les plafonds de durée, dans le dépôt du projet", () => {
     assert.ok("propose" in rendered && rendered.valeur === null);
     const text = repository.texte("pr") ?? assert.fail("pas de fichier proposé");
     assert.equal(JSON.parse(text).drift, undefined, "plus aucun seuil : la famille sort du fichier");
-    assert.deepEqual(seuilsDuProjet(reglagesDuTexte(text)), {});
     assert.equal(repository.prs[0]?.title, "brigade: remove drift.ticketTokens");
   });
 
@@ -150,7 +142,7 @@ describe("les plafonds de durée, dans le dépôt du projet", () => {
     const repository = github(null);
     await changeTheCap({ depot: REPOSITORY, branche: "main", cle: "gatesSeconds", saisie: "45.5", client: repository.client });
     assert.equal(repository.ecrits[0]?.sha, undefined);
-    assert.deepEqual(reglagesDuTexte(repository.texte("pr") ?? assert.fail("pas de fichier")), { integrationBranch: "main", drift: { gatesSeconds: 45.5 } });
+    assert.deepEqual(JSON.parse(repository.texte("pr") ?? assert.fail("pas de fichier")), { version: 1, integrationBranch: "main", drift: { gatesSeconds: 45.5 } });
 
     const withoutBranch = github(null);
     const rendered = await changeTheCap({ depot: REPOSITORY, branche: null, cle: "gatesSeconds", saisie: "45", client: withoutBranch.client });

@@ -6,10 +6,9 @@ import { test } from "node:test";
 
 const RACINE = join(import.meta.dirname, "../../..");
 
-test("docs/reglages.md documents the `tools` key of projet.json with its format and the screenshots tool", () => {
+test("docs/reglages.md says the `tools` key of projet.json is no longer read (#4777)", () => {
   const doc = readFileSync(join(RACINE, "docs/reglages.md"), "utf8");
   const ligne = doc.split("\n").find((l) => /^\|\s*`tools`\s*\|/.test(l));
   assert.ok(ligne, "the project settings table has no `tools` row");
-  assert.match(ligne, /list/i, "the `tools` row does not say it is a list");
-  assert.match(doc, /screenshots/, "the doc does not name the screenshots tool");
+  assert.match(ligne, /no longer read/i, "the `tools` row does not say the key is no longer read");
 });

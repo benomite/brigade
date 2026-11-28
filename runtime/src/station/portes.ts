@@ -14,11 +14,11 @@
 import { chownSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join } from "node:path";
 import { AUTRES_HOTES, compterLesRefus, ouvrirPorte, type OptionsPorte, type Porte } from "../porte.ts";
-import { KITCHEN_ALLOWLIST, listeDuJournal, refusAuJournal } from "../porte-journal.ts";
+import { KITCHEN_ALLOWLIST, publishedList, doorRefusals } from "../porte-journal.ts";
 import { projectsOfTheKitchen } from "../kitchen/projects.ts";
 import { REGLES_DE_BASE } from "../reseau.ts";
-import { ConfigInvalide } from "../runtime.ts";
-import { CONFIGURATION, ETATS, lireFichierDeConfiguration } from "./configuration.ts";
+import { InvalidConfig } from "../invalid-config.ts";
+import { CONFIGURATION, lireFichierDeConfiguration } from "./configuration.ts";
 
 export const VARIABLE_PORTES = "BRIGADE_STATION_PORTES";
 // Où le paquet le pose, sous le répertoire de la station : c'est là que la
@@ -41,7 +41,7 @@ const estUnPort = (valeur: unknown): valeur is number => typeof valeur === "numb
 export function configPortes(env: Record<string, string | undefined>): string | null {
   const fichier = env[VARIABLE_PORTES];
   if (fichier === undefined || fichier === "") return null;
-  if (!isAbsolute(fichier)) throw new ConfigInvalide(`${VARIABLE_PORTES} vaut « ${fichier} » — attendu un chemin absolu`);
+  if (!isAbsolute(fichier)) throw new InvalidConfig(`${VARIABLE_PORTES} vaut « ${fichier} » — attendu un chemin absolu`);
   return fichier;
 }
 
@@ -155,13 +155,13 @@ export async function tenirPortes(options: OptionsPortes): Promise<PortesTenues>
     for (const { nom } of projets) {
       if (ouvertes.has(nom) || arretee) continue;
       const dit = (ligne: string) => dire(auNomDe(nom, ligne));
-      const etat = join(racine, ETATS, nom);
+      const publiee = join(racine, "kitchen", nom, KITCHEN_ALLOWLIST);
       try {
-        const porte = await ouvrirSur(nom, avant.projets[nom] ?? null, listeDuJournal(etat, { avertir: dit, published: join(racine, "kitchen", nom, KITCHEN_ALLOWLIST) }), refusAuJournal(etat, nom, { dire: dit }), dit);
+        const porte = await ouvrirSur(nom, avant.projets[nom] ?? null, publishedList({ avertir: dit, published: publiee }), doorRefusals({ dire: dit }), dit);
         ouvertes.set(nom, porte);
         dits.delete(nom);
         change = true;
-        dit(`porte ouverte — 127.0.0.1:${porte.port}, liste blanche lue dans ${etat}`);
+        dit(`porte ouverte — 127.0.0.1:${porte.port}, liste blanche lue dans ${publiee}`);
       } catch (erreur) {
         const pourquoi = message(erreur);
         if (dits.get(nom) !== pourquoi) dit(`sa porte ne s'ouvre pas, ses cooks ne partiront pas — ${pourquoi}`);

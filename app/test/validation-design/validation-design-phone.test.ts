@@ -5,13 +5,8 @@
 // Aucun runtime ne tourne, aucun `gh` n'est lancé.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { DE_CONFIANCE as OF_TRUST_OF_RUNTIME } from "../../../runtime/src/alimenter.ts";
-import { brancheDuTicket as branchOfRuntime } from "../../../runtime/src/brigade-github.ts";
-import { LABEL_IN_PASS as IN_PASS_OF_RUNTIME } from "../../../runtime/src/github-etat/etats.ts";
-import { CHEF_TODO } from "../../../runtime/src/github-seul/carte-todo/carte-todo.ts";
-import { MARQUE_DE_RENVOI as SEND_BACK_OF_RUNTIME } from "../../../runtime/src/qualite-github.ts";
-import { retenirLeDesign } from "../../../runtime/src/validation-design/validation-design.ts";
 import { readCaptureOnTHEApi } from "../../src/captures.ts";
+import { postTheCard } from "./card-posted.ts";
 import { cardOfChefOfTodo } from "../../src/card-todo.ts";
 import { writingByCapacitor, openTheActionsGitHub, type RequestNative, type AnswerNative } from "../../src/actions-github-phone.ts";
 import { clientOfThePriority } from "../../src/priority.ts";
@@ -31,6 +26,14 @@ import {
   type RenderedOfValidation,
   type ValidationDesign,
 } from "../../src/vue/validation-design/validation-design-github.ts";
+
+// What the old runtime wrote and read, kept as literals now that its modules are deleted (#4775): the send-back marker
+// (qualite-github.ts), the `in-pass` label (github-etat/etats.ts), the chef's TODO label (carte-todo.ts) and a ticket's
+// branch (brigade-github.ts, `brancheDuTicket`).
+const SEND_BACK_OF_RUNTIME = "<!-- brigade:renvoi";
+const IN_PASS_OF_RUNTIME = "in-pass";
+const CHEF_TODO = "chef-todo";
+const branchOfRuntime = (ticket: number) => `cook/${ticket}-github`;
 
 const REPOSITORY = "chef/parade";
 const PROJECT = "parade";
@@ -157,16 +160,7 @@ type World = ReturnType<typeof fakeGitHub>;
 // La carte posée par le runtime, comme la pass la pose sur une livraison design verte qui porte ses captures : sur le ticket.
 async function cardOfTrial(outage?: Outage): Promise<World> {
   const world = fakeGitHub(outage);
-  const motive = await retenirLeDesign(world.github, {
-    depot: REPOSITORY,
-    station: "box/claude",
-    ticket: { number: TICKET, title: "Export the journal as CSV", labels: ["fire"] },
-    pr: { number: PR, sha: SHA },
-    fichiers: ["app/src/vue/rail.js", `docs/captures/${TICKET}/rail-avant.png`, `docs/captures/${TICKET}/rail-apres.png`],
-    renvoyer: async () => assert.fail("une livraison qui porte ses captures n'est pas renvoyée"),
-    jugerLeChoix: async () => ({ choix: "the layout of the rail" }),
-  });
-  assert.match(motive ?? "", /asked on #58/);
+  await postTheCard(world.github);
   assert.equal(world.issues.size, 1, "no issue apart");
   return world;
 }
@@ -310,7 +304,6 @@ describe("ce que le téléphone ne tient pas pour fait", () => {
   });
 
   test("ce que le téléphone écrit et lit est ce que le runtime écrit et lit", () => {
-    assert.deepEqual(OF_TRUST, OF_TRUST_OF_RUNTIME);
     assert.equal(BRAND_OF_SEND_BACK, SEND_BACK_OF_RUNTIME);
     assert.equal(LABEL_IN_PASS, IN_PASS_OF_RUNTIME);
     assert.equal(LABEL_OF_CHEF, CHEF_TODO);

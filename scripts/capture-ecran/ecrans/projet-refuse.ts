@@ -4,7 +4,7 @@ import type { ProjectSeen } from "../../../app/src/projects/projects.ts";
 import type { Ecran } from "./commun.ts";
 import { donnees, OUVRIR, SUR_LA_BOX } from "./cuisine-demenagee.ts";
 
-// Refusé par la box : `refus`, tel que la box le publie (runtime/src/projets/refus.ts).
+// Refusé par la box : `refus`, tel que la box le publie (the old station's refusal type).
 export const refuse = (refus: NonNullable<ProjectSeen["refus"]>): ProjectSeen => ({
   ...SUR_LA_BOX,
   stations: SUR_LA_BOX.stations.map((station) => (station.id === SUR_LA_BOX.suiviPar?.id ? { ...station, etat: "refuse" as const, dit: "refused" } : station)),

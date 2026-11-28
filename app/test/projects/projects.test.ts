@@ -10,7 +10,6 @@ import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { FILE_PROJECTS, FILE_TRACKING } from "../../src/projects/request.ts";
 import { repositoriesOfChef } from "../../src/projects/github.ts";
-import { plafondDesCoeurs } from "../../../runtime/src/projections/stations.ts";
 import { readClone } from "../../src/addition.ts";
 import type { ProjectRequest } from "../../src/projects/request.ts";
 import { warning, CALIBRATION_MEASURE, calibrationRecommended, cooksOfCores, isOneComputer, mergeTheTime, readTrust, readInput, machineProposed, nameOfProject, stationRecommended, refusalOfTrust, refusalOfInput, holdProjects, type OptionsProjects, type SeenOfProjects } from "../../src/projects/projects.ts";
@@ -19,6 +18,10 @@ import type { StationVue } from "../../src/stations/stations.ts";
 import { ghOfDirectory } from "../helpers/gh-of-directory.ts";
 import { reply } from "./fake-gh.ts";
 import { WITHOUT_POSIX } from "../helpers/posix.ts";
+
+// Copy of the station's cap rule (formerly runtime/src/projections/stations.ts, `plafondDesCoeurs`): two cores
+// are kept for the kitchen itself, and never fewer than one cook.
+const plafondDesCoeurs = (cores: number): number => Math.max(1, cores - 2);
 
 const SOURCES = join(import.meta.dirname, "../../src/projects");
 const NOW = Date.parse("2026-10-15T12:01:00Z");
