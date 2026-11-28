@@ -102,15 +102,15 @@ export const phrases = (texte: string): number => texte.split(/(?<=[.!?…])\s+/
 
 // Ce qu'une rétro retient, entrée par entrée : une leçon nouvelle, ou une leçon
 // du projet reconfirmée par son id.
-export type EntreeRetenue = { kind: "propose"; text: string } | { kind: "reconfirm"; id: string };
+export type KeptEntry = { kind: "propose"; text: string } | { kind: "reconfirm"; id: string };
 
 // Pourquoi une ligne de la rétro n'est pas retenue : illisible (`unreadable`),
 // une leçon trop longue (`too-long`), un id qui n'est celui d'aucune leçon du
 // projet (`unknown-id`), une entrée déjà dite par la même rétro (`duplicate`),
 // ou au-delà des leçons qu'une rétro peut laisser (`over-limit`).
-export type Ecart = "unreadable" | "too-long" | "unknown-id" | "duplicate" | "over-limit";
+export type DropReason = "unreadable" | "too-long" | "unknown-id" | "duplicate" | "over-limit";
 
-export type Tri = { kept: EntreeRetenue[]; dropped: { line: string; reason: Ecart }[] };
+export type Tri = { kept: KeptEntry[]; dropped: { line: string; reason: DropReason }[] };
 
 // Trie la rétro d'un cook face aux leçons du projet : les lignes lisibles, dans
 // l'ordre, jusqu'à `LECONS_MAX` ; le reste est écarté, en le disant. Une ligne
@@ -119,7 +119,7 @@ export type Tri = { kept: EntreeRetenue[]; dropped: { line: string; reason: Ecar
 // peut les reconfirmer, elles ne sont pas dans le carnet du projet.
 export function trierRetro(texte: string | null, carnet: Carnet, communes: readonly string[] = []): Tri {
   const tri: Tri = { kept: [], dropped: [] };
-  const ecarter = (line: string, reason: Ecart) => tri.dropped.push({ line, reason });
+  const ecarter = (line: string, reason: DropReason) => tri.dropped.push({ line, reason });
   for (const brute of (texte ?? "").split("\n")) {
     const line = brute.trim();
     if (!line) continue;
@@ -129,7 +129,7 @@ export function trierRetro(texte: string | null, carnet: Carnet, communes: reado
       continue;
     }
     const valeur = m[2]!.trim();
-    const entree: EntreeRetenue = m[1] === "propose" ? { kind: "propose", text: valeur } : { kind: "reconfirm", id: valeur };
+    const entree: KeptEntry = m[1] === "propose" ? { kind: "propose", text: valeur } : { kind: "reconfirm", id: valeur };
     if (entree.kind === "propose" && (phrases(entree.text) > PHRASES_MAX || entree.text.length > LECON_MAX_CARACTERES)) ecarter(line, "too-long");
     else if (entree.kind === "reconfirm" && !carnet.lecons.some((l) => l.id === entree.id) && !communes.includes(entree.id)) ecarter(line, "unknown-id");
     else if (tri.kept.some((k) => (k.kind === "propose" ? entree.kind === "propose" && k.text === entree.text : entree.kind === "reconfirm" && k.id === entree.id))) ecarter(line, "duplicate");
@@ -141,7 +141,7 @@ export function trierRetro(texte: string | null, carnet: Carnet, communes: reado
 
 // Range dans le carnet ce qu'une rétro a retenu. Un id qui n'y est pas — un
 // carnet relu autrement qu'à l'écriture — est passé : tout le reste tient.
-export function appliquerRetenues(carnet: Carnet, kept: EntreeRetenue[], origine: Origine): Carnet {
+export function appliquerRetenues(carnet: Carnet, kept: KeptEntry[], origine: Origine): Carnet {
   let courant = carnet;
   for (const entree of kept) {
     if (entree.kind === "propose") courant = proposer(courant, entree.text, origine).carnet;

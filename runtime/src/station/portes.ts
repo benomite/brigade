@@ -14,10 +14,10 @@
 import { chownSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join } from "node:path";
 import { AUTRES_HOTES, compterLesRefus, ouvrirPorte, type OptionsPorte, type Porte } from "../porte.ts";
-import { KITCHEN_ALLOWLIST, listePubliee, refusDeLaPorte } from "../porte-journal.ts";
+import { KITCHEN_ALLOWLIST, publishedList, doorRefusals } from "../porte-journal.ts";
 import { projectsOfTheKitchen } from "../kitchen/projects.ts";
 import { REGLES_DE_BASE } from "../reseau.ts";
-import { ConfigInvalide } from "../config-invalide.ts";
+import { InvalidConfig } from "../invalid-config.ts";
 import { CONFIGURATION, lireFichierDeConfiguration } from "./configuration.ts";
 
 export const VARIABLE_PORTES = "BRIGADE_STATION_PORTES";
@@ -41,7 +41,7 @@ const estUnPort = (valeur: unknown): valeur is number => typeof valeur === "numb
 export function configPortes(env: Record<string, string | undefined>): string | null {
   const fichier = env[VARIABLE_PORTES];
   if (fichier === undefined || fichier === "") return null;
-  if (!isAbsolute(fichier)) throw new ConfigInvalide(`${VARIABLE_PORTES} vaut « ${fichier} » — attendu un chemin absolu`);
+  if (!isAbsolute(fichier)) throw new InvalidConfig(`${VARIABLE_PORTES} vaut « ${fichier} » — attendu un chemin absolu`);
   return fichier;
 }
 
@@ -157,7 +157,7 @@ export async function tenirPortes(options: OptionsPortes): Promise<PortesTenues>
       const dit = (ligne: string) => dire(auNomDe(nom, ligne));
       const publiee = join(racine, "kitchen", nom, KITCHEN_ALLOWLIST);
       try {
-        const porte = await ouvrirSur(nom, avant.projets[nom] ?? null, listePubliee({ avertir: dit, published: publiee }), refusDeLaPorte({ dire: dit }), dit);
+        const porte = await ouvrirSur(nom, avant.projets[nom] ?? null, publishedList({ avertir: dit, published: publiee }), doorRefusals({ dire: dit }), dit);
         ouvertes.set(nom, porte);
         dits.delete(nom);
         change = true;

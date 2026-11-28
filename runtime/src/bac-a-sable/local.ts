@@ -18,7 +18,7 @@
 import { tmpdir } from "node:os";
 import { isAbsolute } from "node:path";
 import { REGLES_DE_BASE, type Regle } from "../reseau.ts";
-import { ConfigInvalide } from "../config-invalide.ts";
+import { InvalidConfig } from "../invalid-config.ts";
 import { argumentsDuBacASable, configurer, reglagesSansBacASable, type CookSansBac, type ConfigDeBacASable, type Cook } from "./configuration.ts";
 import { lireDeclarationBacASable } from "./declaration.ts";
 import { detecter, type Sondes } from "./detection.ts";
@@ -83,7 +83,7 @@ export function verifier(sondes: Sondes, lieux: Lieux, hotes: Regle[] = REGLES_D
 export function configBacASableLocal(sondes: Sondes, lieux: Lieux, hotes: () => Regle[], services?: () => ServiceLocal[], declaree?: Declaree): BacASableLocal | null {
   if (sondes.plateforme !== PLATEFORME_LOCALE) return null;
   const verification = verifier(sondes, lieux);
-  if (!verification.ok) throw new ConfigInvalide(`sur ce Mac, chaque cook part dans le bac à sable, et il n'est pas utilisable — ${verification.raison}`, "sandbox-unusable");
+  if (!verification.ok) throw new InvalidConfig(`sur ce Mac, chaque cook part dans le bac à sable, et il n'est pas utilisable — ${verification.raison}`, "sandbox-unusable");
   return { version: verification.version, home: lieux.home as string, caches: lieux.caches, hotes, services, ...declaree };
 }
 

@@ -1,7 +1,7 @@
 // Les leçons qu'un cook reçoit à son lancement : au plus `plafond` — un réglage
 // du projet, pour que le contexte d'un cook ne grossisse pas sans fin —, et le
 // bloc que sa consigne en porte.
-import { lire } from "../config-invalide.ts";
+import { readNumber } from "../invalid-config.ts";
 
 export const LECONS_INJECTEES_PAR_DEFAUT = 20;
 export const VARIABLE_LECONS_INJECTEES = "BRIGADE_INJECTED_LESSONS";
@@ -10,7 +10,7 @@ export const VARIABLE_LECONS_INJECTEES = "BRIGADE_INJECTED_LESSONS";
 // des leçons (`seuils/seuils.ts`). Zéro : ses cooks n'en reçoivent aucune. Une
 // valeur illisible refuse le démarrage en nommant la variable.
 export function lirePlafondDesLecons(env: NodeJS.ProcessEnv): number {
-  return lire(env, VARIABLE_LECONS_INJECTEES, LECONS_INJECTEES_PAR_DEFAUT, "an integer, zero or more", (valeur) => Number.isSafeInteger(valeur) && valeur >= 0);
+  return readNumber(env, VARIABLE_LECONS_INJECTEES, LECONS_INJECTEES_PAR_DEFAUT, "an integer, zero or more", (valeur) => Number.isSafeInteger(valeur) && valeur >= 0);
 }
 
 // `etage` : une leçon de l'étage commun de l'installation, acceptée par le

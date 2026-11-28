@@ -426,12 +426,12 @@ export function lireFlux(contenu: string): Lecture {
 }
 
 // Comment un cook a fini : `86` : le quota de l'abonnement est épuisé.
-export type FinDeCook = "done" | "failed" | "86" | "disconnected" | "refused";
+export type CookEnd = "done" | "failed" | "86" | "disconnected" | "refused";
 
 // La fin d'un cook que rien n'a arrêté. `subtype` n'entre pas en compte : il
 // vaut « success » même quand la session n'a jamais pu parler au modèle, ou
 // que le modèle a refusé de répondre.
-export function verdict(lecture: Lecture, code: number | null): FinDeCook {
+export function verdict(lecture: Lecture, code: number | null): CookEnd {
   if (lecture.deconnecte) return "disconnected";
   // Avant « done » : un refus ne livre rien, quoi qu'en disent `is_error` et
   // le code de sortie.

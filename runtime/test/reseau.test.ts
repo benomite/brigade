@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { lireALaBase } from "../src/depot.ts";
 import { autorise, configReseau, lireDeclaration, REGLES_DE_BASE, reglesDuProjet, sonderLeFiltre, variablesDeRelais, type Envoyer } from "../src/reseau.ts";
-import { ConfigInvalide } from "../src/config-invalide.ts";
+import { InvalidConfig } from "../src/invalid-config.ts";
 import { BASE, depotGit, repertoireTemporaire } from "./outils.ts";
 
 // Un envoi qui finit comme le test le dit — ou ne finit pas.
@@ -49,7 +49,7 @@ describe("le réseau du projet", { concurrency: 8 }, () => {
   test("le port de la porte n'a pas de défaut, et ne s'écrit pas à moitié", () => {
     assert.equal(configReseau({}), null);
     assert.equal(configReseau({ BRIGADE_PROXY_PORT: "18443" }), 18443);
-    for (const brut of ["0", "70000", "porte", "1.5"]) assert.throws(() => configReseau({ BRIGADE_PROXY_PORT: brut }), ConfigInvalide, brut);
+    for (const brut of ["0", "70000", "porte", "1.5"]) assert.throws(() => configReseau({ BRIGADE_PROXY_PORT: brut }), InvalidConfig, brut);
   });
 
   test("tout ce qui est lancé passe par la porte, sauf la boucle locale", () => {

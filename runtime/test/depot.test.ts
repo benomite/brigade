@@ -8,7 +8,7 @@ import { describe, test, type TestContext } from "node:test";
 import { posixOnly } from "./support/plateforme.ts";
 import { environnementReseau, lireALaBase, ouvrirDepot, WorktreeDetourne } from "../src/depot.ts";
 import { identifiantsLivres } from "../src/identifiants.ts";
-import { ConfigInvalide } from "../src/config-invalide.ts";
+import { InvalidConfig } from "../src/invalid-config.ts";
 import { BASE, commiter, depotGit, ENV_GIT, git, repertoireTemporaire } from "./outils.ts";
 
 function projet(t: TestContext) {
@@ -45,7 +45,7 @@ describe("le dépôt de la station", { concurrency: 2 }, () => {
 
     assert.throws(
       () => ouvrirDepot({ clone: pasUnDepot, base: BASE, worktrees: join(pasUnDepot, "w"), env: ENV_GIT }),
-      (erreur) => erreur instanceof ConfigInvalide && /BRIGADE_REPO_DIR/.test(erreur.message),
+      (erreur) => erreur instanceof InvalidConfig && /BRIGADE_REPO_DIR/.test(erreur.message),
     );
   });
 

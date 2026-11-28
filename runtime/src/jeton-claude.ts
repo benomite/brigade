@@ -33,7 +33,7 @@ import { isAbsolute, relative, resolve } from "node:path";
 import { format } from "node:util";
 import { ouvertADAutres } from "./droits.ts";
 import { masquerIdentifiants, retenirJeton } from "./identifiants.ts";
-import { ConfigInvalide } from "./config-invalide.ts";
+import { InvalidConfig } from "./invalid-config.ts";
 
 // La variable du service qui nomme le fichier.
 export const FICHIER_DU_JETON = "BRIGADE_CLAUDE_TOKEN_FILE";
@@ -71,7 +71,7 @@ export function configJeton(env: Record<string, string | undefined>, lieux: { re
   const fichier = env[FICHIER_DU_JETON];
   if (!fichier) return null;
   const refuser = (pourquoi: string): never => {
-    throw new ConfigInvalide(`${FICHIER_DU_JETON} invalide : « ${fichier} » ${pourquoi}`);
+    throw new InvalidConfig(`${FICHIER_DU_JETON} invalide : « ${fichier} » ${pourquoi}`);
   };
   if (!isAbsolute(fichier)) refuser("n'est pas un chemin absolu");
   try {

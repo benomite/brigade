@@ -3,7 +3,7 @@
 // copie que personne ne refait.
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { cloner } from "../../projets/cloner.ts";
+import { cloner } from "../../projets/clone-repository.ts";
 import { CONFIGURATION, lireFichierDeConfiguration, lieuxDuProjet } from "../../station/configuration.ts";
 import type { Remede } from "../registre.ts";
 

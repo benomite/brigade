@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import { blocDesLecons, LECONS_INJECTEES_PAR_DEFAUT, lirePlafondDesLecons, VARIABLE_LECONS_INJECTEES } from "../../src/apprentissage/injection.ts";
 import { consigne, consigneDeSuite } from "../../src/claude.ts";
-import { ConfigInvalide } from "../../src/config-invalide.ts";
+import { InvalidConfig } from "../../src/invalid-config.ts";
 import { repertoireTemporaire } from "../outils.ts";
 
 describe("les leçons qu'un cook reçoit", () => {
@@ -14,7 +14,7 @@ describe("les leçons qu'un cook reçoit", () => {
     assert.equal(lirePlafondDesLecons({ [VARIABLE_LECONS_INJECTEES]: "7" }), 7);
     assert.equal(lirePlafondDesLecons({ [VARIABLE_LECONS_INJECTEES]: "0" }), 0);
     for (const valeur of ["-1", "2.5", "vingt"]) {
-      assert.throws(() => lirePlafondDesLecons({ [VARIABLE_LECONS_INJECTEES]: valeur }), (erreur: unknown) => erreur instanceof ConfigInvalide && erreur.message.includes(VARIABLE_LECONS_INJECTEES));
+      assert.throws(() => lirePlafondDesLecons({ [VARIABLE_LECONS_INJECTEES]: valeur }), (erreur: unknown) => erreur instanceof InvalidConfig && erreur.message.includes(VARIABLE_LECONS_INJECTEES));
     }
   });
 

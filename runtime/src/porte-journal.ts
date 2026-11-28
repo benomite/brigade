@@ -45,7 +45,7 @@ export function allowlistPublisher(path: string, base: string, git: (args: strin
 // La liste blanche du projet, lue du fichier que la cuisine publie (`published`).
 // Avant sa première publication, le socle suffit à rapatrier le dépôt, d'où
 // viendra le reste.
-export function listePubliee(options: { avertir?: (message: string) => void; published?: string } = {}): (fraiches?: boolean) => Regle[] {
+export function publishedList(options: { avertir?: (message: string) => void; published?: string } = {}): (fraiches?: boolean) => Regle[] {
   return garderLaListe(
     (): Regle[] => {
       if (options.published !== undefined && existsSync(options.published)) {
@@ -61,7 +61,7 @@ export function listePubliee(options: { avertir?: (message: string) => void; pub
 
 // Ce qu'une porte fait d'un refus : une ligne de sa sortie, comptée — une par
 // hôte et par dix minutes.
-export function refusDeLaPorte(options: { dire?: (ligne: string) => void } = {}): (hote: string, port: number) => void {
+export function doorRefusals(options: { dire?: (ligne: string) => void } = {}): (hote: string, port: number) => void {
   const ecrire = options.dire ?? ((ligne: string) => console.error(ligne));
   return compterLesRefus((refus) => {
     ecrire(`brigade : outgoing connection refused — ${refus.host === AUTRES_HOTES ? "other hosts still, no longer named" : `${refus.host}:${refus.port}`}${refus.count > 1 ? ` (${refus.count} attempts)` : ""}`);

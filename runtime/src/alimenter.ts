@@ -2,7 +2,7 @@
 // l'environnement ; la priorité d'un ticket ; ceux dont un commentaire fait
 // foi. Le rail ne s'alimente plus de GitHub dans le journal : c'est la station
 // GitHub seul (`brigade-github.ts`) qui lit les tickets sur GitHub (#2061).
-import { ConfigInvalide } from "./config-invalide.ts";
+import { InvalidConfig } from "./invalid-config.ts";
 import { refusEn } from "./zones.ts";
 
 // `prio:1` → 1, de 1 à 9 — et `prio:0`, qui passe devant tout : celle que la
@@ -34,19 +34,19 @@ const BAIL_PAR_DEFAUT_S = 1800;
 // défaut : le nom de projet est un identifiant court, il ne le désigne pas.
 export function configRail(env: Record<string, string | undefined>): ConfigRail {
   const depot = env.BRIGADE_GITHUB_REPO;
-  if (!depot) throw new ConfigInvalide("BRIGADE_GITHUB_REPO is not set");
+  if (!depot) throw new InvalidConfig("BRIGADE_GITHUB_REPO is not set");
   if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(depot)) {
-    throw new ConfigInvalide(`BRIGADE_GITHUB_REPO invalid: “${depot}” — expected <owner>/<repo>`);
+    throw new InvalidConfig(`BRIGADE_GITHUB_REPO invalid: “${depot}” — expected <owner>/<repo>`);
   }
   const bail = env.BRIGADE_LEASE_SECONDS || String(BAIL_PAR_DEFAUT_S);
   if (!/^[1-9][0-9]*$/.test(bail)) {
-    throw new ConfigInvalide(`BRIGADE_LEASE_SECONDS invalid: “${bail}” — expected a whole number of seconds`);
+    throw new InvalidConfig(`BRIGADE_LEASE_SECONDS invalid: “${bail}” — expected a whole number of seconds`);
   }
   const communs = [...new Set((env.BRIGADE_COMMON_PATHS ?? "").split(",").map((chemin) => chemin.trim()).filter(Boolean))];
   for (const chemin of communs) {
     const pourquoi = refusEn(chemin);
     if (pourquoi !== null) {
-      throw new ConfigInvalide(`BRIGADE_COMMON_PATHS invalid: “${chemin}” ${pourquoi} — expected paths relative to its root, separated by commas`);
+      throw new InvalidConfig(`BRIGADE_COMMON_PATHS invalid: “${chemin}” ${pourquoi} — expected paths relative to its root, separated by commas`);
     }
   }
   return { depot, dureeBailMs: Number(bail) * 1000, gh: env.BRIGADE_GH_BIN || "gh", communs };

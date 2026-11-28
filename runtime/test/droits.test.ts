@@ -7,7 +7,7 @@ import { chmodSync, mkdirSync, readFileSync, statSync, writeFileSync } from "nod
 import { join } from "node:path";
 import { test } from "node:test";
 import { configJeton } from "../src/jeton-claude.ts";
-import { ConfigInvalide } from "../src/config-invalide.ts";
+import { InvalidConfig } from "../src/invalid-config.ts";
 import { defautDeLAcl, ecrireSecret, lireAcl, ouvertADAutres, ouvertsParLAcl, remedeWindows, type Acl, type Regle } from "../src/droits.ts";
 import { EVERYONE, exposer, icacls, REMEDE, USERS } from "./aides/droits.ts";
 import { repertoireTemporaire } from "./outils.ts";
@@ -176,7 +176,7 @@ test("starting with a Max token that another account can read is refused, the fi
 
   exposer(jeton);
   assert.throws(() => configJeton({ BRIGADE_CLAUDE_TOKEN_FILE: jeton }, lieux), (erreur: unknown) => {
-    assert.ok(erreur instanceof ConfigInvalide, String(erreur));
+    assert.ok(erreur instanceof InvalidConfig, String(erreur));
     assert.ok(erreur.message.startsWith(`BRIGADE_CLAUDE_TOKEN_FILE invalide : « ${jeton} » est lisible par d'autres que le compte du service`), erreur.message);
     assert.match(erreur.message, REMEDE);
     return true;

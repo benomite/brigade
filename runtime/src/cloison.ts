@@ -10,7 +10,7 @@ import { constants, copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync,
 import { tmpdir } from "node:os";
 import { basename, delimiter, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { FICHIER_DU_JETON } from "./jeton-claude.ts";
-import { ConfigInvalide } from "./config-invalide.ts";
+import { InvalidConfig } from "./invalid-config.ts";
 
 export type Lancement = { commande: string; args: string[] };
 
@@ -102,26 +102,26 @@ export function configCloison(env: Record<string, string | undefined>, lieux: { 
   const bin = env.BRIGADE_SANDBOX_BIN;
   const brut = env.BRIGADE_SANDBOX_HIDDEN ?? "";
   if (!bin) {
-    if (brut !== "") throw new ConfigInvalide("BRIGADE_SANDBOX_HIDDEN is set without BRIGADE_SANDBOX_BIN: nothing would be hidden — set the path of `bwrap`, or remove the variable");
+    if (brut !== "") throw new InvalidConfig("BRIGADE_SANDBOX_HIDDEN is set without BRIGADE_SANDBOX_BIN: nothing would be hidden — set the path of `bwrap`, or remove the variable");
     return null;
   }
-  if (!isAbsolute(bin) || !existsSync(bin)) throw new ConfigInvalide(`invalid BRIGADE_SANDBOX_BIN: “${bin}” — expected the absolute path of \`bwrap\` (/usr/bin/bwrap), and it must exist`);
+  if (!isAbsolute(bin) || !existsSync(bin)) throw new InvalidConfig(`invalid BRIGADE_SANDBOX_BIN: “${bin}” — expected the absolute path of \`bwrap\` (/usr/bin/bwrap), and it must exist`);
   const home = env.HOME;
-  if (!home) throw new ConfigInvalide("BRIGADE_SANDBOX_BIN is set, but HOME is not: the partition does not know where the account keeps its credentials");
+  if (!home) throw new InvalidConfig("BRIGADE_SANDBOX_BIN is set, but HOME is not: the partition does not know where the account keeps its credentials");
   // Séparés comme les chemins d'un PATH : `:` en POSIX.
   const masques = [...new Set(brut.split(delimiter).filter(Boolean))];
   if (masques.length === 0) {
-    throw new ConfigInvalide(`BRIGADE_SANDBOX_BIN is set without BRIGADE_SANDBOX_HIDDEN: the partition would hide nothing — set the directories that hold the state and the secrets of all projects, separated by “${delimiter}” (/var/lib/brigade${delimiter}/etc/brigade)`);
+    throw new InvalidConfig(`BRIGADE_SANDBOX_BIN is set without BRIGADE_SANDBOX_HIDDEN: the partition would hide nothing — set the directories that hold the state and the secrets of all projects, separated by “${delimiter}” (/var/lib/brigade${delimiter}/etc/brigade)`);
   }
   // Le répertoire temporaire du runtime, là où lui et ce qu'il lance écrivent
   // (le juge y part, `$TMPDIR` d'un cook y mène) : rendu en écriture comme
   // /tmp. Hors de /tmp — /dev/shm, que `--dev` remplace —, il ne serait sinon
   // qu'une place vide.
   const temporaire = resolve(env.TMPDIR || tmpdir());
-  if (sous(temporaire, "/usr")) throw new ConfigInvalide(`invalid TMPDIR: “${temporaire}” would open the system to writing in the partition — set a temporary directory of its own`);
+  if (sous(temporaire, "/usr")) throw new InvalidConfig(`invalid TMPDIR: “${temporaire}” would open the system to writing in the partition — set a temporary directory of its own`);
   for (const masque of masques) {
     const refuser = (pourquoi: string): never => {
-      throw new ConfigInvalide(`invalid BRIGADE_SANDBOX_HIDDEN: “${masque}” ${pourquoi}`);
+      throw new InvalidConfig(`invalid BRIGADE_SANDBOX_HIDDEN: “${masque}” ${pourquoi}`);
     };
     if (!isAbsolute(masque)) refuser("is not an absolute path");
     // Un répertoire vide prend sa place : un fichier ne se masque pas ainsi,
@@ -140,14 +140,14 @@ export function configCloison(env: Record<string, string | undefined>, lieux: { 
   ];
   for (const [variable, chemin] of aCouvrir) {
     if (chemin && !masques.some((masque) => sous(masque, chemin))) {
-      throw new ConfigInvalide(`${variable} (${chemin}) is not under any directory of BRIGADE_SANDBOX_HIDDEN (${masques.join(", ")}): a cook would read it despite the partition — add it there, or move it`);
+      throw new InvalidConfig(`${variable} (${chemin}) is not under any directory of BRIGADE_SANDBOX_HIDDEN (${masques.join(", ")}): a cook would read it despite the partition — add it there, or move it`);
     }
   }
 
   const prives = [...new Set([...PRIVES_PAR_DEFAUT, ...(env.BRIGADE_SANDBOX_PRIVATE ?? "").split(":").filter(Boolean)])];
   for (const nom of prives) {
     if (nom.includes("/") || nom === "." || nom === "..") {
-      throw new ConfigInvalide(`invalid BRIGADE_SANDBOX_PRIVATE: “${nom}” — expected names of entries of the account's home directory, separated by “:” (.cargo:.gradle)`);
+      throw new InvalidConfig(`invalid BRIGADE_SANDBOX_PRIVATE: “${nom}” — expected names of entries of the account's home directory, separated by “:” (.cargo:.gradle)`);
     }
   }
 

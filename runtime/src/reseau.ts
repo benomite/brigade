@@ -3,7 +3,7 @@
 // tout ce que le runtime lance. La porte elle-même est dans `porte.ts` ; ce
 // qui refuse une connexion qui la contourne est l'unité systemd, pas ce code.
 import { createSocket } from "node:dgram";
-import { lire } from "./config-invalide.ts";
+import { readNumber } from "./invalid-config.ts";
 
 // Ce que le dépôt du projet déclare : un hôte par ligne.
 export const DECLARATION_RESEAU = ".claude/brigade/reseau";
@@ -72,7 +72,7 @@ export const direRegle = (regle: Regle) => `${regle.hote}${regle.sousDomaines ? 
 // Lit `BRIGADE_PROXY_PORT` : le port de la porte du projet, sur la boucle
 // locale. Sans la variable, null : le réseau est ouvert, et le runtime le dit.
 export function configReseau(env: NodeJS.ProcessEnv): number | null {
-  const port = lire(env, "BRIGADE_PROXY_PORT", 0, "a port, from 1 to 65535", (valeur) => Number.isSafeInteger(valeur) && valeur >= 1 && valeur <= 65535);
+  const port = readNumber(env, "BRIGADE_PROXY_PORT", 0, "a port, from 1 to 65535", (valeur) => Number.isSafeInteger(valeur) && valeur >= 1 && valeur <= 65535);
   return port === 0 ? null : port;
 }
 

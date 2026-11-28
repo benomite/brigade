@@ -6,7 +6,7 @@ import { chmodSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync,
 import { delimiter, join, sep } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { posixOnly } from "./support/plateforme.ts";
-import { ConfigInvalide } from "../src/config-invalide.ts";
+import { InvalidConfig } from "../src/invalid-config.ts";
 import { configCloison, envelopper } from "../src/cloison.ts";
 import { depotGit, ENV_ENFANT, FAUX_BWRAP, git, horloge, lancementsDuFauxBwrap, repertoireTemporaire } from "./outils.ts";
 
@@ -24,7 +24,7 @@ const refus = (fn: () => unknown) => {
   try {
     fn();
   } catch (erreur) {
-    assert.ok(erreur instanceof ConfigInvalide, String(erreur));
+    assert.ok(erreur instanceof InvalidConfig, String(erreur));
     return erreur.message;
   }
   return assert.fail("aucun refus");
