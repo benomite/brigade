@@ -47,7 +47,7 @@ import { basename, dirname, join, relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
 import { APP_OF_PACKAGE, NODE_OF_PACKAGE, RUNTIME_OF_PACKAGE } from "../src/locations.ts";
-import { APP, Arret, dependancesDeProduction, empreinteAnnoncee, majeureReclamee, NOM, RUNTIME, versionCourte, versionDuCommit } from "./construire.ts";
+import { APP, Arret, dependancesDeProduction, empreinteAnnoncee, majeureReclamee, NOM, AGENTS, RUNTIME, versionCourte, versionDuCommit } from "./construire.ts";
 import { extraireZip } from "./windows.ts";
 
 const REFUS = 2;
@@ -214,6 +214,8 @@ export function assembler(options: OptionsAssemblage, dossier: string): string {
   // version construite, celle que la station dit d'elle-même en démarrant.
   const dansRuntime = join(ressources, RUNTIME_OF_PACKAGE);
   cpSync(join(runtime, "src"), join(dansRuntime, "src"), { recursive: true });
+  // The prompts of its agents (`runtime/src/kitchen/agents.ts` reads `<runtime>/agents/kitchen/`), as the station's package carries them (#4793).
+  cpSync(AGENTS, join(dansRuntime, "agents", "kitchen"), { recursive: true });
   writeFileSync(join(dansRuntime, "package.json"), `${JSON.stringify({ ...JSON.parse(readFileSync(join(runtime, "package.json"), "utf8")), version: options.version }, null, 2)}\n`);
 
   const node = join(ressources, NODE_OF_PACKAGE);
