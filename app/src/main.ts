@@ -59,7 +59,6 @@ import { changeTheCap, readTheCaps } from "./caps-duration.ts";
 import { changeTheSetting, changeTheVerifications, readTheCloser } from "./closer-health.ts";
 import { changeTheKnowledge, readTheKnowledgeOfProject } from "./vue/know-how/know-how-github.ts";
 import { answerOnGithub } from "./board-actions/answer-github.ts";
-import { validateOnGithub } from "./vue/validation-design/validation-design-github.ts";
 import { readTheAutonomyOfRepository, holdTheAutonomy } from "./vue/autonomy/autonomy-github.ts";
 import { repositoryOfTheOrigin, readClone } from "./addition.ts";
 import { readTheAccountGitHub, holdConnectionGitHub, signInToGitHub } from "./connection-github.ts";
@@ -88,7 +87,6 @@ import { claudeOf, connectionOfTheSession, openOfAStation } from "./first-launch
 import { openTheLocalCopy, sessionOfClaude } from "./local-copy.ts";
 import { probesOfTheRuntime, serveHere } from "./serve-here.ts";
 import { readQuestion, reply as answerQuestion, titleOf, type Read as QuestionRead } from "./question.ts";
-import { readCapture } from "./captures.ts";
 import { relaunchOf, holdPassage } from "./catch-up.ts";
 import { holdAnswered } from "./answered.ts";
 import { APP, holdDelays } from "./delay.ts";
@@ -877,22 +875,6 @@ ipcMain.handle("ouvrirLien", (_, name: unknown, ticket: unknown, url: unknown) =
     () => false,
   );
 });
-// Une capture d'un ticket d'interface, sur sa carte (captures.ts) : lue par le `gh` du poste à
-// l'adresse que la box a rendue dans `facts`, et rendue à la vue en `data:`. La vue nomme le
-// projet, le ticket, l'écran et le moment ; l'adresse ne quitte pas le process principal.
-ipcMain.handle("lireCapture", (_, name: unknown, ticket: unknown, screen: unknown, moment: unknown) => {
-  const aims = knownOne(name);
-  if (aims === undefined) return undefined;
-  const address = facts.capture(aims.nom, ticket, screen, moment);
-  if (address === undefined) return { sans: "the station gave no address for this screenshot: the app has nothing to read" };
-  return readCapture(settingsGh(), address).then((readEntry) => {
-    // Le lien d'une capture qui ne se lit pas : la vue ne l'ouvre que par `ouvrirLien`, qui ne connaît que ce qu'une lecture a rendu.
-    if ("sans" in readEntry && readEntry.lien !== undefined) {
-      linksRead.capture(`${aims.nom}#${String(ticket)}`, readEntry.lien);
-    }
-    return readEntry;
-  });
-});
 // Le titre d'une issue que la box ne donne pas (hors rail) : lu par le `gh` du poste, à l'adresse que
 // la box a rendue pour ce ticket — jamais une adresse venue de la vue.
 ipcMain.handle("lireTitre", (_, name: unknown, ticket: unknown) => {
@@ -1258,16 +1240,6 @@ ipcMain.handle("repondreCarte", async (_, name: unknown, ticket: unknown, answer
   if (chef === undefined) return { refus: WITHOUT_DONE.carte, detail: "" };
   const rendered = await answerOnGithub({ depot: await repositoryOfProject(aims), ticket, chef, reponse: answer, client: clientOfLabels });
   if ("repondue" in rendered) boards.oublier();
-  return rendered;
-});
-// Un geste du chef sur la carte « Validate its screen » (vue/validation-design/, ticket 3185) : écrit sur GitHub, comme sur
-// le téléphone, par le jeton du `gh` de ce poste — `validate` merge la PR et ferme la carte, `send-back` la renvoie à un cook
-// avec le commentaire du chef. La carte est celle que la dernière lecture porte ; faite, la lecture suivante va à GitHub.
-ipcMain.handle("gesteDeValidation", async (_, name: unknown, ticket: unknown, action: unknown) => {
-  const aims = knownOne(name);
-  if (aims === undefined) return undefined;
-  const rendered = await validateOnGithub({ depot: await repositoryOfProject(aims), carte: ticket, design: facts.chef(aims.nom, ticket)?.design, geste: action, client: clientOfLabels });
-  if ("fait" in rendered) boards.oublier();
   return rendered;
 });
 // La PR qu'un nettoyage fini a ouverte (bilan du closer, #992) s'ouvre dans le navigateur du poste :

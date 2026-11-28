@@ -87,7 +87,7 @@ const startup = () => ({
 });
 
 async function open(answers: Answers = {}): Promise<Played> {
-  const vue = await playTheVue({ demarrage: startup, espace: () => [], lireCapture: () => ({ image: "data:image/png;base64,iVBORw0KGgo=" }), ...answers });
+  const vue = await playTheVue({ demarrage: startup, espace: () => [], ...answers });
   (vue.element("projets").children.at(1) ?? assert.fail("pas d'entrée")).click();
   await repos();
   return vue;
@@ -260,7 +260,7 @@ describe("la carte de TODO, sur le rail du projet", () => {
       sorte: "blocked",
       texte: "Should the release run of app 1.0.185 be retried?\n- [resume] Retry it: the failure looks transient\n- [close] Close it\n\nThe release run of app 1.0.185 failed. Opened by a stranger.\n\nManager triage: a long note that must not show at first sight.",
     }) ?? assert.fail("pas de carte");
-    const setOne = (setCardOfTodo(doc, 3084, cardOfChef, REPOS, { captures: [], brouillon: "", cle: "p#3084" }, nothing) as Fake[])[0] ?? assert.fail("rien de posé");
+    const setOne = (setCardOfTodo(doc, 3084, cardOfChef, REPOS, { brouillon: "", cle: "p#3084" }, nothing) as Fake[])[0] ?? assert.fail("rien de posé");
     assert.deepEqual(
       setOne.children.map((pose) => pose.className),
       ["resume-carte", "question-carte", "recommandation-carte", "choix-carte", "en-mes-mots", "phrase", "details-carte", "secondaire"],
@@ -279,7 +279,7 @@ describe("la carte de TODO, sur le rail du projet", () => {
     const doc = { createElement: (balise: string) => new Fake(balise) };
     const nothing = { repondre: () => {}, ecrire: () => {}, demander: () => {} };
     const readEntry = (sending: SendSeen) => ({ ...(cardOfChefOfTodo(chefOf(PRODUCT)) ?? assert.fail("carte illisible")), envoi: sending });
-    const set = (sending: SendSeen) => (setCardOfTodo(doc, 21, readEntry(sending), REPOS, { captures: [], brouillon: "", cle: "p#21" }, nothing) as Fake[])[0] ?? assert.fail("rien de posé");
+    const set = (sending: SendSeen) => (setCardOfTodo(doc, 21, readEntry(sending), REPOS, { brouillon: "", cle: "p#21" }, nothing) as Fake[])[0] ?? assert.fail("rien de posé");
     queued(set(wait()), PRODUCT.choix[1]?.texte ?? "");
     // Jouée : la carte le dit, sa ligne au survol, et son bord ne bat plus.
     const played = set(plays());
@@ -386,13 +386,11 @@ describe("le module de la carte, sur un faux document", () => {
   const nothing = { repondre: () => {}, ecrire: () => {}, demander: () => {} };
   const todoOf = (raw: CardRead) => cardOfChefOfTodo(chefOf(raw)) ?? assert.fail("carte illisible");
 
-  test("postée, elle attend la cuisine sans choix ni champ ; au repos, sa question, ses choix, son champ et ses captures données", () => {
-    const capture = new Fake("div");
-    const [posted] = setCardOfTodo(doc, 12, todoOf(DESIGN), { etape: "postee", reponse: { question: DESIGN.question, choix: 1 }, commentaire: 500 }, { captures: [], brouillon: "", cle: "p#12" }, nothing) as Fake[];
+  test("postée, elle attend la cuisine sans choix ni champ ; au repos, sa question, ses choix, et son champ", () => {
+    const [posted] = setCardOfTodo(doc, 12, todoOf(DESIGN), { etape: "postee", reponse: { question: DESIGN.question, choix: 1 }, commentaire: 500 }, { brouillon: "", cle: "p#12" }, nothing) as Fake[];
     queued(posted as Fake, DESIGN.choix[0]?.texte ?? "");
-    const [setOne] = setCardOfTodo(doc, 12, todoOf(DESIGN), REPOS, { captures: [capture], brouillon: "déjà tapé", cle: "p#12" }, nothing) as Fake[];
+    const [setOne] = setCardOfTodo(doc, 12, todoOf(DESIGN), REPOS, { brouillon: "déjà tapé", cle: "p#12" }, nothing) as Fake[];
     assert.equal(setOne?.dataset.sorte, "design");
-    assert.ok(setOne?.children.includes(capture), "les captures sont posées sur la carte");
     assert.equal(setOne?.dessous("textarea")[0]?.value, "déjà tapé");
     assert.equal(setOne?.dessous("textarea")[0]?.dataset.cle, "p#12");
     assert.equal(button(setOne as Fake, SEND).disabled, false);
@@ -400,11 +398,11 @@ describe("le module de la carte, sur un faux document", () => {
 
   test("le champ ne se replie que sur une carte qui a ses choix et rien de tapé : sans choix, il est sa seule réponse (#2922)", () => {
     const fieldOpen = (setOne: Fake) => [setOne.children.find((pose) => pose.className === "phrase")?.hidden, setOne.children.find((pose) => pose.className === "en-mes-mots")?.hidden];
-    const [folded] = setCardOfTodo(doc, 12, todoOf(DESIGN), REPOS, { captures: [], brouillon: "", cle: "p#12" }, nothing) as Fake[];
+    const [folded] = setCardOfTodo(doc, 12, todoOf(DESIGN), REPOS, { brouillon: "", cle: "p#12" }, nothing) as Fake[];
     assert.deepEqual(fieldOpen(folded as Fake), [true, false]);
-    const [tape] = setCardOfTodo(doc, 12, todoOf(DESIGN), REPOS, { captures: [], brouillon: "déjà tapé", cle: "p#12" }, nothing) as Fake[];
+    const [tape] = setCardOfTodo(doc, 12, todoOf(DESIGN), REPOS, { brouillon: "déjà tapé", cle: "p#12" }, nothing) as Fake[];
     assert.deepEqual(fieldOpen(tape as Fake), [false, true]);
-    const [withoutChoice] = setCardOfTodo(doc, 40, { ...todoOf(DESIGN), choix: [] }, REPOS, { captures: [], brouillon: "", cle: "p#40" }, nothing) as Fake[];
+    const [withoutChoice] = setCardOfTodo(doc, 40, { ...todoOf(DESIGN), choix: [] }, REPOS, { brouillon: "", cle: "p#40" }, nothing) as Fake[];
     assert.deepEqual(fieldOpen(withoutChoice as Fake), [false, true]);
     assert.equal(button(withoutChoice as Fake, IN_MY_WORDS).hidden, true);
   });
@@ -412,11 +410,11 @@ describe("le module de la carte, sur un faux document", () => {
   test("« ask the second » appelle son geste ; en route, il attend et le dit, sans toucher aux choix", () => {
     let requests = 0;
     const actions = { ...nothing, demander: () => void requests++ };
-    const [setOne] = setCardOfTodo(doc, 31, todoOf(PRODUCT), REPOS, { captures: [], brouillon: "", cle: "p#31" }, actions) as Fake[];
+    const [setOne] = setCardOfTodo(doc, 31, todoOf(PRODUCT), REPOS, { brouillon: "", cle: "p#31" }, actions) as Fake[];
     button(setOne as Fake, ASK).click();
     assert.equal(requests, 1);
     assert.equal(setOne?.ariaLabel, "the question #31 asks you");
-    const [inRoute] = setCardOfTodo(doc, 31, todoOf(PRODUCT), REPOS, { captures: [], brouillon: "", cle: "p#31", second: { envoi: true } }, actions) as Fake[];
+    const [inRoute] = setCardOfTodo(doc, 31, todoOf(PRODUCT), REPOS, { brouillon: "", cle: "p#31", second: { envoi: true } }, actions) as Fake[];
     assert.equal(button(inRoute as Fake, ASK).disabled, true);
     assert.ok(inRoute?.dessous("span").some((pose) => pose.textContent === REQUEST_IN_ROUTE));
     assert.ok(choice(inRoute as Fake).every((pose) => !pose.disabled));

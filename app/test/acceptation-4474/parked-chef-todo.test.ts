@@ -131,7 +131,7 @@ describe("#4474 : une issue `parked:chef` est une carte du TODO, et Answer la re
     // La carte posée comme la vue la pose : la réponse tapée, Answer cliqué ; « Open on GitHub » ouvre son issue.
     const answeredEntries: Answer[] = [];
     let openOne = 0;
-    const setOne = setCardOfTodo({ createElement: (balise: string) => new Fake(balise) }, 41, card.todo, REPOS, { captures: [], brouillon: ANSWER, cle: "parade#41" }, { repondre: (answer) => void answeredEntries.push(answer), ecrire: () => {}, demander: () => {}, ouvrir: () => void (openOne += 1) });
+    const setOne = setCardOfTodo({ createElement: (balise: string) => new Fake(balise) }, 41, card.todo, REPOS, { brouillon: ANSWER, cle: "parade#41" }, { repondre: (answer) => void answeredEntries.push(answer), ecrire: () => {}, demander: () => {}, ouvrir: () => void (openOne += 1) });
     const root = setOne[0] as unknown as Fake;
     const button = (wording: string) => root.dessous("button").find(({ textContent }) => textContent === wording) ?? assert.fail(`a button “${wording}”`);
     button("Open on GitHub").click();

@@ -90,9 +90,7 @@ import { holdTheTeam } from "./autonomy/team.js";
 import { holdTheAgents } from "./agents/agents.js";
 import { SAYS_TEMPORARY, TEMPORARY } from "./learning.js";
 import { keepTheKeyboard } from "./keep-the-keyboard.js";
-import { ELSEWHERE, setTheCard as setTheCardOfChef, setTheCardAside, setTheList as setTheListOfCards, setTheSend } from "./cards-of-chef/cards-of-chef.js";
-import { displayNew, changeOf, setDetailOfValidation } from "./validation-design/detail-of-validation.js";
-import { afterRendered as afterTheValidation, CONFIRMATION_MS as CONFIRMATION_VALIDATION_MS, isOneValidation, setCardOfValidation, REPOS as VALIDATION_AT_REST, withoutTheValidated } from "./validation-design/validation-design.js";
+import { ELSEWHERE, setTheCard as setTheCardOfChef, setTheList as setTheListOfCards, setTheSend } from "./cards-of-chef/cards-of-chef.js";
 import { parkControl } from "./parked/park-control.js";
 import { parkGesture } from "./parked/park-gesture.js";
 import { afterRendered as afterTheCard, FIELD_OF_CARD, detailsOfCard, setCardOfTodo, REPOS as CARD_AT_REST, seenOfTheCard } from "./card-todo.js";
@@ -246,7 +244,6 @@ const content = element("contenu");
 const center = element("centre");
 const rail = element("rail");
 const card = element("fiche");
-const detailOfValidation = element("detail-de-validation");
 const readTab = element("lu-onglet");
 const tabReading = element("lecture-onglet");
 const note = element("note");
@@ -829,22 +826,6 @@ const parkInputs = new Map();
 // porte plus l'oublie. Ce n'est qu'un relais : ce que la carte dit après un redémarrage vient du tableau (ticket 1841).
 /** @type {Map<string, { question: string | null, etat: import("./card-todo.js").State }>} */
 const answersAtCards = new Map();
-// Les cartes « Validate its screen » (validation-design/, ticket 3185) : le geste en route d'ici, et le commentaire tapé,
-// par `<projet>#<numéro>` ; et, par projet, les numéros des cartes que le chef a validées ou renvoyées — elles quittent TODO
-// tout de suite, et sont oubliées dès qu'une lecture ne les porte plus.
-/** @type {Map<string, import("./validation-design/validation-design.js").State>} */
-const validations = new Map();
-/** @type {Map<string, string>} */
-const commentsOfValidation = new Map();
-/** @type {Map<string, Set<number>>} */
-const validated = new Map();
-/** @param {string} project */
-const validatedOf = (project) => validated.get(project) ?? new Set();
-// Le détail en grand d'une carte « Validate its screen » (validation-design/detail-of-validation.js, ticket 3212), ouvert
-// d'un clic sur la carte : son projet, son ticket, et ce qu'il montre — côte à côte ou l'une sur l'autre, la capture
-// ouverte seule, le zoom de chaque écran —, gardé d'une pose à l'autre.
-/** @type {{ projet: string, ticket: number, affichage: import("./validation-design/detail-of-validation.js").Display } | undefined} */
-let detailOpen;
 // Ce que le chef a tapé dans le champ d'une carte de TODO, par projet et ticket : un rail redessiné le lui rend. Une carte
 // partie de TODO ne l'emporte pas (ticket 2151) : un brouillon non vide y reste, sur une carte résolue, jusqu'à ce que le
 // chef l'écarte — avec ce que sa carte demandait (`questionsDesBrouillons`).
@@ -996,11 +977,6 @@ function staleOne(state) {
 // par `<projet>#<ticket>` : `{ titre }`, ou `{ sans }` quand l'issue n'a pas pu être lue.
 /** @type {Map<string, { titre: string } | { sans: string } | undefined>} */
 const titles = new Map();
-// Les captures des tickets d'interface, lues par le process principal (captures.ts, `lireCapture`), par
-// `<projet>#<ticket>:<écran>:<moment>@<commit>` : `{ image }`, en `data:`, ou `{ sans }` quand elle n'a
-// pas pu être lue. Présente sans valeur, la lecture est en route.
-/** @type {Map<string, import("../captures.ts").Image | undefined>} */
-const capturesRead = new Map();
 // L'histoire et le coût de chaque ticket dont la fiche a été ouverte (story.ts), par
 // `<projet>#<ticket>` : relus à chaque ouverture. Absente de la table, la lecture est en route.
 /** @type {Map<string, import("../story.ts").Story>} */
@@ -2214,7 +2190,7 @@ const WITHOUT_COOK = "Taken, no cook running";
 // qui se passe et, au plus, une ligne de signal (line-card.ts) ; un petit repère quand la file ne
 // dit pas tout. Ce que la file dit du ticket en plus est dans sa fiche (`poserDetailsDeFiche`). Dans
 // T'attend, la phrase est ce qu'on attend du chef, et son geste — une demande au second — est sur la
-// fiche. Dans Livré, la phrase porte l'heure et le résumé ; ses captures restent sur la carte.
+// fiche. Dans Livré, la phrase porte l'heure et le résumé.
 // Tout est déjà rangé par le process principal (facts.ts, slip.ts) : la vue pose. Le
 // numéro s'ouvre sur l'issue : l'adresse reste au process principal, la vue nomme le ticket.
 /** @param {Project} project @param {import("../facts.ts").Card} cardItem @param {import("./components/pill/pill.js").State} [stateOfColumn] l'état de sa colonne : un même état se dit partout par la même pastille, quel que soit le mot de la file @param {boolean} [withStation] la station s'étiquette (Taken et Pass d'un projet à plusieurs stations ; jamais sur Cooks, où son bloc la nomme) @param {boolean} [outsideColumn] une carte d'aucune des six colonnes : son mot est dit tel quel, sans l'état d'une colonne @param {boolean} [cooked] un agent y travaille en ce moment, d'une lecture qui le dit encore vrai : la poêle (ticket 2984) */
@@ -2301,9 +2277,6 @@ function renderSlip(project, cardItem, stateOfColumn, withStation = false, outsi
     slip.append(resume, detailsOfCard(document, `asked by ${setThe.auteur}, ${dateHour(setThe.a)}`));
   }
   // Deux lignes au plus : ce qui se passe, et ce qui demande l'attention. Le reste est dans la fiche.
-  // Les captures d'un ticket d'interface livré restent sur sa carte : elles se lisent sans un clic. Celles
-  // d'une carte de TODO se posent sous sa question.
-  if (cardItem.captures !== undefined && cardItem.todo?.captures === undefined) slip.append(...setCaptures(project, ticket, cardItem.captures));
   // Une carte de TODO qui dit ce qui se passe (card-todo.js, son résumé) le dit en tête de sa carte : la phrase
   // du bon ne le redit pas. Répondue — envoyée, ou jouée —, elle ne demande plus de répondre : la phrase se tait aussi.
   const seenOfTodo = expected && cardItem.todo !== undefined ? seenOfTheCard(cardItem.todo, stateOfTheCard(project, ticket, cardItem.todo)).vu : undefined;
@@ -2342,7 +2315,7 @@ function renderSlip(project, cardItem, stateOfColumn, withStation = false, outsi
     signal.className = "signal";
     slip.append(signal);
   }
-  // Une carte de TODO entrée par la porte du runtime : sa question, ses captures, un bouton par choix et
+  // Une carte de TODO entrée par la porte du runtime : sa question, un bouton par choix et
   // un champ pour répondre dans tes mots — tranchée sur la carte même, sans ouvrir sa fiche.
   if (expected && cardItem.todo !== undefined) {
     const question = cardItem.todo.question;
@@ -2636,95 +2609,6 @@ function renderDelivery(project, ticket, delivery) {
   );
   remarks.append(block("summary", delivery.remarques), list);
   return [resume, remarks];
-}
-
-// Les captures d'un ticket d'interface, sur sa carte (captures.ts) : chaque écran avant et après, côte à
-// côte, chacun sous sa légende — lues dès que la carte se pose, sans un clic. Une capture que la
-// livraison ne porte pas le dit à sa place ; une livraison qui ne les porte pas toutes le dit en tête, en
-// une ligne, où les poser au survol. Un clic sur une image ouvre la fiche, comme le reste de la carte.
-/** @param {Project} project @param {number} ticket @param {import("../captures.ts").CapturesOfCard} captures */
-function setCaptures(project, ticket, { ecrans: screens, incomplete }) {
-  const poses = [];
-  if (incomplete !== undefined) {
-    const line = block("p", incomplete.ligne);
-    line.className = "captures-manquantes";
-    line.title = incomplete.detail;
-    poses.push(line);
-  }
-  for (const { ecran: screen, avant: before, apres: after } of screens) {
-    const pair = document.createElement("div");
-    pair.className = "captures";
-    pair.append(...[before, after].map((capture) => setCapture(project, ticket, screen, capture)));
-    poses.push(pair);
-  }
-  return poses;
-}
-
-/** @param {Project} project @param {number} ticket @param {string} screen @param {import("../captures.ts").Capture} capture */
-function setCapture(project, ticket, screen, capture) {
-  const figure = document.createElement("figure");
-  figure.dataset.moment = capture.moment;
-  const title = document.createElement("figcaption");
-  title.textContent = capture.legende;
-  figure.append(setImage(project, ticket, screen, capture), title);
-  return figure;
-}
-
-// L'image d'une capture, lue une fois par le process principal — ou sa place, qui dit qu'elle manque, se lit ou ne se lit pas.
-/** @param {Project} project @param {number} ticket @param {string} screen @param {import("../captures.ts").Capture} capture */
-function setImage(project, ticket, screen, { moment, legende: legend, livree: delivered, version }) {
-  const key = `${project.nom}#${ticket}:${screen}:${moment}@${version}`;
-  if (delivered && !capturesRead.has(key)) void readCapture(project, ticket, screen, moment, key);
-  const readEntry = delivered ? capturesRead.get(key) : undefined;
-  if (readEntry !== undefined && "image" in readEntry) {
-    const image = /** @type {HTMLImageElement} */ (document.createElement("img"));
-    image.src = readEntry.image;
-    image.alt = legend;
-    image.draggable = false;
-    return image;
-  }
-  const place = block("span", !delivered ? "missing" : readEntry === undefined ? "loading…" : "not available");
-  place.className = "place";
-  if (readEntry === undefined || !("sans" in readEntry)) return place;
-  // Une capture qui ne se lit pas dit pourquoi en une ligne, et donne le fichier à ouvrir sur GitHub — jamais un « not available » seul.
-  place.title = readEntry.sans;
-  const lines = readEntry.sans.split("\n").map((line) => line.trim()).filter((line) => line !== "");
-  const reason = (lines.find((line) => !line.startsWith("$ ") && !line.startsWith("→")) ?? lines[0] ?? "").slice(0, 140);
-  place.textContent = `not available — ${reason}`;
-  const link = readEntry.lien;
-  if (link !== undefined) {
-    const opens = /** @type {HTMLAnchorElement} */ (document.createElement("a"));
-    opens.href = link;
-    opens.target = "_blank";
-    opens.rel = "noopener";
-    opens.textContent = "open the file on GitHub";
-    // Un clic ne remonte pas à la carte, qui s'ouvrirait en grand : il ouvre le fichier, par le process principal quand il y en a un.
-    opens.addEventListener("click", (click) => {
-      click.stopPropagation();
-      if (brigade.ouvrirLien === undefined) return;
-      click.preventDefault();
-      // Refusé par le process principal, le lien s'ouvre par la navigation de la page plutôt que de rester mort.
-      void Promise.resolve(brigade.ouvrirLien(project.nom, ticket, link)).then((opened) => {
-        if (opened === false) window.open(link, "_blank", "noopener");
-      });
-    });
-    place.append(" ", opens);
-  }
-  return place;
-}
-
-/** @param {Project} project @param {number} ticket @param {string} screen @param {"avant" | "apres"} moment @param {string} key */
-async function readCapture(project, ticket, screen, moment, key) {
-  capturesRead.set(key, undefined);
-  try {
-    capturesRead.set(key, (await brigade.lireCapture(project.nom, ticket, screen, moment)) ?? { sans: "the app has nothing to read" });
-  } catch (error) {
-    capturesRead.set(key, { sans: error instanceof Error ? error.message : String(error) });
-  }
-  if (current?.nom === project.nom && !rail.hidden && heldOnes.has(project.nom)) setRail(current);
-  // Une carte ouverte depuis la liste du téléphone pose ses captures aussi (ticket 3185), et son détail en grand (ticket 3212).
-  if (vueOfCards.vu === "carte" && vueOfCards.carte.projet === project.nom && vueOfCards.carte.ticket === ticket) setTheCardsOfChef();
-  if (detailOpen?.projet === project.nom && detailOpen.ticket === ticket) setTheDetail();
 }
 
 // La fiche d'un ticket, par-dessus le rail : pour l'instant son en-tête — son numéro, son titre
@@ -4267,8 +4151,7 @@ function setTheRail(project) {
     return set(...brand, ...without);
   }
   const { hors: outside } = held.tableau.rail;
-  forgetTheValidated(project, held.tableau.rail.colonnes);
-  const readEntries = withoutTheValidated(held.tableau.rail.colonnes, validatedOf(project.nom));
+  const readEntries = held.tableau.rail.colonnes;
   forgetTheAnswersStale(project, readEntries);
   // La box ne répond pas : ce que ses colonnes contenaient n'est plus lu. Elles le disent, au lieu de montrer des « 0 ».
   const allEntries = silent === undefined ? readEntries : readEntries.map((column) => ({ ...column, compte: "?", cartes: [], autres: undefined, vide: "not known while the station is unreachable" }));
@@ -4456,9 +4339,6 @@ function placeTheRow(project, grid, scrolls) {
 // formulaire, ou d'une ligne du tableau de la cuisine.
 function resumptionOfKeyboard() {
   const tape = /** @type {HTMLInputElement | null | undefined} */ (document.activeElement);
-  // Le champ du détail en grand (ticket 3348) porte la même clé que celui de sa carte, cachée dessous : le rail ne peut pas
-  // le rendre, il prendrait le clavier à la carte au lieu de le laisser au détail — poserLeDetail garde le sien.
-  if (tape !== null && tape !== undefined && detailOfValidation.contains(tape)) return undefined;
   return tape?.dataset?.cle === undefined ? undefined : { cle: tape.dataset.cle, champ: tape.dataset.champ, debut: tape.selectionStart, fin: tape.selectionEnd };
 }
 /** @param {ReturnType<typeof resumptionOfKeyboard>} resumption */
@@ -4484,19 +4364,6 @@ function forgetTheAnswersStale(project, columns) {
     questionsOfDrafts.delete(key);
   }
   for (const [key, { question }] of answersAtCards) if (key.startsWith(`${project.nom}#`) && scopes.get(key) !== question) answersAtCards.delete(key);
-}
-
-// Une carte validée ou renvoyée d'ici que la lecture ne porte plus est oubliée : elle a quitté TODO pour de bon.
-/** @param {Project} project @param {import("../facts.ts").Column[]} columns */
-function forgetTheValidated(project, columns) {
-  const done = validated.get(project.nom);
-  if (done === undefined) return;
-  const scopes = new Set(columns.flatMap(({ cartes: cards, autres: others }) => [...cards, ...(others ?? [])]).map(({ ticket }) => ticket));
-  for (const ticket of done) {
-    if (scopes.has(ticket)) continue;
-    done.delete(ticket);
-    validations.delete(`${project.nom}#${ticket}`);
-  }
 }
 
 // Les cartes de TODO que des colonnes portent, par projet et ticket, et la question de chacune.
@@ -4631,13 +4498,11 @@ function stateOfTheCard(project, ticket, todo) {
   return heldOne !== undefined && heldOne.question === todo.question ? heldOne.etat : CARD_AT_REST;
 }
 
-// La carte de TODO d'un ticket, dans l'état de sa réponse (card-todo.js) : ses captures posées comme
-// celles d'une livraison, lues sans un clic. « Ask the second » y passe la carte au second : son numéro, sa question, ce
+// La carte de TODO d'un ticket, dans l'état de sa réponse (card-todo.js). « Ask the second » y passe la carte au second : son numéro, sa question, ce
 // que son issue dit (ticket 3133).
 /** @param {Project} project @param {number} ticket @param {import("../card-todo.ts").CardOfTodo} todo */
 function setTheCardOfTodo(project, ticket, todo) {
   const key = `${project.nom}#${ticket}`;
-  if (isOneValidation(todo)) return setTheValidation(project, ticket, todo, false);
   const state = stateOfTheCard(project, ticket, todo);
   const second = requestsAtSecond.get(key);
   return setCardOfTodo(
@@ -4645,7 +4510,7 @@ function setTheCardOfTodo(project, ticket, todo) {
     ticket,
     todo,
     state,
-    { captures: todo.captures === undefined ? [] : setCaptures(project, ticket, todo.captures), brouillon: draftsOfCards.get(key) ?? "", cle: key, ...(second === undefined ? {} : { second }), ...(readOnlyOf(project) === undefined ? {} : { lectureSeule: true }) },
+    { brouillon: draftsOfCards.get(key) ?? "", cle: key, ...(second === undefined ? {} : { second }), ...(readOnlyOf(project) === undefined ? {} : { lectureSeule: true }) },
     {
       repondre: (answer) => void answerAtTheCard(project, ticket, answer),
       ecrire: (text) => {
@@ -4658,175 +4523,6 @@ function setTheCardOfTodo(project, ticket, todo) {
     },
   );
 }
-
-// La carte « Validate its screen » d'un ticket (validation-design/, ticket 3185) : ses captures posées comme celles de toute
-// carte, lues sans un clic ; « Validate » et « Send back to the kitchen » jouent la commande du runtime par le process
-// principal — sur le téléphone, ils s'écrivent sur GitHub (actions-github-phone.ts). `grand` : à la largeur d'un téléphone, sur la carte ouverte depuis la liste.
-/** @param {Project} project @param {number} ticket @param {import("../card-todo.ts").CardOfTodo} todo @param {boolean} grand */
-function setTheValidation(project, ticket, todo, grand) {
-  const key = `${project.nom}#${ticket}`;
-  const second = requestsAtSecond.get(key);
-  return setCardOfValidation(
-    document,
-    ticket,
-    todo,
-    validations.get(key) ?? VALIDATION_AT_REST,
-    { captures: todo.captures === undefined ? [] : setCaptures(project, ticket, todo.captures), commentaire: commentsOfValidation.get(key) ?? "", cle: key, grand, ...(second === undefined ? {} : { second }), ...(readOnlyOf(project) === undefined ? {} : { lectureSeule: true }) },
-    {
-      valider: () => void validateTheCard(project, ticket, { geste: "valider" }),
-      renvoyer: (comment) => void validateTheCard(project, ticket, { geste: "renvoyer", commentaire: comment }),
-      ecrire: (text) => void commentsOfValidation.set(key, text),
-      ouvrirPr: () => void brigade.ouvrirPr(project.nom, ticket),
-      ouvrir: () => openTheDetail(project.nom, ticket),
-      // Dans TODO, comme toute carte, « ask the second » (ticket 3133) ; la carte ouverte du téléphone n'en a pas.
-      ...(grand ? {} : { demander: () => void askAtSecond(project, ticket, () => brigade.passerAuSecond(project.nom, ticket, todo.question)) }),
-    },
-  );
-}
-
-// Un geste du chef sur une carte « Validate its screen », un seul à la fois : fait, la carte quitte TODO et les faits sont
-// relus ; refusé, elle garde ses gestes et son commentaire, et dit pourquoi.
-/** @param {Project} project @param {number} ticket @param {import("./validation-design/validation-design-github.ts").ActionOfValidation} gesture */
-async function validateTheCard(project, ticket, gesture) {
-  const key = `${project.nom}#${ticket}`;
-  if (validations.get(key)?.etape === "envoi" || validations.get(key)?.etape === "fait") return;
-  releaseTheCardOf(project.nom, ticket);
-  /** @param {import("./validation-design/validation-design.js").State} state */
-  const set = (state) => {
-    validations.set(key, state);
-    if (current?.nom === project.nom) setRail(project);
-    setTheCardsOfChef();
-    // Fait depuis son détail, la carte a quitté TODO : son détail se ferme (`poserLeDetail` ne la trouve plus).
-    if (detailOpen?.projet === project.nom && detailOpen.ticket === ticket) setTheDetail();
-  };
-  set({ etape: "envoi", geste: gesture.geste });
-  /** @type {import("./validation-design/validation-design-github.ts").RenderedOfValidation | undefined} */
-  let rendered;
-  try {
-    rendered = await brigade.gesteDeValidation(project.nom, ticket, gesture);
-  } catch (error) {
-    rendered = { refus: "nothing was done: the app could not play the gesture", detail: error instanceof Error ? error.message : String(error) };
-  }
-  const renderedOne = afterTheValidation(rendered);
-  if (renderedOne.etape !== "fait") return set(renderedOne);
-  // Fait : la carte, ou son détail, garde un court moment la confirmation de ce qui a été fait (ticket 3386), puis quitte TODO.
-  set({ ...renderedOne, geste: gesture.geste });
-  await new Promise((finished) => setTimeout(finished, CONFIRMATION_VALIDATION_MS));
-  commentsOfValidation.delete(key);
-  validated.set(project.nom, validatedOf(project.nom).add(ticket));
-  if (vueOfCards.vu === "carte" && vueOfCards.carte.projet === project.nom && vueOfCards.carte.ticket === ticket) vueOfCards = { vu: "liste" };
-  set(renderedOne);
-  readTheFacts();
-}
-
-// La carte « Validate its screen » d'un ticket, telle que la dernière lecture de son projet la porte — partie de TODO
-// (validée ou renvoyée d'ici, ou plus lue), rien.
-/** @param {string} name @param {number} ticket */
-function theValidation(name, ticket) {
-  const project = configuration.projets.find((oneOf) => oneOf.nom === name);
-  const held = heldOnes.get(name);
-  if (project === undefined || held === undefined || !("tableau" in held) || validatedOf(name).has(ticket)) return undefined;
-  const todo = held.tableau.rail.colonnes
-    .flatMap(({ cartes: cards }) => cards)
-    .find((cardItem) => cardItem.ticket === ticket && isOneValidation(cardItem.todo))?.todo;
-  return todo === undefined ? undefined : { projet: project, todo };
-}
-
-// Les cartes « Validate its screen » qui attendent le chef, dans l'ordre de sa liste (`lesCartesDuChef`) : celle qui suit
-// la carte ouverte — la première, après la dernière —, autre qu'elle.
-/** @param {string} name @param {number} ticket */
-function validationNext(name, ticket) {
-  const pendingOnes = theCardsOfChef().filter(({ todo }) => isOneValidation(todo));
-  const here = pendingOnes.findIndex((cardItem) => cardItem.projet === name && cardItem.ticket === ticket);
-  return [...pendingOnes.slice(here + 1), ...pendingOnes.slice(0, Math.max(here, 0))].find((cardItem) => cardItem.projet !== name || cardItem.ticket !== ticket);
-}
-
-/** @param {string} project @param {number} ticket */
-function openTheDetail(project, ticket) {
-  releaseTheCardOf(project, ticket);
-  detailOpen = { projet: project, ticket, affichage: displayNew() };
-  setTheDetail();
-  detailOfValidation.focus();
-}
-
-function closeTheDetail() {
-  const closes = detailOpen;
-  detailOpen = undefined;
-  setTheDetail();
-  // Le commentaire tapé dans le détail est celui de la carte : elle le reprend.
-  if (closes === undefined) return;
-  const project = configuration.projets.find((oneOf) => oneOf.nom === closes.projet);
-  if (project !== undefined && current?.nom === project.nom && !rail.hidden && heldOnes.has(project.nom)) setRail(project);
-  setTheCardsOfChef();
-}
-
-// Le détail ouvert, posé dans son état ; sa carte partie de TODO, il se ferme. Le clavier qui était dans son champ y reste.
-function setTheDetail() {
-  const readEntry = detailOpen === undefined ? undefined : theValidation(detailOpen.projet, detailOpen.ticket);
-  if (detailOpen === undefined || readEntry === undefined) {
-    detailOpen = undefined;
-    detailOfValidation.hidden = true;
-    return detailOfValidation.replaceChildren();
-  }
-  const { ticket, affichage: display } = detailOpen;
-  const { projet: project, todo } = readEntry;
-  const key = `${project.nom}#${ticket}`;
-  const renderTheField = keepTheKeyboard(document.activeElement, detailOfValidation);
-  const next = validationNext(project.nom, ticket);
-  const screens = todo.captures?.ecrans ?? [];
-  detailOfValidation.hidden = false;
-  detailOfValidation.replaceChildren(
-    setDetailOfValidation(
-      document,
-      ticket,
-      todo,
-      validations.get(key) ?? VALIDATION_AT_REST,
-      display,
-      {
-        images: (screen, moment) => {
-          const capture = screens.find((oneOf) => oneOf.ecran === screen)?.[moment];
-          return capture === undefined ? block("span", "missing") : setImage(project, ticket, screen, capture);
-        },
-        commentaire: commentsOfValidation.get(key) ?? "",
-        cle: key,
-        grand: narrow(),
-        ...(next === undefined ? {} : { suivante: next.ticket }),
-        ...(readOnlyOf(project) === undefined ? {} : { lectureSeule: true }),
-      },
-      {
-        fermer: closeTheDetail,
-        reposer: setTheDetail,
-        suivante: () => {
-          if (next !== undefined) openTheDetail(next.projet, next.ticket);
-        },
-        valider: () => void validateTheCard(project, ticket, { geste: "valider" }),
-        renvoyer: (comment) => void validateTheCard(project, ticket, { geste: "renvoyer", commentaire: comment }),
-        ecrire: (text) => void commentsOfValidation.set(key, text),
-        ouvrirPr: () => void brigade.ouvrirPr(project.nom, ticket),
-      },
-    ),
-  );
-  renderTheField();
-}
-
-// Échap ferme le détail — ou, une capture ouverte seule, rend l'avant et l'après.
-// Les flèches gauche et droite passent d'un écran du ticket à l'autre, sauf dans le champ du commentaire (ticket 3350).
-detailOfValidation.addEventListener("keydown", (event) => {
-  if (detailOpen === undefined || (event.key !== "ArrowLeft" && event.key !== "ArrowRight")) return;
-  if (["TEXTAREA", "INPUT"].includes(/** @type {any} */ (event.target)?.tagName)) return;
-  const readEntry = theValidation(detailOpen.projet, detailOpen.ticket);
-  if (readEntry !== undefined && changeOf(detailOpen.affichage, readEntry.todo.captures?.ecrans.length ?? 0, event.key === "ArrowLeft" ? -1 : 1)) {
-    event.preventDefault();
-    setTheDetail();
-  }
-});
-detailOfValidation.addEventListener("keydown", (event) => {
-  if (event.key !== "Escape" || detailOpen === undefined) return;
-  event.stopPropagation();
-  if (detailOpen.affichage.seule === undefined) return closeTheDetail();
-  delete detailOpen.affichage.seule;
-  setTheDetail();
-});
 
 // Les cartes qui attendent le chef, à la largeur d'un téléphone (cartes-du-chef/, ticket 2915) : celles de la colonne
 // « Awaiting you » de chaque projet lu, avec leur question — une carte déjà répondue n'y est plus. La vue montrée est la
@@ -4844,8 +4540,6 @@ function theCardsOfChef() {
     return (column?.cartes ?? []).flatMap((cardItem) => {
       const { todo } = cardItem;
       if (!cardItem.attendu || todo === undefined || (todo.question === null && todo.choix.length === 0)) return [];
-      // Validée ou renvoyée d'ici (ticket 3185) : elle a quitté la liste.
-      if (isOneValidation(todo)) return validatedOf(project.nom).has(cardItem.ticket) ? [] : [{ projet: project.nom, ticket: cardItem.ticket, age: cardItem.age?.court ?? "", todo }];
       const state = stateOfTheCard(project, cardItem.ticket, todo);
       const seenOne = seenOfTheCard(todo, state).vu;
       return state.etape === "postee" || seenOne === "attente" || seenOne === "jouee" ? [] : [{ projet: project.nom, ticket: cardItem.ticket, age: cardItem.age?.court ?? "", todo }];
@@ -4886,13 +4580,6 @@ function setTheCardsOfChef() {
     const readEntry = cards.find((oneOf) => oneOf.projet === name && oneOf.ticket === ticket);
     const project = configuration.projets.find((oneOf) => oneOf.nom === name);
     if (readEntry === undefined || project === undefined) return back();
-    // La carte « Validate its screen » (ticket 3185) : la même que dans TODO, ses boutons en 44 px.
-    if (isOneValidation(readEntry.todo)) {
-      const renderTheField = keepTheKeyboard(document.activeElement, cardsOfChef);
-      cardsOfChef.replaceChildren(...setTheCardAside(document, { carte: readEntry, total: cards.length, retour: back }, setTheValidation(project, ticket, readEntry.todo, true)));
-      renderTheField();
-      return;
-    }
     const state = stateOfTheCard(project, ticket, readEntry.todo);
     const refusal = state.etape === "refus" ? { dit: state.dit, detail: state.detail } : undefined;
     const renderTheField = keepTheKeyboard(document.activeElement, cardsOfChef);
@@ -4930,11 +4617,10 @@ function setTheCardsOfChef() {
 }
 
 // Chaque geste d'une entrée du TODO (cuisine/, `gestesDuTodo`, ticket 4261), joué comme sur sa carte : la réponse d'un
-// choix, la validation d'un écran, la reprise d'une carte de WAITING ou son « it arrived ».
+// choix, la reprise d'une carte de WAITING ou son « it arrived ».
 /** @type {Record<import("./kitchen/kitchen.js").KindOfAction, (project: Project, ticket: number, answer?: import("../card-todo.ts").Answer) => void>} */
 const ACTIONS_OF_TODO = {
   repondre: (project, ticket, answer) => void answerAtTheCard(project, ticket, /** @type {import("../card-todo.ts").Answer} */ (answer)),
-  valider: (project, ticket) => void validateTheCard(project, ticket, { geste: "valider" }),
   "attente-reprendre": (project, ticket) => void writeWait(project, "attente-reprendre", ticket),
   "attente-arrivee": (project, ticket) => void arrive(project, ticket),
 };
@@ -5213,7 +4899,7 @@ function lineOfStationOfTheHome(presence, recordedOne) {
 function accountOfTodo(name) {
   const held = heldOnes.get(name);
   if (held === undefined || !("tableau" in held) || silentOnes.has(name)) return undefined;
-  const { compte: account } = tidyTheRail(withoutTheValidated(held.tableau.rail.colonnes, validatedOf(name)));
+  const { compte: account } = tidyTheRail(held.tableau.rail.colonnes);
   return account === "?" ? undefined : Number(account);
 }
 // Le compte que l'accueil montre de chaque projet, à sa dernière pose : une lecture qui le change le repose.
@@ -7402,8 +7088,6 @@ brigade.surFaits((receivedOne) => {
   setTheCardsOfChef();
   // L'accueil affiché dit ce qui attend le chef du même compte que « TODO (N) » : une lecture qui le change le repose.
   if (current === undefined && !adds && stationOpen === undefined && todosOfTheHome.has(receivedOne.projet) && todosOfTheHome.get(receivedOne.projet) !== accountOfTodo(receivedOne.projet)) setHome();
-  // Le détail ouvert d'une carte que cette lecture ne porte plus se ferme ; sinon, il n'est pas reposé : le chef y zoome, ou y tape.
-  if (detailOpen?.projet === receivedOne.projet && theValidation(detailOpen.projet, detailOpen.ticket) === undefined) setTheDetail();
   if (current?.nom === receivedOne.projet) {
     teamOfProject.lire(current.nom);
     void readTheTrials(current);

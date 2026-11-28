@@ -21,7 +21,6 @@ import { lineAtWork, lineBaseRed, lineOfHead, queuedLine, lineInWaiting, lineUnr
 import type { FactsStation } from "./ordinary.ts";
 import type { Failure, Reading } from "./box.ts";
 import type { PauseOfReads } from "./board/read.ts";
-import { capturesOfCard, type CapturesOfCard, type CapturesRead, type Moment } from "./captures.ts";
 import { learningOf, learningInforms, learningRead, type Learning, type LearningRead } from "./learning.ts";
 import { engineRead, type EngineOfDelivery } from "./vue/delivery-engine/engine.ts";
 import { withoutQuestion } from "./handover-second.ts";
@@ -31,7 +30,6 @@ import { guardRepeatedRead, lineOfGuard, type GuardRepeatedRead, type LineOfGuar
 import { seniority, cadenceRead, trialsRead, points, type Seniority, type TrialRead, type Point, type CadenceRead } from "./cadence.ts";
 import { cardOfChefOfTodo, type CardOfTodo } from "./card-todo.ts";
 import { LABEL_OF_CHEF, type CardOfChef, type Recommended } from "./board/todo-github.ts";
-import { validationRead } from "./vue/validation-design/validation-design-github.ts";
 import { WITHOUT_REASON, SERVED_ELSEWHERE, type SetAside } from "./board/set-aside-github.ts";
 import { requiredRead, taskRead, type TaskHuman } from "./vue/wait-capacity/read.ts";
 import { limitRead, type LimitOfAccount } from "./vue/banner-limit-github.ts";
@@ -112,12 +110,10 @@ export function postMortemsRead(raw: unknown): PostMortemOfTheOutage[] | undefin
 function chefRead(raw: unknown): CardOfChef | undefined {
   const readOne = typeof raw === "object" && raw !== null ? (raw as Record<string, unknown>) : undefined;
   if (typeof readOne?.sorte !== "string" || typeof readOne.texte !== "string") return undefined;
-  // La carte « Validate its screen » (ticket 3185) garde ce que le corps de son issue dit, s'il a sa forme.
-  const design = validationRead(readOne.design);
   // La recommandation d'un écart du manager (#3434) : nulle, il n'en recommande aucun — ni quand elle n'a pas sa forme : aucun
   // choix n'est mis en avant à sa place.
   const recommended = recommendedRead(readOne.recommandee);
-  return { sorte: readOne.sorte, texte: readOne.texte, ...(design === undefined ? {} : { design }), ...(recommended === undefined ? {} : { recommandee: recommended }) };
+  return { sorte: readOne.sorte, texte: readOne.texte, ...(recommended === undefined ? {} : { recommandee: recommended }) };
 }
 function recommendedRead(raw: unknown): Recommended | null | undefined {
   if (raw === undefined) return undefined;
@@ -130,7 +126,6 @@ const WHO_M_AWAITING_OF_CHEF: Readonly<Record<string, string>> = {
   "merge-by-hand": "Green, but not merged: merge it yourself.",
   "product-question": "A product question waits for your answer.",
   abandoned: "The kitchen gave this ticket up.",
-  "design-validation": "A design delivery waits for you to validate its screen.",
   // La question du manager avant de découper une épique (board/question-of-epic-github.ts).
   "manager-epic-question": "The manager asked you a question before splitting this epic: it waits for your answer.",
   // Un ticket parqué pour le chef par un label d'attente d'avant parked (#3370, #4129, board/set-aside-github.ts, `carteDeLEcart`).
@@ -172,9 +167,7 @@ export type Expected = { ticket: number; titre: string; url: string | null; chef
 // la connaît pas ; `relecture`, ce que le reviewer a dit de ce qui a été servi —
 // nulle quand aucune relecture lisible ne porte dessus, absente d'un runtime
 // d'avant ce champ.
-// `captures` : pour un ticket d'interface, l'écran avant et après de sa livraison (captures.ts) —
-// absentes pour tout autre ticket, et d'un runtime d'avant ce champ.
-export type Delivers = { ticket: number; titre: string; url: string | null; livre: string; station: string | null; pr: string | null; prLue?: SizeOfPr; relecture?: Review | null; moteur?: EngineOfDelivery; captures?: CapturesRead; illisible?: string };
+export type Delivers = { ticket: number; titre: string; url: string | null; livre: string; station: string | null; pr: string | null; prLue?: SizeOfPr; relecture?: Review | null; moteur?: EngineOfDelivery; illisible?: string };
 // Le résumé du reviewer et ses constats, dans ses mots.
 export type Finding = { gravite: string; fichier: string | null; constat: string };
 export type Review = { resume: string; constats: Finding[] };
@@ -254,8 +247,6 @@ export type Facts = {
   // `revenu` : pourquoi un ticket est revenu de WAITING (« relance du 21/10 : pas de
   // réponse », « nouveau sur l'issue — de … »), dans les mots du runtime — nul pour un
   // autre, et pour un ticket que le chef a repris lui-même ; absent d'un runtime d'avant.
-  // `captures` : pour un ticket d'interface en pass ou servi, l'écran avant et après de sa
-  // dernière livraison (captures.ts) — absentes pour tout autre ticket.
   // `raison` : pour le ticket en tête de la file seulement, s'il ne part pas, pourquoi, dans les mots du runtime
   // (`zone held by #12 (src)`, `machine saturated`) — nulle pour tout autre, absente d'un runtime d'avant ce champ.
   // `depuis` : l'heure de son entrée dans cet état — sa prise, son entrée en pass… (#1811) ; absent d'un runtime d'avant.
@@ -263,7 +254,7 @@ export type Facts = {
   // Le rail est dans l'ordre où il se sert : la priorité de l'issue, puis son âge.
   // `pr` : la PR ouverte qui le livre ; `renvoi` : le dernier renvoi de sa livraison à un cook, et pourquoi (ticket 3302) —
   // absents sans eux, et d'un runtime d'avant ces champs.
-  rail: { ticket: number; etat: string; titre: string; url: string; depuis?: string; essais?: TrialRead[]; gardeRepetee?: GuardRepeatedRead; activite?: Activity | null; attente?: Wait | null; tiers?: Third | null; revenu?: string | null; raison?: string | null; captures?: CapturesRead; requiert?: string[]; station?: string; requires?: string[]; attend?: number[]; illisible?: string; pr?: { numero: number; url: string }; renvoi?: { n: number; raison: string } }[];
+  rail: { ticket: number; etat: string; titre: string; url: string; depuis?: string; essais?: TrialRead[]; gardeRepetee?: GuardRepeatedRead; activite?: Activity | null; attente?: Wait | null; tiers?: Third | null; revenu?: string | null; raison?: string | null; requiert?: string[]; station?: string; requires?: string[]; attend?: number[]; illisible?: string; pr?: { numero: number; url: string }; renvoi?: { n: number; raison: string } }[];
   cooks?: Cook[];
   attend?: Expected[];
   // Ce qui attend un autre humain du projet que le compte connecté (ticket 2985) : hors de `attend`, et de toute colonne
@@ -313,8 +304,6 @@ export type Facts = {
 // de toi, en une phrase. `gestes` : ceux de WAITING que la carte
 // porte (wait.ts) — « waiting for… » sur une carte de TODO que le runtime laisse attendre,
 // « resume » et « it arrived » sur une carte de WAITING ; absent, elle n'en porte aucun.
-// `captures` : celles d'un ticket d'interface livré, avant et après (captures.ts) — absentes,
-// le ticket n'est pas d'interface ou n'a rien livré, et la carte n'en dit rien.
 // `question` : sur une carte de TODO, son issue porte une question du manager — avant de découper
 // une épique, ou qui la parque pour le chef (`chef-todo`) —, que la carte dit en deux lignes (question.ts).
 // `todo` : sur une carte du chef lue de GitHub, sa question et ses choix (card-todo.ts) — ce que le chef tranche sur la
@@ -338,7 +327,7 @@ export type Facts = {
 // quand GitHub les a donnés (#4051). `TailleDePr` : ce que GitHub en a donné, rien de plus.
 export type SizeOfPr = { additions?: number; deletions?: number; ouvertLe?: string };
 export type DeliveryRead = { numero: number; url: string; lignes?: { ajoutees: number; retirees: number }; age?: string };
-export type Card = Partial<LineOfCard> & { ticket: number; etat?: string; mot?: string; ton?: string; titre?: string; ouvrable: boolean; attendu: boolean; attend: string[]; pr?: boolean; livraisonLue?: DeliveryRead; livraison?: Delivery; moteur?: EngineOfDelivery; captures?: CapturesOfCard; fiche: Header; gestes?: ActionOfWait[]; question?: true; todo?: CardOfTodo; chef?: CardOfChef; repondue?: { par: string; a: string }; qui?: string[]; prio?: string; apres?: number[]; age?: Seniority; essais?: Point[]; essai?: number; garde?: LineOfGuard; requiert?: string[]; station?: string; enWaiting?: true; etape?: string; relancePassee?: true; tache?: TaskHuman; miseDeCote?: { label: string; liens: number[] }; refus?: { brut: string }; essayable?: true; sansCook?: true } & Door;
+export type Card = Partial<LineOfCard> & { ticket: number; etat?: string; mot?: string; ton?: string; titre?: string; ouvrable: boolean; attendu: boolean; attend: string[]; pr?: boolean; livraisonLue?: DeliveryRead; livraison?: Delivery; moteur?: EngineOfDelivery; fiche: Header; gestes?: ActionOfWait[]; question?: true; todo?: CardOfTodo; chef?: CardOfChef; repondue?: { par: string; a: string }; qui?: string[]; prio?: string; apres?: number[]; age?: Seniority; essais?: Point[]; essai?: number; garde?: LineOfGuard; requiert?: string[]; station?: string; enWaiting?: true; etape?: string; relancePassee?: true; tache?: TaskHuman; miseDeCote?: { label: string; liens: number[] }; refus?: { brut: string }; essayable?: true; sansCook?: true } & Door;
 // Ce qui a été livré, sur une carte de Livré : le résumé de la relecture, mot pour
 // mot, et ses constats sous leur nombre dit en clair (`remarques`) — ou, sans
 // relecture, pourquoi elle n'est pas là. Rien n'est mis à sa place.
@@ -556,21 +545,6 @@ function understandAlertEmergency(value: unknown, field: string): AlertEmergency
   };
 }
 
-// Les captures d'une livraison d'interface : si elle les porte toutes, et chaque écran avec
-// l'adresse de sa capture avant et de sa capture après, nulle quand elle manque.
-function understandCaptures(raw: unknown, which: string): CapturesRead {
-  const readOne = object(raw, which);
-  if (typeof readOne.complet !== "boolean") refuse(`${which}.complet`, "a boolean");
-  return {
-    complet: readOne.complet as boolean,
-    ecrans: (Array.isArray(readOne.ecrans) ? readOne.ecrans : refuse(`${which}.ecrans`, "a list")).map((screen: unknown, rank) => {
-      const itsOwn = `${which}.ecrans[${rank}]`;
-      const readEntry = object(screen, itsOwn);
-      return { ecran: text(readEntry.ecran, `${itsOwn}.ecran`), avant: orNothing(readEntry.avant, `${itsOwn}.avant`, text), apres: orNothing(readEntry.apres, `${itsOwn}.apres`, text) };
-    }),
-  };
-}
-
 function understandWait(raw: unknown, which: string): Wait {
   const readOne = object(raw, which);
   return { raison: text(readOne.raison, `${which}.raison`), ...(readOne.complete === undefined ? {} : { complete: text(readOne.complete, `${which}.complete`) }), ...(readOne.label === undefined ? {} : { label: text(readOne.label, `${which}.label`) }), colonne: text(readOne.colonne, `${which}.colonne`), retour: orNothing(readOne.retour, `${which}.retour`, text) };
@@ -692,7 +666,6 @@ export function understand(output: string): Facts | { informe: string } {
           ...(readOne.tiers === undefined ? {} : { tiers: orNothing(readOne.tiers, `${which}.tiers`, understandThird) }),
           ...(readOne.revenu === undefined ? {} : { revenu: orNothing(readOne.revenu, `${which}.revenu`, text) }),
           ...(readOne.raison === undefined ? {} : { raison: orNothing(readOne.raison, `${which}.raison`, text) }),
-          ...(readOne.captures === undefined ? {} : { captures: understandCaptures(readOne.captures, `${which}.captures`) }),
           ...requiredRead(readOne.requiert),
           ...(readOne.station == null ? {} : { station: text(readOne.station, `${which}.station`) }),
           ...(readOne.requires == null ? {} : { requires: textsRead(readOne.requires, `${which}.requires`) }),
@@ -755,7 +728,6 @@ export function understand(output: string): Facts | { informe: string } {
                 ...(readOne.prLue === undefined ? {} : { prLue: sizeOfPrRead(object(readOne.prLue, `${which}.prLue`)) }),
                 ...(readOne.relecture === undefined ? {} : { relecture: orNothing(readOne.relecture, `${which}.relecture`, understandReview) }),
                 ...engineOf(readOne, which),
-                ...(readOne.captures === undefined ? {} : { captures: understandCaptures(readOne.captures, `${which}.captures`) }),
               }), ({ ticket, titre: title }, unreadable) => ({ ticket, titre: title, url: null, livre: hour(root.lu, "lu"), station: null, pr: null, illisible: unreadable }));
             }),
           }),
@@ -900,11 +872,6 @@ const FACTS_COLUMNS = [
   { nom: "Served", ton: "vert", etats: ["servi"] },
 ] as const;
 const COLUMN_BY_DEFAULT = "On the rail";
-const COLUMN_OF_THE_PASS = "Pass";
-// Le ticket livré qu'une carte du chef lui demande de juger — la validation du design —, ou rien.
-function deliveryAJudge(chef: CardOfChef | undefined): number | undefined {
-  return chef?.design?.ticket;
-}
 // Les mots d'état d'un ticket en attente sur le rail.
 const IN_FILE: readonly string[] = FACTS_COLUMNS[0].etats;
 // La priorité d'un ticket dont l'issue ne porte aucun `prio:` — `-` dans sa ligne de `status`.
@@ -1041,10 +1008,7 @@ export function rail(facts: Facts, awaiting?: BlockRead, status?: StatusRead, an
     const pr: (NonNullable<Facts["rail"][number]["pr"]> & SizeOfPr) | undefined = knownOne?.pr;
     const gives = facts.attend?.find((expected) => expected.ticket === ticket) ?? ofOthers.get(ticket);
     const url = knownOne?.url ?? gives?.url;
-    // Une carte qui demande de juger une livraison est la carte du ticket livré (#3519) : elle en porte le titre et la station.
-    const judged = deliveryAJudge(gives?.chef);
-    const delivered = judged === undefined || judged === ticket ? undefined : knownOnes.get(judged);
-    const title = [delivered?.titre, knownOne?.titre, gives?.titre].find((candidate) => candidate !== undefined && candidate !== "");
+    const title = [knownOne?.titre, gives?.titre].find((candidate) => candidate !== undefined && candidate !== "");
     const said = saidOnes.get(ticket) ?? (ofOthers.has(ticket) ? [] : undefined);
     const itsOwn = lines === undefined ? undefined : (lines.get(ticket) ?? []);
     const carried = carry(knownOne === undefined ? {} : { etat: knownOne.etat, titre: knownOne.titre }, {
@@ -1110,7 +1074,7 @@ export function rail(facts: Facts, awaiting?: BlockRead, status?: StatusRead, an
       ...(pr === undefined ? {} : deliveryOf(pr.numero, pr.url, pr)),
       ...(knownOne === undefined ? {} : colored(TONES_OF_TICKET, knownOne.etat)),
       ...(title === undefined ? {} : { titre: title }),
-      ...((knownOne?.station ?? delivered?.station) === undefined ? {} : { station: knownOne?.station ?? delivered?.station }),
+      ...(knownOne?.station === undefined ? {} : { station: knownOne.station }),
       ...(knownOne?.requires === undefined ? {} : { requiert: knownOne.requires }),
       ...(!inFile || knownOne?.attend === undefined || knownOne.attend.length === 0 ? {} : { apres: knownOne.attend }),
       ouvrable: url != null && openable(url),
@@ -1118,12 +1082,9 @@ export function rail(facts: Facts, awaiting?: BlockRead, status?: StatusRead, an
       attend: said ?? [],
       // Qui attend le chef reste dans la colonne de son étape, en rouge (#3458) : celle de son mot d'état — ou, mis de côté,
       // celle où le runtime dit qu'il attend —, et sur le rail quand il n'y est pas encore.
-      // Une carte qui demande au chef de juger une livraison (validation design) est la passe qui l'attend : elle
-      // reste dans Pass, sur la carte de son ticket (#3519).
-      ...(said === undefined ? {} : { etape: deliveryAJudge(gives?.chef) !== undefined ? COLUMN_OF_THE_PASS : (factsColumn(knownOne, knownOne?.etat) ?? COLUMN_BY_DEFAULT) }),
+      ...(said === undefined ? {} : { etape: factsColumn(knownOne, knownOne?.etat) ?? COLUMN_BY_DEFAULT }),
       // Livré, d'une box d'avant `livres` : la relecture n'en vient pas, la carte le dit.
       ...(knownOne?.etat === "servi" && facts.livres === undefined ? { livraison: delivery(undefined) } : {}),
-      ...(knownOne?.captures === undefined ? {} : { captures: capturesOfCard(knownOne.captures) }),
       ...carried,
       // La PR n'est donnée que d'un ticket livré : ici, la box ne la donne pas.
       fiche: {
@@ -1226,7 +1187,7 @@ export function rail(facts: Facts, awaiting?: BlockRead, status?: StatusRead, an
   // rail s'il n'en a pas ; quand il a été livré, à l'horloge de la box ; qui l'a
   // cuisiné ; sa PR mergée ; ce qui a été livré, dans les mots de la relecture.
   // Ce que la file n'en dit pas est écrit.
-  const delivers = ({ ticket, titre: title, url, livre: when, station, pr, prLue: prRead, relecture: review, moteur: engine, captures, illisible: unreadable }: Delivers): Card => {
+  const delivers = ({ ticket, titre: title, url, livre: when, station, pr, prLue: prRead, relecture: review, moteur: engine, illisible: unreadable }: Delivers): Card => {
     const knownOne = knownOnes.get(ticket);
     const address = url ?? knownOne?.url;
     const named = title === "" ? knownOne?.titre : title;
@@ -1244,7 +1205,6 @@ export function rail(facts: Facts, awaiting?: BlockRead, status?: StatusRead, an
       livraison: delivery(review),
       ...(engine === undefined ? {} : { moteur: engine }),
       ...(unreadable === undefined ? { essayable: true as const } : {}),
-      ...(captures === undefined ? {} : { captures: capturesOfCard(captures) }),
       dit: [
         pr === null ? { libelle: "served", valeur: before(when, facts.lu) } : { libelle: "merged", valeur: `${duration(Date.parse(facts.lu) - Date.parse(when))} ago` },
         ...(station === null ? [] : [{ libelle: "cooked by", valeur: station, exact: true as const }]),
@@ -1261,12 +1221,7 @@ export function rail(facts: Facts, awaiting?: BlockRead, status?: StatusRead, an
   // ni hors des colonnes.
   const others = (facts.attendAutres ?? []).filter(({ ticket }) => !saidOnes.has(ticket) && !inWaiting.has(ticket) && !answeredOnes.has(ticket));
   const ofOtherPeople = new Set(others.map(({ ticket }) => ticket));
-  // Un ticket livré dont la carte du chef lui demande de juger la livraison n'a qu'une carte, celle-là, rouge dans Pass (#3519).
-  const aJudge = new Set([...saidOnes.keys()].flatMap((ticket) => {
-    const judged = deliveryAJudge((facts.attend?.find((expected) => expected.ticket === ticket) ?? ofOthers.get(ticket))?.chef);
-    return judged === undefined || judged === ticket ? [] : [judged];
-  }));
-  const elsewhere = facts.rail.filter(({ ticket, etat: state }) => !saidOnes.has(ticket) && !aJudge.has(ticket) && !inWaiting.has(ticket) && !answeredOnes.has(ticket) && !ofOtherPeople.has(ticket) && !(state === "servi" && servedOnes.has(ticket))).map(({ ticket }) => card(ticket));
+  const elsewhere = facts.rail.filter(({ ticket, etat: state }) => !saidOnes.has(ticket) && !inWaiting.has(ticket) && !answeredOnes.has(ticket) && !ofOtherPeople.has(ticket) && !(state === "servi" && servedOnes.has(ticket))).map(({ ticket }) => card(ticket));
   const columns: Column[] = FACTS_COLUMNS.map(({ nom: name, ton: your, etats: states }) => {
     if (name === DELIVERS && delivered !== undefined) return { nom: name, ton: your, compte: String(delivered.length), cartes: delivered, vide: NOTHING_DELIVERS, defile: true };
     const itsOwn = elsewhere.filter((setOne) => factsColumn(knownOnes.get(setOne.ticket), setOne.etat) === name);
@@ -1441,19 +1396,6 @@ export function holdFacts(answeredEntries: (project: string) => ReadonlyMap<numb
         given?.attend?.flatMap(({ miseDeCote: setAside }) => setAside?.liens ?? []).find((link) => link.numero === ticket)?.url;
       return url != null && openable(url) ? url : undefined;
     },
-    // L'adresse d'une capture d'un ticket d'interface, telle que la box l'a donnée à la dernière
-    // lecture — sa livraison servie d'abord, puis le rail, puis sa carte du chef. Rien pour une capture
-    // qu'elle n'a pas.
-    capture(project: unknown, ticket: unknown, screen: unknown, moment: unknown): string | undefined {
-      const given = typeof project === "string" ? heldOnes.get(project)?.faits : undefined;
-      if (moment !== "avant" && moment !== "apres") return undefined;
-      const captures =
-        given?.livres?.find((candidate) => candidate.ticket === ticket)?.captures ??
-        given?.rail.find((candidate) => candidate.ticket === ticket)?.captures ??
-        entryOf(given, ticket)?.chef?.design?.captures ??
-        undefined;
-      return captures?.ecrans.find((candidate) => candidate.ecran === screen)?.[moment as Moment] ?? undefined;
-    },
     // La carte du chef d'un ticket, lue de GitHub à la dernière lecture (#2434, board/todo-github.ts) : celle à laquelle le
     // chef répond sur GitHub même. Rien pour un ticket qui n'en a pas.
     chef(project: unknown, ticket: unknown): CardOfChef | undefined {
@@ -1463,9 +1405,7 @@ export function holdFacts(answeredEntries: (project: string) => ReadonlyMap<numb
     // La PR mergée d'un ticket livré, telle que la box l'a donnée à la dernière lecture.
     pr(project: unknown, ticket: unknown): string | undefined {
       const given = typeof project === "string" ? heldOnes.get(project)?.faits : undefined;
-      // Ou la PR qu'une carte « Validate its screen » valide (ticket 3185).
-      const chef = entryOf(given, ticket)?.chef;
-      const url = given?.livres?.find((candidate) => candidate.ticket === ticket)?.pr ?? chef?.design?.url ?? cardOfKanban(given, ticket)?.pr?.url;
+      const url = given?.livres?.find((candidate) => candidate.ticket === ticket)?.pr ?? cardOfKanban(given, ticket)?.pr?.url;
       return url != null && openable(url) ? url : undefined;
     },
     // Les derniers faits lus d'un projet, et l'heure de leur lecture : c'est d'eux qu'une

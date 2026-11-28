@@ -42,12 +42,12 @@ switch's confirmation (`project`) opens under the project's header, full width, 
 switch. The last tab opened is remembered; remembered on a wide screen, the conversation reopens the project on Rail.
 On a wide screen, nothing changes. The threshold is `ECRAN_ETROIT` in `app/src/vue/vue.js`, and the same one in `vue.css`.
 **A TODO card asks its question on the card itself** (#1281): a chef card read from GitHub (a ticket parked for the chef
-with `parked:chef`, a manager's question, a design validation, a sensitive review — "The chef's TODO, read from GitHub",
+with `parked:chef`, a manager's question, a sensitive review — "The chef's TODO, read from GitHub",
 below). The card says what is expected, then the question, one button per choice, and a free-text field with its `send`
 button, inactive while empty; what its comment says after the question heads the card in one sentence, the rest behind
 `details`. Every card closes on `ask the second`, a small underlined word set back under the field, never one of its
 choices. The modules are `app/src/card-todo.ts` and `app/src/vue/card-todo.js`. The card the old runtime handed in
-`attend[].carte` (its runtime prices, its captures, its single-gesture card with no question) is no longer read (#4508).
+`attend[].carte` (its runtime prices, its single-gesture card with no question) is no longer read (#4508).
 **A kitchen held by its breaker is shown as one information line, from the head of Todo** (#2140, epic #2134, #3911): while the
 `kitchen` line of `status` says `breaker OPEN`, Todo opens on the breaker line — red, `breaker open: the latest launches
 failed in a row, no cook goes any more`, what the station writes on hover — with no button: the chef no longer resets the
@@ -901,67 +901,6 @@ the card (`your answer is posted on #N, but its gesture (…) was not played —
 *Code: `formeDuChef` in `app/src/board/todo-github.ts`, `carteDuChefDeTodo` in `app/src/card-todo.ts`,
 `app/src/board-actions/answer-github.ts`. Test: `app/test/board-actions/answer-github.test.ts` (#2061 and #1554 rewritten
 with choices, a click on each gesture against a fake GitHub).*
-
-**The card `Validate its screen` (#3185, epic #3180).** On a project where a human validates the designs, the pass holds a
-green design delivery for the chef instead of merging it (#3184, `docs/runtime/README.md`): since #3615, the ticket itself,
-labelled `chef-todo`, its marked comment of kind `design-validation` carrying the pull request, the head and the captures
-(a card posted before as a `chef-todo` issue titled `Validate its screen` reads the same from its body). In Todo, its line says `A design delivery waits for
-you to validate its screen.`, then the card shows, in this order: the question (`Does the screen of #<ticket> look
-right? …`); the before and after captures of each screen the delivery changes, one under the other, read without a click
-(each image read by this computer's `gh`, as for any Todo card); `PR of #<ticket>`, which opens the pull request (#3716); then its
-two gestures, each with its price on hover:
-
-| gesture | what it plays | then |
-|---|---|---|
-| `Validate` (the recommended button) | the runtime's `design` command, `validate <owner>/<repo>#<PR>`: the pull request is merged at the head the pass judged green, the card is closed. If the branch was updated from its base since the card, nothing is merged at once: the validation is kept on the ticket, `merge pending`, and the pass merges once the new head is green (#3332). If the pull request conflicts with the base, the validation is recorded the same way: the kitchen first updates it on the base, then merges it, or asks again on a new card if the update changes the screen (#3426) | the card leaves Todo; when the merge is pending, the ticket and the closed card say so (`Validated by the chef on card #<card> — merge pending.`) until the pass merges |
-| `Send back to the kitchen`, under a comment field — off while the comment is empty | `send-back <owner>/<repo>#<PR> --comment <comment>`: the comment goes on the ticket as what to change, a cook takes the ticket up again, the card is closed | the card leaves Todo |
-
-The app plays the command itself, in its own process, with this computer's `gh` (no box, no station) — nothing to type on
-GitHub. Under them, in Todo, `ask the second`, as on every Todo card (#3133). Done, the card leaves Todo at once and the
-project is read again. Refused by the runtime — GitHub refused the merge, the pull
-request was closed — the card stays, says why in one line, the runtime's answer on
-hover, and keeps the comment and both buttons. The pull request, its ticket and the captures are read from the issue's body
-(`<!-- brigade:validation-design pr=<PR> ticket=<ticket> sha=<sha> -->`, then the images): only the images of
-`docs/captures/<ticket>/` on the project's repository at that head are captures of the card. A body that shows none of
-them says so on the card in one line (`no screenshot could be read on this card — open its pull request to see the
-screen`), what the app looks for on hover. A body that does not say its pull request is said on the card in one line, with
-no gesture. At phone width the card is the same: in the list of cards that await the chef it reads `Design validation`,
-and opened, it shows the same question, captures, link and gestures, its buttons 44 px high.
-
-The Android app does not run the runtime: with the GitHub sign-in of the phone, it writes on GitHub what the runtime's
-command writes, with the same checks — `Validate` merges the pull request at the head the card carries and closes the
-card; `Send back to the kitchen` posts the comment on the ticket as what to change, takes `in-pass` off and closes the
-card. Done, the card leaves Todo and its notification goes. The phone reads each capture through the GitHub API, at the
-head the card carries. Captures (in git history): `docs/captures/3185/`.
-*Code: `app/src/vue/validation-design/` (`validation-design.js`, the card; `validation-design-github.ts`, the reading of the
-body, `jouerLaValidation` for the desktop and `validerSurGithub` for the phone), channel `gesteDeValidation`
-(`app/src/main.ts`; `app/src/actions-github-phone.ts` and `app/android/web/pont.js` on the phone). Tests:
-`app/test/validation-design/`.*
-
-**The large detail of a `Validate its screen` card (#3212).** A click on the card, or on one of its captures, opens its
-detail over the app (in Todo, it opens the detail instead of the ticket's sheet; its buttons and its comment field keep
-their gesture; Enter or Space on its captures opens it too). In this order: the question; `One over the other`, `Next
-validation (#<card>)` when another design validation awaits you, and `Close`; the brief (#3330), read from the card's
-body: `What was asked`, cut to two lines (whole on hover), and `What was done`, the cook's points one per line — or "No
-summary of what was done is available" when the card carries none (a card posted before #3330 shows its ticket's title
-as what was asked); for each screen, `Zoom out`, `Zoom in` and
-`Fit`, then its before and after captures side by side, each as large as the window allows; then `PR of #<ticket>`,
-`Validate`, and the comment field with `Send back to the kitchen` — the card's gestures, with the same comment. Each
-capture zooms with the wheel (around the pointer), by pinching, by its buttons or by a double click (a second one fits it
-again), and pans by dragging; the before and after of a screen share one view, so zooming or panning one does the same on
-the other, at the same spot. `One over the other` puts them in one frame and `Show after` / `Show before` switches between
-them in place, at the same zoom; `Side by side` goes back. `Full size` under a capture opens it alone over the whole
-detail, zoomable the same way; `Back to before and after`, or Escape, returns. Escape, or `Close`, closes the detail. A
-gesture done from the detail closes it and the card leaves Todo, as on the card; refused, the detail stays and says why
-in one line. `Next validation` opens the next card that awaits you (the order of the phone's list), without going back
-to Todo. When the ticket asks for several screens, the detail shows one at a time: `Screen 2 of 4` says where you are, and
-`Previous screen` / `Next screen`, or the left and right arrows (not while typing in the comment field), move between them;
-the brief, the captures and the gestures stay whichever screen is shown. A card that a read no longer carries closes its detail. On the phone the detail is full screen, before and after
-one under the other, pinch to zoom, its two gestures 44 px high, the brief in one column and the detail scrolling so
-the captures keep half the screen. On a read-only project the detail shows no gesture.
-Captures (in git history): `docs/captures/3212/`, `docs/captures/3330/`, `docs/captures/3350/`.
-*Code: `app/src/vue/validation-design/detail-of-validation.js` (the detail and its zoom), opened from `validation-design.js`
-(the card) and laid in `#detail-de-validation` by `vue.js`. Tests: `app/test/validation-design/detail-of-validation.test.ts`.*
 
 **Cards assigned to someone else than the chef (#2761, epic #2748).** Todo shows the account this computer's `gh` is
 signed in to the cards that await it. A card awaits the humans its issue lists among its assignees on GitHub; without
@@ -2901,17 +2840,6 @@ section. With the section laid, `right now` is not repeated under it.
   as a diagram, under the sheet's buttons and above the folded issue (`app/src/vue/card-diagram/`, with Mermaid from
   the app's dependencies). A body with no such block shows nothing there. A block Mermaid cannot read is shown as its
   source, in a code block, never as an error, and the sheet still opens.
-- **A served interface ticket shows its screenshots, without a click** (#842): for each screen
-  changed, the before screenshot and the after screenshot side by side, each under its caption (`fiche — before`,
-  `fiche — after`), on its card in Pass as in Served. They come from `captures`, in `facts`,
-  each by its address on GitHub at the served commit: the address stays in the main process, which reads
-  the image through the workstation's `gh` — a private repository included — and hands it to the view as `data:` (the page
-  asks the network for nothing: `img-src data:`). An unreadable screenshot says `not available` in its place, its
-  why on hover. **An interface delivery that does not carry all of them is said to be incomplete**, in
-  one line at the top of its screenshots (`incomplete delivery: screenshots missing — the after screenshot
-  of fiche`), where to put them on hover; a missing screenshot keeps its place, and says `missing`. **A
-  ticket that is not an interface ticket has no `captures`**: its card says nothing of them, not even an empty
-  zone (`captures.ts`).
 - **Every card carries its title.** The one the box gives; failing that — a ticket off the rail, which the
   log does not know —, that of its issue, read once through the workstation's `gh` at the address the box
   returned (`question.ts`, `titreDe`). Unreadable, the card has no title: nothing is written in its place.
