@@ -21,7 +21,7 @@ export const PRIS: Facts = { ...CANTINE, livres: [], rail: [entree("pris")] };
 export const EN_PASS: Facts = { ...CANTINE, livres: [], rail: [entree("en pass", { pr: PR })] };
 export const RENVOYE: Facts = { ...CANTINE, livres: [], rail: [entree("pris", { pr: PR, renvoi: { n: 1, raison: RAISON } })] };
 export const DE_NOUVEAU_EN_PASS: Facts = { ...CANTINE, livres: [], rail: [entree("en pass", { pr: PR, renvoi: { n: 1, raison: RAISON } })] };
-export const SERVI: Facts = { ...CANTINE, rail: [], livres: [{ ticket: 5, titre: TITRE, url: ISSUE, livre: "2026-10-13T10:01:00.000Z", station: "box/claude", pr: PR.url, relecture: null }] };
+export const SERVI: Facts = { ...CANTINE, rail: [], livres: [{ ticket: 5, titre: TITRE, url: ISSUE, livre: "2026-10-13T10:01:00.000Z", station: "box/claude", pr: PR.url }] };
 
 export function recitDuPremierTicket(dit: string, lectures: Facts[]): Ecran {
   const base = parcoursPremierProjet(dit, true, [CHOISIR_LE_RECOMMANDE]);

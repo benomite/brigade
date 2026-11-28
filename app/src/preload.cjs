@@ -1,4 +1,4 @@
-// Le pont entre la vue et le process principal : rien que ces quatre-vingts gestes. La
+// Le pont entre la vue et le process principal : rien que ces gestes. La
 // vue n'a ni Node ni accès aux fichiers.
 const { contextBridge, ipcRenderer } = require("electron");
 
@@ -30,25 +30,14 @@ const bridge = {
   demander: (project, ticket) => ipcRenderer.invoke("demander", project, ticket),
   demanderAlerte: (project, subject, said) => ipcRenderer.invoke("demanderAlerte", project, subject, said),
   lireQuestion: (project, ticket) => ipcRenderer.invoke("lireQuestion", project, ticket),
-  situation: (card) => ipcRenderer.invoke("situation", card),
   gestesDeFiche: (card) => ipcRenderer.invoke("gestesDeFiche", card),
-  gesteDeFiche: (project, id, ticket, value) => ipcRenderer.invoke("gesteDeFiche", project, id, ticket, value),
-  lireHistoire: (project, ticket) => ipcRenderer.invoke("lireHistoire", project, ticket),
-  lireDiscussion: (project, ticket) => ipcRenderer.invoke("lireDiscussion", project, ticket),
-  commenter: (project, ticket, text) => ipcRenderer.invoke("commenter", project, ticket, text),
-  demanderAuSecond: (project, ticket, context) => ipcRenderer.invoke("demanderAuSecond", project, ticket, context),
+  demanderAuSecond: (project, ticket) => ipcRenderer.invoke("demanderAuSecond", project, ticket),
   passerAuSecond: (project, ticket, question) => ipcRenderer.invoke("passerAuSecond", project, ticket, question),
-  ouvrirLien: (project, ticket, url) => ipcRenderer.invoke("ouvrirLien", project, ticket, url),
   lireTitre: (project, ticket) => ipcRenderer.invoke("lireTitre", project, ticket),
   lireFeu: (project) => ipcRenderer.invoke("lireFeu", project),
   relireBox: (request) => ipcRenderer.send("relireBox", request),
   repondreQuestion: (project, ticket, answer) => ipcRenderer.invoke("repondreQuestion", project, ticket, answer),
-  // Essayer une livraison (trial.ts, #3215) : l'état des essais d'un projet, « try it », « stop » ; `surEssais` dit qu'il a changé.
-  essais: (project) => ipcRenderer.invoke("essais", project),
-  essayer: (project, ticket) => ipcRenderer.invoke("essayer", project, ticket),
-  arreterEssai: (project, ticket) => ipcRenderer.invoke("arreterEssai", project, ticket),
   refus: (project, id, ticket) => ipcRenderer.invoke("refus", project, id, ticket),
-  attente: (project, id, ticket, input) => ipcRenderer.invoke("attente", project, id, ticket, input),
   ecrireMiseAJour: (clone) => ipcRenderer.invoke("mettreAJour", clone),
   passer: () => ipcRenderer.invoke("passer"),
   // La mise à jour de l'app installée (update/state.ts) : `miseAJour` rend son état
@@ -137,7 +126,6 @@ const bridge = {
   surEtat: (receive) => void ipcRenderer.on("etat", (_, terminal) => receive(terminal)),
   surActivites: (receive) => void ipcRenderer.on("activites", (_, published) => receive(published)),
   surContenu: (receive) => void ipcRenderer.on("contenu", (_, reading) => receive(reading)),
-  surEssais: (receive) => void ipcRenderer.on("essais", (_, project) => receive(project)),
   surFaits: (receive) => void ipcRenderer.on("faits", (_, receivedOne) => receive(receivedOne)),
   surAlertes: (receive) => void ipcRenderer.on("alertes", (_, band) => receive(band)),
   surUrgence: (receive) => void ipcRenderer.on("urgence", (_, project) => receive(project)),

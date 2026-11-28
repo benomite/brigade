@@ -251,14 +251,6 @@ kept (#2151, below); offline, the last rail stays dimmed, marked `offline since`
 
 *Code: `ageDuRail` in `app/src/vue/vue.js`, `publieLe` in `app/src/board/rail.ts` and `app/src/facts.ts`.*
 
-### A ticket killed twice by the same guardrail says why on its card (#3650, epic #3645)
-
-When the same guardrail has stopped the same ticket twice (`gardeRepetee` of its entry in `facts`,
-`docs/runtime/README.md`), its card on the rail says it under its head, in the card's alert ink: **"Stopped 2 times by
-the idle guard"**, then one line per stop — its time and the activity where the cook was (`07:12 — was finishing`, or
-`no activity read`), the run on hover. It stays as long as the box sends it: the ticket is not relaunched silently. A ticket
-stopped once, or by two different guardrails, shows nothing.
-
 ### A word to the cook, from the card of a taken ticket (#4048, epic #4043) — removed (#4681)
 
 **Removed in #4681**: the app no longer launches `send-word`; the card has no field. To steer a cook, comment on its issue on GitHub. What follows is kept as history.
@@ -460,27 +452,6 @@ station the section is read-only: the same lines, never a button.
 *Code: `app/src/vue/station/page/sections/identity.js` (it reads `contexte.identite`, which the page shell supplies). Test:
 `app/test/vue/station/identity.test.ts`.*
 
-### Try a delivery from its card, in one click (#3215)
-
-A project says how it is tried in `.brigade/try.json` at its root: a `command` key (a shell command, run in the
-delivery's checkout) and an optional `url` key (an http(s) address, opened once the command runs), e.g.
-`{"command": "npm install && npm run dev", "url": "http://localhost:5173"}`. The app reads it each time the rail is read
-(`app/src/trial.ts`).
-
-- A card in **Pass** or **Served** shows `try it` when the file is there and valid; cards in other states show nothing.
-  Without the file the cards show no button and one line says to create `.brigade/try.json` with a `command` key and an
-  optional `url` key, with the example; a file that cannot be read or is malformed says why, in one line.
-- `try it` checks out the delivery into a git worktree **under the app's data folder** (`<data>/essais/<project>/<ticket>`,
-  one per delivery, detached), never inside the working copy: the working copy, its branch and its uncommitted changes are
-  not touched. The delivery is the ticket's `origin/cook/<n>-…` branch (local one if there is no remote), or, once the branch
-  is gone, the merge commit that names it. Tried again, the worktree is removed and recreated. If the data folder lies
-  inside the working copy, nothing is created.
-- Running, the card says where the version is — `running at <url>` (the address is also opened in the browser), or
-  `it runs in the opened window or process` — and carries a single `stop`: one click ends the command and all its child
-  processes (its process group; `taskkill /T` on Windows), and the card is back to `try it`. Quitting the app ends them too.
-- If the command cannot start, exits with an error, or the checkout fails, the card shows a one-line reason and the last
-  ten lines of the output (its end, not its start); nothing is left running. A command that exits with code 0 just ends.
-
 ### Cards never vanish while GitHub holds them (#2151)
 
 The chef's main screen does not lose a card because a reading went wrong:
@@ -548,11 +519,9 @@ the rail's watches in `app/src/main.ts`, the plan of the second in `app/src/term
 
 A project has one view: the rail view, with its columns, its ticket cards, its TODO and its
 gestures. It is fed from the project's GitHub repository (read with the token of this computer's `gh`, #1694, #2061),
-with no other machine to reach; the app only has to be connected to GitHub. The gestures of the card and the sheet that have a fact on GitHub are written there by the app itself
-(`app/src/actions-github.ts`): `remove from the rail` removes the `fire` label from the issue; `back to the kitchen` and
-`it arrived` after WAITING remove `waiting` (#1740, below); the chef's comment is posted on the issue (see "A rail
-card's history and discussion"). The others send nothing and say where to act instead (`SANS_FAIT`): a delivery is merged on its PR on GitHub, or
-by the station's pass, and the app has no button for it; a TODO card's choice or text has nowhere to go. Since #2076, this is true of
+with no other machine to reach; the app only has to be connected to GitHub. The sheet opens the issue, opens the PR, or asks the second; the chef's answer to a TODO card is written on GitHub
+(`app/src/board-actions/answer-github.ts`). The app has no other gesture (#4802): a delivery is merged on its PR on
+GitHub, or by the station's pass. Since #2076, this is true of
 every project, whichever station serves it: the repository of a project served by another station is read too, and its
 rail is this same view, in the same order. Captures (in git history): `docs/captures/1695/` — `espace-projet-avant.png` (the screen removed) and
 `espace-projet-apres.png` (the rail view of the same project), and `espace-projet-gestes-apres.png` (the
@@ -718,10 +687,9 @@ repository, and the project opens read-only:
 
 - **Everything is seen**: the rail, its cards, Todo, the stations and the cooks, as for any project.
 - **No gesture is offered**, absent rather than greyed: no choice, field or `send` on a Todo card (its question is read),
-  no `Relaunch` or `Close as already done`, no WAITING gesture, no `Choose who cooks it`, no breaker `Resume`, no project
+  no `Relaunch` or `Close as already done`, no `Choose who cooks it`, no breaker `Resume`, no project
   switch, no `stop the kitchen` or `resume the kitchen`, no `Set up for Brigade`. A ticket's sheet keeps only what opens
-  something or asks the second (`open the issue`, `ask the second`…): no priority, no `remove from the rail`, no comment
-  to post, no answer to its question, no lifting of `blocked-on-human`. The phone's list of cards awaiting you leaves
+  something or asks the second (`open the issue`, `ask the second`…): no answer to its question, no lifting of `blocked-on-human`. The phone's list of cards awaiting you leaves
   that project's cards out. In Settings, what is proposed to the repository by a pull request — the project settings,
   its humans, its contributing stations, the duration caps and the closer — is not laid.
 - **One line at the top of the project**, in its band, says it: `Read-only: your GitHub account cannot write to
@@ -861,7 +829,7 @@ used by `lireLeTableau` (`app/src/main.ts`). Test: `app/test/cards-assigned/card
 rail: they sit under the columns, outside them (#3458, #3523), in a section **Awaiting others (N)**, N their number,
 folded by default — unfolded, it stays so at the next reading. Assigning a card is for notification and readability, never
 to stop a human from moving it forward: unfolded, each one is a card of Todo — it opens its sheet on a click, and takes the
-same answer, choices, field and gestures (answer, put on the rail, close, waiting for…) — and says in addition who it awaits,
+same answer, choices, field and gestures (answer, put on the rail, close) — and says in addition who it awaits,
 by GitHub login (`awaits alice, carol`), without the “awaiting you” mark. The answer is posted on GitHub with the account
 signed in on this computer, like any other answer; the card stays under Awaiting others, and out of the Todo count, until
 the reading says otherwise. The chef sees the same way: a card assigned only to others is under Awaiting others;
@@ -881,88 +849,30 @@ carrying `kitchen-board` is never a card (the rule, with its reading, is in the 
 `docs/captures/2221/` — `todo-github-seul-avant.png` (the same four cards without the kind and the text) and
 `todo-github-seul-apres.png`.
 
-### Changing a ticket's priority (#1739)
+### Parking a ticket: the second's command, and how a parked ticket reads (#4129; before, WAITING on a GitHub project, #3075)
 
-A ticket's priority is the `prio:<n>` label of its issue on GitHub. On the sheet of a rail card, `change the priority`
-offers `1` to `9` (`1` is served first) and `none`; nothing is chosen in advance, and the button stays inactive until a
-value is. A click and **the app replaces the label itself on GitHub** (`app/src/priority.ts`), with the token of this
-computer's `gh`: it reads the issue, puts the new `prio:` label, then removes every other one (`none` removes them all
-and puts none). No box, no second: the gesture works with the project's kitchen unreachable. It costs
-nothing, and asks for no confirmation.
+The app has no button to park or unpark a ticket, nor to change its priority or send it back to the kitchen (#4802):
+the board shows them, the second acts. The second parks and unparks a ticket on any project, with no box command: each
+gesture is written on the issue (`app/src/vue/wait/wait-github.ts`, `app/src/actions-github.ts`), with the parking
+command the app gives it at each session start (`app/src/second/parking.ts`, `park` / `unpark`). What the chef types for
+a parking is read by `app/src/vue/wait/input.ts`.
 
-- **Done**: the sheet says `priority changed on GitHub: #22 now carries prio:1 — the box reorders the rail when it reads
-  it`, the issue's address on hover. The card and the sheet show the new priority at once. The station reads the label
-  at its next turn and reorders the rail; as long as the rail read from GitHub still shows the old priority, the rail
-  keeps showing the one the app wrote. Once a reading shows another priority, that reading says it.
-- **Failed**: nothing changes on the rail, which keeps the old priority, and the sheet says why in one line — `nothing was
-  changed: issue #22 was not read on GitHub`, `nothing was changed: GitHub did not put prio:1 on #22` —, GitHub's answer
-  on hover. A refusal after the new label is put (the old one could not be removed) says which `prio:` labels the issue
-  now carries. The chosen value stays chosen: one click tries again.
-
-The box has no command for it: the label is read like any other (`docs/runtime/README.md`). Captures (in git history):
-`docs/captures/1739/` — `fiche-priorite-avant.png` (the old path: the command went into the second, through the box),
-`fiche-priorite-apres.png` (the label changed on GitHub, the sheet showing `prio:1`) and `fiche-priorite-echec-apres.png`
-(GitHub refused: the sheet keeps `prio:2` and says why).
-
-### Sending a ticket back to the kitchen after WAITING (#1740)
-
-`it arrived, back to the kitchen`, on a WAITING card: the app removes the `parked` label (`waiting` before #4129)
-from the ticket's issue itself (`app/src/actions-github.ts`, #2061), with the token of this computer's `gh`. No second, no
-command: the gesture works with the kitchen unreachable — the ticket leaves WAITING (or TODO) and goes back on the rail,
-queued, without going through TODO.
-
-- **Done**: the card says ``back to the kitchen on GitHub: #<n> no longer carries `parked` — it resumes exactly where
-  it was`` under its buttons, the issue's address on hover; the sheet says the same under its gestures. While the gesture
-  is on its way, the card says `it arrived, back to the kitchen: sent, waiting for the answer…` and its buttons are
-  inactive. An issue that no longer carries `parked` or `parked:chef` counts as done; the line names the one(s) it removed (`parked` and `parked:chef`, or whichever the issue carried).
-- **Not done**: nothing changes and the card says why in one line, in red — the rail not read yet, a ticket the
-  latest reading does not carry, or GitHub refusing (``nothing was changed: GitHub did not remove `parked` from #<n>``,
-  GitHub's answer on hover). One click tries again.
-
-Captures (in git history): `docs/captures/1740/` — `carte-waiting-arrivee-avant.png` (the old path: the command went into the second,
-through the box), `carte-waiting-arrivee-apres.png` (the gesture said on the card),
-`carte-waiting-arrivee-echec-apres.png` (GitHub refused: the card stays and says why), and `fiche-cuisine-avant.png` /
-`fiche-cuisine-apres.png` (the sheet of a ticket back from WAITING, `back to the kitchen` confirmed).
-
-### Parking a ticket, on any project (#4129; before, WAITING on a GitHub project, #3075)
-
-The app parks and unparks a ticket the same way as the second, on any project, with no box command: each gesture is
-written on the issue (`app/src/vue/wait/wait-github.ts`). On a GitHub
-project, every TODO card carries **waiting for…**, on the card and on its sheet, on a wide screen as on a phone's. It
-opens the form of #591 on the card (or the sheet): *what it waits for, in your words*, *from whom*, and *follow-up on*,
-proposed seven days from today. **put in WAITING** sends it; a form without what it waits for, without whom, or with a
-follow-up that is not a day after today is refused, the sentence under the fields, and nothing leaves. **Cancel**
-closes it. The buttons and the form are `app/src/vue/wait/wait.js`; what the chef typed is read by
-`app/src/vue/wait/input.ts`, the same reading for every path.
-
-- **Where it goes.** Always on the issue, on any project, never through a box command (#4262) — from the desktop as
-  from the phone, and from the second, which plays the same two functions with the parking command the app gives it at
-  each session start (`app/src/second/parking.ts`, `park` / `unpark`).
-- **Park.** *waiting for…* parks the ticket (`parquer`, `app/src/vue/wait/wait-github.ts`): it posts the parking
-  comment — the marker `<!-- brigade:parked {…} -->` with who, for what and until when, then
-  `**PARKED: waits for <who>.** <what>`: the very text the station writes,
-  which the station writes too —, then sets the `parked` label. A comment GitHub posted but whose label it refused is
-  said: the ticket is not parked.
-- **Unpark.** *resume* (the person answered) and *it arrived, back to the kitchen* (the fact happened) unpark it
-  (`deparquer`, `app/src/actions-github.ts`): `parked` is removed, with any waiting label of before parked, and the
-  ticket resumes exactly where it was.
+- **Park.** `park` (`app/src/vue/wait/wait-github.ts`) posts the parking comment — the marker
+  `<!-- brigade:parked {…} -->` with who, for what and until when, then `**PARKED: waits for <who>.** <what>`: the very
+  text the station writes —, then sets the `parked` label. A comment GitHub posted but whose label it refused is said:
+  the ticket is not parked. The manager's card "Wait for …" parks the same way (`app/src/board-actions/answer-github.ts`).
+- **Unpark.** `unpark` (`app/src/actions-github.ts`): `parked` is removed, with any waiting label of before parked, and
+  the ticket resumes exactly where it was.
 - **What is read.** An issue carrying `parked` waits for someone else: it is never a TODO entry, whatever else it
   carries — a chef's card parked for someone else leaves TODO until it resumes. Parked for the chef, an issue carries
   `chef-todo` alone: it is a TODO card. Among the issues the app
   already lists — `fire`, `chef-todo`, `parked:chef` —, each one parked for someone else
   has its last parking comment read (`app/src/board/wait-of-chef.ts`; the `**WAITING: awaiting …**` comments the
   app wrote before #4129 still read), and no other list is asked of GitHub (the budget of #3007): its card in WAITING
-  says `waiting for <what> · from <who> · follow-up <day>`, its sheet adds since when and what unparking does, and it
-  carries *resume* and *it arrived, back to the kitchen*. An issue that is not on the rail (no `fire`, a `chef-todo`
-  card) is placed in WAITING too. A comment that does not read leaves the card in WAITING with `not given`; a reading
-  of these issues that fails leaves TODO read, and says why in the reading's notes. The second and the notifications
-  do not pay for this reading.
-
-Captures (in git history): `docs/captures/3075/` — `attente-github-avant.png` / `attente-github-apres.png` (the rail: the button on each
-TODO card, #40 in WAITING with what, from whom and its follow-up), `attente-github-dialogue-apres.png` (the form opened on
-#41; before, there was no button to open it), `attente-github-fiche-avant.png` / `attente-github-fiche-apres.png` (the
-sheet of #41), `attente-github-telephone-*.png` and `attente-github-waiting-telephone-*.png` (the same cards at phone
-width).
+  says `waiting for <what> · from <who> · follow-up <day>`, its sheet adds since when and what unparking does. An issue
+  that is not on the rail (no `fire`, a `chef-todo` card) is placed in WAITING too. A comment that does not read leaves
+  the card in WAITING with `not given`; a reading of these issues that fails leaves TODO read, and says why in the
+  reading's notes. The second and the notifications do not pay for this reading.
 
 ### From the app
 
@@ -1348,18 +1258,13 @@ the desktop's own writing code — no station is reached for them. `app/src/acti
 (`clientDeLaPriorite`); only the carrier differs: Capacitor's native HTTP (`ecritureParCapacitor`), with the vault's
 token, to `api.github.com`. The GitHub reading of the phone opens them (`gestes` of `ouvrirLaLectureGitHub`) on what it
 last read of each project — its repository, its last rail read, the chef's card of a ticket —, and the bridge
-(`app/android/web/pont.js`) answers the view's `gestesDeFiche`, `gesteDeFiche`, `attente` and `repondreCarte` with them:
+(`app/android/web/pont.js`) answers the view's `repondreCarte` and `gesteDeValidation` with them:
 
 - **answering a TODO card** (a chef's card read from GitHub): the answer posted on the issue as the marked comment, then
   its gesture played (`resume`, `merge`, `drop`, `close`) — `repondreSurGithub`, as on the desktop;
-- **resuming** — *back to the kitchen* on the sheet, *it arrived, back to the kitchen* on a WAITING card: the `waiting`
-  label removed from the issue;
-- **putting on hold** — *remove from the rail* on the sheet: the `fire` label removed; no station takes the ticket;
-- **the WAITING gestures** (#3075) — *waiting for…* on a TODO card and its sheet, *resume* on a WAITING card: the phone
-  reaches no runtime, so it writes them on the issue as the desktop does when the project's kitchen is not on that
-  computer (see "WAITING on a GitHub project" above).
+- **the two gestures of a "Validate its screen" card** — `Validate`, and `Send back to the kitchen` with its comment.
 
-A sheet on the phone offers those gestures only, ordered and priced by the desktop's table. Merging a delivery says what
+A sheet on the phone offers no gesture of its own. Merging a delivery says what
 the desktop says (merge its PR on GitHub). A write GitHub refuses, or a GitHub that does not answer, comes back as one
 sentence with what GitHub or the network said on hover, and nothing is shown done; only a write GitHub took reads GitHub
 again, which shows it. Not signed in, nothing is sent: *nothing was sent: this phone is not signed in to GitHub*. The APK
@@ -1387,19 +1292,10 @@ module is `app/src/vue/cards-of-chef/` (its tests: `app/test/cards-of-chef/`); t
 `cartes-du-chef-liste`, `cartes-du-chef-carte` and `cartes-du-chef-envoyee` of `scripts/capture-ecran` (git history: `docs/captures/2915/`).
 The artboard's line *5 tickets served today* is not drawn: no reading the app holds counts them.
 
-**The queue's gestures on the phone** (#1164) are the desktop's: a TODO card opens its sheet, and its buttons —
-`remove from the rail`, `back to the kitchen`, the recommended one first and in the accent color —
-call the same bridge action, `gesteDeFiche` (the project, the gesture, the ticket — never a command), confirmed
-first when they cost. A phone
-has no second to write a command into: there, `gesteDeFiche` answers `{ fait }` — what
-the station did — or `{ refus }`, each with the station's answer in `detail` (`app/src/vue/bridge.d.ts`). The sheet
-says it in one line under its buttons, the station's answer on hover, and the box is read again at once: the card
-leaves TODO with that reading (a removed ticket leaves the rail). While the answer has
-not come, the line says `remove from the rail: sent, waiting for the answer…` and the sheet's buttons are inactive —
-nothing goes twice. A refusal, or a bridge that fails or carries nothing (`nothing was sent — nothing was changed`, the reason on
-hover), does not read the box again: the queue stays as it was, and the gesture can be played again. On a
-narrow desktop window, where a gesture still goes into the second, the sheet says `sent to the second: its answer
-is in the Second tab`.
+**The sheet on the phone** (#1164, #4802) has no gesture of the queue: a TODO card opens its sheet, which reads the card and
+answers it (`repondreCarte`). `remove from the rail`, `back to the kitchen` and `gesteDeFiche` are gone with the other
+gestures of the old queue; on a narrow desktop window, `ask the second` goes into the second, and the sheet says `sent to
+the second: its answer is in the Second tab`.
 
 ### The Android app notifies the chef of a TODO card (#2747)
 
@@ -2609,17 +2505,12 @@ again; the line of an issue the kitchen opened on itself opens that issue. Where
 speak of On the rail, Taken or Waiting, read: Backlog, Cooks, and the column where the parked card waits. Captures (in git history):
 `docs/captures/4238/`.
 
-**Each TODO entry says who, for what and until when, and opens its park control (#4281).** The entries are drawn by
+**Each TODO entry says who, for what and until when (#4281).** The entries are drawn by
 `app/src/vue/parked/parked-todo.js`, from the parked records that `app/src/vue/parked/records.js` reads in the cards:
 under what is asked, `waits for the chef · until <day>` (`no date set` without one; `for what: not given` when the card
 does not say). A click on an answer sends it once, and the entry leaves the TODO — until the kitchen has played the
-answer, the next drawing of the rail shows it again. `park or unpark…`, next to the
-buttons, opens the park control under the entry: who (a person, or the chef), for what, until (a date or a fact), then
-`park` and `unpark`. A form that lacks one of the three is not sent, and says which one is missing. `park` and `unpark`
-call one gesture, with the same project, ticket and step, for any project (`park-control.js`). Until the shared park
-gesture of #4129 exists, that gesture goes through the waiting gestures (`park-gesture.js`): `park` is `waiting for…`,
-which takes only a date for now (a fact comes back refused, with its reason, under the form); `unpark` is `it arrived,
-back to the kitchen`. Read-only, the entry has no buttons and no park control. Captures (in git history): `docs/captures/4281/`.
+answer, the next drawing of the rail shows it again. There is no park control (#4802): a ticket is parked by the second.
+Read-only, the entry has no buttons. Captures (in git history): `docs/captures/4281/`.
 
 **TODO is not a column (#3458).** Tickets move left to right, from On the rail to Served; what awaits the chef is a
 property of a ticket, not a place on the rail. **A card that awaits you stays in the column of its stage** — On the rail
@@ -2686,13 +2577,13 @@ attention. Each sentence is written from the facts the queue already gives about
 | with a third party (WAITING) | `waiting for <what> · from <who> · follow-up <YYYY-MM-DD>` — the follow-up day on this computer's calendar (#3075); without a follow-up, the first two | `follow-up date passed` when the follow-up date has passed |
 | question answered (WAITING) | `answered by <who> · the manager's turn` — `you` for an answer the app has just posted | — |
 | awaiting you | what is expected of you, in one sentence — the chef card's, or `no question found on #N`; for a question from the manager — before splitting an epic, or which holds the ticket through `blocked-on-human` —, the question being asked of you | — |
-| served | `served at 14:02 · <first sentence of the review summary>`; with no summary, the time and the marker | — |
+| served | `served at 14:02` | — |
 
 **Neither "lease", nor "86", nor "not given" on a card.** When a piece of information is missing, a
 small discreet `…` marker signals it; the card never lists what it does not know.
 What does not change what you do — who holds the ticket, since when, its lease, what it burns, what
 blocks it, `right now` — is in **the card sheet**, which a click on the card opens (`app/src/slip.ts`,
-`dit`), with what was served and its expandable remarks for a served ticket. The raw line that
+`dit`). The raw line that
 `status` writes for the ticket is nowhere on the card or on the sheet: it is read whole in
 Settings. The screenshots of a served interface ticket stay on the card.
 
@@ -2723,31 +2614,14 @@ section. With the section laid, `right now` is not repeated under it.
 - **What the queue does not say is not displayed** (#747) — neither the card nor the sheet writes "not given
   by the queue: …" in place of a piece of information: a missing thing has no line. Nor "nobody",
   nor "0", nor a dash either. (The model keeps `sans`, which the view no longer sets.)
-- **A ticket's retro is on its sheet** (#1038), under its history and cost: the lessons its retro left the
-  project, three at most, each with its `provisional` badge (its meaning on hover), its id and
-  its text — `reconfirmed` when the retro reconfirms a lesson the project already had —, then what its cook wrote
-  between `<retro>` and `</retro>`, as is. It comes from `retro` in `pass <n> --json` (see "Voir la pass" in
-  `docs/runtime/README.md`). A ticket with no retro says `no retro for this ticket yet`; one served whose cook
-  wrote none says `served, but its cook wrote no retro`; a box from before the retro on the sheet says
-  `retro unavailable`, its why on hover — never an empty section.
-- **A rail card's history and discussion come from GitHub, not from the box** (#1735): the sheet reads the ticket's
-  issue (body and comments) and the PRs that close it with the `gh` of this computer, on the project's repository —
-  so the sheet opens with the project's station off. The history is what GitHub keeps: `arrived` (the issue's creation),
-  `delivered` and `merged` for each PR, or `closed without a merge`. What only the box's journal carries — the cook's
-  tokens and time, the attempts, the retro — says `not communicated`, never a made-up value (so the retro section
-  above reads `retro not communicated` there). An issue absent from GitHub is one sentence: `<repo>#<n> is not on
-  GitHub: there is nothing to read`. A comment is posted by the app directly on the ticket's issue (#2061,
-  `commenterLIssue` in `app/src/actions-github.ts`), with this computer's `gh` token, so under your GitHub account, as
-  written; the sheet then says `comment posted on #<n> — on its issue, under your GitHub account`, and the discussion
-  is read again. Refused, the sheet says why in one line and nothing is posted. **"ask the second" writes `/brigade:ask <ticket> ` into the project's Second tab** (#2167) — the ticket
+- **"ask the second" writes `/brigade:ask <ticket> ` into the project's Second tab** (#2167) — the ticket
   number and a trailing space, the cursor at the end, and no Enter: you type your question after it, and your Enter
-  sends it. Nothing goes to GitHub or to the box, whichever station serves the project; what is in the comment
-  field is not part of it. A Second that is not running is launched first, and nothing is written into it — click
-  again when it is ready.
-- **The sheet shows the issue's diagram** (#3773): the first ```` ```mermaid ```` block of the issue's body is rendered
-  as a diagram, under the sheet's buttons and above the folded issue (`app/src/vue/card-diagram/`, with Mermaid from
-  the app's dependencies). A body with no such block shows nothing there. A block Mermaid cannot read is shown as its
-  source, in a code block, never as an error, and the sheet still opens.
+  sends it. Nothing goes to GitHub or to the box, whichever station serves the project. A Second that is not running
+  is launched first, and nothing is written into it — click again when it is ready.
+- **The sheet keeps no history, retro, discussion, comment field or diagram** (#4802): what the old runtime fed
+  — the ticket's steps and cost, its retro, the issue's discussion and the field that posted a comment, the issue's
+  Mermaid diagram, the delivery review with its remarks and engine, the tests block, `try it`, the line of a guardrail
+  that stopped it twice — is gone. Comment on the issue on GitHub; the sheet opens the issue (`open the issue`).
 - **Every card carries its title.** The one the box gives; failing that — a ticket off the rail, which the
   log does not know —, that of its issue, read once through the workstation's `gh` at the address the box
   returned (`question.ts`, `titreDe`). Unreadable, the card has no title: nothing is written in its place.
@@ -2808,20 +2682,6 @@ section. With the section laid, `right now` is not repeated under it.
   process, like that of the issue. A ticket served without a merge has no PR: the card says so
   (`PR  none — served without merge`). An issue closed **without** having been served — dropped,
   set aside — is not there.
-- **Under its title, the card says what was served: the review summary, word for word.** The
-  title says what was asked; the summary, what the reviewer read in what was served — the one
-  it wrote on the issue. It is laid down whole, in its words: neither cut nor reworded, and a
-  line that is too long wraps to the next. Below it, **the number of its findings, in plain words** —
-  `no remarks`, `4 remarks`, or `2 remarks, 1 of them blocking` for a delivery merged by
-  hand despite a red review. **A click on this number expands them** on the card, each in its
-  order, with the file it names and its text as the reviewer wrote it; a second click folds
-  them back. They come from `relecture`, in `livres` (`docs/runtime/README.md`, "The facts, for a
-  program").
-- **With no review, the card says so, and invents nothing**: `what was served: not given —
-  no readable review bears on this delivery (merged by hand, served without going through the
-  pass, or from before the review)`. From a box whose runtime does not give the review yet, it
-  says ``what was served: not given — this box's runtime does not give the review yet
-  in `facts` ``. The issue title is never put in place of the summary.
 - **Empty, the column says so: "nothing served in 24 h".** It is not "no ticket": nothing was
   served.
 - **Long, it scrolls within its height**: its cards push nothing below the grid, and the other

@@ -132,7 +132,6 @@ describe("le rail d'une question répondue", () => {
     assert.deepEqual(card?.attend, []);
     assert.deepEqual(card?.repondue, { par: "you", a: "2026-10-15T10:05:00.000Z" });
     assert.deepEqual(card?.dit.map(({ libelle: wording }) => wording), ["answered by", "answered at", "next"]);
-    assert.equal(card?.gestes, undefined);
     assert.equal(card?.ouvrable, true);
   });
 

@@ -1,6 +1,5 @@
 // L'espace de « parade », la vue du rail seule (#1695), et la fiche de #12 ouverte : elle offre ses gestes.
 import { actionsOfCard } from "../../../app/src/card-actions.ts";
-import { situationOf } from "../../../app/src/story.ts";
 import type { Terminal } from "../../../app/src/terminals.ts";
 import { carteDe, configuration, cuisine, demarrage, type Ecran, MAINTENANT, type Rendu } from "./commun.ts";
 import { PROJETS, RENDUS } from "./cuisine-figee.ts";
@@ -20,7 +19,7 @@ export const ecran: Ecran = {
     const carte = carteDe(RENDU, "parade", 12);
     return {
       maintenant: MAINTENANT,
-      reponses: { demarrage: demarrage(configuration(PROJETS)), espace: [SECOND], situation: situationOf(carte), gestesDeFiche: actionsOfCard(carte) },
+      reponses: { demarrage: demarrage(configuration(PROJETS)), espace: [SECOND], gestesDeFiche: actionsOfCard(carte) },
       envois: cuisine({ ...RENDUS, parade: RENDU }),
     };
   },

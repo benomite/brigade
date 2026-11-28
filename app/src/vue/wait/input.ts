@@ -1,6 +1,6 @@
-// Ce que le chef remplit dans « waiting for… » (vue/wait/wait.js), lu avant que rien ne parte : ce qu'il attend,
+// Ce que le chef remplit pour parquer un ticket, lu avant que rien ne parte : ce qu'il attend,
 // dans ses mots, de qui, et le jour de la relance, proposé à sept jours. Cette lecture sert le parking écrit sur GitHub
-// (wait-github.ts), sur le desktop comme sur le téléphone, et le second (second/parking.ts) : ce module n'importe rien
+// (wait-github.ts) et le second (second/parking.ts) : ce module n'importe rien
 // de Node.
 
 // La relance que le formulaire propose : dans sept jours — celle que le runtime prend sans elle.

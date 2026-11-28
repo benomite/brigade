@@ -58,7 +58,7 @@ export function duration(ms) {
   return `${Math.floor(hours / 24)} d`;
 }
 
-// Une heure de la box, en UTC, comme l'histoire de la fiche les dit (story.ts, `instant`), sans le jour.
+// Une heure de la box, en UTC, sans le jour.
 /** @param {string} iso */
 export const hourUtc = (iso) => (Number.isNaN(Date.parse(iso)) ? iso : `${new Date(iso).toISOString().slice(11, 16)} UTC`);
 

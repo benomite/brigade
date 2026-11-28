@@ -2,7 +2,7 @@
 // par élément — jamais en HTML (markdown.ts).
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { linksOf, render } from "../src/markdown.ts";
+import { render } from "../src/markdown.ts";
 
 describe("le markdown d'une issue est rendu, pas affiché brut", () => {
   test("titres, emphase, code dans la ligne et liens", () => {
@@ -99,7 +99,4 @@ describe("le markdown d'une issue est rendu, pas affiché brut", () => {
     assert.equal(huge.length, 1);
   });
 
-  test("les adresses que le texte rendu ouvre, une fois chacune", () => {
-    assert.deepEqual(linksOf(render("[a](https://a.b/1) https://a.b/1\n\n> **[c](https://c.d/)**\n\n| [t](https://t.u/) |\n|---|")), ["https://a.b/1", "https://c.d/", "https://t.u/"]);
-  });
 });

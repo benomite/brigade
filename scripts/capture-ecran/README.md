@@ -131,9 +131,9 @@ export const ecran: Ecran = {
 ```
 
 `fiche.ts` est l'exemple complet : deux clics (la case de `parade`, puis la carte
-`#rail .colonne:nth-child(2) li.bon`), et chaque réponse dont la fiche a besoin — `situation`,
-`gestesDeFiche`, `lireHistoire`, `lireDiscussion` — calculée par le module de l'app qui la calcule
-dans `main.ts`, à partir de ce que la box rendrait (`pass 14 --json`, `pass 14 issue`). `carteDe`
+`#rail .colonne:nth-child(2) li.bon`), et la réponse dont la fiche a besoin — `gestesDeFiche` —
+calculée par le module de l'app qui la calcule dans `main.ts` (`card-actions.ts`), à partir de la
+carte que la box rendrait. `carteDe`
 (dans `commun.ts`) donne la carte d'un ticket telle que la vue la reçoit.
 
 - **`reponses`** : la réponse de chaque geste invoqué que l'écran fait jouer, par son nom dans le

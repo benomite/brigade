@@ -13,19 +13,15 @@
 // Ce sont les deux seules choses lues hors de la forme.
 import { vueOfPostMortems, type VueOfPostMortems } from "./projects/post-mortems.ts";
 import { kitchenBoardRead, type KitchenBoard } from "./board/kitchen-board.ts";
-import type { ActionOfWait } from "./wait.ts";
 import { saysOf, ticketsOf, type Shown } from "./awaiting.ts";
 import { THE_CHEF, placeOf, linesOfRail, wordOfState, parkedOf, carry, priority, type Door } from "./slip.ts";
-import { sTries } from "./trial.ts";
 import { lineAtWork, lineBaseRed, lineOfHead, queuedLine, lineInWaiting, lineUnreadable, lineDelivered, lineSetAside, lineAwaitingMe, lineRefused, lineAnswered, type LineOfCard } from "./line-card.ts";
 import type { FactsStation } from "./ordinary.ts";
 import type { Failure, Reading } from "./box.ts";
 import type { PauseOfReads } from "./board/read.ts";
-import { engineRead, type EngineOfDelivery } from "./vue/delivery-engine/engine.ts";
 import { withoutQuestion } from "./handover-second.ts";
 import { header, type Header } from "./card.ts";
 import { agentsOf, cookingOf, type CookingOfProject } from "./cooking.ts";
-import { guardRepeatedRead, lineOfGuard, type GuardRepeatedRead, type LineOfGuard } from "./vue/card-ticket/guard-repeated.ts";
 import { seniority, cadenceRead, trialsRead, points, type Seniority, type TrialRead, type Point, type CadenceRead } from "./cadence.ts";
 import { cardOfChefOfTodo, type CardOfTodo } from "./card-todo.ts";
 import { LABEL_OF_CHEF, type CardOfChef, type Recommended } from "./board/todo-github.ts";
@@ -34,7 +30,6 @@ import { requiredRead, taskRead, type TaskHuman } from "./vue/wait-capacity/read
 import { limitRead, type LimitOfAccount } from "./vue/banner-limit-github.ts";
 import { quotaRead, type QuotaGithub } from "./vue/stations-quota/quota-read.ts";
 import type { Answered } from "./answered.ts";
-import type { PriorityShown } from "./priority.ts";
 
 export const COMMAND = "facts";
 
@@ -163,13 +158,8 @@ export type Expected = { ticket: number; titre: string; url: string | null; chef
 // fermeture de son issue : `livre`, l'heure de son service ; `station`, celle qui
 // l'a cuisiné — nulle quand aucune ne l'a envoyé en pass ; `pr`, la PR mergée —
 // nulle pour un ticket servi sans merge ; `url`, son issue, nulle quand la box ne
-// la connaît pas ; `relecture`, ce que le reviewer a dit de ce qui a été servi —
-// nulle quand aucune relecture lisible ne porte dessus, absente d'un runtime
-// d'avant ce champ.
-export type Delivers = { ticket: number; titre: string; url: string | null; livre: string; station: string | null; pr: string | null; prLue?: SizeOfPr; relecture?: Review | null; moteur?: EngineOfDelivery; illisible?: string };
-// Le résumé du reviewer et ses constats, dans ses mots.
-export type Finding = { gravite: string; fichier: string | null; constat: string };
-export type Review = { resume: string; constats: Finding[] };
+// la connaît pas.
+export type Delivers = { ticket: number; titre: string; url: string | null; livre: string; station: string | null; pr: string | null; prLue?: SizeOfPr; illisible?: string };
 
 // Ce que la cuisine fait d'un ticket pris ou en pass : le geste, en mots du chef ;
 // ce qu'il vise — un fichier, une commande —, nul s'il ne vise rien ; l'heure où
@@ -253,7 +243,7 @@ export type Facts = {
   // Le rail est dans l'ordre où il se sert : la priorité de l'issue, puis son âge.
   // `pr` : la PR ouverte qui le livre ; `renvoi` : le dernier renvoi de sa livraison à un cook, et pourquoi (ticket 3302) —
   // absents sans eux, et d'un runtime d'avant ces champs.
-  rail: { ticket: number; etat: string; titre: string; url: string; depuis?: string; essais?: TrialRead[]; gardeRepetee?: GuardRepeatedRead; activite?: Activity | null; attente?: Wait | null; tiers?: Third | null; revenu?: string | null; raison?: string | null; requiert?: string[]; station?: string; requires?: string[]; attend?: number[]; illisible?: string; pr?: { numero: number; url: string }; renvoi?: { n: number; raison: string } }[];
+  rail: { ticket: number; etat: string; titre: string; url: string; depuis?: string; essais?: TrialRead[]; activite?: Activity | null; attente?: Wait | null; tiers?: Third | null; revenu?: string | null; raison?: string | null; requiert?: string[]; station?: string; requires?: string[]; attend?: number[]; illisible?: string; pr?: { numero: number; url: string }; renvoi?: { n: number; raison: string } }[];
   cooks?: Cook[];
   attend?: Expected[];
   // Ce qui attend un autre humain du projet que le compte connecté (ticket 2985) : hors de `attend`, et de toute colonne
@@ -295,11 +285,9 @@ export type Facts = {
 // la file (slip.ts) : ce qu'elle dit du ticket, ce qu'elle n'en dit pas, sa ligne
 // telle quelle quand l'app n'a pas su la découper. Dans Livré, `pr` : la PR mergée
 // du ticket s'ouvre — faux, son adresse n'est pas en https ; absent, il n'en a pas.
-// Et `livraison` : ce qui a été livré. `fiche` : l'en-tête de sa fiche, qu'un clic sur
+// `fiche` : l'en-tête de sa fiche, qu'un clic sur
 // la carte ouvre par-dessus le rail (card.ts) — pour une carte qui t'attend, ce qu'on attend
-// de toi, en une phrase. `gestes` : ceux de WAITING que la carte
-// porte (wait.ts) — « waiting for… » sur une carte de TODO que le runtime laisse attendre,
-// « resume » et « it arrived » sur une carte de WAITING ; absent, elle n'en porte aucun.
+// de toi, en une phrase.
 // `question` : sur une carte de TODO, son issue porte une question du manager — avant de découper
 // une épique, ou qui la parque pour le chef (`chef-todo`) —, que la carte dit en deux lignes (question.ts).
 // `todo` : sur une carte du chef lue de GitHub, sa question et ses choix (card-todo.ts) — ce que le chef tranche sur la
@@ -323,11 +311,7 @@ export type Facts = {
 // quand GitHub les a donnés (#4051). `TailleDePr` : ce que GitHub en a donné, rien de plus.
 export type SizeOfPr = { additions?: number; deletions?: number; ouvertLe?: string };
 export type DeliveryRead = { numero: number; url: string; lignes?: { ajoutees: number; retirees: number }; age?: string };
-export type Card = Partial<LineOfCard> & { ticket: number; etat?: string; mot?: string; ton?: string; titre?: string; ouvrable: boolean; attendu: boolean; attend: string[]; pr?: boolean; livraisonLue?: DeliveryRead; livraison?: Delivery; moteur?: EngineOfDelivery; fiche: Header; gestes?: ActionOfWait[]; question?: true; todo?: CardOfTodo; chef?: CardOfChef; repondue?: { par: string; a: string }; qui?: string[]; prio?: string; apres?: number[]; age?: Seniority; essais?: Point[]; essai?: number; garde?: LineOfGuard; requiert?: string[]; station?: string; enWaiting?: true; etape?: string; relancePassee?: true; tache?: TaskHuman; miseDeCote?: { label: string; liens: number[] }; refus?: { brut: string }; essayable?: true; sansCook?: true } & Door;
-// Ce qui a été livré, sur une carte de Livré : le résumé de la relecture, mot pour
-// mot, et ses constats sous leur nombre dit en clair (`remarques`) — ou, sans
-// relecture, pourquoi elle n'est pas là. Rien n'est mis à sa place.
-export type Delivery = { resume: string; remarques: string; constats: Finding[] } | { sans: string };
+export type Card = Partial<LineOfCard> & { ticket: number; etat?: string; mot?: string; ton?: string; titre?: string; ouvrable: boolean; attendu: boolean; attend: string[]; pr?: boolean; livraisonLue?: DeliveryRead; fiche: Header; question?: true; todo?: CardOfTodo; chef?: CardOfChef; repondue?: { par: string; a: string }; qui?: string[]; prio?: string; apres?: number[]; age?: Seniority; essais?: Point[]; essai?: number; requiert?: string[]; station?: string; enWaiting?: true; etape?: string; relancePassee?: true; tache?: TaskHuman; miseDeCote?: { label: string; liens: number[] }; refus?: { brut: string }; sansCook?: true } & Door;
 // `compte` : le nombre de ses cartes — ou `?`, pour TODO, tant que rien ne dit
 // qui attend. `vide` : ce qui se lit à la place des cartes quand il n'y en a pas.
 // `defile` : ses cartes défilent dans une hauteur bornée — longue, la colonne ne
@@ -411,10 +395,6 @@ const object = (value: unknown, field: string): Record<string, unknown> =>
 const text = (value: unknown, field: string): string => (typeof value === "string" ? value : refuse(field, "a string"));
 const whole = (value: unknown, field: string): number => (typeof value === "number" && Number.isSafeInteger(value) && value >= 0 ? value : refuse(field, "a non-negative integer"));
 const hour = (value: unknown, field: string): string => (typeof value === "string" && !Number.isNaN(Date.parse(value)) ? value : refuse(field, "a time"));
-const engineOf = (readOne: Record<string, unknown>, field: string): { moteur?: EngineOfDelivery } => {
-  const engine = engineRead(readOne.engine, readOne.costUsd, field, refuse);
-  return engine === undefined ? {} : { moteur: engine };
-};
 const orNothing = <T>(value: unknown, field: string, read: (value: unknown, field: string) => T): T | null => (value === null ? null : read(value, field));
 const textsRead = (value: unknown, field: string): string[] => (Array.isArray(value) ? value.map((oneOf, rank) => text(oneOf, `${field}[${rank}]`)) : refuse(field, "a list"));
 const numbersRead = (value: unknown, field: string): number[] => (Array.isArray(value) ? value.map((oneOf, rank) => whole(oneOf, `${field}[${rank}]`)) : refuse(field, "a list"));
@@ -481,19 +461,6 @@ function understandStation(value: unknown, field: string): FactsStation {
 function understandActivity(value: unknown, field: string): Activity {
   const readOne = object(value, field);
   return { fait: text(readOne.fait, `${field}.fait`), ...(readOne.faitEn === undefined ? {} : { faitEn: text(readOne.faitEn, `${field}.faitEn`) }), ...(readOne.etape === undefined ? {} : { etape: text(readOne.etape, `${field}.etape`) }), cible: orNothing(readOne.cible, `${field}.cible`, text), depuis: hour(readOne.depuis, `${field}.depuis`) };
-}
-
-// Ce que le reviewer a dit d'une livraison servie : son résumé, ses constats dans son ordre.
-function understandReview(value: unknown, field: string): Review {
-  const readOne = object(value, field);
-  return {
-    resume: text(readOne.resume, `${field}.resume`),
-    constats: (Array.isArray(readOne.constats) ? readOne.constats : refuse(`${field}.constats`, "une liste")).map((raw: unknown, rank) => {
-      const which = `${field}.constats[${rank}]`;
-      const finding = object(raw, which);
-      return { gravite: text(finding.gravite, `${which}.gravite`), fichier: orNothing(finding.fichier, `${which}.fichier`, text), constat: text(finding.constat, `${which}.constat`) };
-    }),
-  };
 }
 
 function understandDecision(value: unknown, field: string): DecisionUrgent {
@@ -653,7 +620,6 @@ export function understand(output: string): Facts | { informe: string } {
           url: text(readOne.url, `${which}.url`),
           ...(readOne.depuis === undefined ? {} : { depuis: hour(readOne.depuis, `${which}.depuis`) }),
           ...(readOne.essais === undefined ? {} : { essais: trialsRead(readOne.essais, `${which}.essais`) }),
-          ...(readOne.gardeRepetee == null ? {} : { gardeRepetee: guardRepeatedRead(readOne.gardeRepetee) ?? refuse(`${which}.gardeRepetee`, "a guard that stopped the ticket twice") }),
           ...(readOne.activite === undefined ? {} : { activite: orNothing(readOne.activite, `${which}.activite`, understandActivity) }),
           ...(readOne.attente === undefined ? {} : { attente: orNothing(readOne.attente, `${which}.attente`, understandWait) }),
           ...(readOne.tiers === undefined ? {} : { tiers: orNothing(readOne.tiers, `${which}.tiers`, understandThird) }),
@@ -719,8 +685,6 @@ export function understand(output: string): Facts | { informe: string } {
                 station: orNothing(readOne.station, `${which}.station`, text),
                 pr: orNothing(readOne.pr, `${which}.pr`, text),
                 ...(readOne.prLue === undefined ? {} : { prLue: sizeOfPrRead(object(readOne.prLue, `${which}.prLue`)) }),
-                ...(readOne.relecture === undefined ? {} : { relecture: orNothing(readOne.relecture, `${which}.relecture`, understandReview) }),
-                ...engineOf(readOne, which),
               }), ({ ticket, titre: title }, unreadable) => ({ ticket, titre: title, url: null, livre: hour(root.lu, "lu"), station: null, pr: null, illisible: unreadable }));
             }),
           }),
@@ -768,7 +732,7 @@ export function titleOfFailure({ cas: theCase, atteinte: reached, duTableau: ofB
 
 // Une lecture de la veille, et ce qui s'en dessine. Sans faits, rien n'est
 // dessiné : le titre dit quel cas, et ce qui a été obtenu suit.
-function read(reading: Reading, awaiting?: BlockRead, status?: StatusRead, answeredEntries?: ReadonlyMap<number, Answered>, writtenEntries?: PriorityShown): { faits?: Facts; recue: Drawable } {
+function read(reading: Reading, awaiting?: BlockRead, status?: StatusRead, answeredEntries?: ReadonlyMap<number, Answered>): { faits?: Facts; recue: Drawable } {
   if ("erreur" in reading) return { recue: { ...reading, titre: titleOfFailure(reading) } };
   const { projet: project, demande: request, a } = reading;
   const rendered = reading.sorties.find(({ commande: command }) => command === COMMAND)?.texte ?? "";
@@ -776,7 +740,7 @@ function read(reading: Reading, awaiting?: BlockRead, status?: StatusRead, answe
   if ("informe" in facts) return { recue: { projet: project, demande: request, a, titre: "THE STATION DID NOT RETURN THE SHAPE OF `facts`", informe: facts.informe, rendu: rendered } };
   const publishedThe = "publieLe" in reading && typeof reading.publieLe === "string" ? { publieLe: reading.publieLe } : {};
   const paused = "pause" in reading && typeof reading.pause === "object" && reading.pause !== null ? { pause: reading.pause as PauseOfReads } : {};
-  return { faits: facts, recue: { projet: project, demande: request, a, ...publishedThe, ...paused, tableau: board(facts, awaiting, status, answeredEntries, writtenEntries) } };
+  return { faits: facts, recue: { projet: project, demande: request, a, ...publishedThe, ...paused, tableau: board(facts, awaiting, status, answeredEntries) } };
 }
 
 export const draw = (reading: Reading): Drawable => read(reading).recue;
@@ -885,9 +849,6 @@ function factsColumn(knownOne: Facts["rail"][number] | undefined, state: string 
 const AWAITING_YOU = { nom: "Awaiting you", ton: "rouge", rang: 3 } as const;
 const WAITING = { nom: "Waiting", ton: "orange", rang: 4 } as const;
 const NOBODY_AWAITS = "no ticket waits for a third party";
-// Les mots d'état d'un ticket que le runtime laisse attendre un tiers : en attente sur le
-// rail, ou mis de côté — pas celui que la cuisine tient, en cuisine ou en pass, ni un servi.
-const SETTABLE = ["en attente", "tests écrits", "BLOQUÉ", "86"];
 // La ligne du bloc `attend` d'une question du manager avant découpage, dans ses deux langues.
 const EPIC_QUESTION = /manager's question before splitting the epic|question du manager avant de découper l'épique/;
 // Ce qui suit, sur une question répondue.
@@ -904,21 +865,7 @@ const NO = "no ticket";
 const NOTHING_DELIVERS = "nothing served in the last 24 h";
 const WITHOUT_PR = "none — served without a merge";
 const WITHOUT_COOK = "not given by the queue: who cooked it — no station sent it to pass";
-// Ce qui a été livré, quand la relecture ne le dit pas : pourquoi, sans rien inventer.
-const WITHOUT_REVIEW = "what was delivered: not given — no readable review covers this delivery (merged by hand, served without going through pass, or from before the review)";
-const REVIEW_NOT_DATA = "what was delivered: not given — this station's runtime does not yet give the review in `facts`";
 
-const pluriel = (count: number, word: string) => `${count} ${word}${count > 1 ? "s" : ""}`;
-// Le nombre des constats, en clair : « 4 remarques », « 2 remarques, dont 1 bloquante ».
-export function remarks(findings: readonly Finding[]): string {
-  if (findings.length === 0) return "no remarks";
-  const blocking = findings.filter(({ gravite }) => gravite === "bloquant").length;
-  return `${pluriel(findings.length, "remark")}${blocking === 0 ? "" : `, ${blocking} blocking`}`;
-}
-
-// Ce qu'une carte de Livré dit de ce qui a été livré, d'après ce que la box en a donné.
-const delivery = (review: Review | null | undefined): Delivery =>
-  review === undefined ? { sans: REVIEW_NOT_DATA } : review === null ? { sans: WITHOUT_REVIEW } : { resume: review.resume, remarques: remarks(review.constats), constats: review.constats };
 // La colonne ne dit jamais « rien ne t'attend » : une entrée sans numéro — une
 // connexion, la base — attend aussi, et n'a pas de carte. C'est le bloc qui le dit.
 const NO_NUMBER = "no ticket at the head of a line of the `attend` block";
@@ -950,9 +897,7 @@ const NOTHING_OF_READ = "not read: this station's runtime does not give `attend`
 // depuis, 86 — reste aussi là où ce mot le range. Sans `livres`, un runtime
 // d'avant ce champ : Livré prend les tickets `servi` du rail, comme les autres.
 // `status` : ce que la box en a rendu, d'où vient la ligne que chaque carte porte.
-// `ecrites` : la priorité que l'app vient d'écrire sur l'issue d'un ticket (priority.ts), que sa carte et sa fiche
-// montrent tant que le tableau montre encore celle d'avant.
-export function rail(facts: Facts, awaiting?: BlockRead, status?: StatusRead, answeredEntries?: ReadonlyMap<number, Answered>, writtenEntries?: PriorityShown): Rail {
+export function rail(facts: Facts, awaiting?: BlockRead, status?: StatusRead, answeredEntries?: ReadonlyMap<number, Answered>): Rail {
   const lines = status === undefined ? undefined : linesOfRail(status.texte);
   const knownOnes = new Map(facts.rail.map((knownOne) => [knownOne.ticket, knownOne]));
   // Où cuit chaque station : la box, ou le Mac (slip.ts) — rien, d'un runtime qui ne donne pas les stations.
@@ -1045,14 +990,11 @@ export function rail(facts: Facts, awaiting?: BlockRead, status?: StatusRead, an
               : knownOne?.raison != null && IN_FILE.includes(knownOne.etat)
                 ? lineOfHead(knownOne.etat, knownOne.raison)
                 : queuedLine(knownOne?.etat ?? "", holds);
-    // Sur le rail, en attente : sa priorité se lit sur la carte — celle que sa ligne de `status` écrit, ou celle que
-    // l'app vient d'écrire sur son issue, tant que le tableau montre encore l'ancienne.
+    // Sur le rail, en attente : sa priorité se lit sur la carte — celle que sa ligne de `status` écrit.
     const inFile = said === undefined && knownOne !== undefined && IN_FILE.includes(knownOne.etat);
     const [itsOwnOne] = itsOwn ?? [];
     const prioRead = knownOne !== undefined && itsOwn?.length === 1 && itsOwnOne !== undefined ? priority(itsOwnOne, knownOne.etat, knownOne.titre) : undefined;
-    const levelRead = prioRead === "-" ? null : /^prio:([0-9])$/.exec(prioRead ?? "")?.[1];
-    const writtenOne = knownOne === undefined ? undefined : writtenEntries?.(ticket, levelRead === undefined || levelRead === null ? levelRead : Number(levelRead));
-    const prio = !inFile ? undefined : writtenOne !== undefined ? (writtenOne === null ? "-" : `prio:${writtenOne}`) : prioRead;
+    const prio = !inFile ? undefined : prioRead;
     // Dans Taken et Pass : depuis quand elle y est, et si c'est bien plus que d'ordinaire. Une carte qui t'attend est dans
     // TODO, pas dans ces colonnes : elle n'en porte pas.
     const age = knownOne === undefined || knownOne.illisible !== undefined || said !== undefined ? undefined : seniority(knownOne.etat, knownOne.depuis, facts.lu, facts.cadence?.medianSeconds);
@@ -1062,7 +1004,6 @@ export function rail(facts: Facts, awaiting?: BlockRead, status?: StatusRead, an
       ...line,
       ...(trials === undefined ? {} : { essais: trials }),
       ...(knownOne?.essais === undefined || knownOne.essais.length < 2 ? {} : { essai: knownOne.essais.length }),
-      ...(knownOne?.gardeRepetee === undefined ? {} : { garde: lineOfGuard(knownOne.gardeRepetee) }),
       ...(pr === undefined ? {} : deliveryOf(pr.numero, pr.url, pr)),
       ...(knownOne === undefined ? {} : colored(TONES_OF_TICKET, knownOne.etat)),
       ...(title === undefined ? {} : { titre: title }),
@@ -1075,26 +1016,19 @@ export function rail(facts: Facts, awaiting?: BlockRead, status?: StatusRead, an
       // Qui attend le chef reste dans la colonne de son étape, en rouge (#3458) : celle de son mot d'état — ou, mis de côté,
       // celle où le runtime dit qu'il attend —, et sur le rail quand il n'y est pas encore.
       ...(said === undefined ? {} : { etape: factsColumn(knownOne, knownOne?.etat) ?? COLUMN_BY_DEFAULT }),
-      // Livré, d'une box d'avant `livres` : la relecture n'en vient pas, la carte le dit.
-      ...(knownOne?.etat === "servi" && facts.livres === undefined ? { livraison: delivery(undefined) } : {}),
       ...carried,
       // La PR n'est donnée que d'un ticket livré : ici, la box ne la donne pas.
       fiche: {
-        ...header({ ...(title === undefined ? {} : { titre: title }), url, ...on(knownOne), ...(itsOwn === undefined ? {} : { lignes: itsOwn }), ...(writtenOne === undefined ? {} : { prio: writtenOne }) }),
-        // La carte du chef : la tête dit ce que sa sorte attend, la question est dite dessous (story.ts, `situation`).
+        ...header({ ...(title === undefined ? {} : { titre: title }), url, ...on(knownOne), ...(itsOwn === undefined ? {} : { lignes: itsOwn }) }),
+        // La carte du chef : la tête dit ce que sa sorte attend, la question est dite dessous.
         ...(said === undefined ? {} : { attendu: ofChef !== undefined && gives?.chef !== undefined ? sentenceOfChef(gives.chef.sorte) : (why ?? withoutQuestion(ticket)) }),
       },
-      // Dans TODO, un ticket du rail que la cuisine ne tient pas peut attendre un tiers — sur un projet GitHub, toute carte
-      // de TODO (vue/wait/, #3075).
-      ...(said !== undefined && (facts.stationsSurGithub !== undefined || (knownOne !== undefined && SETTABLE.includes(knownOne.etat))) ? { gestes: ["attente-poser" as const] } : {}),
       ...(said !== undefined && queried.has(ticket) ? { question: true as const } : {}),
       ...(said !== undefined && gives?.chef !== undefined ? { chef: gives.chef } : {}),
       ...(refused ? { refus: { brut: rawOfRefusal } } : {}),
       // Prise (`taken`), sans attente chronométrée vivante, et aucun cook ne la cuit sur aucune station : la carte le dit (#3884).
       // `facts` sans liste de cooks (runtime d'avant ce champ) : on ne sait pas, rien n'est dit.
       ...(said === undefined && knownOne?.etat === "pris" && knownOne.attente == null && knownOne.illisible === undefined && facts.cooks !== undefined && !facts.cooks.some((cook) => cook.ticket === ticket) ? { sansCook: true as const } : {}),
-      // En pass ou livrée, et sur le rail : « try it » (trial.ts, #3215) — pas une carte qui t'attend.
-      ...(said === undefined && knownOne?.illisible === undefined && sTries(knownOne?.etat) ? { essayable: true as const } : {}),
       // Mis de côté par le runtime, sans question au chef : parked, jusqu'à son retour (#4238).
       ...(said === undefined && knownOne?.attente != null && !refused ? { parque: { qui: knownOne.attente.raison, jusqua: knownOne.attente.retour } } : {}),
       ...(setAside === undefined ? {} : { miseDeCote: { label: setAside.label, liens: setAside.raison === null ? [] : setAside.liens.map(({ numero: number }) => number) } }),
@@ -1138,7 +1072,7 @@ export function rail(facts: Facts, awaiting?: BlockRead, status?: StatusRead, an
 
   // La carte d'un ticket qui attend un tiers : ce qu'il attend, dans les mots du chef ; de qui ;
   // depuis quand et sa relance, à l'horloge de la box, et leur écart à la lecture ; ce que
-  // « c'est arrivé » fera de lui. Puis ses deux gestes : le reprendre, ou le renvoyer en cuisine.
+  // « c'est arrivé » fera de lui.
   const queued = (ticket: number): Card => {
     const knownOne = knownOnes.get(ticket) as Facts["rail"][number];
     const { tiers: third, url, titre: title } = knownOne;
@@ -1167,8 +1101,6 @@ export function rail(facts: Facts, awaiting?: BlockRead, status?: StatusRead, an
       // Parked pour qui elle attend, pour ce qu'elle attend : pour le chef seulement, elle est dans son TODO (#4261).
       ...(third == null ? {} : { parque: parkedOf(third.qui, third.quoi, third.relance) }),
       fiche: header({ titre: title, url, ...on(knownOne), ...(lines === undefined ? {} : { lignes: lines.get(ticket) ?? [] }) }),
-      // Sans relance, personne n'a posé l'attente : rien à reprendre ni à renvoyer, le ticket repart seul.
-      ...(third?.relance === null ? {} : { gestes: ["attente-reprendre" as const, "attente-arrivee" as const] }),
       // Faute de capacité, ce que sa carte demande : la vue en tire ses deux sorties (vue/wait-capacity/).
       ...(knownOne.requiert === undefined ? {} : { requiert: knownOne.requiert, enWaiting: true as const }),
       ...(knownOne.station === undefined ? {} : { station: knownOne.station }),
@@ -1177,16 +1109,15 @@ export function rail(facts: Facts, awaiting?: BlockRead, status?: StatusRead, an
 
   // La carte d'un ticket livré : ce que `livres` en donne — son titre, ou celui du
   // rail s'il n'en a pas ; quand il a été livré, à l'horloge de la box ; qui l'a
-  // cuisiné ; sa PR mergée ; ce qui a été livré, dans les mots de la relecture.
-  // Ce que la file n'en dit pas est écrit.
-  const delivers = ({ ticket, titre: title, url, livre: when, station, pr, prLue: prRead, relecture: review, moteur: engine, illisible: unreadable }: Delivers): Card => {
+  // cuisiné ; sa PR mergée ; ce que la file n'en dit pas est écrit.
+  const delivers = ({ ticket, titre: title, url, livre: when, station, pr, prLue: prRead, illisible: unreadable }: Delivers): Card => {
     const knownOne = knownOnes.get(ticket);
     const address = url ?? knownOne?.url;
     const named = title === "" ? knownOne?.titre : title;
     const numberOfPr = pr === null ? undefined : /\/pull\/(\d+)$/.exec(pr)?.[1];
     return {
       ticket,
-      ...(unreadable === undefined ? lineDelivered(when, review?.resume) : lineUnreadable()),
+      ...(unreadable === undefined ? lineDelivered(when) : lineUnreadable()),
       ...colored(TONES_OF_TICKET, "servi"),
       ...(named === undefined || named === "" ? {} : { titre: named }),
       ouvrable: address != null && openable(address),
@@ -1194,9 +1125,6 @@ export function rail(facts: Facts, awaiting?: BlockRead, status?: StatusRead, an
       attend: [],
       ...(pr === null ? {} : { pr: openable(pr) }),
       ...(pr === null || prRead === undefined || numberOfPr === undefined ? {} : deliveryOf(Number(numberOfPr), pr, prRead)),
-      livraison: delivery(review),
-      ...(engine === undefined ? {} : { moteur: engine }),
-      ...(unreadable === undefined ? { essayable: true as const } : {}),
       dit: [
         pr === null ? { libelle: "served", valeur: before(when, facts.lu) } : { libelle: "merged", valeur: `${duration(Date.parse(facts.lu) - Date.parse(when))} ago` },
         ...(station === null ? [] : [{ libelle: "cooked by", valeur: station, exact: true as const }]),
@@ -1271,7 +1199,7 @@ const COOKS_NOT_READ = "cooks running: not read — this station's runtime does 
 // Les faits, tels que la vue les pose : la pastille, les cinq compteurs dans
 // l'ordre de la carte, les cooks en cours dans celui de la box, le dernier
 // événement, et le rail en six colonnes.
-export function board(facts: Facts, awaiting?: BlockRead, status?: StatusRead, answeredEntries?: ReadonlyMap<number, Answered>, writtenEntries?: PriorityShown): Board {
+export function board(facts: Facts, awaiting?: BlockRead, status?: StatusRead, answeredEntries?: ReadonlyMap<number, Answered>): Board {
   const { compteurs: counters } = facts;
   return {
     ...colored(TONES_OF_PROJECT, facts.etat),
@@ -1287,7 +1215,7 @@ export function board(facts: Facts, awaiting?: BlockRead, status?: StatusRead, a
     cooks: { enCours: facts.cooks ?? [], vide: facts.cooks === undefined ? COOKS_NOT_READ : NO_COOK },
     evenement: event(facts),
     ...nothingNotCooked(status),
-    rail: rail(facts, awaiting, status, answeredEntries, writtenEntries),
+    rail: rail(facts, awaiting, status, answeredEntries),
     auTravail: ticketsAtWork(facts),
     ...(facts.lectureSeule === undefined ? {} : { lectureSeule: facts.lectureSeule }),
     ...(facts.quotaGithub === undefined ? {} : { quotaGithub: facts.quotaGithub }),
@@ -1310,12 +1238,11 @@ export const BANNER = {
 // que la box a donnée pour ce ticket, à la dernière lecture. Le dernier `status`
 // de chaque projet y est tenu aussi, son bloc `attend` mis à part : il vient d'une
 // autre lecture, et le rail se dessine des deux. `repondues` : les questions répondues de chaque
-// projet (answered.ts), que le rail range dans WAITING. `ecrites` : les priorités que l'app vient d'écrire sur
-// les issues de chaque projet (priority.ts), que le rail montre tant que le tableau ne les a pas lues.
+// projet (answered.ts), que le rail range dans WAITING.
 // La carte d'un ticket sur le kanban de la nouvelle cuisine (#4482), aux derniers faits lus : son issue et sa PR s'ouvrent par elle.
 const cardOfKanban = (given: Facts | undefined, ticket: unknown) => given?.kitchenBoard?.columns.flatMap(({ cards }) => cards).find((card) => card.ticket === ticket);
 
-export function holdFacts(answeredEntries: (project: string) => ReadonlyMap<number, Answered> = () => new Map(), writtenEntries: (project: string) => PriorityShown = () => () => undefined) {
+export function holdFacts(answeredEntries: (project: string) => ReadonlyMap<number, Answered> = () => new Map()) {
   const heldOnes = new Map<string, { faits: Facts; lecture: Reading }>();
   const blocks = new Map<string, BlockRead>();
   const statuses = new Map<string, StatusRead>();
@@ -1324,7 +1251,7 @@ export function holdFacts(answeredEntries: (project: string) => ReadonlyMap<numb
     // Hors ligne, ou d'un tableau qui ne s'est pas lu, les derniers faits lus restent : la fiche, ses adresses et le rail
     // gardé s'y lisent encore (#1818, #2151).
     recevoir(reading: Reading): Drawable {
-      const { faits: facts, recue: receivedOne } = read(reading, blocks.get(reading.projet), statuses.get(reading.projet), answeredEntries(reading.projet), writtenEntries(reading.projet));
+      const { faits: facts, recue: receivedOne } = read(reading, blocks.get(reading.projet), statuses.get(reading.projet), answeredEntries(reading.projet));
       if (facts === undefined && isMissedOfBoard(reading)) return receivedOne;
       if (facts === undefined) heldOnes.delete(reading.projet);
       else heldOnes.set(reading.projet, { faits: facts, lecture: reading });
@@ -1347,7 +1274,7 @@ export function holdFacts(answeredEntries: (project: string) => ReadonlyMap<numb
       set(statuses, shownOne.projet, status);
       const held = heldOnes.get(shownOne.projet);
       if (held === undefined || (!before && block === undefined && status === undefined)) return undefined;
-      return read(held.lecture, block, status, answeredEntries(shownOne.projet), writtenEntries(shownOne.projet)).recue;
+      return read(held.lecture, block, status, answeredEntries(shownOne.projet)).recue;
     },
     // Les projets dont `status` est lu désormais — celui qui est affiché, ou tous.
     // Ce qu'il a rendu pour un projet qui n'en est plus est lâché : ses faits, eux,
@@ -1358,14 +1285,14 @@ export function holdFacts(answeredEntries: (project: string) => ReadonlyMap<numb
         blocks.delete(project);
         statuses.delete(project);
         const held = heldOnes.get(project);
-        return held === undefined ? [] : [read(held.lecture, undefined, undefined, answeredEntries(project), writtenEntries(project)).recue];
+        return held === undefined ? [] : [read(held.lecture, undefined, undefined, answeredEntries(project)).recue];
       });
     },
     // Le rail d'un projet redessiné des dernières lectures, sans en attendre une : une question vient
     // d'y être répondue, ou de ne plus l'être. Rien, s'il n'a pas de faits lus.
     redessiner(project: string): Drawable | undefined {
       const held = heldOnes.get(project);
-      return held === undefined ? undefined : read(held.lecture, blocks.get(project), statuses.get(project), answeredEntries(project), writtenEntries(project)).recue;
+      return held === undefined ? undefined : read(held.lecture, blocks.get(project), statuses.get(project), answeredEntries(project)).recue;
     },
     // Les tickets qui attendent le chef d'après les dernières lectures : ceux que le bloc `attend` nomme
     // en tête d'une ligne, et ceux que `faits` donne dans `attend`. Indéfini : ni l'un ni l'autre n'est lu.

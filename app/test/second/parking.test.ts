@@ -9,9 +9,9 @@ import { describe, test } from "node:test";
 import type { ClientOfThePriority } from "../../src/priority.ts";
 import { hooksOfParking } from "../../src/second/hook-of-parking.ts";
 import { context, principal } from "../../src/second/action-of-parking.ts";
-import type { BoardRead } from "../../src/board/read.ts";
+import { unpark } from "../../src/actions-github.ts";
 import { openTerminals, type Launch } from "../../src/terminals.ts";
-import { playTheWait, thirdOfComments } from "../../src/vue/wait/wait-github.ts";
+import { park, thirdOfComments } from "../../src/vue/wait/wait-github.ts";
 
 const REPOSITORY = "BOBL-tech/mirrorlab";
 const TICKET = 614;
@@ -57,9 +57,7 @@ function github(outage: (writing: string) => Answer | undefined = () => undefine
   return { client, ecrites: writtenEntries, etat: state };
 }
 
-// La dernière lecture du rail par l'app : le ticket y est, sur le dépôt du projet.
-const READ = { depot: REPOSITORY, faits: { rail: [{ ticket: TICKET }], attend: [], attendAutres: [] } } as unknown as BoardRead;
-const byTheApp = (client: ClientOfThePriority, id: string, input?: unknown) => playTheWait({ id, ticket: TICKET, saisie: input, aujourdhui: TODAY, lu: () => READ, client });
+const parkByTheApp = (client: ClientOfThePriority) => park(REPOSITORY, TICKET, { quoi: "the signed quote", qui: "the client", relance: DAY }, TODAY, client);
 async function byTheSecond(client: ClientOfThePriority, ...args: string[]) {
   const [said, redit]: [string[], string[]] = [[], []];
   const code = await principal(args, { client, aujourdhui: TODAY, dire: (line) => void said.push(line), redire: (line) => void redit.push(line) });
@@ -73,7 +71,7 @@ describe("le second et l'app parquent et déparquent un ticket dans le même ét
   test("parqué : le même label et le même commentaire, que la station et l'app relisent — qui, pour quoi, jusqu'à quand", async () => {
     const app = github();
     const second = github();
-    assert.ok("fait" in (await byTheApp(app.client, "attente-poser", { quoi: "the signed quote", qui: "the client", relance: DAY })));
+    assert.ok("fait" in (await parkByTheApp(app.client)));
     const launches = await byTheSecond(second.client, ...PARK);
     assert.deepEqual([launches.code, launches.redit], [0, ""]);
     assert.equal(launches.dit, `in WAITING on GitHub: #${TICKET} awaits the client, follow-up on ${DAY} — https://github.com/${REPOSITORY}/issues/${TICKET}#issuecomment-1`);
@@ -87,20 +85,18 @@ describe("le second et l'app parquent et déparquent un ticket dans le même ét
     assert.deepEqual([third?.qui, third?.quoi, third?.relance], ["the client", "the signed quote", new Date(2026, 10, 20).toISOString()]);
   });
 
-  for (const id of ["attente-reprendre", "attente-arrivee"]) {
-    test(`déparqué — « ${id === "attente-reprendre" ? "resume" : "it arrived, back to the kitchen"} » de l'app, \`unpark\` du second : le même état`, async () => {
-      const app = github();
-      const second = github();
-      for (const { client } of [app, second]) assert.equal((await byTheSecond(client, ...PARK)).code, 0);
-      assert.ok("fait" in (await byTheApp(app.client, id)));
-      const launches = await byTheSecond(second.client, "unpark", `${REPOSITORY}#${TICKET}`);
-      assert.deepEqual([launches.code, launches.redit], [0, ""]);
-      assert.equal(launches.dit, `back to the kitchen on GitHub: #${TICKET} no longer carries \`parked\` — it resumes exactly where it was — https://github.com/${REPOSITORY}/issues/${TICKET}`);
-      assert.deepEqual(second.ecrites, app.ecrites);
-      assert.deepEqual(second.etat(), app.etat());
-      assert.deepEqual(second.etat()?.labels, ["fire", "chef-todo"]);
-    });
-  }
+  test("déparqué — `unpark` de l'app, `unpark` du second : le même état", async () => {
+    const app = github();
+    const second = github();
+    for (const { client } of [app, second]) assert.equal((await byTheSecond(client, ...PARK)).code, 0);
+    assert.ok("fait" in (await unpark(REPOSITORY, TICKET, app.client)));
+    const launches = await byTheSecond(second.client, "unpark", `${REPOSITORY}#${TICKET}`);
+    assert.deepEqual([launches.code, launches.redit], [0, ""]);
+    assert.equal(launches.dit, `back to the kitchen on GitHub: #${TICKET} no longer carries \`parked\` — it resumes exactly where it was — https://github.com/${REPOSITORY}/issues/${TICKET}`);
+    assert.deepEqual(second.ecrites, app.ecrites);
+    assert.deepEqual(second.etat(), app.etat());
+    assert.deepEqual(second.etat()?.labels, ["fire", "chef-todo"]);
+  });
 });
 
 describe("déparquer un ticket que le chef attend", () => {

@@ -327,8 +327,7 @@ le remplace, injecté par `Pont.java` au début de chaque document de l'app, ava
   chacun sur GitHub seul (#2501) : la lecture d'`app/src/read-github-phone.ts`, celle du desktop,
   avec le jeton du coffre, par le même HTTP natif, à `api.github.com` et nulle part ailleurs. Aucune
   station n'est lue : pas connecté, le téléphone ne lit rien.
-- Connecté, `gestesDeFiche`, `gesteDeFiche`, `attente` et `repondreCarte` écrivent les gestes du chef
-  sur GitHub seul (#2502) : répondre à une carte de TODO, reprendre, mettre en suspens, par le code
+- Connecté, `repondreCarte` écrit le geste du chef sur GitHub seul (#2502) : répondre à une carte de TODO, par le code
   d'écriture du desktop (`app/src/actions-github-phone.ts`, posé à `www/src/gestes-github-telephone.js`),
   avec le jeton du coffre, par le même HTTP natif. Aucune station n'est jointe pour un geste.
 - Aucun appairage ne se tire : ni code, ni lecteur de QR, ni lien `brigade://pair`, ni http en clair — le téléphone ne parle

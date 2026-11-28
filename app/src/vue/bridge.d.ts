@@ -6,7 +6,6 @@ import type { Shown } from "../bar.ts";
 import type { Reading } from "../box.ts";
 import type { PALETTE, Role } from "../colors.ts";
 import type { BANNER, Drawable } from "../facts.ts";
-import type { ACTIONS_OF_WAIT, Input as InputOfWait } from "../wait.ts";
 import type { Tab, Heading } from "../tabs.ts";
 import type { Block } from "../ordinary.ts";
 import type { RenderedOfOutage } from "../outages/actions.ts";
@@ -26,7 +25,7 @@ import type { Choice, StationsOfAccount } from "../stations-of-account.ts";
 
 export type Bridge = {
   // `poste` : le nom que l'écran donne à cet ordinateur (« this Mac », « this PC »), et s'il est un Mac — les raccourcis du terminal en dépendent.
-  demarrage(): Promise<{ poste?: { nom: string; mac: boolean }; configuration: Shown; palette: typeof PALETTE; exemple: string; onglets: readonly Tab[]; rubriques: readonly Heading[]; gestes: { attente?: typeof ACTIONS_OF_WAIT }; banniere: typeof BANNER; calibrage: { modeles: typeof MODELS; efforts: typeof EFFORTS }; code: SeenOfCode | undefined; stations?: SeenOfStations; projetsDesStations?: SeenOfProjects; accueil?: Home; miseAJour?: StateOfUpdate; telephone?: Phone }>;
+  demarrage(): Promise<{ poste?: { nom: string; mac: boolean }; configuration: Shown; palette: typeof PALETTE; exemple: string; onglets: readonly Tab[]; rubriques: readonly Heading[]; banniere: typeof BANNER; calibrage: { modeles: typeof MODELS; efforts: typeof EFFORTS }; code: SeenOfCode | undefined; stations?: SeenOfStations; projetsDesStations?: SeenOfProjects; accueil?: Home; miseAJour?: StateOfUpdate; telephone?: Phone }>;
   // Change la couleur d'onglet ou d'accent d'un projet, par le nom d'une couleur de la palette ou
   // une couleur libre `#rrggbb` (colors.ts). Rend la raison, si elle ne l'a pas été. Écrite, elle
   // arrive par `surConfiguration`.
@@ -68,33 +67,16 @@ export type Bridge = {
   // l'issue lue par le `gh` du poste. La vue nomme le projet et le ticket. Rien pour un ticket que
   // le bloc `attend` ne nomme pas.
   lireQuestion(project: string, ticket: number): Promise<QuestionRead | undefined>;
-  // Ce que la fiche dit d'un ticket vivant — ce que son cook fait, ou ce qui le bloque —, d'après
-  // la carte cliquée (story.ts, `situation`). Rien pour un ticket que la cuisine ne tient pas.
-  situation(card: { etat?: string; attend: string[]; dit: { libelle: string; valeur: string }[]; question?: string }): Promise<import("../story.ts").Situation>;
   // Les gestes de la fiche de cette carte, à cet instant, chacun avec son prix (card-actions.ts) :
   // ceux qui tranchent ce qu'on attend du chef, puis ceux que la table du chef permet pour son
   // état, et dont l'action est branchée.
   gestesDeFiche(card: { ticket: number; etat?: string; ouvrable: boolean; attendu: boolean; pr?: boolean }): Promise<import("../card-actions.ts").Proposes[]>;
-  // Un geste de la fiche que la vue ne joue pas : une action de box, qui part dans le second. Là où il n'y a pas de
-  // second où l'écrire — le téléphone (ticket 1164) —, le pont joue l'action sur la station et rend ce qu'elle a fait,
-  // comme `panne` : `fait`, une phrase, et ce que la station a répondu en `detail`.
-  gesteDeFiche(project: string, id: string, ticket: number, value?: string): Promise<Terminal | { refus: string; detail?: string } | { fait: string; detail?: string }>;
-  // L'histoire d'un ticket et son coût, lus par `pass <ticket> --json` sur la box (story.ts).
-  lireHistoire(project: string, ticket: number): Promise<import("../story.ts").Story | undefined>;
-  // L'issue d'un ticket et sa discussion (discussion.ts), lues sur la box du projet à l'ouverture de
-  // sa fiche : le corps, puis les commentaires dans l'ordre, le markdown rendu — ou pourquoi on n'en
-  // lit rien. Rien, pour un projet qui a quitté le fichier.
-  lireDiscussion(project: string, ticket: number): Promise<import("../discussion.ts").Discussion | undefined>;
-  // Poste ce texte en commentaire sur l'issue du ticket, par la box du projet : rend s'il l'a été, ou
-  // pourquoi il ne l'est pas. Rien ne part d'un texte vide.
-  commenter(project: string, ticket: number, text: string): Promise<import("../discussion.ts").Commented>;
-  demanderAuSecond(project: string, ticket: number, context: string): Promise<Terminal | { refus: string }>;
+  demanderAuSecond(project: string, ticket: number): Promise<Terminal | { refus: string }>;
   // Passe une carte de TODO au second (handover-second.ts, ticket 3133) : son numéro, sa question — nulle, « no
   // question found » —, et ce que son issue dit, écrits dans le second du projet sans Entrée.
   passerAuSecond(project: string, ticket: number, question: string | null): Promise<Terminal | { refus: string }>;
-  // Ouvre dans le navigateur une adresse que la dernière discussion lue de ce ticket montre — et
-  // aucune autre. Rend si elle a été ouverte.
-  ouvrirLien(project: string, ticket: number, url: string): Promise<boolean>;
+  // Ouvre dans le navigateur le lien de la PR d'une carte. Absent, la page l'ouvre elle-même.
+  ouvrirLien?(project: string, ticket: number, url: string): Promise<boolean>;
   // Le titre d'une issue que la box ne donne pas, lu par le `gh` du poste à l'adresse que la box a rendue.
   lireTitre(project: string, ticket: number): Promise<import("../question.ts").Title | undefined>;
   // Les tickets `fire` du projet, lus sur GitHub par le `gh` du poste (fire.ts) : ce que le rail sait encore quand la box ne répond pas.
@@ -111,19 +93,8 @@ export type Bridge = {
   // de la ligne et ce qu'elle dit ; la phrase vient de ce que la bande en dit. Rien pour une ligne
   // qu'elle ne dit plus.
   demanderAlerte(project: string, subject: string, said: string): Promise<Terminal | { refus: string } | undefined>;
-  // Un geste de WAITING (wait.ts), sur la carte d'un ticket ou sa fiche : sa commande part dans le second du
-  // projet, comme un geste du socle, quand sa cuisine tourne sur ce poste — sinon il s'écrit sur l'issue
-  // (vue/wait/wait-github.ts, ticket 3075). `saisie` : ce que le chef a rempli pour « waiting for… » — ce
-  // qu'il attend, de qui, le jour de la relance. Rend le second, ce qui est écrit (`fait`), ou pourquoi rien n'est parti.
-  // « it arrived, back to the kitchen » (`attente-arrivee`) part sur le tableau de la cuisine : il rend
-  // ce qui est posté (`fait`, le commentaire au survol), ou pourquoi rien ne l'est.
   // Un geste d'une carte mise de côté (actions-refusal.ts, ticket 3147) : `relancer` retire `served-elsewhere` de l'issue, `clore` la ferme comme terminée.
-  // Essayer une livraison depuis sa carte (trial.ts, ticket 3215) : la déclaration du projet et ses essais par ticket (rien : le projet n'est plus connu).
-  essais(project: string): Promise<import("../trial.ts").SeenOfTrials | undefined>;
-  essayer(project: string, ticket: number): Promise<void>;
-  arreterEssai(project: string, ticket: number): Promise<void>;
   refus(project: string, id: "relancer" | "clore", ticket: number): Promise<Terminal | { refus: string; detail?: string } | { fait: string; detail?: string }>;
-  attente(project: string, id: string, ticket: number, input?: InputOfWait): Promise<Terminal | { refus: string; detail?: string } | { fait: string; detail?: string } | undefined>;
   // Un clone en retard sur son origine (delay.ts) : sa mise à jour, `git -C <clone> pull`, est
   // écrite dans un shell de l'espace d'un projet, ouvert pour elle, sans être envoyée. Rend ce
   // shell — son projet est celui où il s'est ouvert — ou pourquoi rien n'est écrit. Rien, pour un
@@ -316,8 +287,6 @@ export type Bridge = {
   // Ce que la commande de l'onglet affiché a rendu, mot pour mot.
   surContenu(receive: (reading: Reading) => void): void;
   // Ce que `faits` a rendu pour un projet : de quoi dessiner, ou ce qui a été obtenu à la place.
-  // Un essai du projet nommé a changé : la vue relit `essais`.
-  surEssais(receive: (project: string) => void): void;
   surFaits(receive: (receivedOne: Drawable) => void): void;
   // La bande d'alertes d'un projet, redessinée à chaque lecture qui la change (alerts.ts) :
   // vide, les quatre états ont été lus et vont bien.

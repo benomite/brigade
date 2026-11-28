@@ -114,11 +114,10 @@ export function verifierPrerequis(machine: Machine, natif = NATIF, app = APP): P
 // quelles. Le pont d'attente y ajoute une liste de projets vide.
 export type Demarrage = Omit<Awaited<ReturnType<Bridge["demarrage"]>>, "configuration">;
 export async function demarrageDuPont(): Promise<Demarrage> {
-  const [{ PALETTE }, { EXAMPLE }, { TABS, HEADINGS }, { ACTIONS_OF_WAIT }, { BANNER }, { MODELS, EFFORTS }] = await Promise.all([
+  const [{ PALETTE }, { EXAMPLE }, { TABS, HEADINGS }, { BANNER }, { MODELS, EFFORTS }] = await Promise.all([
     import("../src/colors.ts"),
     import("../src/config.ts"),
     import("../src/tabs.ts"),
-    import("../src/wait.ts"),
     import("../src/facts.ts"),
     import("../src/projects/projects.ts"),
   ]);
@@ -127,7 +126,6 @@ export async function demarrageDuPont(): Promise<Demarrage> {
     exemple: EXAMPLE,
     onglets: TABS,
     rubriques: HEADINGS,
-    gestes: { attente: ACTIONS_OF_WAIT },
     banniere: BANNER,
     calibrage: { modeles: MODELS, efforts: EFFORTS },
     code: undefined,

@@ -19,24 +19,19 @@ import { readFire } from "./fire.ts";
 import { COMMAND as COMMAND_UPSTREAM, holdUpstream } from "./upstream.ts";
 import { putAside } from "./awaiting.ts";
 import { forTheBar } from "./bar.ts";
-import { situationOf } from "./story.ts";
-import { LinksRead } from "./links-read.ts";
-import { comment, askAtSecond, noteOfTheQuestion } from "./discussion.ts";
+import { askAtSecond, noteOfTheQuestion } from "./discussion.ts";
 import { noteOfTheHandover, passAtSecond } from "./handover-second.ts";
-import { discussionOfGitHub, storyOfGitHub } from "./card-github.ts";
+import { discussionOfGitHub } from "./card-github.ts";
 import { pathConfiguration, EXAMPLE, type Project } from "./config.ts";
-import { holdTheTrials } from "./trial.ts";
 import { openTheReport, versionAimed } from "./vue/report/opening.ts";
 import { readTheAgents } from "./team-of-the-box.ts";
 import { writeInTheProject, readInTheProject } from "./vue/card-project/card-project-folder.ts";
 import { choice, whole, PALETTE } from "./colors.ts";
 import { blockOfOrdinary } from "./ordinary.ts";
-import { ACTIONS_OF_WAIT } from "./wait.ts";
 import { BANNER, COMMAND, holdFacts, type Drawable } from "./facts.ts";
 import { holdTheColumns } from "./columns-emptied.ts";
 import { clientGitHub, byFetch } from "./board/client.ts";
 import { withWhatAwaitingTheChef } from "./board/wait-of-chef.ts";
-import { playTheWait } from "./vue/wait/wait-github.ts";
 import { readConditional, type MemoryOfReads } from "./board/rail-github.ts";
 import { shareOfCardsAssigned, holdTheLogin } from "./vue/cards-assigned/cards-assigned.ts";
 import { tokenOfGh } from "./board/token-gh.ts";
@@ -50,10 +45,10 @@ import { activitiesPublished, readTheBoardOfRepository, type ReadOfBoardOfReposi
 import { pageOfFacts } from "./read-only.ts";
 import { openStandbyOfBoard, holdReadsOfBoard } from "./board/rail.ts";
 import { playTheRefusal } from "./actions-refusal.ts";
-import { commentTheIssue, removeTheLabel, WITHOUT_DONE, onGithub } from "./actions-github.ts";
+import { WITHOUT_DONE } from "./actions-github.ts";
 import { requestOf, requestOfTheAlert, requestOnTheTicket, noteOfTheRequest } from "./request.ts";
 import { actionsOfCard } from "./card-actions.ts";
-import { changeThePriority, clientOfThePriority, sendByFetch, holdPrioritiesWritten } from "./priority.ts";
+import { clientOfThePriority, sendByFetch } from "./priority.ts";
 import { changeTheCap, readTheCaps } from "./caps-duration.ts";
 import { changeTheSetting, changeTheVerifications, readTheCloser } from "./closer-health.ts";
 import { changeTheKnowledge, readTheKnowledgeOfProject } from "./vue/know-how/know-how-github.ts";
@@ -293,13 +288,7 @@ const standby = openStandbyOfBoard({
 // Les questions du manager que le chef a répondues (answered.ts) : leur carte quitte TODO pour
 // WAITING sans attendre le manager.
 const answeredEntries = holdAnswered();
-// Les priorités que le chef vient de changer depuis une fiche (priority.ts) : le rail les montre tant que la dernière
-// lecture montre encore les anciennes.
-const prioritiesWritten = holdPrioritiesWritten();
-const facts = holdFacts(
-  (project) => answeredEntries.de(project),
-  (project) => prioritiesWritten.de(project),
-);
+const facts = holdFacts((project) => answeredEntries.de(project));
 // Chaque colonne du rail qui passe de cartes à aucune est dite (columns-emptied.ts, #2151) : sur la sortie d'erreur de
 // l'app, et dans `rail-columns.log`, à côté du fichier des projets — la lecture qui l'a fait s'y relit après coup.
 const logOfColumns = join(dirname(pathConfiguration()), "rail-columns.log");
@@ -639,7 +628,7 @@ function project(name: unknown): Project {
   return finds;
 }
 
-ipcMain.handle("demarrage", () => ({ poste: { nom: nameOfWorkstation(), mac: isOneMac(platform) }, configuration: shownEntry(), palette: PALETTE, exemple: EXAMPLE, onglets: TABS, rubriques: HEADINGS, gestes: { attente: ACTIONS_OF_WAIT }, banniere: BANNER, calibrage: { modeles: MODELS, efforts: EFFORTS }, code: delays.vu(), stations: stations.vu(), projetsDesStations: projectsOfStations.vu(), accueil: home.vu(), miseAJour: update.vu() }));
+ipcMain.handle("demarrage", () => ({ poste: { nom: nameOfWorkstation(), mac: isOneMac(platform) }, configuration: shownEntry(), palette: PALETTE, exemple: EXAMPLE, onglets: TABS, rubriques: HEADINGS, banniere: BANNER, calibrage: { modeles: MODELS, efforts: EFFORTS }, code: delays.vu(), stations: stations.vu(), projetsDesStations: projectsOfStations.vu(), accueil: home.vu(), miseAJour: update.vu() }));
 // Les couleurs d'un projet : la vue nomme le projet, le rôle — onglet ou accent — et une couleur
 // de la palette, par son nom, ou une couleur libre `#rrggbb` (colors.ts). Écrite, elle arrive par
 // `surConfiguration`, avec ce qu'elle a de trop proche. Rend la raison, si elle ne l'a pas été.
@@ -723,29 +712,6 @@ ipcMain.handle("demander", (_, name: unknown, ticket: unknown) => {
 // ceux qui tranchent ce qu'on attend du chef, puis ceux que la table du chef permet pour son état,
 // dont l'action est branchée, chacun avec son prix.
 ipcMain.handle("gestesDeFiche", (_, card: unknown) => actionsOfCard(card));
-// Un geste de la fiche que la vue ne joue pas elle-même. Changer la priorité remplace le label `prio:`
-// de l'issue sur GitHub (priority.ts, #1739), par le jeton du `gh` de ce poste — ni box : fait, le rail
-// montre aussitôt la nouvelle priorité, jusqu'à ce que sa lecture la montre. Retirer le ticket du rail et
-// renvoyer en cuisine un ticket revenu de WAITING retirent de son issue `fire` ou `waiting`, par le même
-// jeton (actions-github.ts, #2061) ; le rail, relu de GitHub, le montre. Merger la livraison se fait sur sa
-// PR, sur GitHub : rien ne part de l'app. La vue nomme le geste, le ticket et la valeur ; ce qui part se compose ici,
-// jamais dans la vue.
-ipcMain.handle("gesteDeFiche", async (_, name: unknown, id: unknown, ticket: unknown, value: unknown) => {
-  const aims = knownOne(name);
-  if (aims === undefined) return gone(name);
-  if (id === "priorite") {
-    if (facts.ticket(aims.nom, ticket)?.etat === undefined) return { refus: `nothing was changed: #${String(ticket)} is not on the latest rail read — read it again`, detail: "" };
-    const rendered = await changeThePriority({ depot: await repositoryOfProject(aims), ticket, valeur: value, client: clientOfLabels });
-    if (!("fait" in rendered)) return rendered;
-    prioritiesWritten.ecrite(aims.nom, ticket as number, rendered.niveau, rendered.avant);
-    redrawRail(aims.nom);
-    return { fait: rendered.fait, detail: rendered.detail };
-  }
-  if (!onGithub(id)) return { refus: `nothing was done: “${String(id)}” is not a gesture the app plays here`, detail: "" };
-  const rendered = await removeTheLabel(boards.dernier(aims.nom), id, ticket, clientOfLabels);
-  if ("fait" in rendered) boards.oublier();
-  return rendered;
-});
 // Un geste d'une carte que la station a mise de côté (ticket 3147) : « Relaunch » retire `served-elsewhere` de l'issue,
 // « Close as already done » la ferme comme terminée — chacun par l'accès GitHub de l'app (actions-refusal.ts). « Ask the second »
 // passe par `passerAuSecond`, plus haut.
@@ -785,34 +751,9 @@ ipcMain.handle("lireQuestion", (_, name: unknown, ticket: unknown) => {
   const address = facts.adresse(aims.nom, ticket);
   return address === undefined ? { a: new Date().toISOString(), sans: "the station gave no https address for this issue: the app has nothing to read" } : readQuestion(settingsGh(), address).then((readEntry) => holdRead(aims.nom, ticket, readEntry));
 });
-// L'histoire d'un ticket, sur sa fiche : lue de GitHub par le `gh` du poste (card-github.ts), jamais de la
-// box — le coût et la rétro que seul son journal porte sont dits non communiqués. La vue nomme le projet et le ticket.
-ipcMain.handle("situation", (_, card: unknown) => situationOf(card));
-ipcMain.handle("lireHistoire", async (_, name: unknown, ticket: unknown) => {
-  const aims = knownOne(name);
-  return aims === undefined ? undefined : storyOfGitHub(settingsGh(), await repositoryOfProject(aims), ticket);
-});
-// L'issue d'un ticket et sa discussion, sur la fiche de toute carte : lues de GitHub par le `gh` du poste
-// (card-github.ts), le markdown rendu. Les adresses qu'elle montre sont gardées ici : un clic de la vue n'ouvre
-// que l'une d'elles, jamais une adresse qu'elle aurait composée.
-// Le commentaire du chef part sur l'issue du ticket, au clic, par le jeton du `gh` de ce poste (actions-github.ts) : la
-// vue nomme le projet, le ticket et le texte ; le geste se compose ici (discussion.ts).
-const linksRead = new LinksRead();
-ipcMain.handle("lireDiscussion", async (_, name: unknown, ticket: unknown) => {
-  const aims = knownOne(name);
-  if (aims === undefined) return undefined;
-  const readEntry = await discussionOfGitHub(settingsGh(), await repositoryOfProject(aims), ticket);
-  if (!("sans" in readEntry)) linksRead.discussion(`${aims.nom}#${String(ticket)}`, readEntry.liens);
-  return readEntry;
-});
-ipcMain.handle("commenter", (_, name: unknown, ticket: unknown, text: unknown) => {
-  const aims = knownOne(name);
-  if (aims === undefined) return { poste: false, refus: `nothing was posted: “${String(name)}” is no longer in the projects file` };
-  return comment(async (number, comment) => commentTheIssue(await repositoryOfProject(aims), number, comment, clientOfLabels), aims, ticket, text);
-});
 // « ask the second », au clic : `/brigade:ask <ticket> ` est écrit dans le second du projet, sans Entrée — le chef tape
 // sa question à la suite (discussion.ts). Rien ne part sur le tableau ni sur la box, quelle que soit la station du
-// projet. Le contexte que la vue passe encore n'est pas lu.
+// projet.
 ipcMain.handle("demanderAuSecond", (_, name: unknown, ticket: unknown) => {
   const aims = knownOne(name);
   return aims === undefined ? { refus: gone(name).refus } : askAtSecond((command) => terminals.inscrire(aims, command, noteOfTheQuestion), aims, ticket);
@@ -824,33 +765,6 @@ ipcMain.handle("passerAuSecond", (_, name: unknown, ticket: unknown, question: u
   if (aims === undefined) return { refus: gone(name).refus };
   const read = async (number: number) => discussionOfGitHub(settingsGh(), await repositoryOfProject(aims), number);
   return passAtSecond((message) => terminals.inscrire(aims, message, noteOfTheHandover), read, aims, ticket, question);
-});
-// Essayer une livraison depuis sa carte (trial.ts, #3215) : son worktree vit sous le dossier de l'app, jamais dans la copie
-// de travail du projet. Chaque changement d'un essai est redit à la vue, qui relit.
-const trials = holdTheTrials({
-  dossierDonnees: dirname(pathConfiguration()),
-  ouvrir: (url) => void shell.openExternal(url).catch(() => undefined),
-  surChangement: (project) => tell("essais", project),
-});
-ipcMain.handle("essais", (_, name: unknown) => {
-  const aims = knownOne(name);
-  return aims === undefined ? undefined : trials.vu(aims.dossier, aims.nom);
-});
-ipcMain.handle("essayer", async (_, name: unknown, ticket: unknown) => {
-  const aims = knownOne(name);
-  if (aims !== undefined && typeof ticket === "number" && Number.isInteger(ticket)) await trials.essayer(aims.dossier, aims.nom, ticket);
-});
-ipcMain.handle("arreterEssai", async (_, name: unknown, ticket: unknown) => {
-  const aims = knownOne(name);
-  if (aims !== undefined && typeof ticket === "number") await trials.arreter(aims.nom, ticket);
-});
-app.on("before-quit", () => void trials.toutArreter());
-ipcMain.handle("ouvrirLien", (_, name: unknown, ticket: unknown, url: unknown) => {
-  if (typeof url !== "string" || !linksRead.connait(`${String(name)}#${String(ticket)}`, url) || !/^https?:$/.test(URL.parse(url)?.protocol ?? "")) return false;
-  return shell.openExternal(url).then(
-    () => true,
-    () => false,
-  );
 });
 // Le titre d'une issue que la box ne donne pas (hors rail) : lu par le `gh` du poste, à l'adresse que
 // la box a rendue pour ce ticket — jamais une adresse venue de la vue.
@@ -887,17 +801,6 @@ ipcMain.handle("demanderAlerte", (_, name: unknown, subject: unknown, said: unkn
   if (alert?.appel === undefined || !("demande" in alert.appel)) return undefined;
   const written = requestOfTheAlert(aims.nom, alert);
   return "refus" in written ? written : terminals.inscrire(aims, written.demande, noteOfTheRequest);
-});
-// Un geste de WAITING, sur une carte du rail ou sa fiche : il s'écrit sur l'issue, jamais par une commande de la box —
-// parqué ou déparqué comme le second le fait (vue/wait/wait-github.ts, #3075, #4262). La vue nomme le geste et le
-// ticket, et donne ce que le chef a rempli.
-ipcMain.handle("attente", async (_, name: unknown, id: unknown, ticket: unknown, input: unknown) => {
-  const aims = knownOne(name);
-  if (aims === undefined) return gone(name);
-  const today = new Date();
-  const rendered = await playTheWait({ id, ticket, saisie: input, aujourdhui: today, lu: () => boards.dernier(aims.nom), client: clientOfLabels });
-  if ("fait" in rendered) boards.oublier();
-  return rendered;
 });
 // Le code qu'une station affiche, tapé par le chef : la station qui le publie sur GitHub est
 // appairée — ou le refus dit en une ligne pourquoi rien ne l'est (stations/stations.ts).
