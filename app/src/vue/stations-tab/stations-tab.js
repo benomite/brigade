@@ -27,7 +27,7 @@ import { setTheChoice } from "./choice.js";
 import { BLOCKED, CHOOSE, COOK_HERE, sentenceOfTop, TO_HERE } from "./state.js";
 import { linesOfEngine } from "../engine/CardEngine.js";
 
-/** @typedef {import("../components/pan/pan.js").Fabrique} Fabrique */
+/** @typedef {{ createElement(balise: string): any }} Fabrique */
 /** @typedef {import("./state.js").Top} Top */
 /** @typedef {import("./state.js").Serving} Serving */
 /** @typedef {import("./state.js").Kind} Kind */

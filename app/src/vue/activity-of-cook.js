@@ -19,7 +19,6 @@
 
 export const TITLE = "its cook";
 export const IN_PROGRESS = "cooking";
-export const WITHOUT_PR = "it opened no PR";
 
 
 

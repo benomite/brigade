@@ -4,7 +4,7 @@
 import { realpathSync, watch, type FSWatcher } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname } from "node:path";
-import { addProject, changeMenuBar, changeColor, changeOrdinary, changeAcronym, colorProjects, createConfiguration, readConfiguration, tidyProject, removeProject, type Configuration, type Declare } from "./config.ts";
+import { addProject, changeMenuBar, changeColor, changeAcronym, colorProjects, createConfiguration, readConfiguration, tidyProject, removeProject, type Configuration, type Declare } from "./config.ts";
 import type { Role } from "./colors.ts";
 
 export function followConfiguration(options: {
@@ -83,8 +83,6 @@ export function followConfiguration(options: {
     changerSigle: (name: string, acronym: unknown) => write(() => changeAcronym(path, name, acronym, home)),
     // Montre ou retire l'état de la cuisine de la barre des menus (menu-bar.ts). Rend la raison, si rien n'a été écrit.
     changerBarreDeMenus: (active: unknown) => write(() => changeMenuBar(path, active, home)),
-    // Règle les tickets ordinaires du Mac pour un projet. Rend la raison, si rien n'a été écrit.
-    changerOrdinaires: (name: string, active: unknown, limit: unknown) => write(() => changeOrdinary(path, name, active, limit, home)),
     // Retire un projet du fichier, et rien d'autre : `surChangement` le dit parti. Rend la raison, s'il ne l'a pas été.
     retirer: (name: string) => write(() => removeProject(path, name, home)),
     // Range un projet à la place `rang` de la liste : `surChangement` dit le nouvel ordre, et

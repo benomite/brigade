@@ -1279,39 +1279,6 @@ main > header,
     border-top-color: var(--accent);
   }
 }
-/* Les tickets `fire` que GitHub dit encore, quand la station ne répond pas : repliés, puis lisibles comme le reste. */
-#rail .feu {
-  padding: var(--pas-2) var(--pas-4) 0;
-}
-#rail .feu summary {
-  cursor: pointer;
-  font-size: var(--taille-corps);
-  color: var(--texte-doux);
-}
-#rail .feu ol {
-  margin: var(--pas-2) 0 0;
-  padding: 0;
-  list-style: none;
-}
-#rail .feu li {
-  display: flex;
-  gap: var(--pas-2);
-  align-items: baseline;
-  padding: var(--pas-1) 0;
-}
-#rail .feu li button {
-  display: flex;
-  gap: var(--pas-2);
-  align-items: baseline;
-  padding: 0;
-  font-weight: 600;
-  text-align: left;
-  overflow-wrap: anywhere;
-}
-#rail .feu li small {
-  font-size: var(--taille-meta);
-  color: var(--discret);
-}
 /* Six colonnes, côte à côte, qui tiennent dans la fenêtre à sa taille d'ouverture ; plus
    étroite, la zone défile. La quatrième, TODO, est plus large : ses cartes portent une ligne du bloc ;
    la cinquième, WAITING, un peu aussi : ses cartes disent ce qu'elles attendent, sans clic. */
@@ -1428,15 +1395,6 @@ main > header,
 #rail .alerte-de-cuisine > .lien {
   flex: none;
 }
-/* Un refus de station (ticket 3198) : une ligne chacun, sous la ligne d'alerte, sur le même fond — en rouge, la couleur du refus. */
-#rail .refus-de-station {
-  margin: var(--pas-3) var(--pas-4) 0;
-  padding: var(--pas-2) var(--pas-3);
-  background: var(--bandeau);
-  border: 1px solid var(--trait-doux);
-  border-left: 3px solid var(--rouge);
-  border-radius: var(--rayon-carte);
-}
 #rail .colonne {
   min-width: 0;
   padding: var(--pas-2);
@@ -1497,11 +1455,6 @@ main > header,
 }
 #rail .todo-du-rail > * {
   flex: 1 1 100%;
-}
-/* La ligne d'état du rail (ticket 3523) : ce qui retient la cuisine, en une ligne sous laquelle les colonnes commencent. */
-#rail .statut-du-rail {
-  margin: var(--pas-2) var(--pas-4) 0;
-  color: var(--texte-doux);
 }
 /* La station du projet, à côté de l'onglet Stations : son nom et son état, petits. */
 #etiquette-de-station {
@@ -1667,39 +1620,6 @@ main > header,
 }
 #fiche .porte span {
   color: var(--discret);
-}
-/* Le cook du ticket, tel que sa station le publie sur le tableau de la cuisine (ticket 1846) : sa pilule et sa ligne de
-   tête, ce qu'il fait en ce moment, ses derniers gestes chacun avec son heure, sa PR, et d'où vient ce qui est dit. */
-#fiche .activite-du-cook {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--pas-2);
-}
-#fiche .activite-du-cook > p {
-  margin: 0;
-}
-#fiche .activite-du-cook .etat,
-#fiche .activite-du-cook .maintenant {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--pas-1) var(--pas-3);
-}
-#fiche .activite-du-cook small {
-  color: var(--discret);
-}
-#fiche .activite-du-cook .etapes {
-  align-self: stretch;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-#fiche .activite-du-cook .etapes li {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) max-content;
-  gap: var(--pas-1) var(--pas-4);
-  color: var(--texte-doux);
 }
 /* Les gestes de la fiche : un par ligne, son bouton puis ce qu'il coûte, en clair ; la priorité se
    choisit avant d'être envoyée. Ce qui n'est pas parti se lit dessous, en rouge. */
@@ -2070,33 +1990,8 @@ main > header {
   margin: 0 0 var(--pas-3);
   color: var(--texte-doux);
 }
-.outil-manquant {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--pas-1) var(--pas-2);
-}
-.outil-manquant strong {
-  font-size: var(--taille-intertitre);
-  color: var(--texte);
-}
-/* À quoi il sert et son pas d'installation (ticket 4059), chacun sur sa ligne ; la commande se sélectionne d'un clic. */
-.outil-manquant > p:not(.gestes) {
-  flex-basis: 100%;
-  margin: 0;
-}
-.outil-manquant > .pas {
-  color: var(--texte-doux);
-}
-.outil-manquant > .pas code {
-  user-select: all;
-}
 .outils-du-second .gestes {
   padding: var(--pas-4) 0 0;
-}
-.outil-manquant .gestes {
-  gap: var(--pas-2);
-  padding: 0;
 }
 /* Le niveau d'un réglage (ticket 1310) : une petite étiquette à côté de son nom — project, this machine ou you. */
 .niveau {
@@ -2213,29 +2108,4 @@ main > header {
 .avis-depot .en-route {
   font-size: var(--taille-corps);
   color: var(--discret);
-}
-
-/* L'écran de l'outil manquant (ticket 4059, outils-requis/) : à la place du pas qu'il retient — le compte du premier
-   lancement, ou l'avis —, l'outil nommé, pourquoi, le lien de sa page d'installation et « I installed it ». */
-#tous .ecran-outil-manquant h3,
-.ecran-outil-manquant h3 {
-  margin: 0;
-  font-size: var(--taille-intertitre);
-  font-weight: 600;
-  color: var(--texte);
-}
-.ecran-outil-manquant .pourquoi {
-  margin: var(--pas-2) 0 0;
-}
-
-/* La PR d'une carte en pass ou servie : son lien, sa taille, son âge (ticket 4051). */
-.livraison-carte {
-  margin: 0;
-  font-size: var(--taille-meta);
-}
-.lignes-ajoutees {
-  color: var(--vert);
-}
-.lignes-retirees {
-  color: var(--rouge);
 }

@@ -63,11 +63,6 @@
   letter-spacing: 0.04em;
   color: var(--discret);
 }
-#rail .pas-prets {
-  margin-top: var(--pas-3);
-  padding-top: var(--pas-1);
-  border-top: 1px dashed var(--trait);
-}
 
 /* Une carte parked : qui elle attend, jusqu'à quand, en tête de sa ligne. */
 #rail [data-parque] .parque {

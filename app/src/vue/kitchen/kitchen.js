@@ -1,13 +1,6 @@
 // @ts-check
-// La vue du projet dessine le plan de la cuisine (ticket 4238, docs/superpowers/specs/2026-11-24-simplified-process.md) :
-// de gauche à droite, le backlog — le rail en tête, les tickets prêts à part —, le manager, les cooks, la pass, servi. Une
-// carte est dans la colonne de son étape. Une carte parked reste dans la colonne où elle attend, dessinée parked : qui elle
-// attend, jusqu'à quand. Il n'y a pas de colonne Waiting. Ce qui est parked pour le chef est aussi dans son TODO, à côté
-// des colonnes, et rien d'autre (ticket 4261) : une ligne, « 2 wait for you », dont un clic montre chaque entrée, ce qui
-// lui est demandé et ses boutons (ticket 4354). Au-dessus, la bande du haut : une carte du supervisor et une du closer sur
-// une ligne, et au plus un message — jamais sans un geste que le chef peut faire.
-// Le process principal range le rail en colonnes (facts.ts) : On the rail, Taken, Pass, Waiting, Served, et la liste de ce
-// qui attend le chef, que todo.js pose déjà dans la colonne de son étape. Ce module en tire le plan, sans rien relire.
+// Le TODO du chef, à côté des colonnes du kanban (ticket 4261) : une ligne, « 2 wait for you », dont un clic montre chaque
+// entrée, ce qui lui est demandé et ses boutons (ticket 4354). Ce qui est parked pour le chef y est, et rien d'autre.
 // Il ne touche pas `document` : il reçoit de quoi créer un élément, la vue lui donne le sien et les tests un faux.
 
 import { recommendationOf } from "../bricks.js";
@@ -19,86 +12,13 @@ import { isRed } from "../todo/todo.js";
 
 /** @typedef {import("../../facts.ts").Card} Card */
 /** @typedef {import("../../facts.ts").Column} Column */
-/** @typedef {import("../../facts.ts").RoleOfKitchen} RoleOfKitchen */
 /** @typedef {{ createElement(balise: string): any }} Fabrique */
 
-// Les cinq colonnes du plan, dans l'ordre du service (spec, « The plan of the kitchen »).
-const BACKLOG = "Backlog";
-const MANAGER = "Manager";
-export const COOKS = "Cooks";
-export const PASS = "Pass";
-const SERVED = "Served";
-export const NOT_READY = "Not ready yet";
-const NOTHING_AT_MANAGER = "no ticket with the manager";
-
-// La colonne de facts.ts d'où vient chaque colonne du plan. Waiting n'en a pas : ses cartes vont dans la colonne de leur étape.
-/** @type {Record<string, string>} */
-const OF_FACTS = { "On the rail": BACKLOG, Taken: COOKS, Pass: PASS, Served: SERVED };
-const WAITING = "Waiting";
-// L'étape d'une carte d'après son mot d'état : un mot qui n'en dit aucune laisse la carte dans le backlog.
-/** @type {Record<string, string>} */
-const STEP_OF_WORD = { pris: COOKS, "en pass": PASS, "base rouge": PASS, servi: SERVED };
-// Les mots d'un ticket prêt à cuire, sur le rail.
-const READY = ["en attente", "tests écrits"];
-/** @type {Record<string, string>} */
-const TONES = { [BACKLOG]: "gris", [MANAGER]: "gris", [COOKS]: "bleu", [PASS]: "jaune", [SERVED]: "vert" };
-
-// Une carte du manager : sa question avant de découper une épique, posée au chef ou répondue et qu'il doit lire.
-/** @param {Card} card */
-const atManager = (card) => card.question === true || card.repondue !== undefined;
-
-// La colonne du plan d'une carte, d'après la colonne de facts.ts où elle est : celle de son étape.
-/** @param {string} nameOfFacts @param {Card} card */
-export const columnOfPlan = (nameOfFacts, card) => (atManager(card) ? MANAGER : nameOfFacts === WAITING ? (STEP_OF_WORD[card.etat ?? ""] ?? BACKLOG) : (OF_FACTS[nameOfFacts] ?? BACKLOG));
-
-/**
- * @typedef {{ nom: string, ton: string, compte: string, cartes: Card[], vide: string, defile?: boolean, pretes?: Card[], pasPretes?: Card[] }} ColumnOfPlan
- */
-
-/**
- * Le plan, des colonnes que todo.js a rangées : chaque carte dans la colonne de son étape, les rouges en tête. Le backlog
- * sépare le rail — ce qui est prêt à cuire — du reste. `rail` : les numéros du haut du backlog que la lecture porte
- * (vue/rail/, ticket 4223), dans leur ordre ; donné, le rail du backlog est celui-là — les mêmes tickets, dans le même
- * ordre —, et un ticket prêt qui n'y est pas passe dessous.
- * @param {readonly Column[]} columns @param {readonly number[]} [rail]
- * @returns {ColumnOfPlan[]}
- */
-export function planOfTheKitchen(columns, rail) {
-  /** @type {Map<string, { cartes: Card[], vide?: string, defile?: boolean }>} */
-  const plan = new Map([BACKLOG, MANAGER, COOKS, PASS, SERVED].map((name) => [name, { cartes: [] }]));
-  // Une colonne de facts.ts pas connue — la box ne répond pas — laisse tout le plan inconnu : ses cartes iraient n'importe où.
-  const unknown = columns.find(({ compte: account }) => account === "?");
-  for (const column of columns) {
-    const name = OF_FACTS[column.nom];
-    const place = plan.get(name ?? "");
-    if (place !== undefined) {
-      place.vide = column.vide;
-      if (column.defile === true) place.defile = true;
-    }
-    for (const card of column.cartes) plan.get(columnOfPlan(column.nom, card))?.cartes.push(card);
-  }
-  return [...plan].map(([name, { cartes: cards, vide: empty, defile: scrolls }]) => {
-    const rows = [...cards.filter(isRed), ...cards.filter((card) => !isRed(card))];
-    const column = {
-      nom: name,
-      ton: TONES[name] ?? "gris",
-      compte: unknown === undefined ? String(rows.length) : "?",
-      cartes: rows,
-      vide: unknown !== undefined && name === MANAGER ? unknown.vide : name === MANAGER ? NOTHING_AT_MANAGER : (empty ?? "no ticket"),
-      ...(scrolls === true ? { defile: scrolls } : {}),
-    };
-    if (name !== BACKLOG) return column;
-    const ready = (/** @type {Card} */ card) => !isRed(card) && card.parque === undefined && READY.includes(card.etat ?? "");
-    const readyEntries = rail === undefined ? rows.filter(ready) : rail.flatMap((ticket) => rows.filter((card) => card.ticket === ticket && ready(card)));
-    return { ...column, pretes: readyEntries, pasPretes: rows.filter((card) => !readyEntries.includes(card)) };
-  });
-}
-
-// Ce qui attend le chef, dans l'ordre du plan, une fois chacun : le TODO.
-/** @param {readonly ColumnOfPlan[]} plan */
-export const whatAwaitingYou = (plan) => {
+// Ce qui attend le chef, une fois chacun : le TODO.
+/** @param {readonly Column[]} columns */
+export const whatAwaitingYou = (columns) => {
   const seenOnes = new Set();
-  return plan.flatMap(({ cartes: cards }) => cards.filter(isRed)).filter(({ ticket }) => (seenOnes.has(ticket) ? false : (seenOnes.add(ticket), true)));
+  return columns.flatMap(({ cartes: cards }) => cards.filter(isRed)).filter(({ ticket }) => (seenOnes.has(ticket) ? false : (seenOnes.add(ticket), true)));
 };
 
 const MONTH = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];

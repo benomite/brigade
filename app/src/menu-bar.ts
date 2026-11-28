@@ -44,7 +44,7 @@ export function kitchenState(projects: readonly ProjectRead[]): StateOfTheKitche
       continue;
     }
     state.lus++;
-    state.cuisent += facts.cooks?.length ?? facts.compteurs.auTravail;
+    state.cuisent += facts.compteurs.auTravail;
     if (facts.attend !== undefined) state.questions.push(...facts.attend.map((expected) => ({ projet: name, ticket: expected.ticket, question: questionOf(expected) })));
     else if (facts.compteurs.attend > 0) state.enBloc.push({ projet: name, combien: facts.compteurs.attend });
   }

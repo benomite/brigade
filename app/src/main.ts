@@ -24,8 +24,7 @@ import { openTheReport, versionAimed } from "./vue/report/opening.ts";
 import { readTheAgents } from "./team-of-the-box.ts";
 import { writeInTheProject, readInTheProject } from "./vue/card-project/card-project-folder.ts";
 import { choice, whole, PALETTE } from "./colors.ts";
-import { blockOfOrdinary } from "./ordinary.ts";
-import { BANNER, COMMAND, holdFacts, type Drawable } from "./facts.ts";
+import { COMMAND, holdFacts, type Drawable } from "./facts.ts";
 import { holdTheColumns } from "./columns-emptied.ts";
 import { clientGitHub, byFetch } from "./board/client.ts";
 import { withWhatAwaitingTheChef } from "./board/wait-of-chef.ts";
@@ -56,7 +55,7 @@ import { holdUpdate } from "./update/state.ts";
 import { fluxOf, formatOf } from "./update/flux.ts";
 import { installerOfWorkstation } from "./update/installation.ts";
 import { machineChosen, machinesOf } from "./machines.ts";
-import { TABS, HEADINGS } from "./tabs.ts";
+import { HEADINGS } from "./tabs.ts";
 import { repositoriesOfChef, readOneRepository } from "./projects/github.ts";
 import { writeSettingsOfTheStation, readSettingsOfTheStation as readTheSettingsOfStation, type Change } from "./settings-of-the-station.ts";
 import { EFFORTS, MODELS, servedElsewhere, holdProjects, type FoldersOfTheStation, type SeenOfProjects } from "./projects/projects.ts";
@@ -274,7 +273,7 @@ const standby = openStandbyOfBoard({
 // Les questions du manager que le chef a répondues (answered.ts) : leur carte quitte TODO pour
 // WAITING sans attendre le manager.
 const answeredEntries = holdAnswered();
-const facts = holdFacts((project) => answeredEntries.de(project));
+const facts = holdFacts();
 // Chaque colonne du rail qui passe de cartes à aucune est dite (columns-emptied.ts, #2151) : sur la sortie d'erreur de
 // l'app, et dans `rail-columns.log`, à côté du fichier des projets — la lecture qui l'a fait s'y relit après coup.
 const logOfColumns = join(dirname(pathConfiguration()), "rail-columns.log");
@@ -504,7 +503,7 @@ function project(name: unknown): Project {
   return finds;
 }
 
-ipcMain.handle("demarrage", () => ({ poste: { nom: nameOfWorkstation(), mac: isOneMac(platform) }, configuration: shownEntry(), palette: PALETTE, exemple: EXAMPLE, onglets: TABS, rubriques: HEADINGS, banniere: BANNER, calibrage: { modeles: MODELS, efforts: EFFORTS }, stations: stations.vu(), projetsDesStations: projectsOfStations.vu(), accueil: home.vu(), miseAJour: update.vu() }));
+ipcMain.handle("demarrage", () => ({ poste: { nom: nameOfWorkstation(), mac: isOneMac(platform) }, configuration: shownEntry(), palette: PALETTE, exemple: EXAMPLE, rubriques: HEADINGS, calibrage: { modeles: MODELS, efforts: EFFORTS }, stations: stations.vu(), projetsDesStations: projectsOfStations.vu(), accueil: home.vu(), miseAJour: update.vu() }));
 // Les couleurs d'un projet : la vue nomme le projet, le rôle — onglet ou accent — et une couleur
 // de la palette, par son nom, ou une couleur libre `#rrggbb` (colors.ts). Écrite, elle arrive par
 // `surConfiguration`, avec ce qu'elle a de trop proche. Rend la raison, si elle ne l'a pas été.
@@ -523,17 +522,6 @@ ipcMain.handle("changerBarreDeMenus", (_, active: unknown) => tracking.changerBa
 ipcMain.handle("changerSigle", (_, name: unknown, acronym: unknown) => {
   const aims = declare(name);
   return aims === undefined ? gone(name).refus : tracking.changerSigle(aims.nom, acronym);
-});
-// Les tickets ordinaires de cet ordinateur (ordinary.ts) : le bloc que la vue pose pour un projet —
-// rien, quand le projet ne cuit pas sur ce poste ; hors d'un Mac, pourquoi il n'en prend pas —, et le réglage, que la vue nomme et que le fichier écrit.
-// Écrit, il arrive par `surConfiguration`. Le réglage rend la raison, s'il ne l'a pas été.
-ipcMain.handle("ordinaires", (_, name: unknown) => {
-  const aims = declare(name);
-  return aims === undefined ? undefined : blockOfOrdinary(aims, platform, facts.stations(aims.nom), kitchens.ici(aims.nom));
-});
-ipcMain.handle("reglerOrdinaires", (_, name: unknown, active: unknown, limit: unknown) => {
-  const aims = declare(name);
-  return aims === undefined ? gone(name).refus : tracking.changerOrdinaires(aims.nom, active, limit);
 });
 // L'ordre des projets : la vue nomme le projet glissé dans la barre et la place où il a été lâché.
 // C'est l'ordre du fichier qui change (config.ts) : rangé, il arrive par `surConfiguration` — la
@@ -908,8 +896,6 @@ ipcMain.handle("ouvrirLectureSeule", (_, name: unknown, page: unknown) => {
 });
 // Un projet refusé n'a pas d'espace, mais sa box se lit quand même.
 ipcMain.on("regarder", (_, name: unknown, request: number) => (see = () => look(projects().filter((candidate) => candidate.nom === name), ["status"], request))());
-// L'onglet de contenu affiché : aucun ne lit plus la box (TABS est vide, #4710) — le canal reste pour la vue, qui n'y lit rien.
-ipcMain.on("onglet", () => {});
 // « Tous les projets » : le `status` de chacun — ce qui bloque un projet, depuis quand ses décisions
 // attendent, une station saturée : ce que l'accueil dit en une ligne et que `faits` ne porte pas.
 ipcMain.on("tous", (_, request: number) => (see = () => look(projects(), ["status"], request))());

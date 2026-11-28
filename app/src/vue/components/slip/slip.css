@@ -41,14 +41,6 @@
   border-top: 1px dashed var(--bon-trait);
   white-space: pre-wrap;
 }
-/* Les étiquettes d'une carte (ticket 2039) : la station qui la sert (Taken et Pass, plusieurs stations), en trait plein ;
-   une par capacité que son ticket demande, en tireté. Posées partout où `poserBon` pose une carte, pas seulement sur le rail. */
-.bon .etiquettes {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--pas-1);
-  margin-top: var(--pas-1);
-}
 .bon .etiquette {
   padding: 0 var(--pas-2);
   font-size: var(--taille-meta);
@@ -56,9 +48,6 @@
   color: var(--bon-discret);
   border: 1px solid var(--bon-trait);
   border-radius: var(--rayon-bouton);
-}
-.bon .etiquette-capacite {
-  border-style: dashed;
 }
 /* Les deux lignes d'une carte : ce qui se passe, puis — rarement — ce qui demande l'attention. */
 .bon p.ligne-carte,
@@ -79,19 +68,6 @@
 /* Une carte que plus aucun cook ne prendra (#3147) : son bord et sa première ligne la distinguent de celles qui attendent leur tour. */
 .bon[data-refus] {
   border-inline-start: 3px solid var(--bon-alerte, currentColor);
-}
-.bon p.refus-ligne {
-  font-weight: 600;
-  color: var(--bon-alerte, var(--bon-encre));
-}
-.bon .gestes-du-refus {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--pas-2);
-  align-items: center;
-}
-.bon .gestes-du-refus p.secondaire {
-  display: contents;
 }
 .bon p.signal {
   font-weight: 600;
@@ -172,24 +148,6 @@
   gap: var(--pas-1);
   margin-left: var(--pas-1);
   align-items: center;
-}
-.bon .essai {
-  width: 8px;
-  height: 8px;
-  border: 1.5px solid var(--bon-discret);
-  border-radius: 50%;
-  box-sizing: border-box;
-}
-.bon .essai[data-en-cours] {
-  background: var(--bon-discret);
-}
-/* Le rang de l'essai en cours d'un ticket pris plus d'une fois (ticket 3923), à droite de ses points : « 3rd try ». */
-.bon .rang-essai {
-  margin-left: var(--pas-1);
-  font-size: var(--taille-meta);
-  font-weight: 600;
-  color: var(--bon-discret);
-  white-space: nowrap;
 }
 .bon[data-traine] {
   border-left: 4px solid var(--rouge);

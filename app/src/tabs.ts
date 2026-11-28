@@ -1,9 +1,4 @@
-// Les onglets de contenu d'un espace, en haut. Aucun ne lance de commande : l'app lit GitHub (#4710).
-
-export type Tab = { id: string; titre: string; commande: string; precision?: string };
-
-// Aucun onglet ne relaie plus une commande du runtime : l'onglet Log est parti avec la commande `log` (#4678).
-export const TABS: readonly Tab[] = [];
+// Les onglets de contenu d'un espace, en haut : l'app lit GitHub (#4710).
 
 // Ce que l'écran principal montre en haut : un onglet, Paramètres — une seule page, sans sous-pages
 // (#1700) : ce que le chef règle, en trois groupes. Les

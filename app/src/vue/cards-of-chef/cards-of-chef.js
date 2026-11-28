@@ -13,7 +13,7 @@ import { lineError } from "../components/line-error/line-error.js";
 /** @typedef {{ createElement(balise: string): any }} Fabrique */
 /** @typedef {import("../../card-todo.ts").CardOfTodo} CardOfTodo */
 /** @typedef {import("../../card-todo.ts").Answer} Answer */
-/** @typedef {{ projet: string, ticket: number, age: string, todo: CardOfTodo }} Card */
+/** @typedef {{ projet: string, ticket: number, todo: CardOfTodo }} Card */
 
 export const TITLE = "Awaiting you";
 export const IN_HEAD = "The kitchen works on. These are the only choices that need you.";
@@ -84,7 +84,7 @@ export function setTheList(doc, { cartes: cards, ailleurs: elsewhere, avis: opin
     key.type = "button";
     key.dataset.ticket = String(card.ticket);
     const top = created(doc, "span", "haut-de-carte");
-    top.append(created(doc, "span", "numero-de-carte", `#${card.ticket} · ${card.projet}`), created(doc, "span", undefined, card.age));
+    top.append(created(doc, "span", "numero-de-carte", `#${card.ticket} · ${card.projet}`));
     key.append(top, created(doc, "span", "question-de-carte", card.todo.question ?? card.todo.resume ?? ""), created(doc, "span", "genre-de-carte", kindOfTheCard(card.todo)));
     key.addEventListener("click", () => open(card));
     body.append(key);

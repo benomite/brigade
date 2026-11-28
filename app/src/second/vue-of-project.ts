@@ -9,25 +9,14 @@ import { VIEWS, vueOf } from "./blockage-of-second.ts";
 const THE_CHEF = "the chef";
 
 // Qui est vraiment attendu d'une carte : le chef seulement quand elle lui demande quelque chose.
-function whoAwaiting(c: Card, state: string | undefined): string {
-  if (c.attendu || c.question) return THE_CHEF;
-  if (c.enWaiting || c.relancePassee) return c.relancePassee ? THE_CHEF : "the station, which set the card aside";
-  const word = (state ?? "").toLowerCase();
-  if (/^(cooking|pris|taken|tests written|tests écrits)$/.test(word)) return "a cook";
-  if (word === "in pass" || word === "pass" || word === "base rouge") return word === "base rouge" ? "main to be green" : "the pass";
-  if (word === "queued" || word === "en attente") return "the kitchen, which will take it";
-  return "a third party";
-}
+const whoAwaiting = (c: Card): string => (c.attendu ? THE_CHEF : "a third party");
 
-// Aucun bandeau : le rail n'en pose plus. « base rouge » n'est jamais dit — le rail ne dit plus la base rouge — : la carte est
-// ramenée à « in pass ».
+// Aucun bandeau : le rail n'en pose plus. Seules les cartes qui attendent quelqu'un sont posées : ce que le chef voit de TODO.
 function vueOfBoard(board: Board): VueOfProject {
   const rail: CardOfTheVue[] = board.rail.colonnes.flatMap((column) =>
-    column.cartes.filter((c) => c.etat !== "served" && column.nom !== "SERVED").map((c) => {
-      const staleOne = c.etat === "base rouge";
-      const state = staleOne ? "in pass" : c.etat;
-      const displayed = staleOne ? "in pass" : c.ligne === undefined ? (c.mot ?? c.etat ?? column.nom) : `${c.etat ?? column.nom} - ${c.ligne}`;
-      return { number: c.ticket, title: c.titre ?? "", displayed, real: displayed, waitsOn: whoAwaiting(c, state) };
+    column.cartes.map((c) => {
+      const displayed = c.ligne === undefined ? column.nom : `${column.nom} - ${c.ligne}`;
+      return { number: c.ticket, title: c.titre ?? "", displayed, real: displayed, waitsOn: whoAwaiting(c) };
     }),
   );
   return { banners: [], rail };

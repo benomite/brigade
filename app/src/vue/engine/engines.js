@@ -68,11 +68,3 @@ export function sentenceOfFallback({ choisi: chosen, actif: active, jusqua: unti
   return `cooking on ${saysOf(active)}: ${saysOf(chosen)}'s cap is reached${when === null ? "" : ` until ${when}`}`;
 }
 
-// L'état publié par le runtime, lu sans rien croire : un état mal formé, ou qui nomme un moteur inconnu, ne se lit pas.
-/** @param {unknown} raw @returns {Status | undefined} */
-export function statusRead(raw) {
-  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return undefined;
-  const { chosen, active, onFallback, blockedUntil } = /** @type {Record<string, unknown>} */ (raw);
-  if (!isOneEngine(chosen) || !isOneEngine(active) || typeof onFallback !== "boolean") return undefined;
-  return { choisi: chosen, actif: active, secours: onFallback, jusqua: typeof blockedUntil === "string" && blockedUntil !== "" ? blockedUntil : null };
-}

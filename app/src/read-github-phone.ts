@@ -28,7 +28,6 @@
 // la dernière lecture de chaque projet a lu : son dépôt, son dernier rail lu, la carte du chef d'un ticket. Une écriture
 // que GitHub a prise relance la lecture, qui la montre ; aucune station n'est jointe pour l'écrire.
 import { holdHome, type Home } from "./home.ts";
-import { holdUpstream, type Seen as SeenUpstream } from "./upstream.ts";
 import { putAside } from "./awaiting.ts";
 import { forTheBar, type Shown } from "./bar.ts";
 import type { Project } from "./config.ts";
@@ -41,9 +40,9 @@ import { nameOfProject } from "./projects/projects.ts";
 import { withWhatAwaitingTheChef } from "./board/wait-of-chef.ts";
 import { shareOfCardsAssigned } from "./vue/cards-assigned/cards-assigned.ts";
 import { clientGitHub, bodyRead, refusalOf, type CallGitHub, type Send, type AnswerGitHub } from "./board/client.ts";
-import { activitiesPublished, readTheBoardOfRepository, type ActivitiesPublished, type ReadOfBoardOfRepository, type BoardRead } from "./board/read.ts";
+import { readTheBoardOfRepository, type ReadOfBoardOfRepository, type BoardRead } from "./board/read.ts";
 import { readConditional, type MemoryOfReads } from "./board/rail-github.ts";
-import { UPSTREAM, FACTS, readOfBoard, STATUS } from "./board/rail.ts";
+import { FACTS, readOfBoard, STATUS } from "./board/rail.ts";
 import { setTheTrace } from "./phone-connected.ts";
 
 // Le fichier du gist d'une station où l'app écrit sa sélection (stations-of-account.ts).
@@ -71,8 +70,6 @@ export type Tell = {
   (channel: "surConfiguration", configuration: Shown, closed: number[]): void;
   (channel: "surFaits", receivedOne: Drawable): void;
   (channel: "surAccueil", home: Home): void;
-  (channel: "surActivites", published: ActivitiesPublished): void;
-  (channel: "surAmont", seenOne: SeenUpstream): void;
   (channel: "surTelephone", phone: PhoneGitHub): void;
 };
 
@@ -191,7 +188,6 @@ export function openTheReadGitHub(options: Options) {
   const readTheGists = readConditional(call, memory(""));
 
   const facts = holdFacts();
-  const upstreams = holdUpstream();
   let projects: ProjectOfAccount[] = [...(options.connus ?? [])];
   // La dernière lecture réussie du rail de chaque projet, par son nom : c'est elle que visent les gestes du chef, comme
   // ceux du desktop (board/rail.ts, `dernier`).
@@ -215,7 +211,6 @@ export function openTheReadGitHub(options: Options) {
   let factsRequest: number | undefined;
   let requestVue = 0;
   let seenOnes: string[] = [];
-  let space: string | undefined;
 
   const configuration = (): Shown => forTheBar({ chemin: "GitHub — the projects your stations serve", projets: projects.map(projectOf) }, () => true);
   const phone = (): PhoneGitHub => ({ github: { compte: options.compte ?? null }, ...(list === undefined ? {} : { liste: list }) });
@@ -263,7 +258,6 @@ export function openTheReadGitHub(options: Options) {
     if (factsRequest !== undefined) {
       const reading = readOfBoard(readOne, project, factsRequest, [FACTS]);
       tell("surFaits", facts.recevoir(reading));
-      if (readOne.lu) tell("surActivites", activitiesPublished(project, readOne));
       tellTheHome(home.faits(reading));
     }
     if (seenOnes.includes(project)) {
@@ -272,7 +266,6 @@ export function openTheReadGitHub(options: Options) {
       if (redraws !== undefined) tell("surFaits", redraws);
       tellTheHome(home.status(shownOne));
     }
-    if (space === project) tell("surAmont", upstreams.recevoir(readOfBoard(readOne, project, requestVue, [UPSTREAM])));
   }
 
   // Une lecture à la fois : une demande qui arrive pendant l'une est servie juste après elle. La suivante part trente
@@ -300,11 +293,9 @@ export function openTheReadGitHub(options: Options) {
   }
 
   // Les projets dont `status` est lu désormais : ce qui était tenu des autres est lâché, comme sur le desktop.
-  function lookThe(readOnes: string[], request: number, opened: string | undefined): Promise<void> {
+  function lookThe(readOnes: string[], request: number): Promise<void> {
     requestVue = request;
     seenOnes = readOnes;
-    space = opened;
-    upstreams.veiller(opened === undefined ? [] : [opened]);
     for (const redraws of facts.veiller(seenOnes)) tell("surFaits", redraws);
     tellTheHome(home.veiller(seenOnes));
     return read();
@@ -334,14 +325,12 @@ export function openTheReadGitHub(options: Options) {
       factsRequest = request;
       return read();
     },
-    tous: (request: number) => lookThe(projects.map(({ nom: name }) => name), request, undefined),
-    regarder: (project: string, request: number) => lookThe([project], request, project),
+    tous: (request: number) => lookThe(projects.map(({ nom: name }) => name), request),
+    regarder: (project: string, request: number) => lookThe([project], request),
     // « réessayer maintenant » : GitHub est relu tout de suite.
     relire: () => read(),
     // Un lien de la ligne d'un projet en lecture seule (ticket 3163) : la page, pour le seul dépôt que sa dernière lecture
     // dit en lecture seule — rien sinon.
     pageDeLaLectureSeule: (project: unknown, page: unknown): string | undefined => (typeof project === "string" ? pageOfFacts(last.get(project)?.faits, page) : undefined),
-    // L'onglet affiché n'a pas de lecture propre sur le téléphone : son contenu vient du rail lu.
-    onglet: (_project: string | undefined, _id: string | undefined, _request: number) => undefined,
   };
 }

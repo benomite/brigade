@@ -23,7 +23,7 @@ import type { Choice, StationsOfAccount } from "../stations-of-account.ts";
 
 export type Bridge = {
   // `poste` : le nom que l'écran donne à cet ordinateur (« this Mac », « this PC »), et s'il est un Mac — les raccourcis du terminal en dépendent.
-  demarrage(): Promise<{ poste?: { nom: string; mac: boolean }; configuration: Shown; palette: typeof PALETTE; exemple: string; onglets: readonly Tab[]; rubriques: readonly Heading[]; banniere: typeof BANNER; calibrage: { modeles: typeof MODELS; efforts: typeof EFFORTS }; code: SeenOfCode | undefined; stations?: SeenOfStations; projetsDesStations?: SeenOfProjects; accueil?: Home; miseAJour?: StateOfUpdate; telephone?: Phone }>;
+  demarrage(): Promise<{ poste?: { nom: string; mac: boolean }; configuration: Shown; palette: typeof PALETTE; exemple: string; rubriques: readonly Heading[]; banniere: typeof BANNER; calibrage: { modeles: typeof MODELS; efforts: typeof EFFORTS }; stations?: SeenOfStations; projetsDesStations?: SeenOfProjects; accueil?: Home; miseAJour?: StateOfUpdate; telephone?: Phone }>;
   // Change la couleur d'onglet ou d'accent d'un projet, par le nom d'une couleur de la palette ou
   // une couleur libre `#rrggbb` (colors.ts). Rend la raison, si elle ne l'a pas été. Écrite, elle
   // arrive par `surConfiguration`.
@@ -35,10 +35,6 @@ export type Bridge = {
   // (menu-bar.ts, ticket 3269). Rend la raison, si rien n'a été écrit. Écrit, il arrive par `surConfiguration`. Pas sur le téléphone.
   changerBarreDeMenus?(active: boolean): Promise<string | undefined>;
   iconeDeFond?(): Promise<string>;
-  // Le bloc « tickets ordinaires » de cet ordinateur pour un projet (ordinary.ts) — rien, quand l'option n'existe pas ici.
-  ordinaires(project: string): Promise<Block | undefined>;
-  // Règle l'option et la limite de cooks de cet ordinateur (`null` : aucune). Rend la raison, si rien n'a été écrit.
-  reglerOrdinaires(project: string, active: boolean, limit: number | null): Promise<string | undefined>;
   // Range un projet à la place `rang` de la barre, comptée depuis zéro parmi les projets : les autres
   // se décalent. Rend la raison, s'il ne l'a pas été. Rangé, le nouvel ordre arrive par `surConfiguration`.
   ranger(project: string, rank: number): Promise<string | undefined>;
@@ -207,10 +203,6 @@ export type Bridge = {
   regarder(project: string, request: number): void;
   // « Tous les projets » est affiché : toutes les box sont lues, chacune pour elle-même.
   tous(request: number): void;
-  // L'onglet de contenu affiché : sa commande est lue, elle seule. Sans onglet
-  // — un terminal, « Tous les projets » — plus rien n'est lu pour lui. `couts`, sans projet : la page
-  // des coûts de l'app, qui lit `station` sur la box de chaque projet (tabs.ts, `COUTS`).
-  onglet(project: string | undefined, id: string | undefined, request: number): void;
   // La barre est posée : `faits` est lu sur la box de chaque projet, quel que soit l'écran.
   faits(request: number): void;
   // Un ticket du rail, ouvert sur son issue dans le navigateur. Faux : l'adresse que la box

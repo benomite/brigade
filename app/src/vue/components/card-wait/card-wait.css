@@ -234,14 +234,6 @@
 .bon .carte-todo [hidden] {
   display: none;
 }
-/* ticket 3086 : la question d'un manager, sans carte de réponse dessous, est la ligne la plus forte de sa carte ; le pli
-   « details » d'une carte du chef, sans carte de réponse, est celui de la carte de TODO. */
-.bon[data-carte="attente"] p.question-courte {
-  font-size: var(--taille-intertitre);
-  font-weight: 600;
-  line-height: 1.35;
-  color: var(--texte);
-}
 .bon[data-carte="attente"] details.details-carte {
   font-size: var(--taille-corps);
   color: var(--texte-doux);
