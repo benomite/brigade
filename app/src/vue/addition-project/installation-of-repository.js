@@ -17,7 +17,6 @@ import { RETRY } from "../lexicon.js";
  * @typedef {{ ready: boolean, missingBindings?: readonly string[] | boolean, missingLabels?: readonly string[] | boolean }} StateOfRepository
  */
 
-export const VERIFICATION = (/** @type {string} */ repository) => `Checking that ${repository} is set up for brigade…`;
 export const READY = (/** @type {string} */ repository) => `${repository} is set up for brigade.`;
 export const PREPARE = (/** @type {string} */ repository) => `${repository} is now set up for brigade.`;
 export const PREPARE_LABEL = "set it up";

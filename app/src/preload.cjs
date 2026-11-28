@@ -46,7 +46,6 @@ const bridge = {
   // qui en sort, `installerMiseAJour` installe la nouvelle version et relance l'app — rien n'est
   // rendu, elle se ferme — ou rend `{ refus }`. Chaque changement d'état arrive par `surMiseAJour`.
   miseAJour: () => ipcRenderer.invoke("miseAJour"),
-  verifierMiseAJour: () => ipcRenderer.invoke("verifierMiseAJour"),
   installerMiseAJour: () => ipcRenderer.invoke("installerMiseAJour"),
   // La ligne d'une version plus haute (tickets 1528 et 2431, update/opinion.ts) : le dernier avis — la dernière version,
   // celle qui tourne, le lien direct du paquet de ce poste, le premier lancement — ou rien ; chaque vérification suivante
@@ -61,13 +60,11 @@ const bridge = {
   // `{ ready, missingBindings, missingLabels }`, ou un rejet dont le message est la phrase du refus.
   checkRepoSetup: (repo) => ipcRenderer.invoke("checkRepoSetup", repo).then(findingOrRejection),
   runRepoSetup: (repo) => ipcRenderer.invoke("runRepoSetup", repo).then(findingOrRejection),
-  ajouterAUneStation: (input) => ipcRenderer.invoke("ajouterAUneStation", input),
   confierAUneStation: (input) => ipcRenderer.invoke("confierAUneStation", input),
   defautsDeStation: (name) => ipcRenderer.invoke("defautsDeStation", name),
   dossiersDeLaStation: (name) => ipcRenderer.invoke("dossiersDeLaStation", name),
   lireReglagesDeLaStation: () => ipcRenderer.invoke("reglagesDeLaStation:lire"),
   ecrireReglagesDeLaStation: (change) => ipcRenderer.invoke("reglagesDeLaStation:ecrire", change),
-  retirerDUneStation: (name) => ipcRenderer.invoke("retirerDUneStation", name),
   choisirUneIssue: (name, choice, issue) => ipcRenderer.invoke("choisirUneIssue", name, choice, issue),
   signaler: (request) => ipcRenderer.invoke("signaler", request),
   demenagerLaCuisine: (name, to) => ipcRenderer.invoke("demenagerLaCuisine", name, to),
@@ -83,8 +80,6 @@ const bridge = {
   ouvrirLaProposition: (url) => ipcRenderer.invoke("ouvrirLaProposition", url),
   retirerLaStation: (id) => ipcRenderer.invoke("retirerLaStation", id),
   // Les GitHub Apps de la station de cet ordinateur (ticket 2317) : ce qu'elle en a, et en ranger une — jamais la clé en retour.
-  appsDeLaStation: () => ipcRenderer.invoke("appsDeLaStation"),
-  rangerUneApp: (role, id, key) => ipcRenderer.invoke("rangerUneApp", role, id, key),
   // Les projets que la station de cet ordinateur sert (ticket 2359) : sa liste, et un projet ajouté ou retiré.
   projetsServis: () => ipcRenderer.invoke("projetsServis"),
   servirUnProjet: (repository, served) => ipcRenderer.invoke("servirUnProjet", repository, served),
@@ -92,7 +87,6 @@ const bridge = {
   // GitHub, dont la fin arrive par `surConnexionGitHub` ; une page qu'un échec a nommée.
   ouvrirDUneStation: (name, repository, base) => ipcRenderer.invoke("ouvrirDUneStation", name, repository, base),
   seConnecterAGitHub: () => ipcRenderer.invoke("seConnecterAGitHub"),
-  outilsManquants: (tools) => ipcRenderer.invoke("outilsManquants", tools),
   // Installe la station de cet ordinateur, depuis le bloc de l'accueil (ticket 2640).
   installerLaStation: () => ipcRenderer.invoke("installerLaStation"),
   // Le compte GitHub de cet ordinateur, que dit l'étape du compte du parcours d'ajout (ticket 2475).

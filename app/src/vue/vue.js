@@ -58,16 +58,15 @@ import { Terminal as Xterm } from "@xterm/xterm";
 // d'un geste dans son survol, une lecture qui manque en une ligne, une confirmation qui dit son prix.
 import { holdBanner } from "./update/banner.js";
 import { setConnected, setTheListGitHub, holdConnectionGitHub } from "./connection-github.js";
-import { setTheIdentities, holdTheIdentities } from "./identities-github.js";
 import { setTheProjectsServed, holdTheProjectsServed } from "./projects-served/projects-served.js";
-import { buttonAction, caseATick, hover, sentence } from "./bricks.js";
+import { buttonAction, caseATick, hover } from "./bricks.js";
 import { lineError } from "./components/line-error/line-error.js";
 import { rowOfSetting as rowOfTheFamily } from "./components/setting/setting.js";
 import { button as buttonOfTheFamily } from "./components/button/button.js";
 import { slip as slipOfTheFamily, headOfSlip } from "./components/slip/slip.js";
 import { pan } from "./components/pan/pan.js";
 import { cardWait, cardOfAnswer } from "./components/card-wait/card-wait.js";
-import { stateOfYour, shapeOf, brand as brandOfPill, pill as pillOfState } from "./components/pill/pill.js";
+import { stateOfYour, shapeOf, brand as brandOfPill } from "./components/pill/pill.js";
 import { holdTheAgents } from "./agents/agents.js";
 import { keepTheKeyboard } from "./keep-the-keyboard.js";
 import { ELSEWHERE, setTheCard as setTheCardOfChef, setTheList as setTheListOfCards, setTheSend } from "./cards-of-chef/cards-of-chef.js";
@@ -78,8 +77,7 @@ import { setOpinionOfTodo } from "./todo/opinion-todo.js";
 import { setTheOthers } from "./todo/others.js";
 import { LIST_OF_CHEF, isRed, tidyTheRail } from "./todo/todo.js";
 import { kitchenBoardGrid } from "./kitchen-board/kitchen-board.js";
-import { COOKS, OF_RAIL, columnOfPlan, NOT_READY, PASS as COLUMN_PASS, NOTHING_OF_READY, aOneAction, whatAwaitingYou, lineParked, planOfTheKitchen, setTheTodo } from "./kitchen/kitchen.js";
-import { lineOfAlerts } from "./line-of-status/line-of-status.js";
+import { columnOfPlan, aOneAction, whatAwaitingYou, lineParked, planOfTheKitchen, setTheTodo } from "./kitchen/kitchen.js";
 import { setRepositoryHeld } from "./installation-project/repository-held.js";
 import { setBlockages } from "./project/blockages.js";
 import { linesOfRefusal } from "./project/rail/refusal-of-station.js";
@@ -99,7 +97,6 @@ import { setRankOfTrial } from "./card/trial.js";
 import { setLabels } from "./labels-of-slip.js";
 import { lineOfRefusal, rowOfRefusal } from "./refusal/refusal.js";
 import { holdTheAccount } from "./addition-project/account.js";
-import { setTheTools, holdTheTools } from "./tools-required/tools-required.js";
 import { CLONE_IN, setTheScreenOfAddition, readTheProject } from "./addition-project/addition.js";
 import { AT_RETURN, thisComputerOfFirst, nameSaid, proposedOfOffice, BRING_BACK, oneMachine } from "./choice-station/choice-station.js";
 import { choiceOfStation, HERE } from "./stations-tab/choice.js";
@@ -108,7 +105,6 @@ import { repositoryPastesBy, NOT_ONE_REPOSITORY } from "./addition-project/step-
 import { buttonOfAddition, stateOfTheLine, linesOfProjects, nowOfTheLine } from "./home/projects/projects.js";
 import { additionsOfProject as additionsOfRecorded, issueOfTheAddition } from "./stations-of-account.js";
 import { tellTheRead, setTheRead } from "./rail-read-stale.js";
-import { setToolsOfSecond } from "./tools-of-second.js";
 import { NO_STATION } from "./cooks/without-station.js";
 import { setThePause } from "./cooks/github-pause.js";
 import { brandAfter } from "./card-wait/card-wait.js";
@@ -160,9 +156,6 @@ screenNarrow?.addEventListener?.("change", () => {
 // La liste de ce qui attend le chef, que le process principal range à part (facts.ts) : jamais une colonne à l'écran — ses
 // cartes sont rouges dans la colonne de leur étape (todo/todo.js, ticket 3458).
 const COLUMN_WHO_AWAITING_YOU = LIST_OF_CHEF;
-// Les colonnes où quelque chose bouge : Cooks, Pass — et toute colonne où une carte rouge attend le chef. Les autres se
-// lisent en défilant, si elles sont hors de vue (ticket 1556).
-const COLUMNS_ACTIVE = new Set([COOKS, COLUMN_PASS]);
 // Les projets dont la rangée des colonnes a déjà été placée à l'ouverture : ensuite, la lecture suivante garde le défilement du chef.
 const rowsPlaced = new Set();
 // Le projet et l'onglet que le rail montrait à sa dernière pose : redessiné pour le même, il garde le défilement de la
@@ -210,7 +203,6 @@ const closeShell = element("fermer-shell");
 const listMachines = element("machines");
 const columnSecond = element("second");
 const noteSecond = element("note-second");
-const toolsOfSecond = element("outils-du-second");
 // Le stockage de la vue, ou rien quand son accès est refusé : la lecture de `window.localStorage` lève alors (SecurityError),
 // et chacun de ses usagers fait sans lui plutôt que de casser la vue au démarrage.
 /** @returns {Storage | undefined} */
@@ -257,16 +249,6 @@ const colors = element("couleurs");
 const acronym = element("sigle");
 const menuBar = element("barre-de-menus");
 const ordinary = element("ordinaires");
-// Les GitHub Apps de la station de cet ordinateur, une ligne par rôle (ticket 2317, identities-github.js) : relues à
-// l'ouverture de chaque projet ; un appareil sans station (le téléphone) n'en pose aucune.
-const appsGithub = element("apps-github");
-const identitiesGithub = holdTheIdentities({ pont: brigade, rendre: () => setTheAppsGithub() });
-function setTheAppsGithub() {
-  const state = identitiesGithub.etat;
-  appsGithub.hidden = state === undefined;
-  appsGithub.replaceChildren(...(state === undefined ? [] : [setTheIdentities(document, state, identitiesGithub.gestes)]));
-  setTheGroups();
-}
 // Les projets que la station de cet ordinateur sert (ticket 2359, projets-servis/), lus sans rien régler : une ligne par
 // projet de l'app, et, la liste vide, la ligne qui dit que cet ordinateur n'en sert aucun. Ils se changent sur l'onglet
 // Stations de chaque projet (ticket 3402). Relus à l'ouverture de chaque projet ; un appareil sans station (le téléphone)
@@ -1042,43 +1024,11 @@ function setSecond(openable, shows) {
       : notWrittenSecond !== ""
         ? notWrittenSecond
         : (shows?.note ?? (openable ? "the second is opening…" : ""));
-  // Ce que le runtime dit d'un second qui ne part pas nomme ses outils entre accents graves : posés en code (ticket 1435).
-  if (shows?.empeche !== undefined && note === shows.note) noteSecond.replaceChildren(sentence(document, "span", note));
   // Un second que la fenêtre rechargée n'a pas pu rattacher (ticket 3159) : sa ligne, et de quoi le reprendre — comme une
   // touche dans un second arrêté, il est relancé sur son fil (terminals.ts).
-  else if (shows?.aReprendre === true && note === shows.note) noteSecond.replaceChildren(note, " ", button("resume", () => brigade.ecrire(shows.id, "")));
+  if (shows?.aReprendre === true && note === shows.note) noteSecond.replaceChildren(note, " ", button("resume", () => brigade.ecrire(shows.id, "")));
   else noteSecond.textContent = note;
-  // Un second qui ne part pas n'a pas de terminal à montrer : à sa place, pourquoi, et ce qui lui manque (ticket 1435).
-  thread.hidden = !openable || phoneSeen !== undefined || shows?.empeche !== undefined;
-  // Le second ne part pas, ou part sans tous ses outils (ticket 1435) : sous sa note, chaque outil qui manque, et ce
-  // qui l'obtient — et, s'il ne part pas, de quoi réessayer. Sur un projet qui ne s'ouvre pas, il n'y a pas de second.
-  const said = !openable || phoneSeen !== undefined ? undefined : (shows?.empeche ?? shows?.manque);
-  toolsOfSecond.hidden = said === undefined;
-  toolsOfSecond.replaceChildren(
-    ...(said === undefined || shows === undefined
-      ? []
-      : [
-          setToolsOfSecond(document, said, {
-            bloque: shows.empeche !== undefined,
-            // Comme une touche dans un second arrêté : il est relancé, et ses outils revérifiés (terminals.ts).
-            reessayer: () => void retryTheSecond(shows.id),
-            ouvrirLaPage: (url) => void brigade.ouvrirLaPage?.(url),
-          }),
-        ]),
-  );
-}
-
-// « Try again » d'un second empêché : les outils relus d'abord (ticket 4059) — la lecture rattache au PATH de l'app un
-// outil que son installeur vient de poser hors de lui —, puis le second relancé, qui les revérifie : installé, il part
-// sans que l'app redémarre. Une lecture qui échoue ne retient rien : le plan du second dit lui-même ce qui manque.
-/** @param {number} id */
-async function retryTheSecond(id) {
-  try {
-    await brigade.outilsManquants?.();
-  } catch {
-    // Rien à dire ici : le second relancé dit ce qui lui manque.
-  }
-  brigade.ecrire(id, "");
+  thread.hidden = !openable || phoneSeen !== undefined;
 }
 
 // Un terminal qu'un geste a rendu se montre à droite, et prend le clavier : un shell, à côté du
@@ -2409,66 +2359,6 @@ window.addEventListener?.("online", () => {
   if (outsideLines.size > 0) readTheFacts();
 });
 
-// La box d'un projet ne répond pas (`atteinte` faux) : depuis quand, d'après la première
-// lecture ratée de la série. Le rail garde alors sa dernière lecture — il n'est plus remplacé par
-// « non joint ».
-/** @type {Map<string, string>} */
-const silentOnes = new Map();
-// Les tickets `fire` que GitHub a rendus pour un projet muet, et ceux dont la lecture est en route.
-/** @type {Map<string, import("../fire.ts").Fire>} */
-const fires = new Map();
-/** @type {Set<string>} */
-const firesInRoute = new Set();
-const FIRE_OLD_MS = 60_000;
-/** @param {Project} project */
-function loadFire(project) {
-  const fire = fires.get(project.nom);
-  if (firesInRoute.has(project.nom) || (fire !== undefined && Date.now() - new Date(fire.a).getTime() < FIRE_OLD_MS)) return;
-  firesInRoute.add(project.nom);
-  void brigade.lireFeu(project.nom).then((readOne) => {
-    firesInRoute.delete(project.nom);
-    // Sans réponse, la lecture est dite faite quand même : sinon le rail, redessiné, la relancerait aussitôt, sans fin.
-    fires.set(project.nom, readOne ?? { a: new Date().toISOString(), sans: "the app has no answer for this project" });
-    if (current?.nom === project.nom && silentOnes.has(project.nom) && !rail.hidden) setRail(current);
-  });
-}
-// La liste des tickets `fire` lus sur GitHub, d'un projet muet : repliée, sous ce qu'elle est. Dépliée, des
-// lignes comme celles du reste de la page — un numéro qui ouvre l'issue, son titre, sa priorité.
-// Ce que le chef a déplié le reste d'un redessin à l'autre.
-/** @type {Set<string>} */
-const firesUnfolded = new Set();
-/** @param {Project} project */
-function setSilent(project) {
-  loadFire(project);
-  const fire = fires.get(project.nom);
-  const list = document.createElement("details");
-  list.className = "feu";
-  list.open = firesUnfolded.has(project.nom);
-  list.addEventListener("toggle", () => {
-    if (list.open) firesUnfolded.add(project.nom);
-    else firesUnfolded.delete(project.nom);
-  });
-  const numberSays = fire === undefined || "sans" in fire ? "" : `, ${fire.tickets.length}`;
-  list.append(block("summary", fire === undefined ? "the tickets in the kitchen according to GitHub — reading…" : `the tickets in the kitchen according to GitHub${numberSays}`));
-  if (fire === undefined) return [list];
-  if ("sans" in fire) list.append(block("p", "GitHub did not answer either:"), block("pre", fire.sans));
-  else if (fire.tickets.length === 0) list.append(block("p", "no open ticket labelled `fire`"));
-  else {
-    const lines = document.createElement("ol");
-    lines.append(
-      ...fire.tickets.map(({ ticket, titre: title, prio }) => {
-        const line = document.createElement("li");
-        const open = clickable("", () => void openIssue(project, ticket));
-        open.title = `open #${ticket} on GitHub`;
-        open.append(exact("span", `#${ticket}`), block("span", title));
-        line.append(open, ...(prio === undefined ? [] : [block("small", prio)]));
-        return line;
-      }),
-    );
-    list.append(lines);
-  }
-  return [list];
-}
 
 // Le rail vieillit sans qu'aucune lecture n'arrive : sa mention se repose d'elle-même.
 /** @type {Map<string, number>} */
@@ -2500,11 +2390,6 @@ function restTheLabelOfStation(project) {
   labelsOfStation.set(project.nom, said);
   if (current?.nom === project.nom) show();
 }
-// Rien sur le rail : sa colonne dit ce qui est avant lui — elle ne laisse pas croire le projet fini.
-/** @param {Project} project */
-function railEmpty(project) {
-  return upstreams.get(project.nom)?.vide ?? `${NOT_STILL("ticket on the rail")} What is before it is being read…`;
-}
 
 
 // Ce que dit la page d'un projet qui cuit sur cet ordinateur quand la station de cet ordinateur ne tourne pas.
@@ -2516,7 +2401,7 @@ const STATION_STOPPED = `${THIS_COMPUTER}'s station is not running`;
 /** @param {Project} project */
 function setCooking(project) {
   const held = heldOnes.get(project.nom);
-  const stations = held !== undefined && "tableau" in held && !silentOnes.has(project.nom) ? held.tableau.stations : undefined;
+  const stations = held !== undefined && "tableau" in held ? held.tableau.stations : undefined;
   const seenOne = projectsSeen?.projets.find(({ nom: name }) => name === project.nom);
   const alert = lineOfAlert(document, {
     refusee: stations?.lignes.some(({ etat: state }) => state === "refused") ?? false,
@@ -2574,7 +2459,7 @@ function setTabStations(project) {
 /** @param {Project} project @param {number} now */
 function readOfServing(project, now) {
   const held = heldOnes.get(project.nom);
-  const cooking = held !== undefined && "tableau" in held && !silentOnes.has(project.nom) ? held.tableau.stations : undefined;
+  const cooking = held !== undefined && "tableau" in held ? held.tableau.stations : undefined;
   const stations = stationsViews?.stations ?? [];
   const locale = projectsSeen?.locale ?? null;
   const readEntries = cooking !== undefined || (stationsViews !== undefined && projectsSeen !== undefined);
@@ -2972,11 +2857,10 @@ function setTheRail(project) {
   // Cuisine d'un projet servi ici, station arrêtée : rien n'est lu, la page dit pourquoi en une ligne — sur l'un et
   // l'autre onglet.
   if (project.sansStation === true) return rail.replaceChildren(block("h3", STATION_STOPPED));
-  const silent = silentOnes.get(project.nom);
   // Hors ligne sans rien de lu avant : le signe seul, sans erreur ni rail vide (ticket 1818).
   if (outsideLine !== undefined && (held === undefined || !("tableau" in held))) return set(signOutsideLine(outsideLine));
   // Ce que dit le rail qui n'est pas lu : la carte du projet le dit déjà, sur Cooks.
-  if (held === undefined && silent === undefined) {
+  if (held === undefined) {
     // Une minute sans rien lu : la page le dit, elle n'attend pas toujours (ticket 2055).
     const exhausted = waitExhausted(waitsOfRail, project.nom, Date.now());
     return set(block("h3", exhausted ? RAIL_NOT_READ : `the rail: first read of ${gesture(project, "facts")} in progress…`));
@@ -2986,95 +2870,39 @@ function setTheRail(project) {
   // marquée, et les tickets `fire` que GitHub dit encore passent au-dessus (fire.ts).
   // Le téléphone ne lit pas GitHub : rien n'y passe au-dessus.
   const atPhone = phoneSeen !== undefined;
-  const brand = silent === undefined || atPhone ? [] : setSilent(project);
   if (held === undefined || !("tableau" in held)) {
     // Le téléphone n'a pas de panneau à droite : ce qui a été obtenu se dit sous le titre, en une ligne, son détail au survol.
     if (atPhone && held !== undefined && "erreur" in held) return set(block("h3", `the rail is not drawn — tried at ${hourOf(held.a)}`), ...obtainedInOneLine(project, held, AT_PHONE));
     // Sans rien lu : une ligne d'erreur, sans renvoi ; ce que l'app a obtenu s'y ajoute si le panneau est à l'écran.
     const without = held === undefined ? [] : setTheRead(document, tellTheRead({ reading: null, readAt: null, stale: false, refusal: { kind: "other" } }, { maintenant: Date.now(), essaiA: held.a, titre: held.titre, pourquoi: reasonOfTheFailure(held), panneauVisible: panelAFicher() }));
-    return set(...brand, ...without);
+    return set(...without);
   }
-  const { hors: outside } = held.tableau.rail;
   const readEntries = held.tableau.rail.colonnes;
   forgetTheAnswersStale(project, readEntries);
-  // La box ne répond pas : ce que ses colonnes contenaient n'est plus lu. Elles le disent, au lieu de montrer des « 0 ».
-  const allEntries = silent === undefined ? readEntries : readEntries.map((column) => ({ ...column, compte: "?", cartes: [], autres: undefined, vide: "not known while the station is unreachable" }));
-  // Le kanban est entier sur Rail, Taken et Pass compris. TODO n'en est pas une colonne : ses cartes sont rouges en tête
-  // de la colonne de leur étape, et l'entrée « TODO (N) » les filtre (ticket 3458).
-  const range = tidyTheRail(allEntries);
-  const { colonnes: columns, autres: ofOthers } = range;
-  // Toutes les cartes lues, quel que soit l'onglet : la fiche ouverte et ce qui est en amont les suivent.
-  const theCards = [...allEntries.flatMap(({ cartes: itsOwn, autres: ofOthers }) => [...itsOwn, ...(ofOthers ?? [])]), ...outside];
-  // Ce sur quoi un agent travaille porte la poêle (ticket 2984) — jamais d'une lecture dont l'app ne sait plus si elle dit
-  // vrai (hors ligne, périmée, la box muette), ni la cuisine arrêtée, ni sur une carte qui attend le chef.
-  const inCooking = new Set(outsideLine === undefined && outdated === undefined && silent === undefined && !held.tableau.arretee ? (held.tableau.auTravail ?? []) : []);
-  /** @param {import("../facts.ts").Card[]} cards @param {import("./components/pill/pill.js").State} [state] l'état de la colonne, que ses cartes disent ; aucun dans T'attend, où la carte garde l'état de son mot @param {boolean} [withStation] @param {boolean} [outsideColumn] */
-  const slips = (cards, state, withStation = false, outsideColumn = false) => {
+  // TODO n'est pas une colonne : ses cartes sont rouges, et l'entrée « TODO (N) » les range (ticket 3458).
+  const { colonnes: columns, autres: ofOthers } = tidyTheRail(readEntries);
+  // Toutes les cartes lues : la fiche ouverte les suit.
+  const theCards = readEntries.flatMap(({ cartes: itsOwn, autres: ofOthers }) => [...itsOwn, ...(ofOthers ?? [])]);
+  /** @param {import("../facts.ts").Card[]} cards */
+  const slips = (cards) => {
     const list = document.createElement("ol");
     list.append(
       ...cards.map((cardItem) => {
-        // Une carte rouge garde la pastille de son propre état, comme dans TODO : la colonne dit son étape (ticket 3458).
-        const slip = renderSlip(project, cardItem, isRed(cardItem) ? undefined : state, withStation, outsideColumn, !cardItem.attendu && inCooking.has(cardItem.ticket));
+        const slip = renderSlip(project, cardItem);
         setEntries.set(cardItem, slip);
         return slip;
       }),
     );
     return list;
   };
-  // Le plan de la cuisine (cuisine/, ticket 4238) : backlog — le rail en tête, les prêts à part —, manager, cooks, pass, servi.
-  // Chaque carte dans la colonne de son étape ; une carte parked reste dans celle où elle attend. Aucune colonne Waiting.
-  const plan = planOfTheKitchen(columns);
-  // Ce qu'attendre un tiers veut dire (WAITING, ticket 3308) s'explique sous le titre de la première colonne où une carte est parked.
-  const columnParked = plan.find(({ cartes: cards }) => cards.some(({ parque: parked }) => parked !== undefined))?.nom;
-  const grid = document.createElement("div");
-  grid.className = "colonnes";
-  grid.append(
-    ...plan.map(({ nom: name, ton: your, compte: account, cartes: cards, vide: empty, defile: scrolls, pretes: readyEntries, pasPretes: notReady }) => {
-      const column = document.createElement("section");
-      column.className = "colonne";
-      column.dataset.ton = your;
-      // La visite (ticket 3165) désigne une colonne par son nom, et une carte par son ticket.
-      column.dataset.colonne = name;
-      // Servi s'allonge tout le jour : ses cartes défilent dans leur hauteur, les autres colonnes restent en vue.
-      if (scrolls) column.dataset.defile = "";
-      // Une carte rouge y attend le chef (ticket 3458).
-      const red = cards.some(isRed);
-      if (red) column.dataset.attend = "";
-      // Ce qui attend le chef, ou bouge : sa colonne est en vue à l'ouverture du rail (ticket 1556).
-      if (cards.length > 0 && (COLUMNS_ACTIVE.has(name) || red)) column.dataset.actif = "";
-      const head = document.createElement("h4");
-      head.append(pillOfState(document, stateOfYour(your), name), block("span", account));
-      column.append(head);
-      // Le backlog : le rail en tête, ce qui est prêt à cuire ; dessous, le reste, s'il y en a.
-      if (readyEntries !== undefined) {
-        const ofRail = document.createElement("div");
-        ofRail.className = "du-rail";
-        ofRail.append(block("h5", OF_RAIL), readyEntries.length > 0 ? slips(readyEntries, stateOfYour(your)) : block("p", silent === undefined && held.tableau.rail.aucunTicket === true ? railEmpty(project) : silent === undefined ? NOTHING_OF_READY : empty));
-        column.append(ofRail);
-        if (notReady !== undefined && notReady.length > 0) {
-          const remains = document.createElement("div");
-          remains.className = "pas-prets";
-          remains.append(block("h5", NOT_READY), slips(notReady, stateOfYour(your)));
-          column.append(remains);
-        }
-      } else if (cards.length > 0) column.append(slips(cards, stateOfYour(your), name === COOKS || name === COLUMN_PASS));
-      else column.append(block("p", empty));
-      return column;
-    }),
-  );
-  // Un projet de la nouvelle cuisine (ticket 4482) : son kanban, tiré des labels seuls (kitchen-board/), prend la place du plan.
-  // Le TODO du chef reste la ligne au-dessus des colonnes.
-  if (held.tableau.kitchenBoard !== undefined) {
-    const kanban = kitchenBoardGrid(document, held.tableau.kitchenBoard, { openIssue: (ticket) => void openIssue(project, ticket), openPr: (ticket) => void openPr(project, ticket) });
-    grid.className = kanban.className;
-    grid.replaceChildren(...kanban.children);
-  }
+  // Le kanban d'un projet (ticket 4482), tiré des labels seuls (kitchen-board/). Le TODO du chef reste la ligne au-dessus des colonnes.
+  if (held.tableau.kitchenBoard === undefined) return set(block("h3", `the rail: first read of ${gesture(project, "facts")} in progress…`));
+  const grid = kitchenBoardGrid(document, held.tableau.kitchenBoard, { openIssue: (ticket) => void openIssue(project, ticket), openPr: (ticket) => void openPr(project, ticket) });
   // Le TODO du chef (tickets 4238, 4261, 4354) : une ligne, « 2 wait for you », dont un clic montre exactement les tickets
-  // parked pour lui, une entrée chacun — ce qui lui est demandé, ses boutons, et un clic sur son numéro ouvre sa carte. Posé
-  // sous les colonnes, il se montre au-dessus d'elles.
+  // parked pour lui, une entrée chacun — ce qui lui est demandé, ses boutons, et un clic sur son numéro ouvre sa carte.
   // Un projet en lecture seule (ticket 3163) : ses cartes se lisent, aucun bouton ne les tranche d'ici.
   const todo = setTheTodo(document, {
-    cartes: whatAwaitingYou(plan),
+    cartes: whatAwaitingYou(planOfTheKitchen(columns)),
     ouvrir: (cardItem) => openCard(project, cardItem, setEntries.get(cardItem) ?? rail),
     ...(readOnlyOf(project) === undefined ? { gestes: { etat: (ticket, todo) => stateOfTheCard(project, ticket, todo), jouer: (ticket, kind, answer) => ACTIONS_OF_TODO[kind](project, ticket, answer) } } : {}),
     deplie: { get ouvert() { return unfoldsOf(project.nom).has("todo"); }, set ouvert(yes) { void (yes ? unfoldsOf(project.nom).add("todo") : unfoldsOf(project.nom).delete("todo")); } },
@@ -3084,7 +2912,7 @@ function setTheRail(project) {
   // réponses que le chef tapait sur une carte partie entre-temps, résolues (ticket 2151) ; puis ce qui attend un autre humain
   // du projet, replié (ticket 2985).
   const aSide = [opinionOfRepository(project, "todo")].flatMap((opinion) => opinion ?? []);
-  const resolved = silent === undefined ? setTheCardsResolved(project, held.tableau.rail) : [];
+  const resolved = setTheCardsResolved(project, held.tableau.rail);
   if (resolved.length > 0) {
     const list = document.createElement("ol");
     list.append(...resolved);
@@ -3096,13 +2924,9 @@ function setTheRail(project) {
   outsideTodo.className = "a-cote-du-todo";
   outsideTodo.append(...aSide);
   const underTheColumns = [...(todo === undefined ? [] : [todo]), ...(aSide.length === 0 ? [] : [outsideTodo])];
-  // Rien d'autre n'est lu à neuf : ni ce qui est avant le rail.
-  if (silent !== undefined) return set(...brand, grid, ...underTheColumns);
   setTheGroups();
   // La fiche ouverte suit la lecture : elle dit ce que la dernière dit de son ticket.
-  // Celle d'une issue avant le rail suit aussi ce qu'en dit la dernière lecture.
-  const before = upstreams.get(project.nom);
-  if (openOne !== undefined) followCard([...theCards, ...(before !== undefined && "groupes" in before ? before.groupes.flatMap(({ issues }) => issues.map(({ carte: cardItem }) => cardItem)) : [])], setEntries);
+  if (openOne !== undefined) followCard(theCards, setEntries);
   const resumption = resumptionOfKeyboard();
   const oldOne = rows.get(project.nom);
   const scrolls = oldOne === undefined ? undefined : { gauche: oldOne.scrollLeft, haut: oldOne.scrollTop };
@@ -3111,23 +2935,7 @@ function setTheRail(project) {
   railPoseOf = project.nom;
   // Hors ligne, le rail lu en dernier est atténué, et le signe dit depuis quand à la place de son âge (ticket 1818).
   if (outsideLine !== undefined) rail.dataset.horsLigne = "";
-  // Au-dessus des colonnes, au plus deux lignes (ticket 3523) : le bandeau Backlog et, si quelque chose retient la cuisine, une
-  // ligne d'état — la première cause de cette liste, jamais deux : ce qui retient la cuisine d'abord, puis une lecture hors ligne
-  // ou périmée, puis l'attente de la file. Sa fraîcheur, quand elle est bonne, est au survol de la ligne et du bandeau.
-  // « Start this computer's station » n'est offert que pour un projet qui cuit sur cet ordinateur : la station arrêtée est la sienne.
-  const seenUpstream = upstreams.get(project.nom);
-  const alerts = seenUpstream !== undefined && "groupes" in seenUpstream ? seenUpstream.alertes : undefined;
-  // La bande du haut (cuisine/, tickets 4238, 4354) remplace les bandeaux FAULT : les cartes du supervisor et du closer, et dessous au
-  // plus un message — la première cause de la liste qui offre un geste au chef ; une qui n'en offre aucun n'est pas montrée. La
-  // lecture hors ligne ou périmée, qui passe seule, offre de relire ; la ligne d'une issue que la cuisine a ouverte sur
-  // elle-même, d'ouvrir cette issue.
-  /** @param {HTMLElement[]} lines @param {string} wording @param {() => void} gesture */
-  const withItsAction = (lines, wording, gesture) => {
-    const [first] = lines;
-    if (first !== undefined && !aOneAction(lines)) first.append(button(wording, gesture));
-    return lines;
-  };
-  const [issueOfTheKitchen] = [...(alerts ?? [])].sort((a, b) => a.ticket - b.ticket);
+  // Au-dessus des colonnes, au plus une ligne (ticket 3523) : une lecture hors ligne ou périmée, qui offre de relire.
   /** @param {HTMLElement[]} lines */
   const rereadable = (lines) => {
     if (lines.length === 0 || aOneAction(lines)) return lines;
@@ -3136,17 +2944,13 @@ function setTheRail(project) {
     frame.append(...lines, button("read again", () => readTheFacts()));
     return [frame];
   };
-  const status =
-    [
-      issueOfTheKitchen === undefined ? [] : withItsAction(lineOfAlerts(document, alerts), `open #${issueOfTheKitchen.ticket}`, () => void openIssue(project, issueOfTheKitchen.ticket)),
-      rereadable(outsideLine !== undefined ? [signOutsideLine(outsideLine)] : outdated !== undefined ? signStale(outdated, held.a) : held.pause !== undefined ? [] : freshness(held.a)),
-    ].find((lines) => lines.length > 0 && aOneAction(lines)) ?? [];
+  const status = [rereadable(outsideLine !== undefined ? [signOutsideLine(outsideLine)] : outdated !== undefined ? signStale(outdated, held.a) : held.pause !== undefined ? [] : freshness(held.a))].find((lines) => lines.length > 0 && aOneAction(lines)) ?? [];
   const age = held.publieLe === undefined ? undefined : ageOfRail(held.publieLe, held.a);
   // Sans ligne d'état ni bandeau, la rangée des colonnes la porte : l'âge n'est jamais perdu, jamais une ligne de plus.
   if (age !== undefined) for (const carrier of [status[0], grid]) if (carrier !== undefined && !carrier.title) carrier.title = age;
   // Les lectures retenues pour le quota GitHub : une ligne au-dessus du rail, qui part avec la pause.
   const lineOfPause = held.pause === undefined ? [] : [setThePause(document, held.pause)];
-  set(...lineOfPause, ...status, grid, ...underTheColumns, ...(outside.length === 0 ? [] : [block("h3", "outside the columns — their state is none of the six, and nothing says they await you"), slips(outside, undefined, false, true)]));
+  set(...lineOfPause, ...status, grid, ...underTheColumns);
   renderTheKeyboard(resumption);
   placeTheRow(project, grid, scrolls);
   if (sameRail) rail.scrollTop = topOfRail;
@@ -3245,7 +3049,7 @@ function keepTheCardInMain(project) {
   rail.hidden = false;
   inMain.gele = true;
   const held = heldOnes.get(project.nom);
-  if (held !== undefined && "tableau" in held && !silentOnes.has(project.nom)) tellTheCardResolved(inMain.carte, resolvedBetweenTime(held.tableau.rail, inMain.ticket, inMain.question));
+  if (held !== undefined && "tableau" in held) tellTheCardResolved(inMain.carte, resolvedBetweenTime(held.tableau.rail, inMain.ticket, inMain.question));
   return true;
 }
 
@@ -3650,7 +3454,7 @@ async function pass() {
 /** @param {string} name @returns {number | undefined} */
 function accountOfTodo(name) {
   const held = heldOnes.get(name);
-  if (held === undefined || !("tableau" in held) || silentOnes.has(name)) return undefined;
+  if (held === undefined || !("tableau" in held)) return undefined;
   const { compte: account } = tidyTheRail(held.tableau.rail.colonnes);
   return account === "?" ? undefined : Number(account);
 }
@@ -3727,11 +3531,10 @@ const NOT_SERVES_NOT = "does not serve this project";
 /** @param {Project} project */
 function kitchenOf(project) {
   // La box du projet ne répond pas : celles qui le servent sont dites injoignables, pas servies.
-  const silentOne = silentOnes.has(project.nom);
   const request = projectsSeen?.projets.find(({ nom: name }) => name === project.nom);
   const servedCards = (stationsViews?.stations ?? []).filter(({ projets: projects }) => projects.includes(project.nom));
   const stations = [
-    ...servedCards.map(({ id, nom: name }) => ({ id, nom: name, ...(silentOne ? { dit: "unreachable", ton: "rouge" } : kitchenState("servi")), pourquoi: "", geste: "", survol: silentOne ? `${name} does not answer: the app knows nothing of the kitchen right now` : `${name} serves it`, autoriser: /** @type {string[]} */ ([]), bloquee: false })),
+    ...servedCards.map(({ id, nom: name }) => ({ id, nom: name, ...kitchenState("servi"), pourquoi: "", geste: "", survol: `${name} serves it`, autoriser: /** @type {string[]} */ ([]), bloquee: false })),
     ...(request?.stations ?? [])
       .filter(({ id }) => !servedCards.some((served) => served.id === id))
       .map((station) => {
@@ -3955,7 +3758,7 @@ async function relocate(project, to, { nomme: named, depuis: since, garder: keep
 /** @param {Project} project @returns {string[]} */
 function stationsOfGithubOfProject(project) {
   const held = heldOnes.get(project.nom);
-  if (held === undefined || !("tableau" in held) || silentOnes.has(project.nom)) return [];
+  if (held === undefined || !("tableau" in held)) return [];
   const servingOnes = new Set(servingOf(readOfServing(project, Date.now()).base).map(({ prise: taking }) => taking));
   return held.tableau.stations?.lignes.map(({ station }) => station).filter((station) => servingOnes.has(station)) ?? [];
 }
@@ -4638,40 +4441,6 @@ let firstAOpen;
 const accountOfJourney = holdTheAccount({ pont: brigade, rendre: () => setTheFirst() });
 /** @returns {import("./addition-project/account.js").StateOfAccount} */
 const stateOfJourney = () => ({ ...accountOfJourney.etat, ...(first.connexion === undefined ? {} : { connexion: first.connexion }) });
-// Les outils que l'app ne livre pas (ticket 4059, outils-requis/) : la connexion à GitHub et le clone d'un projet
-// demandent Git et le GitHub CLI, le login Max demande Claude Code. Un pas qui en manque cède la place à l'écran de
-// l'outil manquant — sur le premier lancement, à la place du compte ; ailleurs, dans l'avis —, et reprend où il était
-// une fois l'outil là : l'ouverture d'un projet repart, la connexion retrouve son bouton.
-/** @type {(() => void) | undefined} */
-let resumeAfterTheTools;
-const toolsOfJourney = holdTheTools({
-  pont: brigade,
-  outils: ["git", "gh"],
-  rendre: () => setTheToolsHere(),
-  quandPret: () => {
-    const resume = resumeAfterTheTools;
-    resumeAfterTheTools = undefined;
-    resume?.();
-  },
-});
-/** @param {ReturnType<typeof holdTheTools>} heldOnes */
-const actionsOfTools = (heldOnes) => ({ ouvrir: (/** @type {string} */ url) => void brigade.ouvrirLaPage?.(url), verifier: () => void heldOnes.verifier(true) });
-let opinionOfTools = false;
-function setTheToolsHere() {
-  setTheFirst();
-  const heldOnes = [toolsOfJourney].find(({ etat: state }) => state.manque !== undefined);
-  if (heldOnes === undefined) {
-    if (opinionOfTools) opinion.hidden = true;
-    opinionOfTools = false;
-    return;
-  }
-  opinionOfTools = true;
-  opinion.replaceChildren(...setTheTools(document, heldOnes.etat, actionsOfTools(heldOnes)), button("close", () => {
-      opinion.hidden = true;
-      opinionOfTools = false;
-    }, "discret"));
-  opinion.hidden = false;
-}
 /** @type {Pick<import("./addition-project/addition.js").ActionsOfTheAddition, "ouvrir" | "seConnecter" | "changerDeCompte" | "relireLeCompte" | "ouvrirLaPage"> & { seConnecterAClaude?: () => void }} */
 const actionsOfFirst = {
   ouvrir: (station, project, repository, base) => void openOfAStation(station, project, repository, base),
@@ -4777,10 +4546,6 @@ function setTheRequestOfStationHere() {
 /** @param {string} station @param {string} project @param {string} repository @param {string} [base] */
 async function openOfAStation(station, project, repository, base) {
   // Le clone demande Git et le GitHub CLI : l'un manque, son écran le dit, et l'ouverture repart une fois installé.
-  if (!(await toolsOfJourney.verifier())) {
-    resumeAfterTheTools = () => void openOfAStation(station, project, repository, base);
-    return;
-  }
   first.ouverture = { station, projet: project, depot: repository, ...(base === undefined ? {} : { base }) };
   setTheFirst();
   /** @type {import("../first-launch.ts").Opening} */
@@ -4807,12 +4572,6 @@ async function openOfAStation(station, project, repository, base) {
 }
 
 async function itselfConnectAGitHub() {
-  // Une connexion qui ne peut pas partir — sans `gh` — ne tourne pas : l'écran de l'outil manquant la remplace, et le
-  // bouton revient tel quel une fois l'outil installé.
-  if (!(await toolsOfJourney.verifier())) {
-    resumeAfterTheTools = undefined;
-    return;
-  }
   first.connexion = { enRoute: true };
   setTheFirst();
   /** @type {import("../connection-github.ts").StartOfConnection} */
@@ -4977,7 +4736,6 @@ async function open(project) {
   setColors(project);
   setMenuBar();
   void setOrdinary(project);
-  void identitiesGithub.lire();
   void servedOnes.lire();
   void mountTheCardProject(document, element("fiche-du-projet"), { projet: project.nom, pont: brigade });
   brigade.regarder(project.nom, ++request);
@@ -5046,10 +4804,6 @@ brigade.surAmont((seenOne) => {
 brigade.surFaits((receivedOne) => {
   if (receivedOne.demande !== factsRequest) return;
   inRead.delete(receivedOne.projet);
-  // Une box pas jointe n'efface pas le rail : la dernière lecture reste, marquée (poserRail).
-  const silentOne = !("tableau" in receivedOne) && "atteinte" in receivedOne && !receivedOne.atteinte;
-  if (silentOne) silentOnes.set(receivedOne.projet, silentOnes.get(receivedOne.projet) ?? receivedOne.a);
-  else silentOnes.delete(receivedOne.projet);
   // Hors ligne, de même : le dernier rail lu reste, et aucun échec ne prend sa place (ticket 1818).
   const outsideLine = !("tableau" in receivedOne) && "horsLigne" in receivedOne && receivedOne.horsLigne === true;
   if (outsideLine) outsideLines.set(receivedOne.projet, outsideLines.get(receivedOne.projet) ?? receivedOne.a);
@@ -5058,11 +4812,11 @@ brigade.surFaits((receivedOne) => {
   // Une lecture ratée en ligne — GitHub qui limite les appels, refuse, ne répond pas à temps, une box qui redémarre et
   // publie un tableau illisible — ne vide aucune colonne (ticket 2151) : le dernier rail lu reste, et une ligne dit depuis
   // quand il est périmé, la raison au survol. Sans rail lu avant, elle se dit comme avant.
-  const missed = !("tableau" in receivedOne) && !silentOne && !outsideLine;
+  const missed = !("tableau" in receivedOne) && !outsideLine;
   if ("tableau" in receivedOne) stale.delete(receivedOne.projet);
   else if (missed && keptOne !== undefined && "tableau" in keptOne) stale.set(receivedOne.projet, { depuis: stale.get(receivedOne.projet)?.depuis ?? receivedOne.a, raison: reasonOfTheFailure(receivedOne) });
   if (outsideLine && (keptOne === undefined || !("tableau" in keptOne))) heldOnes.delete(receivedOne.projet);
-  else if (!((silentOne || outsideLine || missed) && keptOne !== undefined && "tableau" in keptOne)) heldOnes.set(receivedOne.projet, receivedOne);
+  else if (!((outsideLine || missed) && keptOne !== undefined && "tableau" in keptOne)) heldOnes.set(receivedOne.projet, receivedOne);
   markPill(receivedOne.projet);
   followTheSetup(receivedOne.projet);
   setTheCardsOfChef();
@@ -5243,7 +4997,6 @@ function display() {
   // Un rail déjà lu ne se vide jamais (ticket 3337) : sa dernière lecture reste à l'écran pendant la relecture, seuls les
   // projets qui ont quitté la liste perdent la leur. Sans lecture avant, « first read in progress » ne vaut qu'une fois.
   for (const name of [...heldOnes.keys()]) if (!configuration.projets.some((project) => project.nom === name)) heldOnes.delete(name);
-  silentOnes.clear();
   pills.clear();
   bar.replaceChildren(
     ...configuration.projets.map((project) => {

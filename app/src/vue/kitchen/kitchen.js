@@ -28,10 +28,7 @@ const MANAGER = "Manager";
 export const COOKS = "Cooks";
 export const PASS = "Pass";
 const SERVED = "Served";
-// Le haut du backlog : le rail, ce qui est calibré et prêt (spec, règle 2) ; puis le reste du backlog.
-export const OF_RAIL = "Rail — ready to cook";
 export const NOT_READY = "Not ready yet";
-export const NOTHING_OF_READY = "no ticket is ready on the rail";
 const NOTHING_AT_MANAGER = "no ticket with the manager";
 
 // La colonne de facts.ts d'où vient chaque colonne du plan. Waiting n'en a pas : ses cartes vont dans la colonne de leur étape.

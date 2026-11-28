@@ -23,12 +23,6 @@
   opacity: 0;
   animation: poele-gresille 0.9s step-end infinite;
 }
-.poele .trame-2 {
-  animation-delay: -0.6s;
-}
-.poele .trame-3 {
-  animation-delay: -0.3s;
-}
 @keyframes poele-gresille {
   0% {
     opacity: 1;
@@ -41,8 +35,5 @@
 @media (prefers-reduced-motion: reduce) {
   .poele .trame {
     animation: none;
-  }
-  .poele .trame-1 {
-    opacity: 1;
   }
 }

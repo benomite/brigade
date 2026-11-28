@@ -743,9 +743,6 @@ ipcMain.handle("depotsDuChef", () => projectsOfStations.depots());
 // Un dépôt quelconque, lu par son nom — public et pas au chef compris : sa branche par défaut, ou le refus.
 const readTheRepository = readOneRepository({ gh: process.env.BRIGADE_GH_BIN || "gh", delaiMs: 30_000 });
 ipcMain.handle("lireUnDepot", (_, repository: unknown) => readTheRepository(repository));
-// Le parcours validé : la demande s'écrit dans le gist de chaque station choisie — ou chaque champ
-// qui manque est signalé, et rien n'est écrit (projects/projects.ts).
-ipcMain.handle("ajouterAUneStation", (_, input: unknown) => projectsOfStations.ajouter(input));
 // La page d'un projet de l'app confie sa cuisine à une première station, ou à une de plus : c'est le
 // seul geste qui l'installe sur une station (projects/projects.ts, `confier`).
 ipcMain.handle("confierAUneStation", (_, input: unknown) => projectsOfStations.confier(input));
@@ -774,8 +771,6 @@ ipcMain.handle("reglagesDeLaStation:lire", () => (role.role !== "station" ? { re
 ipcMain.handle("reglagesDeLaStation:ecrire", (_, change: unknown) =>
   role.role !== "station" ? { refus: "this device runs no station" } : writeSettingsOfTheStation(fileOfSettingsOfTheStation, typeof change === "object" && change !== null ? (change as Change) : {}),
 );
-// Retiré, le projet quitte la demande de chacune de ses stations : elles le retirent de leur configuration.
-ipcMain.handle("retirerDUneStation", (_, name: unknown) => projectsOfStations.retirer(name));
 // La page d'un projet déménage sa cuisine, d'un geste, vers une autre station appairée — cet
 // ordinateur, sa box, une autre : l'opération du runtime l'écrit, ou dit en une phrase pourquoi non.
 // Une issue d'un choix, sur la carte d'un besoin qui manque (#1400) : elle s'écrit dans la demande de la principale,
@@ -867,14 +862,7 @@ ipcMain.handle("servirUnProjet", async (_, repository: unknown, served: unknown)
     readBase: async (folder) => (await readClone(git, folder)).base ?? undefined,
   });
 });
-ipcMain.handle("appsDeLaStation", () => undefined);
-ipcMain.handle("rangerUneApp", () => ({ refus: "this computer's kitchen keeps no GitHub App" }));
 ipcMain.handle("defautsDeStation", () => ({ refus: "this computer could not be read", detail: NOT_PAIRED }));
-ipcMain.handle("outilsManquants", () => []);
-ipcMain.handle("railDuProjet", (_, name: unknown) => ({ state: "unavailable", project: String(name), cause: "unreadable", reason: `The rail of ${String(name)} is read on GitHub, not from a station's gist.` }));
-const NOT_PLAYED = { refus: "nothing was done: this gesture was a command of the old runtime, which no kitchen runs — do it on GitHub", detail: "" };
-ipcMain.handle("gesteSensible", () => NOT_PLAYED);
-ipcMain.handle("annulerServi", () => NOT_PLAYED);
 const READY = { ready: true, missingBindings: false, missingLabels: [] };
 ipcMain.handle("checkRepoSetup", () => READY);
 ipcMain.handle("runRepoSetup", () => READY);
@@ -961,7 +949,6 @@ ipcMain.handle("passer", () => {
 // demande, et « installer maintenant » — l'app se ferme et rien n'est rendu, ou elle dit pourquoi
 // elle reste sur sa version. Depuis le dépôt, l'état dit qu'elle ne se met pas à jour par là.
 ipcMain.handle("miseAJour", () => update.vu());
-ipcMain.handle("verifierMiseAJour", () => update.verifier());
 ipcMain.handle("installerMiseAJour", () => update.installerMaintenant());
 // La ligne d'une version plus haute : le dernier avis, et son lien ouvert dans le navigateur — celui de l'avis, et lui seul.
 ipcMain.handle("avisDeVersion", () => opinionOfVersion);

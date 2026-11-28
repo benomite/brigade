@@ -103,9 +103,6 @@ export type Bridge = {
   // `installation`, `erreur` (sa `raison` en une ligne — un flux injoignable ne retient jamais l'app).
   // Le dernier d'avant le démarrage de la vue est dans `demarrage`, chaque changement par `surMiseAJour`.
   miseAJour(): Promise<StateOfUpdate>;
-  // Relit le flux des versions publiées, et rend l'état qui en sort ; une version plus haute part
-  // aussitôt en téléchargement. Rien n'est relu pendant un téléchargement, ni une fois prête.
-  verifierMiseAJour(): Promise<StateOfUpdate>;
   // « Installer maintenant » : télécharge la nouvelle version si ce n'est pas fait, l'installe et
   // relance l'app sur elle — rien n'est rendu, elle se ferme —, ou dit pourquoi elle reste sur sa version.
   installerMiseAJour(): Promise<{ refus: string } | undefined>;
@@ -146,9 +143,6 @@ export type Bridge = {
   // sa raison en une phrase.
   checkRepoSetup(repo: string): Promise<import("./addition-project/installation-of-repository.js").StateOfRepository>;
   runRepoSetup(repo: string): Promise<import("./addition-project/installation-of-repository.js").StateOfRepository>;
-  // Le parcours validé : la demande s'écrit dans le gist de chaque station choisie, et rend le nom
-  // du projet — ou chaque champ qui manque, avec sa raison, ou le refus de GitHub. Rien n'est écrit alors.
-  ajouterAUneStation(input: { depot: string; base: string; stations: string[]; cooks: string; manager: { modele: string; effort: string }; reviewer: { modele: string; effort: string }; ouvertLe: string }): Promise<Addition>;
   // Confie la cuisine d'un projet de l'app à une première station, ou à une de plus (ticket 983) : la
   // demande s'écrit dans le gist de chaque station choisie, et rend le nom du projet — ou chaque champ
   // qui manque, ou le refus de GitHub. Rien n'est écrit alors.
@@ -162,8 +156,6 @@ export type Bridge = {
   // Les dossiers et la porte réseau de la station de cet ordinateur (ticket 2644) : lus, et changés depuis sa page.
   lireReglagesDeLaStation?(): Promise<import("../settings-of-the-station.ts").Settings | import("../settings-of-the-station.ts").Refusal>;
   ecrireReglagesDeLaStation?(change: import("../settings-of-the-station.ts").Change): Promise<{ fait: string } | import("../settings-of-the-station.ts").Refusal>;
-  // Retire le projet de la demande de chacune de ses stations : elles le retirent de leur configuration.
-  retirerDUneStation(name: string): Promise<RemovalOfAStation>;
   // Déménage la cuisine d'un projet vers une station appairée — son gist (projects/move.ts).
   demenagerLaCuisine(name: string, to: string): Promise<Move>;
   // Une issue de la carte d'un besoin qui manque à la principale du projet (ticket 1400) : le choix — sa clé —, l'issue
@@ -188,11 +180,6 @@ export type Bridge = {
   changerLeSavoir(project: string, change: import("./know-how/know-how-github.ts").ChangeOfKnowledge): Promise<import("./know-how/know-how-github.ts").RenderedOfKnowledge>;
   // « Retirer la station », confirmé : son appairage est ôté de son gist (stations/stations.ts) ; la station n'est plus lue.
   retirerLaStation(id: string): Promise<RemovalOfStation>;
-  // Les GitHub Apps de la station de cet ordinateur (ticket 2317, identities-github.js) : ce qu'elle a de chaque rôle —
-  // l'ID de son App, si sa clé est là, jamais la clé —, et en ranger une. Absents, ou rien de rendu : cet appareil n'a
-  // pas de station — la cuisine de cet ordinateur n'en range aucune.
-  appsDeLaStation?(): Promise<import("./identities-github.js").ReadOfApps | undefined>;
-  rangerUneApp?(role: import("./identities-github.js").Role, id: string, key: string): Promise<import("./identities-github.js").RenderedOfCleanup>;
   // Les projets que la station de cet ordinateur sert sur GitHub seul (ticket 2359, projets-servis/) : la liste qu'elle
   // tient, et un projet ajouté ou retiré — chaque écriture rend la liste écrite. Absents, ou rien de rendu : pas de station.
   projetsServis?(): Promise<import("./projects-served/projects-served.js").ReadOfProjectsServed | undefined>;
@@ -205,9 +192,6 @@ export type Bridge = {
   // rien n'est parti. Sa fin arrive par `surConnexionGitHub`. Sur le téléphone (le ticket 2500), le pont la mène
   // lui-même avec GitHub, sans station : le jeton qu'elle rend reste dans son coffre, et la vue ne le voit jamais.
   seConnecterAGitHub?(): Promise<StartOfConnection>;
-  // Les outils que l'app ne livre pas (ticket 4059, tools-required.ts) : ceux de `outils` — les trois, sans liste — qui
-  // manquent à cet ordinateur, chacun avec le lien de sa page d'installation.
-  outilsManquants?(tools?: ("gh" | "git" | "claude")[]): Promise<import("../tools-required.ts").ToolMissing[]>;
   // Le compte GitHub que le `gh` de cet ordinateur tient (ticket 2475, connection-github.ts) : son login, aucun, ou
   // pourquoi il ne se lit pas. L'étape du compte du parcours d'ajout le dit, et le relit au bout d'une connexion.
   compteGitHub?(): Promise<AccountGitHub>;

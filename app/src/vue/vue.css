@@ -828,19 +828,12 @@ main > header,
   display: flex;
   flex-direction: column;
   padding: var(--pas-1);
-}
-/* Sans ligne à dire, la carte des stations ne se pose pas : la lecture du compte, dessous, dit comment en installer une. */
-#toutes-les-stations > .liste:empty {
-  display: none;
-}
-#tous .liste > p,
-#toutes-les-stations > div > p {
+}#tous .liste > p {
   margin: 0;
   padding: var(--pas-2) var(--pas-3);
   color: var(--discret);
-}
-/* Une ligne : toute la ligne s'ouvre d'un clic — pastille, nom, ce qui s'y passe, et la flèche. */
-:is(#tous, #toutes-les-stations) .ligne {
+}/* Une ligne : toute la ligne s'ouvre d'un clic — pastille, nom, ce qui s'y passe, et la flèche. */
+:is(#tous {
   display: flex;
   align-items: baseline;
   gap: var(--pas-3);
@@ -848,22 +841,18 @@ main > header,
   padding: var(--pas-2) var(--pas-3);
   text-align: left;
   border-radius: var(--rayon-bouton);
-}
-:is(#tous, #toutes-les-stations) .ligne:hover {
+}:is(#tous {
   background: var(--case);
-}
-:is(#tous, #toutes-les-stations) .ligne strong {
+}:is(#tous {
   flex: none;
   min-width: 9em;
   font-weight: 700;
-}
-:is(#tous, #toutes-les-stations) .ligne span:not(.pastille) {
+}:is(#tous {
   flex: 1;
   min-width: 0;
   color: var(--texte-doux);
   overflow-wrap: anywhere;
-}
-:is(#tous, #toutes-les-stations) .ligne span.ouvrir {
+}:is(#tous {
   flex: none;
   color: var(--discret);
 }
@@ -899,27 +888,6 @@ main > header,
   font-size: var(--taille-meta);
   font-weight: 600;
   line-height: 22px;
-}
-/* La carte de la station de cet ordinateur : son nom et ce qu'elle dit, puis sa version et « Station settings ». */
-#accueil-bloc-station .station-installee,
-#accueil-bloc-station .station-page {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--pas-2) var(--pas-4);
-  margin: 0;
-  padding: var(--pas-2) var(--pas-3);
-}
-#accueil-bloc-station .station-installee strong {
-  font-size: var(--taille-intertitre);
-  color: var(--texte);
-}
-#accueil-bloc-station .station-page {
-  border-top: 1px solid var(--trait-doux);
-}
-#accueil-bloc-station :is(.station-installee, .station-page) .dit {
-  color: var(--texte-doux);
-  overflow-wrap: anywhere;
 }
 /* L'écran « Add a project » (ticket 3181, addition-project/addition.js) : une carte. En tête son titre et l'attendu, puis le
    champ qui cherche parmi les dépôts du compte, une rangée par dépôt — les derniers poussés d'abord —, et le champ où
@@ -979,29 +947,6 @@ main > header,
 .ajout-d-un-projet .colle {
   flex: 1;
 }
-/* « + station », sous la liste : discret, à droite ; le champ du code s'ouvre à sa place. */
-#toutes-les-stations .ajout-de-station {
-  align-self: flex-end;
-  margin: var(--pas-1) var(--pas-2);
-}
-#toutes-les-stations form {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--pas-2);
-  padding: var(--pas-2) var(--pas-3);
-}
-#toutes-les-stations input {
-  flex: 0 1 22em;
-}
-#toutes-les-stations form p {
-  flex-basis: 100%;
-  margin: 0;
-  color: var(--jaune);
-}
-#toutes-les-stations form p:empty {
-  display: none;
-}
 /* La page d'une station : le retour à l'accueil, son en-tête, ses pannes, tous les projets qu'elle
    porte et le parcours « add a project ». */
 #station {
@@ -1037,103 +982,6 @@ main > header,
   display: flex;
   flex-wrap: wrap;
   gap: var(--pas-2);
-}
-/* Ses sections (ticket 2641) : identité, connexions, dossiers et bac à sable, capacités, cooks — chacune sous son
-   titre, séparée de la précédente par un filet ; une section pas encore livrée le dit en une ligne discrète. */
-#station .page-de-station {
-  display: flex;
-  flex-direction: column;
-  gap: var(--pas-1);
-}
-#station .section-de-station {
-  display: flex;
-  flex-direction: column;
-  gap: var(--pas-1);
-  padding: var(--pas-2) 0;
-  border-top: 1px solid var(--trait-doux);
-}
-#station .section-de-station > h3 {
-  margin: 0;
-}
-/* Les projets que la station sert (ticket 3403) : une section comme les autres de la page, puis une ligne par projet — un lien
-   vers l'onglet Stations du projet, sans case ni bouton. */
-#station .projets-servis-par-la-station {
-  display: flex;
-  flex-direction: column;
-  gap: var(--pas-1);
-  padding: var(--pas-2) 0;
-  border-top: 1px solid var(--trait-doux);
-}
-#station .projets-servis-par-la-station > h3 {
-  margin: 0;
-}
-#station .projets-servis-par-la-station ul {
-  display: flex;
-  flex-direction: column;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-#station .projets-servis-par-la-station li a {
-  display: block;
-  padding: var(--pas-1) 0;
-  color: var(--accent);
-  text-decoration: none;
-}
-#station .projets-servis-par-la-station li a:hover {
-  text-decoration: underline;
-}
-/* Dossiers et bac à sable (ticket 2644) : leurs réglages sont des rangées de réglage (components/setting, ticket 2920). */
-#station .dossiers-et-bac-a-sable .hote {
-  margin-right: var(--pas-3);
-}
-#station .section-de-station .a-venir {
-  font-size: var(--taille-corps);
-  color: var(--discret);
-}
-/* Le plafond de cooks de la page d'une station : ce que sa box en dit, ce qui la retient — en alerte, comme une
-   panne —, et le champ qui le règle, avec ses boutons à la suite. */
-#station .plafond-de-station p {
-  margin: var(--pas-1) 0;
-}
-#station .plafond-de-station:empty {
-  display: none;
-}
-/* La ligne de mise à jour de la page d'une station, discrète, sous son en-tête ; « remove the station »
-   tout en bas, à l'écart, et sa confirmation sous lui. */
-#station .version-de-station {
-  margin: var(--pas-1) 0;
-  color: var(--discret);
-}
-#station .version-de-station:empty {
-  display: none;
-}
-/* Les appels de la box à GitHub (ticket 1418) : une ligne douce, comme la mise à jour ; le tiret, sans chiffre, plus discret encore. */
-#station .appels-de-la-station {
-  margin: var(--pas-1) 0;
-  color: var(--texte-doux);
-}
-#station .appels-de-la-station[data-appels="absents"] {
-  color: var(--discret);
-}
-#station .retrait-de-station {
-  margin-top: var(--pas-4);
-  padding-top: var(--pas-2);
-  border-top: 1px solid var(--trait);
-}
-/* Au bout de la ligne d'une station sur l'accueil, le bouton de la raison d'une station qui ne cuit pas encore
-   (ticket 1758) : discret, comme « + station ». Ses gestes sont posés par-dessus la ligne, à droite, côte à côte : elle
-   garde toute sa largeur — sa flèche reste alignée sur les autres —, et son clic. */
-#toutes-les-stations .ligne-et-geste {
-  position: relative;
-}
-#toutes-les-stations .gestes-de-la-ligne {
-  position: absolute;
-  top: 50%;
-  right: 8px;
-  display: flex;
-  gap: var(--pas-2);
-  transform: translateY(-50%);
 }
 /* Les états ne se ressemblent pas : le mot, la couleur, et un trait plein pour
    celui qu'on n'a pas joint ou que la box refuse — projet inconnu, droit ou
@@ -2263,134 +2111,9 @@ main > header {
   vertical-align: middle;
   border: 1px solid var(--trait);
   border-radius: var(--rayon-bouton);
-}
-
-/* Les stations enregistrées sous le compte GitHub du chef (ticket 1706, stations-of-account.js) : une machine que seul
-   son enregistrement fait connaître a sa ligne dans la liste des stations (ticket 1778), comme les autres, et ses projets
-   à cocher dessous. Sous la liste, sans titre, ce que leur lecture a de plus à dire. */
-#toutes-les-stations .stations-du-compte {
-  display: flex;
-  flex-direction: column;
-  gap: var(--pas-1);
-  padding-top: var(--pas-1);
-}
-#toutes-les-stations .stations-du-compte[hidden] {
-  display: none;
-}
-#toutes-les-stations .stations-du-compte > p {
-  margin: 0;
-  padding: var(--pas-1) var(--pas-3);
-  color: var(--texte-doux);
-}
-#toutes-les-stations .stations-du-compte .attendu .survol {
-  margin-left: var(--pas-2);
-}
-/* Sous une case cochée, ce que la station en a fait (ticket 1790) : la cuisine qu'elle a rejointe, sa réponse attendue, ou
-   « refused » — et la phrase du refus sous les cases, en entier, en rouge clair. */
-/* Sous les projets du chef, le champ qui cherche parmi les autres dépôts du compte (ticket 1780), et ce qu'il trouve :
-   une rangée par dépôt, son nom et « add » — rien tant que le champ est vide. */
-#toutes-les-stations .stations-du-compte .installer {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--pas-1) var(--pas-3);
-}
-#toutes-les-stations .stations-du-compte .installer > span:first-child {
-  flex: 0 0 11em;
+}/* Pourquoi une station installée ne cuit pas encore (ticket 1758) : une phrase à côté de sa pastille grise, qui nomme le geste. */
+:is(#tous {
   color: var(--discret);
-}
-#toutes-les-stations .stations-du-compte .installer code {
-  flex: 1 1 20em;
-  min-width: 0;
-  color: var(--texte);
-  overflow-wrap: anywhere;
-  user-select: all;
-}
-/* Pourquoi une station installée ne cuit pas encore (ticket 1758) : une phrase à côté de sa pastille grise, qui nomme le geste. */
-:is(#tous, #toutes-les-stations) .ligne span.pourquoi {
-  color: var(--discret);
-}
-
-/* Une passe de dessin sur les stations (ticket 1781, épique 1777) — rien ne change de ce qu'elles font, seulement ce qu'on
-   en lit. Dans la liste de toutes les stations : chaque ligne a les mêmes colonnes — pastille, nom, état, raison — et sa flèche et ses gestes
-   tombent au même endroit d'une ligne à l'autre ; les lignes sont séparées d'un trait fin, et celle qu'on survole montre
-   où elle mène. Une station hors ligne se tient en retrait. */
-#toutes-les-stations .ligne {
-  align-items: center;
-  gap: var(--pas-4);
-  padding: var(--pas-3) var(--pas-4);
-  cursor: pointer;
-}
-#toutes-les-stations .ligne strong {
-  flex: 0 0 13em;
-  overflow-wrap: anywhere;
-}
-#toutes-les-stations .ligne span:not(.pastille):not(.ouvrir):not(.pourquoi) {
-  flex: 1 1 0;
-}
-#toutes-les-stations .ligne span.pourquoi {
-  flex: 0 1 16em;
-  font-size: var(--taille-corps);
-}
-#toutes-les-stations .ligne span.ouvrir {
-  flex: none;
-  font-size: var(--taille-intertitre);
-  line-height: 1;
-}
-#toutes-les-stations .ligne:hover .ouvrir {
-  color: var(--accent);
-}
-#toutes-les-stations .ligne:has(.pastille[data-forme="anneau"]) strong {
-  color: var(--texte-doux);
-}
-#toutes-les-stations > :is(.ligne, .ligne-et-geste) + :is(.ligne, .ligne-et-geste) {
-  border-top: 1px solid var(--trait-doux);
-}
-#toutes-les-stations .ligne-et-geste {
-  display: flex;
-  align-items: center;
-}
-#toutes-les-stations .ligne-et-geste > .ligne {
-  flex: 1 1 0;
-  min-width: 0;
-}
-#toutes-les-stations .gestes-de-la-ligne {
-  position: static;
-  flex: 0 0 19em;
-  justify-content: flex-end;
-  padding-right: var(--pas-2);
-  transform: none;
-}
-#toutes-les-stations .ajout-de-station {
-  margin: var(--pas-2) var(--pas-2) var(--pas-1);
-}
-/* Sans station : la phrase se lit d'abord, les deux commandes sont deux cartes alignées sur les mêmes colonnes. */
-#toutes-les-stations .stations-du-compte {
-  gap: var(--pas-2);
-  padding: var(--pas-3) var(--pas-4) var(--pas-2);
-}
-#toutes-les-stations .stations-du-compte > p.attendu {
-  padding: 0 0 var(--pas-1);
-  font-size: var(--taille-intertitre);
-  color: var(--texte);
-}
-#toutes-les-stations .stations-du-compte .installer {
-  flex-wrap: nowrap;
-  align-items: center;
-  gap: var(--pas-4);
-  padding: var(--pas-2) var(--pas-3);
-  background: var(--fond);
-  border: 1px solid var(--trait-doux);
-  border-radius: var(--rayon-bouton);
-}
-#toutes-les-stations .stations-du-compte .installer > span:first-child {
-  flex: 0 0 11em;
-}
-#toutes-les-stations .stations-du-compte .installer code {
-  font-size: var(--taille-corps);
-}
-#toutes-les-stations .stations-du-compte .gestes {
-  padding-left: 0;
 }
 /* La page d'une station, son choix de projets : l'en-tête serré — ses lignes vides ne laissent aucun creux —, les cases
    sur une grille régulière, un nom long coupé là où il peut l'être, une case cochée qui se voit. */
@@ -2415,30 +2138,6 @@ main > header {
   margin: 0;
   font-size: var(--taille-meta);
   color: var(--discret);
-}
-
-/* La version de chaque station, côte à côte sous la liste de l'accueil (ticket 2191) : la box, puis cet ordinateur,
-   dits de la même façon ; en retard, la case de ce poste se lit en jaune, sa pastille en losange. */
-#toutes-les-stations .versions-des-stations {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--pas-2) var(--pas-6);
-  padding: var(--pas-2) var(--pas-4);
-  font-size: var(--taille-corps);
-  color: var(--texte-doux);
-}
-#toutes-les-stations .versions-des-stations > .titre {
-  flex: 0 0 auto;
-  color: var(--discret);
-}
-#toutes-les-stations .version-d-une-station {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--pas-2);
-}
-#toutes-les-stations .version-d-une-station[data-ton="jaune"] .phrase {
-  color: var(--jaune);
 }
 
 /* Les blocs de Stations, de Health et de Cooks (ticket 2485) : chacun son titre, en attendant son contenu. */
@@ -2481,69 +2180,6 @@ main > header {
 .details-de-station [data-etat="perdue"] {
   color: var(--rouge-clair);
 }
-/* L'étape « projet » du parcours d'ajout (ticket 2476) : l'attendu en tête, le champ qui cherche parmi les dépôts du
-   compte et de ses organisations, une rangée par dépôt, puis le champ où coller un dépôt quelconque et « add ». */
-.etape-projet {
-  display: flex;
-  flex-direction: column;
-  gap: var(--pas-2);
-  max-width: 440px;
-}
-.etape-projet .attendu {
-  margin: 0;
-  color: var(--texte);
-}
-.etape-projet input {
-  padding: var(--pas-2) var(--pas-3);
-  font-size: var(--taille-corps);
-  color: var(--texte);
-  background: var(--fond);
-  border: 1px solid var(--trait);
-  border-radius: var(--rayon-bouton);
-}
-.etape-projet input::placeholder {
-  color: var(--discret);
-}
-.etape-projet .depots {
-  display: flex;
-  flex-direction: column;
-  gap: var(--pas-1);
-  max-height: 260px;
-  margin: 0;
-  padding: 0;
-  overflow-y: auto;
-  list-style: none;
-}
-.etape-projet .coller {
-  display: flex;
-  gap: var(--pas-2);
-}
-.etape-projet .colle {
-  flex: 1;
-}
-/* La vérification du dépôt choisi dans le parcours d'ajout (ticket 2627, addition-project/installation-of-repository.js) : une
-   phrase — prêt, ce qui manque, en cours, échoué —, son détail au survol, et un seul bouton quand un geste est attendu. */
-.installation-du-depot {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--pas-2) var(--pas-3);
-  font-size: var(--taille-corps);
-}
-.installation-du-depot .dit {
-  margin: 0;
-  color: var(--texte);
-}
-.installation-du-depot .dit .survol {
-  margin-left: var(--pas-2);
-}
-.installation-du-depot[data-etat="verification"] .dit,
-.installation-du-depot[data-etat="en-cours"] .dit {
-  color: var(--discret);
-}
-.installation-du-depot[data-etat="pret"] .dit {
-  color: var(--vert);
-}
 
 /* L'avis « pas préparé pour Brigade » (ticket 2628), sur la page du projet et en tête de TODO : ce qui manque en une phrase,
    le détail au survol, un seul bouton recommandé. La préparation en route, ou son refus en une phrase, à côté. */
@@ -2578,16 +2214,6 @@ main > header {
   font-size: var(--taille-corps);
   color: var(--discret);
 }
-
-/* La note sur place (ticket 2646) : à la place du geste d'un réglage qui ne se change que sur la machine, vu d'une autre station. */
-.note-sur-place {
-  margin-left: var(--pas-2);
-  font-size: var(--taille-corps);
-  font-style: italic;
-  color: var(--discret);
-}
-/* La section « Connections » de la page d'une station (ticket 2643) : ses rangées sont celles de components/setting. */
-.connexions .ailleurs { margin: var(--pas-2) 0 0; opacity: 0.7; }
 
 /* L'écran de l'outil manquant (ticket 4059, outils-requis/) : à la place du pas qu'il retient — le compte du premier
    lancement, ou l'avis —, l'outil nommé, pourquoi, le lien de sa page d'installation et « I installed it ». */
