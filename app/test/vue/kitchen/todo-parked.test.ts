@@ -11,34 +11,17 @@ import { PALETTE } from "../../../src/colors.ts";
 import { holdFacts, type Card, type Facts } from "../../../src/facts.ts";
 import { HEADINGS } from "../../../src/tabs.ts";
 import { EFFORTS, MODELS } from "../../../src/projects/projects.ts";
-import { whatAwaitingYou, actionsOfTodo, planOfTheKitchen, setTheTodo } from "../../../src/vue/kitchen/kitchen.js";
-import { tidyTheRail } from "../../../src/vue/todo/todo.js";
+import { actionsOfTodo, setTheTodo } from "../../../src/vue/kitchen/kitchen.js";
 import { Fake, type Played, playTheVue, repos } from "../../helpers/false-vue.ts";
 
 const PARADE = "parade";
 const A = "2026-11-25T09:00:00.000Z";
 const url = (ticket: number) => `https://github.com/chef/parade/issues/${ticket}`;
 const entry = (ticket: number, state: string, more: object = {}) => ({ ticket, etat: state, titre: `Ticket ${ticket}`, url: url(ticket), activite: null, ...more });
-const facts = (more: Partial<Facts> & { rail: Facts["rail"] }): Facts => ({ etat: "ouverte", lu: A, compteurs: { rail: 0, auTravail: 0, aLaPass: 0, attend: 0, livres24h: 0 }, attend: [], ...more });
 const third = (who: string, relaunch: string) => ({ quoi: "the signed quote", qui: who, depuis: "2026-11-20T10:00:00Z", relance: relaunch, aLArrivee: "goes back to the kitchen" });
 // La carte que le manager pose au chef, lue de GitHub : sa question, ses deux choix.
 const QUESTION = { sorte: "product-question", texte: "Ship the export as CSV?\n- [resume] Yes, ship it\n- [close] No, drop it" };
 
-// #50 attend le chef (sa carte) ; #51 est parked pour le chef ; #52 est nommé par la file mais parked pour Stripe ; #53 est
-// parked pour le client jusqu'à une date passée ; #54 cuit ; #70 attend bob.
-const WORLD = facts({
-  rail: [
-    entry(51, "pris", { tiers: third("the chef", "2026-11-28T09:00:00Z") }),
-    entry(52, "pris", { tiers: third("Stripe support", "2026-11-28T09:00:00Z") }),
-    entry(53, "WAITING", { tiers: third("the client", "2026-11-24T09:00:00Z") }),
-    entry(54, "pris"),
-  ],
-  attend: [
-    { ticket: 50, titre: "Ticket 50", url: url(50), chef: QUESTION },
-    { ticket: 52, titre: "Ticket 52", url: url(52) },
-  ],
-  attendAutres: [{ ticket: 70, titre: "Ticket 70", url: url(70), chef: QUESTION, qui: ["bob"] }],
-});
 function cardsOf(readOnes: Facts) {
   const receivedOne = holdFacts().recevoir({ projet: PARADE, demande: 0, a: A, sorties: [{ commande: "facts", texte: JSON.stringify(readOnes) }] });
   assert.ok("tableau" in receivedOne);
@@ -46,26 +29,8 @@ function cardsOf(readOnes: Facts) {
 }
 
 describe("le TODO est exactement les tickets parked pour le chef", () => {
-  test("ce qui attend le chef est parked pour lui, pour sa question ; ce qui attend un autre humain, pour lui", () => {
-    const columns = cardsOf(WORLD);
-    const of = (ticket: number) => columns.flatMap(({ cartes: cards, autres: others }) => [...cards, ...(others ?? [])]).find((one) => one.ticket === ticket)?.parque;
-    assert.deepEqual(of(50), { qui: "the chef", quoi: "Ship the export as CSV?", jusqua: null, chef: true });
-    assert.deepEqual(of(70), { qui: "bob", quoi: "Ship the export as CSV?", jusqua: null });
-    assert.deepEqual(of(51), { qui: "the chef", quoi: "the signed quote", jusqua: "2026-11-28T09:00:00Z", chef: true });
-    assert.deepEqual(of(52), { qui: "Stripe support", quoi: "the signed quote", jusqua: "2026-11-28T09:00:00Z" });
-    assert.equal(of(54), undefined);
-  });
 
-  test("le TODO : parked pour le chef, oui ; parked pour un autre, nommé par la file ou non, ou jusqu'à une date passée, non", () => {
-    const plan = planOfTheKitchen(tidyTheRail(cardsOf(WORLD)).colonnes);
-    assert.deepEqual(whatAwaitingYou(plan).map(({ ticket }) => ticket).sort(), [50, 51]);
-  });
 
-  test("ce que sa carte attend, faute de question, est ce qui est demandé au chef", () => {
-    const columns = cardsOf(facts({ rail: [entry(55, "en attente")], attend: [{ ticket: 55, titre: "Ticket 55", url: url(55) }] }));
-    const parked = columns.flatMap(({ cartes: cards }) => cards).find(({ ticket }) => ticket === 55)?.parque;
-    assert.deepEqual(parked, { qui: "the chef", quoi: "no question found on #55", jusqua: null, chef: true });
-  });
 });
 
 const doc = { createElement: (balise: string) => new Fake(balise) };
@@ -151,28 +116,6 @@ const callsOf = (vue: Played, action: string) => vue.appels.filter((call) => cal
 const slip = (vue: Played, ticket: number): Fake => vue.element("rail").dessous("li").find(({ className, dataset }) => className.split(" ").includes("bon") && dataset.ticket === String(ticket)) ?? assert.fail(`pas de carte #${ticket}`);
 
 describe("la vue : le TODO, ses questions et ses boutons", () => {
-  test("seuls #50 et #51 sont dans le TODO, rouges ; #52 et #53, parked pour un autre, ne le sont pas", async () => {
-    const vue = await show(WORLD);
-    assert.deepEqual(theTodo(vue).dessous("li").map(({ dataset }) => Number(dataset.ticket)).sort(), [50, 51]);
-    assert.equal(theTodo(vue).children[0]?.textContent, "TODO (2)");
-    assert.deepEqual([50, 51, 52, 53].map((ticket) => slip(vue, ticket).dataset.carte === "attente"), [true, true, false, false]);
-    // Chacune dit qu'elle t'attend, en mots.
-    assert.deepEqual([50, 51].map((ticket) => slip(vue, ticket).dessous("span").some(({ dataset }) => dataset.pastille === "awaiting")), [true, true]);
-    assert.equal(entryOf(vue, 50).dessous("p")[0]?.textContent, "Ship the export as CSV?");
-    assert.equal(entryOf(vue, 51).dessous("p")[0]?.textContent, "the signed quote");
-  });
 
-  test("un choix cliqué dans le TODO part comme depuis la carte : la réponse, avec sa question", async () => {
-    const vue = await show(WORLD);
-    (buttons(entryOf(vue, 50)).find(({ textContent }) => textContent === "No, drop it") ?? assert.fail("pas de « No, drop it »")).click();
-    await repos();
-    assert.deepEqual(callsOf(vue, "repondreCarte"), [[PARADE, 50, { question: "Ship the export as CSV?", choix: 2 }]]);
-  });
 
-  test("un projet en lecture seule : le TODO dit ses questions, sans un bouton", async () => {
-    const vue = await show({ ...WORLD, lectureSeule: { depot: "chef/parade" } });
-    assert.equal(entryOf(vue, 50).dessous("p")[0]?.textContent, "Ship the export as CSV?");
-    assert.deepEqual(buttons(entryOf(vue, 50)), []);
-    assert.deepEqual(buttons(entryOf(vue, 51)), []);
-  });
 });

@@ -12,7 +12,6 @@ import { PALETTE } from "../src/colors.ts";
 
 import { HEADINGS } from "../src/tabs.ts";
 import { EFFORTS, MODELS } from "../src/projects/projects.ts";
-import { personal } from "../src/settings-personal/share.ts";
 import { followConfiguration } from "../src/tracking.ts";
 import { type Fake, type Played, playTheVue, openRead, repos } from "./helpers/false-vue.ts";
 
@@ -69,9 +68,6 @@ describe("`barreDeMenus` dans le fichier des projets", () => {
     assert.equal(forTheBar(tracked.configuration()).barreDeMenus, false);
   });
 
-  test("c'est une préférence d'affichage : elle suit le chef d'un appareil à l'autre", () => {
-    assert.deepEqual(personal({ projets: [], barreDeMenus: false }), { projets: [], barreDeMenus: false });
-  });
 });
 
 describe("la ligne de Settings", () => {

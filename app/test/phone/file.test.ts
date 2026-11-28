@@ -8,7 +8,6 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, test } from "node:test";
-import type { Facts as FactsOfRuntime } from "../../src/facts.ts"; // the app's own Facts (the old runtime's etat.ts is gone)
 import { forTheBar } from "../../src/bar.ts";
 import { EXAMPLE } from "../../src/config.ts";
 import { PALETTE } from "../../src/colors.ts";
@@ -35,19 +34,6 @@ const startup = () => ({
   telephone: { github: { compte: "chef" } },
 });
 
-type Station = NonNullable<FactsOfRuntime["stations"]>[number];
-const station = (name: string, more: Partial<Station> = {}): Station => ({
-  station: name,
-  distante: false,
-  plafond: 2,
-  ordinaires: true,
-  bacASable: null,
-  prendOrdinaires: true,
-  cuisson: "cooking",
-  arreteeDepuis: null,
-  refus: null,
-  ...more,
-});
 const COOK_14 = { ticket: 14, titre: "Le journal en ajout seul", station: "box/claude" };
 const COOK_15 = { ticket: 15, titre: "La carte des desserts", station: "mac/claude" };
 // #12 attend ta décision ; #21 et #22 sont sur le rail ; #14 et #15 cuisent, l'un sur la box, l'autre sur le Mac ; #9

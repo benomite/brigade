@@ -46,8 +46,8 @@ describe("les échelles : tailles, pas et arrondis sont des jetons", () => {
     });
   });
 
-  test("tokens.css pose six pas d'espacement, de 4 à 32", () => {
-    assert.deepEqual(family("--pas-"), { "--pas-1": "4px", "--pas-2": "8px", "--pas-3": "12px", "--pas-4": "16px", "--pas-5": "24px", "--pas-6": "32px" });
+  test("tokens.css pose cinq pas d'espacement, de 4 à 24", () => {
+    assert.deepEqual(family("--pas-"), { "--pas-1": "4px", "--pas-2": "8px", "--pas-3": "12px", "--pas-4": "16px", "--pas-5": "24px" });
   });
 
   test("tokens.css pose les arrondis 10, 8 et 4, et le rond complet de la pastille", () => {

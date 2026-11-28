@@ -59,19 +59,19 @@ function withIt(doc, balise, text, classe) {
 
 // Une rangée de réglage (components/setting) : `cle`, la clé de sa table de niveaux, que l'étiquette dit déjà — la vue et
 // les tests retrouvent la rangée par elle. `dessous` : ce qu'elle a rendu.
-/** @param {Fabrique} doc @param {{ nom: string, cle: string, valeur: any[], controle?: any[], dessous?: any[] }} ligne */
-function row(doc, { nom: name, cle: key, valeur: value, controle: control = [], dessous: below = [] }) {
-  return rowOfSetting(doc, { nom: name, cle: key, niveau: levelOf(doc, key), valeur: value, controle: control, dessous: below });
+/** @param {Fabrique} doc @param {{ nom: string, cle: string, niveau: any, valeur: any[], controle?: any[], dessous?: any[] }} ligne */
+function row(doc, { nom: name, cle: key, niveau: level, valeur: value, controle: control = [], dessous: below = [] }) {
+  return rowOfSetting(doc, { nom: name, cle: key, niveau: level, valeur: value, controle: control, dessous: below });
 }
 
 // Les deux dossiers : un chemin chacun, ce qu'il est au survol. Ils ne se changent pas.
 /** @param {Fabrique} doc @param {StateOfTheStationLocale} etat */
 function folders(doc, { projet: project, dossiers: readOnes }) {
-  if (readOnes === undefined) return [row(doc, { nom: "folders", cle: "dossier", valeur: [withIt(doc, "span", READING)] })];
-  if ("refus" in readOnes) return [row(doc, { nom: "folders", cle: "dossier", valeur: [lineError(doc, NOT_REACHED("folders"), [readOnes.refus, readOnes.detail ?? ""].filter(Boolean).join(" — "))] })];
+  if (readOnes === undefined) return [row(doc, { nom: "folders", cle: "dossier", niveau: levelOf(doc, "dossier"), valeur: [withIt(doc, "span", READING)] })];
+  if ("refus" in readOnes) return [row(doc, { nom: "folders", cle: "dossier", niveau: levelOf(doc, "dossier"), valeur: [lineError(doc, NOT_REACHED("folders"), [readOnes.refus, readOnes.detail ?? ""].filter(Boolean).join(" — "))] })];
   return [
-    row(doc, { nom: "clone folder", cle: "dossier", valeur: [withIt(doc, "span", readOnes.clone, "mono"), hover(doc, CLONE(project))] }),
-    row(doc, { nom: "worktrees folder", cle: "dossier", valeur: [withIt(doc, "span", readOnes.worktrees, "mono"), hover(doc, WORKTREES(project))] }),
+    row(doc, { nom: "clone folder", cle: "dossier", niveau: levelOf(doc, "dossier"), valeur: [withIt(doc, "span", readOnes.clone, "mono"), hover(doc, CLONE(project))] }),
+    row(doc, { nom: "worktrees folder", cle: "dossier", niveau: levelOf(doc, "dossier"), valeur: [withIt(doc, "span", readOnes.worktrees, "mono"), hover(doc, WORKTREES(project))] }),
   ];
 }
 
@@ -82,7 +82,7 @@ function connection(doc, station) {
   const seenOne = max === null ? { dit: station === undefined ? READING : CONNECTION_KILLS, survol: CONNECTION_KILLS_HOVER } : CONNECTION[max];
   const value = withIt(doc, "span", seenOne.dit);
   if (max !== null) value.dataset.etat = max;
-  return row(doc, { nom: "Claude connection", cle: "claude", valeur: [value, ...(station === undefined ? [] : [hover(doc, seenOne.survol)])], controle: [] });
+  return row(doc, { nom: "Claude connection", cle: "claude", niveau: levelOf(doc, "claude"), valeur: [value, ...(station === undefined ? [] : [hover(doc, seenOne.survol)])], controle: [] });
 }
 
 // Les lignes de cet ordinateur : ses dossiers, sa connexion à Claude — chacune une rangée de réglage.

@@ -207,7 +207,7 @@ test("la lecture du rail ne joint ni box ni station : du runtime, elle ne charge
   ]);
   // Le jeton du desktop : `gh auth token`, et rien d'autre.
   assert.deepEqual(graph("app/src/board/token-gh.ts"), ["app/src/board/token-gh.ts", "node:child_process"]);
-  for (const module of ["app/src/board/read.ts", "app/src/vue/rail/github.ts", "app/src/board/rail-github.ts", "app/src/board/client.ts", "app/src/board/token-gh.ts"]) {
+  for (const module of ["app/src/board/read.ts", "app/src/board/rail-github.ts", "app/src/board/client.ts", "app/src/board/token-gh.ts"]) {
     const code = readFileSync(join(ROOT, module), "utf8").replace(/^\s*\/\/.*$/gm, "");
     assert.doesNotMatch(code, /box\.ts|stations\//i, `${module} ne joint ni box ni station`);
   }

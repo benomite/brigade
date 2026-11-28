@@ -13,7 +13,7 @@ import { EFFORTS, MODELS } from "../../../src/projects/projects.ts";
 import { PROPOSES } from "../../../src/box.ts";
 import type { ChangeOfKnowledge, ReadOfKnowledge, RenderedOfKnowledge } from "../../../src/vue/know-how/know-how-github.ts";
 import { holdTheKnowledge } from "../../../src/vue/know-how/know-how.js";
-import { Fake, playTheVue, openTab, openRead, repos, type Played } from "../../helpers/false-vue.ts";
+import { Fake, playTheVue, openTab, repos, type Played } from "../../helpers/false-vue.ts";
 
 const doc = { createElement: (balise: string) => new Fake(balise) };
 const PR = "https://github.com/chef/parade/pull/77";

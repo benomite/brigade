@@ -2127,8 +2127,7 @@ function setTheRail(project) {
     return list;
   };
   // Le kanban d'un projet (ticket 4482), tiré des labels seuls (kitchen-board/). Le TODO du chef reste la ligne au-dessus des colonnes.
-  if (held.tableau.kitchenBoard === undefined) return set(block("h3", `the rail: first read of ${gesture(project, "facts")} in progress…`));
-  const grid = kitchenBoardGrid(document, held.tableau.kitchenBoard, { openIssue: (ticket) => void openIssue(project, ticket), openPr: (ticket) => void openPr(project, ticket) });
+  const grid = held.tableau.kitchenBoard === undefined ? document.createElement("div") : kitchenBoardGrid(document, held.tableau.kitchenBoard, { openIssue: (ticket) => void openIssue(project, ticket), openPr: (ticket) => void openPr(project, ticket) });
   // Le TODO du chef (tickets 4238, 4261, 4354) : une ligne, « 2 wait for you », dont un clic montre exactement les tickets
   // parked pour lui, une entrée chacun — ce qui lui est demandé, ses boutons, et un clic sur son numéro ouvre sa carte.
   // Un projet en lecture seule (ticket 3163) : ses cartes se lisent, aucun bouton ne les tranche d'ici.

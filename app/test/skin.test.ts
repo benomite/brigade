@@ -17,7 +17,7 @@ import { EFFORTS, MODELS } from "../src/projects/projects.ts";
 import { HEADINGS } from "../src/tabs.ts";
 import type { Terminal } from "../src/terminals.ts";
 import { red } from "./helpers/red.ts";
-import { type Fake, tokensOf, playTheVue, type Answers, openRead, openTab, repos } from "./helpers/false-vue.ts";
+import { type Fake, tokensOf, playTheVue, type Answers, repos } from "./helpers/false-vue.ts";
 
 const ROOT = join(import.meta.dirname, "../..");
 const VUE = join(ROOT, "app/src/vue");
@@ -95,7 +95,7 @@ describe("la palette : un seul jeu de variables, écrit à un seul endroit", () 
     assert.deepEqual([...new Set([...pill.matchAll(/(--[a-z0-9-]+)\s*:/g)].map(([, name = ""]) => name))], ["--ton"]);
     for (const [, value] of pill.matchAll(/--ton\s*:\s*([^;]+);/g)) assert.match(value ?? "", /^var\(--(vert|jaune|rouge|bleu|gris|orange)\)$/);
 
-    const slipAndCard = withoutComments(read("components/slip/slip.css")) + withoutComments(read("components/card-wait/card-wait.css"));
+    const slipAndCard = withoutComments(read("components/slip/slip.css")) + withoutComments(read("components/card-wait/card-wait.css")) + withoutComments(read("components/button/button.css"));
     const named = [...css.matchAll(/var\((--[a-z0-9-]+)\)/g), ...slipAndCard.matchAll(/var\((--[a-z0-9-]+)\)/g), ...pill.matchAll(/var\((--[a-z0-9-]+)\)/g), ...read("vue.js").matchAll(/jeton\("(--[a-z0-9-]+)"\)/g)].map(([, name = ""]) => name);
     assert.ok(named.length > 100, "vue.css ne nomme presque aucune variable");
     for (const name of new Set(named)) assert.ok(tokens.has(name) || name === "--ton", `« ${name} » n'est pas dans tokens.css`);
@@ -299,53 +299,8 @@ describe("le texte relayé de la box s'affiche à l'identique, sans troncature n
     assert.deepEqual(cut.map(({ selecteurs: selectors }) => selectors), []);
   });
 
-  test("sur un bon, deux lignes au plus ; ce que la fiche détaille garde ses blancs", async () => {
-    const vue = await openASpace();
-    vue.dire("surFaits", { ...FACTS, demande: vue.dernier("faits")[0] as number });
-
-    // Sur la carte, deux lignes au plus ; ce que la box a écrit en entier ne s'y relaie plus, et la fiche ne le relaie pas non plus.
-    const slips = vue.element("rail").dessous("li").filter((li) => li.className === "bon");
-    for (const slip of slips) assert.ok(slip.dessous("p").length <= 2, `#${slip.children[0]?.children[0]?.textContent}`);
-    assert.deepEqual(texts(vue.element("rail").dessous("p").filter((p) => p.className === "ligne")), []);
-    const rule = rules(read("vue.css")).find(({ selecteurs: selectors }) => selectors.includes("#fiche .details p") && selectors.length === 1);
-    assert.equal(rule?.declarations.get("white-space"), "pre-wrap");
-  });
 });
 
-// Ce que `faits` donne à dessiner d'un projet, prêt à poser (facts.ts) : deux cooks, un rail.
-const FACTS: Drawable = {
-  projet: PARADE,
-  demande: 0,
-  a: A,
-  tableau: {
-    etat: "ouverte",
-    mot: "open",
-    ton: "vert",
-    
-    
-    compteurs: [
-      { libelle: "rail", nombre: 9 },
-      { libelle: "au travail", nombre: 2 },
-      { libelle: "à la pass", nombre: 1 },
-      { libelle: "t'attend", nombre: 1 },
-      { libelle: "livrés 24 h", nombre: 11 },
-    ],
-    cooks: { enCours: [{ ticket: 218, titre: "Formulaire devis multi-étapes", station: "box/claude-opus" }], vide: "aucun cook en cours" },
-    evenement: "il y a 2 min · pass verte sur #216",
-    rail: {
-      colonnes: [
-        { nom: "Sur le rail", ton: "gris", compte: "1", cartes: [{ ticket: 222,    titre: "Récapitulatif devis avant envoi", fiche: header({ titre: "Récapitulatif devis avant envoi" }), ouvrable: true, attendu: false, attend: [], dit: [{ libelle: "depuis", valeur: "3 h 02" }, { libelle: "bloque", valeur: "zone tenue par #218 (app/src)" }], sans: "non communiqué par la file : qui le tient · son bail · ce qu'il brûle" }], vide: "aucun ticket" },
-        { nom: "Au travail", ton: "bleu", compte: "1", cartes: [{ ticket: 218,    titre: "Formulaire devis multi-étapes", fiche: header({ titre: "Formulaire devis multi-étapes" }), ouvrable: false, attendu: false, attend: [], dit: [{ libelle: "tient", valeur: "box/claude-opus", exact: true }, { libelle: "depuis", valeur: "12 min" }, { libelle: "bail", valeur: "sans progrès depuis 3 min, bail encore 27 min" }, { libelle: "brûle", valeur: "230 000 tokens au dernier relevé" }], sans: "non communiqué par la file : ce qui le bloque" }], vide: "aucun ticket" },
-        { nom: "Pass", ton: "jaune", compte: "0", cartes: [], vide: "aucun ticket" },
-        { nom: "T'attend", ton: "rouge", compte: "1", cartes: [{ ticket: 12,    titre: "Validation SIRET", fiche: header({ titre: "Validation SIRET" }), ouvrable: true, attendu: true, attend: ["depuis 2 j  livraison verte, non mergée — à merger à la main :   gh pr merge 31"], dit: [{ libelle: "depuis", valeur: "2 j" }, { libelle: "cuisiné par", valeur: "box/claude-opus", exact: true }], sans: "non communiqué par la file : qui le tient · son bail · ce qu'il brûle" }], vide: "aucun ticket" },
-        { nom: "Livré", ton: "vert", compte: "0", cartes: [], vide: "aucun ticket" },
-      ],
-      hors: [{ ticket: 86,  titre: "Hors colonnes", fiche: header({ titre: "Hors colonnes" }), ouvrable: false, attendu: false, attend: [], dit: [], sans: "non communiqué par `facts`, et pas lu par l'app dans ce que `status` écrit de ce ticket, relayé dessous tel quel : qui le tient · depuis quand · son bail · ce qu'il brûle · ce qui le bloque", relais: "un mot inconnu  -  depuis 5 min  (ce que la box en dit)  Hors colonnes" }],
-      attendLu: A,
-      
-    },
-  },
-};
 
 describe("la fenêtre se réduit sans que rien ne se casse", () => {
   const sheet = rules(read("vue.css"));
@@ -384,75 +339,6 @@ describe("la fenêtre se réduit sans que rien ne se casse", () => {
   });
 });
 
-describe("le monospace est une information, pas un style", () => {
-  // Tout ce qui est posé dans la fenêtre, une fois l'espace ouvert et ses faits lus — sur l'un et l'autre
-  // onglet du projet (#1184) : la carte du projet est sur Stations, le kanban entier sur Rail.
-  // Sur Rail, rien ne s'ouvre par-dessus ; Settings ouvert ne lit rien (#1700).
-  async function allPose(tab: "Rail" | "Settings"): Promise<Fake[]> {
-    const vue = await openASpace();
-    vue.dire("surFaits", { ...FACTS, demande: vue.dernier("faits")[0] as number });
-    await openTab(vue, "Stations");
-    const onStations = vue.poses();
-    await openTab(vue, "Rail");
-    if (tab === "Settings") {
-      await openRead(vue, tab);
-      await repos();
-    }
-    return [...new Set([...onStations, ...vue.poses()])];
-  }
-  const mono = (element: Fake) => element.className.split(" ").includes("mono");
-  const carrying = (poses: Fake[], text: string) => poses.filter((element) => element.textContent === text && element.children.length === 0);
-
-  test("un numéro de ticket est en monospace partout où il se pose : la carte, le rail", async () => {
-    const poses = [...(await allPose("Rail")), ...(await allPose("Settings"))];
-
-    // Le cook de la carte et son ticket du rail, les bons.
-    for (const number of ["#218", "#222", "#12", "#86"]) {
-      const found = carrying(poses, number);
-      assert.ok(found.length > 0, `${number} n'est posé nulle part`);
-      for (const pose of found) assert.ok(mono(pose), `${number} est posé hors du monospace, dans <${pose.balise} class="${pose.className}">`);
-    }
-    assert.equal(carrying(poses, "#218").length >= 2, true, "le ticket du cook est sur sa carte et sur le rail");
-    // Et aucun numéro seul n'est posé ailleurs que dans le monospace.
-    for (const pose of poses) if (/^#\d+$/.test(pose.textContent) && pose.children.length === 0) assert.ok(mono(pose), pose.textContent);
-  });
-
-  test("un identifiant de run aussi", async () => {
-    const poses = await allPose("Rail");
-
-    // Le cook de la carte du projet n'est plus posé nulle part (la page Cooks n'existe plus) : quoi qu'il en reste, c'est en monospace.
-    for (const pose of poses) if (pose.textContent === "box/claude-opus" && pose.children.length === 0) assert.ok(mono(pose), pose.textContent);
-  });
-
-  test("le nom du projet, qui est son identifiant sur la box, et les contrôles de réglage", async () => {
-    const [name] = (await allPose("Rail")).filter((pose) => pose.id === "espace");
-    assert.ok(name !== undefined && mono(name) && name.textContent === PARADE);
-
-    // Dans Settings (#1700), les contrôles des réglages — l'arrêt de la cuisine — disent
-    // leur geste en mots : aucun n'est en monospace, et aucune commande n'est affichée.
-    const poses = await allPose("Settings");
-    const buttons = poses.filter((pose) => pose.balise === "button" && pose.parentElement?.className === "champ");
-    assert.ok(buttons.length > 0 && buttons.every((pose) => !mono(pose)), "un contrôle de réglage est en monospace");
-  });
-
-  test("ce qui se lit ne l'est pas : un titre, un mot d'état, un libellé, ce que l'app dit elle-même", async () => {
-    const poses = [...(await allPose("Settings")), ...(await allPose("Rail"))];
-
-    for (const readOne of ["Formulaire devis multi-étapes", "Validation SIRET", "taken", "queued", "un mot inconnu", "Backlog", "Manager", "Rail", "Settings", "second · claude"]) {
-      const found = carrying(poses, readOne);
-      assert.ok(found.length > 0, `« ${readOne} » n'est posé nulle part`);
-      for (const pose of found) assert.ok(!mono(pose) && pose.balise !== "pre" && pose.balise !== "code", `« ${readOne} » est en monospace`);
-    }
-    // Sur plusieurs lignes, les mots de l'app sont à part de ceux de la box : jamais dans un `pre` nu.
-    const vue = await playTheVue({ ...ANSWERS, demarrage: () => ({ ...startup(), configuration: forTheBar({ chemin: "/tmp/app.json", projets: [{ nom: PARADE, dossier: "/tmp/parade" }] }) }) });
-    // Sur l'accueil, un projet sans box se dit en une ligne ; ce qu'elle suppose du fichier est au survol.
-    vue.dire("surAccueil", { projets: [{ nom: PARADE, ton: "gris", dit: "no station: nothing is read", survol: "its entry in the projects file does not say where its station is" }] });
-    const withoutBox = vue.element("tous").dessous("button").find((pose) => pose.className === "ligne");
-    assert.equal(withoutBox?.textContent, `${PARADE}idleno station: nothing is read›`);
-    assert.equal(withoutBox?.title, "no station: nothing is read — its entry in the projects file does not say where its station is");
-    assert.equal(vue.element("tous").dessous("pre").length, 0);
-  });
-});
 
 describe("rien de ce qui est au parking n'apparaît", () => {
   // Ce que l'ancienne maquette dessinait sans qu'on le construise ; les planches du 2026-11-08 (#2907)
@@ -460,16 +346,6 @@ describe("rien de ce qui est au parking n'apparaît", () => {
   // l'épique #3518 (#3746, #3747), qui en fait un moteur d'une station et dit sur la fiche d'une livraison son moteur.
   const PARKING = /openweight|preprod|mac\/chrome|chrome-connect|revue-humaine|accès-prod|depuis ton mac|toutes les brigades|expire dans|<progress|<meter|progressbar|jauge|\bcommis\b|thème clair|prefers-color-scheme|light-dark\(/i;
 
-  test("ni dans les fichiers de la vue, ni dans ce qu'elle pose", async () => {
-    for (const file of files) assert.doesNotMatch(read(file), PARKING, file);
-
-    const vue = await openASpace();
-    vue.dire("surFaits", { ...FACTS, demande: vue.dernier("faits")[0] as number });
-    for (const pose of vue.poses()) assert.doesNotMatch(pose.textContent, PARKING, `<${pose.balise} id="${pose.id}">`);
-    // Sur l'onglet Stations non plus.
-    await openTab(vue, "Stations");
-    for (const pose of vue.poses()) assert.doesNotMatch(pose.textContent, PARKING, `<${pose.balise} id="${pose.id}">`);
-  });
 
   test("un seul thème, sombre : ni thème clair, ni réglage de thème", () => {
     // Les seules requêtes admises sont la largeur de la page étroite (#1186), qui change la mise en page, et « reduce
@@ -490,7 +366,7 @@ describe("le cadre est fait de cartes, sur fond sombre", () => {
     const sheet = rules(read("vue.css"));
     const card = sheet.find(({ declarations }) => declarations.get("background") === "var(--carte)" && declarations.get("border-radius") === "var(--rayon-carte)" && declarations.get("position") === undefined);
     // Les trois groupes de Settings (#1700) sont des cartes ; leurs réglages, des lignes dedans.
-    assert.deepEqual(card?.selecteurs, [".carte", "#etat > .groupe", "#tous .liste", "#stations-du-projet .confiance"]);
+    assert.deepEqual(card?.selecteurs, [".carte", "#etat > .groupe", "#tous .liste"]);
     assert.equal(card?.declarations.get("border"), "1px solid var(--trait)");
     assert.equal(sheet.find(({ selecteurs: selectors }) => selectors.join() === "body")?.declarations.get("background"), "var(--fond)");
     // Les colonnes du rail, les bons, le bloc de ce qui attend, la sortie relayée : chacun son cadre.

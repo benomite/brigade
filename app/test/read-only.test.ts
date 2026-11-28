@@ -4,10 +4,7 @@
 // liens. L'accès gagné, la lecture suivante rend la vue ordinaire, sans rouvrir le projet. La vue est jouée telle qu'elle
 // est, devant un faux document et un faux pont ; les faits sont ceux que `facts` porte (board/read.ts, `lectureSeule`).
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { describe, test } from "node:test";
-import type { Facts as FactsOfRuntime } from "../src/facts.ts"; // the app's own Facts (the old runtime's etat.ts is gone)
 import { forTheBar } from "../src/bar.ts";
 import { EXAMPLE } from "../src/config.ts";
 import { PALETTE } from "../src/colors.ts";
@@ -48,8 +45,6 @@ const PRODUCT = {
 };
 // Sa carte du chef, telle que son issue la pose sur GitHub (board/todo-github.ts).
 const CHEF = { sorte: PRODUCT.type, texte: [PRODUCT.question, ...PRODUCT.choix.map(({ texte: text, suite }) => `- [${suite}] ${text}`)].join("\n") };
-type OfRuntime = NonNullable<FactsOfRuntime["stations"]>[number];
-const BOX: OfRuntime = { station: "box/claude", distante: false, plafond: 2, ordinaires: false, bacASable: null, prendOrdinaires: true, cuisson: "cooking", arreteeDepuis: null, refus: null, cooks: [] };
 const facts = (readOnly: boolean) => ({
   etat: "ouverte",
   lu: "2026-11-11T10:04:11.000Z",

@@ -44,6 +44,7 @@ export type Rendered = { repondue: true; dit: string; commentaire?: number } | {
 // du chef (board-actions/answer-github.ts) — aucune box, aucune station ne le joue.
 const POSTED = "your answer is posted on the issue from your GitHub account";
 const PRICE_ON_GITHUB: Readonly<Record<string, string>> = {
+  resume: `${POSTED}, and the app removes what holds the ticket: it resumes exactly where it was and its cook reads your answer`,
   merge: `${POSTED}, and the app merges the PR the card names under your GitHub account — a merge is not undone from the app`,
 };
 // Answer, sur la carte d'un ticket parqué pour le chef par la nouvelle cuisine (#4474).
@@ -57,6 +58,14 @@ export function questionOfChef({ texte: text }: CardOfChef): string | null {
   return shapeOfChef(text).question;
 }
 
+// La situation d'une carte du chef, en une ligne (#3086) : la première phrase de ce que son commentaire dit après la question,
+// entière — jamais coupée en son milieu. Le reste du commentaire est derrière « details ». Rien quand il ne dit rien.
+function situationOf(context: string): string | undefined {
+  const line = context.split("\n").find((one) => one.trim() !== "")?.trim();
+  if (line === undefined) return undefined;
+  return line.split(/(?<=[.!?])\s+/)[0];
+}
+
 export function cardOfChefOfTodo(card: CardOfChef): CardOfTodo | undefined {
   const { sorte: kind, texte: text } = card;
   const { choix: choice, contexte: context } = shapeOfChef(text);
@@ -68,7 +77,15 @@ export function cardOfChefOfTodo(card: CardOfChef): CardOfTodo | undefined {
   if (kind === KIND_PARKED_CHEF) {
     return { sorte: kind, question, ...(context === "" ? {} : { contexte: context }), choix: choice.map(({ texte: wording, suite }) => ({ texte: wording, prix: PRICE_ON_GITHUB[suite] as string })), prixDuTexte: PRICE_PARKED_CHEF, repondre: "Answer", surGithub: true };
   }
-  return undefined;
+  const situation = situationOf(context);
+  return {
+    sorte: kind,
+    ...(situation === undefined ? {} : { resume: situation }),
+    question,
+    ...(context === "" ? {} : { contexte: context }),
+    choix: choice.map(({ texte: wording, suite }) => ({ texte: wording, prix: PRICE_ON_GITHUB[suite] as string })),
+    prixDuTexte: PRICE_ON_GITHUB.resume as string,
+  };
 }
 
 // La même carte telle que la réponse du chef se contrôle (`reponseLue`) : sa question et ses choix, chacun son geste.

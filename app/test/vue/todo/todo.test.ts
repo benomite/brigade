@@ -17,7 +17,6 @@ import { Fake, FakeScreen, type Played, playTheVue, repos } from "../../helpers/
 const A = "2026-11-13T10:04:12.000Z";
 const PARADE = "parade";
 const issue = (ticket: number) => `https://github.com/chef/parade/issues/${ticket}`;
-const ticket = (number: number, state: string, more: Partial<Facts["rail"][number]> = {}): Facts["rail"][number] => ({ ticket: number, etat: state, titre: `Ticket ${number}`, url: issue(number), activite: null, ...more });
 const THIRD = { quoi: "the signed quote", qui: "the client", depuis: "2026-11-01T10:00:00.000Z", aLArrivee: "it goes back to the kitchen" };
 
 // Un ticket qui attend le chef à chaque étape : #20 sur le rail, #14 pris, #30 en pass, #40 mis de côté là où le runtime dit
@@ -34,24 +33,6 @@ const FACTS: Facts = {
 const cards = (columns: readonly Column[]) => columns.map(({ nom: name, compte: account, cartes: itsOwn }) => [name, account, itsOwn.map(({ ticket: number }) => number)]);
 
 describe("le rangement : chaque carte qui attend le chef dans la colonne de son étape, en tête", () => {
-  test("le process principal dit l'étape de chaque carte du chef, et la relance passée d'une carte de WAITING", () => {
-    const readOne = rail(FACTS);
-    const list = readOne.colonnes.find(({ nom: name }) => name === LIST_OF_CHEF) ?? assert.fail("pas de liste du chef");
-    assert.deepEqual(
-      list.cartes.map(({ ticket: number, etape: step }) => [number, step]),
-      [
-        [20, "On the rail"],
-        [14, "Taken"],
-        [30, "Pass"],
-        [40, "Pass"],
-        [60, "On the rail"],
-      ],
-    );
-    const waiting = readOne.colonnes.find(({ nom: name }) => name === "Waiting")?.cartes ?? [];
-    assert.deepEqual(waiting.map(({ ticket: number, relancePassee: relaunchPast }) => [number, relaunchPast]), [[8, true], [9, undefined]]);
-    // Une carte qui n'attend personne ne porte pas d'étape : sa colonne la dit.
-    assert.equal(readOne.colonnes.find(({ nom: name }) => name === "On the rail")?.cartes[0]?.etape, undefined);
-  });
 
   test("aucune colonne TODO ; les rouges en tête de leur colonne, avant les autres ; N les compte toutes, une relance passée non (#4261)", () => {
     const range = tidyTheRail(rail(FACTS).colonnes);

@@ -98,11 +98,10 @@ describe("le dernier rail lu survit au redémarrage (#4620)", () => {
 
   test("l'onglet Rail le dessine après le redémarrage, sous la pause : ses colonnes, l'heure de sa lecture, son âge et l'heure où GitHub reprend", async () => {
     const facts: Facts = {
-      etat: "ouverte", lu: a(0), 
+      etat: "ouverte", lu: a(0),
       compteurs: { rail: 1, auTravail: 1, aLaPass: 0, attend: 0, livres24h: 0 },
-      
-      
       attend: [],
+      kitchenBoard: { columns: (["backlog", "ready", "cooking", "pass", "parked", "served"] as const).map((key) => ({ key, title: key, cards: key === "cooking" ? [{ ticket: 14, title: "Le journal en ajout seul", url: "https://github.com/chef/parade/issues/14", tries: 0, pr: null }] : [] })) },
     };
     const vue = await open();
     // Ce que le main rend au premier tour après le redémarrage : le rail gardé, lu à 15:00, avec la pause.

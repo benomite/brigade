@@ -110,7 +110,7 @@ describe("un projet que cet ordinateur fait tourner sans le servir (#3399)", () 
     for (let tour = 0; tour < 6; tour++) await repos();
     assert.deepEqual(vue.appels.filter(({ geste: action }) => action === "servirUnProjet").map(({ args }) => args), [[REPOSITORY, true]]);
     assert.deepEqual(served, [CANTINE.depot, REPOSITORY]);
-    assert.equal(sentence(vue), "Cooked by macbook · online · idle, nothing on the rail");
+    assert.equal(sentence(vue), "Cooked by macbook · online");
     assert.equal(top(vue).dataset.ton, "vert");
     assert.deepEqual(cards(vue).map(({ ariaLabel }) => ariaLabel), ["macbook"]);
     assert.equal(top(vue).dessous("button").some(({ textContent }) => textContent === COOK_HERE), false);
@@ -125,7 +125,7 @@ describe("un projet que cet ordinateur fait tourner sans le servir (#3399)", () 
 
   test("la liste de ce Mac pas lue : rien n'est décidé à sa place, la ligne de cuisson dit ce qu'elle dit", async () => {
     const { vue } = await thePage({ lue: false });
-    assert.equal(sentence(vue), "Cooked by macbook · online · idle, nothing on the rail");
+    assert.equal(sentence(vue), "Cooked by macbook · online");
     assert.equal(tab(vue).dessous("button").some(({ textContent }) => textContent === COOK_HERE), false);
   });
 });

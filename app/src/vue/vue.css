@@ -83,12 +83,10 @@ pre.propos {
   background: none;
   border: 0;
   border-radius: 0;
-}
-/* Une carte : le cadre de tout ce qui se lit d'un bloc. */
+}/* Une carte : le cadre de tout ce qui se lit d'un bloc. */
 .carte,
 #etat > .groupe,
-#tous .liste,
-#stations-du-projet .confiance {
+#tous .liste {
   background: var(--carte);
   border: 1px solid var(--trait);
   border-radius: var(--rayon-carte);
@@ -307,32 +305,12 @@ main > header,
   padding: var(--pas-2) var(--pas-4);
   border-bottom: 1px solid var(--trait-doux);
 }
-#delai-du-projet .delai {
-  display: flex;
-  align-items: center;
-  gap: var(--pas-2);
-  margin: 0;
-  color: var(--texte-doux);
-}
-#delai-du-projet .delai[data-delai="fige"] {
-  color: var(--texte);
-}
 /* Ce qui bloque le projet (ticket 1399) : une carte, une ligne par blocage. Ce qui est bloqué en tête, en clair ;
    pourquoi dessous, en texte doux ; le bouton du geste, puis le lien qui nomme la page où le faire ; ce qu'une
    commande a dit, replié derrière « details », en second. */
 #blocages-du-projet {
   padding: var(--pas-2) var(--pas-4);
   border-bottom: 1px solid var(--trait-doux);
-}
-#blocages-du-projet .blocages {
-  display: flex;
-  flex-direction: column;
-  gap: var(--pas-2);
-  padding: var(--pas-3) var(--pas-4);
-  background: var(--bandeau);
-  border: 1px solid var(--trait-doux);
-  border-left: 3px solid var(--rouge);
-  border-radius: var(--rayon-carte);
 }
 #blocages-du-projet h3 {
   font-weight: 600;
@@ -396,11 +374,6 @@ main > header,
   padding: var(--pas-2) var(--pas-4);
   border-bottom: 1px solid var(--trait-doux);
 }
-#choix-du-projet .choix-a-faire {
-  display: flex;
-  flex-direction: column;
-  gap: var(--pas-2);
-}
 #choix-du-projet h3 {
   font-weight: 600;
   color: var(--jaune);
@@ -425,39 +398,11 @@ main > header,
 #choix-du-projet .message {
   font-weight: 600;
   color: var(--texte);
-}
-#choix-du-projet .cause,
-#choix-du-projet .etat-du-choix {
+}#choix-du-projet .cause {
   color: var(--texte-doux);
-}
-#choix-du-projet .issues {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: var(--pas-3);
-  margin: var(--pas-2) 0 0;
-  padding: 0;
-  list-style: none;
-}
-#choix-du-projet .issue {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--pas-2);
-}
-#choix-du-projet .marque-recommande {
-  font-size: var(--taille-meta);
-  font-weight: 600;
-  color: var(--accent);
-}
-#choix-du-projet .consequence {
-  font-size: var(--taille-corps);
-  line-height: 1.45;
-  color: var(--texte-doux);
-}
-/* Un projet qui cuit sur ce Mac (ticket 1095) : ce que ça implique, à côté de « this Mac », plus
+}/* Un projet qui cuit sur ce Mac (ticket 1095) : ce que ça implique, à côté de « this Mac », plus
    discret que le nom ; un déménagement en route, de même. */
-#stations-du-projet .en-mouvement,
-#stations-du-projet .pourquoi {
+#stations-du-projet .en-mouvement {
   color: var(--discret);
 }
 /* Le choix d'un déménagement : une carte sous la ligne, sa phrase, les machines — chacune un bouton,
@@ -512,114 +457,13 @@ main > header,
   max-width: 100%;
   text-align: left;
   white-space: normal;
-}
-/* Le choix de la cuisine (ticket 1107) : une carte, comme dans la maquette. Sa phrase en tête, puis
-   chaque partie sous son petit titre — la machine (choice-station/choice-station.css), ses cooks —. Aucun
-   libellé n'est coupé : un libellé est au-dessus de son champ, et une ligne trop longue passe à la suivante. */
-#stations-du-projet .confiance {
-  display: flex;
-  flex-direction: column;
-  flex-basis: 100%;
-  gap: var(--pas-4);
-  max-width: 640px;
-  margin: var(--pas-2) 0 var(--pas-3);
-  padding: var(--pas-5) var(--pas-5);
-}
-.confiance h3 {
-  font-size: var(--taille-titre);
-  font-weight: 700;
-}
-#stations-du-projet .confiance > .aide {
-  margin-top: calc(-1 * var(--pas-3));
-  color: var(--texte-doux);
-}
-.confiance fieldset .aide {
-  color: var(--discret);
-}
-.confiance fieldset {
-  display: flex;
-  flex-direction: column;
-  gap: var(--pas-2);
-  min-width: 0;
-  margin: 0;
-  padding: 0;
-  border: 0;
-}
-.confiance legend {
-  margin-bottom: var(--pas-2);
-  padding: 0;
-  font-size: var(--taille-intertitre);
-  font-weight: 700;
-  color: var(--texte);
-}
-.confiance .champ {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--pas-2);
-}
-.confiance .champ label {
-  font-weight: 600;
-}
-.confiance small {
-  color: var(--discret);
-}
-.confiance input:not([type="radio"], [type="checkbox"]),
-.confiance select {
+}[type="checkbox"]) {
   padding: var(--pas-2) var(--pas-3);
   font: inherit;
   color: var(--texte);
   background: var(--fond);
   border: 1px solid var(--trait);
   border-radius: var(--rayon-bouton);
-}
-.confiance input[type="number"] {
-  width: 8ch;
-}
-.confiance select {
-  background: var(--bouton);
-}
-.confiance .champ select,
-.confiance .champ input:not([type="number"]) {
-  width: 100%;
-}
-/* Une station de plus (ticket 1307) : son dossier se lit sans se changer, et ses capacités sont des cases, deux par
-   ligne quand la carte le permet — le nom, et dessous si la machine l'a. */
-.confiance input[readonly] {
-  color: var(--texte-doux);
-  background: var(--case);
-}
-.confiance .capacites {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: var(--pas-2);
-}
-.confiance .capacite {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  align-items: center;
-  gap: var(--pas-1) var(--pas-3);
-  padding: var(--pas-2) var(--pas-3);
-  background: var(--case);
-  border: 1px solid var(--trait);
-  border-radius: var(--rayon-bouton);
-  cursor: pointer;
-}
-.confiance .capacite:hover {
-  border-color: var(--trait-fort);
-}
-.confiance .capacite input {
-  margin: 0;
-  accent-color: var(--accent);
-}
-.confiance .capacite small {
-  grid-column: 2;
-}
-.confiance .lancer {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--pas-3);
 }
 /* Le centre : le rail, et par-dessus lui la page ouverte, qui le couvre entier. Le rail reste
    posé dessous — sa hauteur, son défilement — et revient tel quel quand la page se ferme. */
@@ -946,42 +790,6 @@ main > header,
 }
 .ajout-d-un-projet .colle {
   flex: 1;
-}
-/* La page d'une station : le retour à l'accueil, son en-tête, ses pannes, tous les projets qu'elle
-   porte et le parcours « add a project ». */
-#station {
-  flex: none;
-  display: flex;
-  flex-direction: column;
-  gap: var(--pas-2);
-  padding: var(--pas-3) var(--pas-4);
-}
-#station .retour {
-  align-self: flex-start;
-}
-#station header {
-  display: flex;
-  align-items: center;
-  gap: var(--pas-3);
-}
-#station h2 {
-  font-size: var(--taille-titre);
-  font-weight: 700;
-}
-#station header .phrase {
-  font-size: var(--taille-intertitre);
-  color: var(--texte-doux);
-}
-#station h3 {
-  margin: var(--pas-2) 0 0;
-}
-#station p {
-  margin: 0;
-}
-#station form {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--pas-2);
 }
 /* Les états ne se ressemblent pas : le mot, la couleur, et un trait plein pour
    celui qu'on n'a pas joint ou que la box refuse — projet inconnu, droit ou
@@ -1522,10 +1330,6 @@ main > header,
 #rail button.ticket {
   text-decoration: underline;
 }
-#rail .pr {
-  align-self: flex-start;
-  margin-top: var(--pas-1);
-}
 /* La fiche d'un ticket, par-dessus le rail : un popup de lecture au centre, sur un voile qui laisse le
    rail visible, atténué ; le panneau défile dans sa hauteur, un clic sur le voile la ferme. Son titre est entier : il passe à la
    ligne, rien n'est coupé. Ce que la box ne donne pas s'y lit en italique : ce sont les mots de l'app. */
@@ -1654,81 +1458,6 @@ main > header,
 #fiche .gestes-fiche .dit {
   margin: 0;
   color: var(--texte-doux);
-}
-/* La question qu'une issue pose, sur la fiche d'un ticket qui t'attend : le commentaire du manager
-   tel qu'il est écrit — ses blancs et ses lignes gardés —, ce qui a été écrit dessous depuis, puis
-   la réponse : un bouton par choix, un champ pour une phrase. Bordée d'accent : c'est à toi. */
-#fiche .question {
-  display: flex;
-  flex-direction: column;
-  align-self: stretch;
-  gap: var(--pas-2);
-  padding: var(--pas-3) var(--pas-3);
-  background: var(--carte);
-  border-left: 4px solid var(--accent);
-}
-#fiche .question h4 {
-  font-weight: 600;
-}
-#fiche .question blockquote,
-#fiche .question .depuis p {
-  margin: 0;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-#fiche .question small {
-  color: var(--discret);
-}
-#fiche .question .depuis {
-  display: flex;
-  flex-direction: column;
-  gap: var(--pas-2);
-  margin: 0;
-  padding: 0 0 0 var(--pas-3);
-  list-style: none;
-  border-left: 1px solid var(--trait);
-}
-#fiche .question .reponse {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--pas-2);
-}
-#fiche .question .reponse:empty {
-  display: none;
-}
-#fiche .question .choix {
-  text-align: left;
-}
-#fiche .question .phrase {
-  display: flex;
-  align-items: flex-end;
-  gap: var(--pas-2);
-}
-#fiche .question textarea {
-  flex: 1;
-  min-width: 0;
-  padding: var(--pas-1) var(--pas-2);
-  font: inherit;
-  font-size: var(--taille-corps);
-  color: var(--texte);
-  background: var(--fond);
-  border: 1px solid var(--trait);
-  border-radius: var(--rayon-bouton);
-  resize: vertical;
-}
-#fiche .question textarea:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-#fiche .question textarea:disabled {
-  color: var(--discret);
-  background: none;
-  border-style: dashed;
-  cursor: default;
-}
-#fiche .question .postee {
-  margin: 0;
-  color: var(--vert);
 }
 /* La bande de l'espace : en tête, la ligne de lecture seule et l'avis sur le dépôt. Vide, elle est cachée. */
 #alertes {
@@ -1971,28 +1700,6 @@ main > header {
   overflow-y: auto;
   user-select: text;
 }
-#outils-du-second:has(.empeche) {
-  flex: 1;
-  min-height: 0;
-}
-#outils-du-second:not(:has(.empeche)) {
-  max-height: 40%;
-}
-.outils-du-second ul {
-  display: flex;
-  flex-direction: column;
-  gap: var(--pas-3);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.outils-du-second > p {
-  margin: 0 0 var(--pas-3);
-  color: var(--texte-doux);
-}
-.outils-du-second .gestes {
-  padding: var(--pas-4) 0 0;
-}
 /* Le niveau d'un réglage (ticket 1310) : une petite étiquette à côté de son nom — project, this machine ou you. */
 .niveau {
   display: inline-block;
@@ -2009,22 +1716,6 @@ main > header {
 }/* Pourquoi une station installée ne cuit pas encore (ticket 1758) : une phrase à côté de sa pastille grise, qui nomme le geste. */
 :is(#tous {
   color: var(--discret);
-}
-/* La page d'une station, son choix de projets : l'en-tête serré — ses lignes vides ne laissent aucun creux —, les cases
-   sur une grille régulière, un nom long coupé là où il peut l'être, une case cochée qui se voit. */
-#station > :empty {
-  display: none;
-}
-#station header {
-  padding-bottom: var(--pas-2);
-}
-/* « report to brigade », à la suite de chaque panne (ticket 1977) : un bouton discret — il ne passe
-   jamais devant le geste qui répare la panne. Ce qu'il fait est dans son survol ; ce qu'un clic a rendu, à côté. */
-.signaler {
-  display: inline-flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--pas-2);
 }
 
 /* Les blocs de Stations, de Health et de Cooks (ticket 2485) : chacun son titre, en attendant son contenu. */

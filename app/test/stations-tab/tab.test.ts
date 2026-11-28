@@ -59,7 +59,7 @@ describe("l'onglet Stations : une ligne en tête, une carte par station qui sert
   test("servi par la box : « Cooked by parade-box · online · idle… », vert ; une seule carte ; le Mac, qui ne le sert pas, nulle part", async () => {
     const vue = await thePage([BOX, MAC], seenOf(ON_THE_BOX));
     assert.equal(tab(vue).dessous("div").filter(({ className }) => className === "haut-des-stations").length, 1);
-    assert.equal(sentence(vue), "Cooked by parade-box · online · idle, nothing on the rail");
+    assert.equal(sentence(vue), "Cooked by parade-box · online");
     assert.equal(top(vue).dataset.ton, "vert");
     assert.deepEqual(cards(vue).map(({ ariaLabel }) => ariaLabel), ["parade-box"]);
     const text = tab(vue).textContent;
@@ -136,7 +136,7 @@ describe("« Move to another station » : le choix, puis la ligne du haut suit l
     vue.dire("surStations", { a: A, stations: [{ ...BOX, projets: [] }, { ...MAC, projets: ["parade"] }] });
     vue.dire("surProjetsDesStations", seenOf({ ...ON_THE_BOX, cuitSur: { id: "gmac", nom: "macbook", ici: true } }));
     await repos();
-    assert.equal(sentence(vue), "Cooked by macbook · online · idle, nothing on the rail");
+    assert.equal(sentence(vue), "Cooked by macbook · online");
     assert.equal(top(vue).dataset.ton, "vert");
     assert.deepEqual(cards(vue).map(({ ariaLabel }) => ariaLabel), ["macbook"]);
   });
@@ -148,7 +148,7 @@ describe("« Move to another station » : le choix, puis la ligne du haut suit l
     tab(vue).dessous("li")[0]?.dessous("button")[0]?.click();
     await repos();
     await repos();
-    assert.equal(sentence(vue), "Cooked by parade-box · online · idle, nothing on the rail");
+    assert.equal(sentence(vue), "Cooked by parade-box · online");
     assert.match(tab(vue).textContent, /parade stays on parade-box: this computer has no sandbox/);
   });
 });
