@@ -5,7 +5,6 @@
 // servi, la durée est celle que la station a figée, et ne bouge plus. Pas de délai publié, pas de ligne. Ce module
 // ne touche pas `document` : il reçoit de quoi créer un élément (bricks.js).
 
-import { hover } from "../bricks.js";
 
 /** @typedef {import("../bricks.js").Fabrique} Fabrique */
 /** @typedef {import("../../projects/request.ts").Delay} Delay */
@@ -21,24 +20,4 @@ export function durationInClear(ms) {
   return `${minutes} min`;
 }
 
-/** @param {string} instant */
-const dayAndHour = (instant) => instant.replace("T", " ").slice(0, 16) + " UTC";
 
-// La ligne à poser sur la page du projet, ou null. `maintenant` : l'instant de la pose, en millisecondes.
-/**
- * @param {Fabrique} doc
- * @param {{ delai: Delay | null | undefined, maintenant: number }} lu
- */
-export function setDelay(doc, { delai: delay, maintenant: now }) {
-  if (delay === null || delay === undefined) return null;
-  const served = delay.duree !== null;
-  const pose = doc.createElement("p");
-  pose.className = "delai";
-  pose.dataset.delai = served ? "fige" : "court";
-  const duration = served ? delay.duree : now - Date.parse(delay.ajouteLe);
-  pose.textContent = served
-    ? `First ticket served ${durationInClear(duration ?? 0)} after the project was added`
-    : `Added ${durationInClear(duration ?? 0)} ago, no ticket served yet`;
-  pose.append(hover(doc, served ? `added ${dayAndHour(delay.ajouteLe)}, first ticket served ${dayAndHour(delay.serviLe ?? "")}` : `added ${dayAndHour(delay.ajouteLe)}: the time runs until the first ticket is served`));
-  return pose;
-}

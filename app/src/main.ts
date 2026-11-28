@@ -69,8 +69,7 @@ import { localGist } from "./stations/local-gist.ts";
 import { claudeOf, connectionOfTheSession, openOfAStation } from "./first-launch.ts";
 import { openTheLocalCopy, sessionOfClaude } from "./local-copy.ts";
 import { probesOfTheRuntime, serveHere } from "./serve-here.ts";
-import { readQuestion, reply as answerQuestion, titleOf, type Read as QuestionRead } from "./question.ts";
-import { holdAnswered } from "./answered.ts";
+import { titleOf } from "./question.ts";
 import { openTurns } from "./input.ts";
 import { holdRemovals } from "./removal.ts";
 import { FOLDER as FOLDER_OF_SETUP, setTheSetup } from "./setup/setup.ts";
@@ -257,8 +256,6 @@ const standby = openStandbyOfBoard({
     // ligne `rail` ce que chaque carte porte du ticket.
     const redraws = facts.attendre(shownOne);
     if (redraws !== undefined) tellTheFacts(redraws);
-    // Une question répondue qui attend le manager : son issue est relue de loin en loin.
-    rereadAnswered(shownOne.projet);
     // Et l'accueil : ce qui bloque un projet, et depuis quand ses décisions attendent.
     tellTheHome(home.status(shownOne));
   },
@@ -269,7 +266,6 @@ const standby = openStandbyOfBoard({
 // plus ancien) le dit là où ils se dessinent, et `status` reste lisible à côté.
 // Les questions du manager que le chef a répondues (answered.ts) : leur carte quitte TODO pour
 // WAITING sans attendre le manager.
-const answeredEntries = holdAnswered();
 const facts = holdFacts();
 // Chaque colonne du rail qui passe de cartes à aucune est dite (columns-emptied.ts, #2151) : sur la sortie d'erreur de
 // l'app, et dans `rail-columns.log`, à côté du fichier des projets — la lecture qui l'a fait s'y relit après coup.
@@ -578,30 +574,6 @@ ipcMain.handle("gestesDeFiche", (_, card: unknown) => actionsOfCard(card));
 // projet et le ticket ; l'adresse est celle que la box a rendue (facts.ts). Rien pour un ticket que
 // le bloc `attend` ne nomme pas : seule une entrée qui t'attend se lit ainsi.
 const settingsGh = () => ({ gh: process.env.BRIGADE_GH_BIN || "gh", delaiMs: 30_000 });
-// Ce que chaque lecture de l'issue dit de sa question est retenu (answered.ts) : répondue, sa carte
-// quitte TODO ; plus répondue — une autre question —, elle y revient. Le rail est redessiné aussitôt.
-function holdRead(project: string, ticket: unknown, readEntry: QuestionRead): QuestionRead {
-  if (answeredEntries.lue(project, ticket, readEntry)) redrawRail(project);
-  return readEntry;
-}
-function redrawRail(project: string): void {
-  const redraws = facts.redessiner(project);
-  if (redraws !== undefined) tellTheFacts(redraws);
-}
-// Une carte répondue attend le manager tant que la file la nomme : son issue est relue au plus toutes
-// les deux minutes — c'est là que se voit une autre question. Ce que la file ne nomme plus est lâché.
-function rereadAnswered(project: string): void {
-  for (const ticket of answeredEntries.garder(project, facts.nommes(project))) {
-    const address = facts.adresse(project, ticket);
-    if (address !== undefined) void readQuestion(settingsGh(), address).then((readEntry) => holdRead(project, ticket, readEntry));
-  }
-}
-ipcMain.handle("lireQuestion", (_, name: unknown, ticket: unknown) => {
-  const aims = knownOne(name);
-  if (aims === undefined || facts.attendu(aims.nom, ticket) === undefined) return undefined;
-  const address = facts.adresse(aims.nom, ticket);
-  return address === undefined ? { a: new Date().toISOString(), sans: "the station gave no https address for this issue: the app has nothing to read" } : readQuestion(settingsGh(), address).then((readEntry) => holdRead(aims.nom, ticket, readEntry));
-});
 // « ask the second », au clic : `/brigade:ask <ticket> ` est écrit dans le second du projet, sans Entrée — le chef tape
 // sa question à la suite (discussion.ts). Rien ne part sur le tableau ni sur la box, quelle que soit la station du
 // projet.
@@ -625,31 +597,11 @@ ipcMain.handle("lireTitre", (_, name: unknown, ticket: unknown) => {
   const address = facts.adresse(aims.nom, ticket);
   return address === undefined ? { sans: "the station gave no https address for this issue: the app has nothing to read" } : titleOf(settingsGh(), address);
 });
-// La réponse du chef à cette question : un choix, par sa lettre, ou sa phrase. Elle part sur
-// l'issue, en commentaire, par le même `gh` — à son nom. L'issue est relue avant : rien ne part sur
-// une question qui n'est plus celle qu'il a lue, ni pour un ticket que la file ne nomme plus.
-// Partie, la carte quitte TODO aussitôt (answered.ts) : elle attend le manager dans WAITING.
-ipcMain.handle("repondreQuestion", async (_, name: unknown, ticket: unknown, answer: unknown) => {
-  const aims = knownOne(name);
-  if (aims === undefined) return { poste: false, refus: gone(name).refus };
-  if (facts.attendu(aims.nom, ticket) === undefined) return { poste: false, refus: `nothing was posted: the \`attend\` block no longer names #${String(ticket)}` };
-  const address = facts.adresse(aims.nom, ticket);
-  if (address === undefined) return { poste: false, refus: "nothing was posted: the station gave no https address for this issue" };
-  const renderedOne = await answerQuestion(settingsGh(), address, answer);
-  const question = (answer as { question?: unknown } | null)?.question;
-  if (renderedOne.poste && typeof question === "string") {
-    if (answeredEntries.postee(aims.nom, ticket, question)) redrawRail(aims.nom);
-  } else if (!renderedOne.poste && renderedOne.lue !== undefined) holdRead(aims.nom, ticket, renderedOne.lue);
-  return renderedOne;
-});
 // « Add a project » : les dépôts du chef, lus par le `gh` du poste, entre lesquels il choisit.
 ipcMain.handle("depotsDuChef", () => projectsOfStations.depots());
 // Un dépôt quelconque, lu par son nom — public et pas au chef compris : sa branche par défaut, ou le refus.
 const readTheRepository = readOneRepository({ gh: process.env.BRIGADE_GH_BIN || "gh", delaiMs: 30_000 });
 ipcMain.handle("lireUnDepot", (_, repository: unknown) => readTheRepository(repository));
-// La page d'un projet de l'app confie sa cuisine à une première station, ou à une de plus : c'est le
-// seul geste qui l'installe sur une station (projects/projects.ts, `confier`).
-ipcMain.handle("confierAUneStation", (_, input: unknown) => projectsOfStations.confier(input));
 // Les dossiers de la cuisine de cet ordinateur pour un projet (#2489) : où elle garde son clone — celui que sa ligne du
 // fichier des projets de la cuisine nomme, ou celui qu'elle prend sans lui (runtime/src/kitchen/projects.ts) —, et où elle
 // pose les worktrees de ses cooks (runtime/src/kitchen/main.ts). Ils se lisent, ils ne se changent pas. Un téléphone n'a
@@ -675,11 +627,6 @@ ipcMain.handle("reglagesDeLaStation:lire", () => (role.role !== "station" ? { re
 ipcMain.handle("reglagesDeLaStation:ecrire", (_, change: unknown) =>
   role.role !== "station" ? { refus: "this device runs no station" } : writeSettingsOfTheStation(fileOfSettingsOfTheStation, typeof change === "object" && change !== null ? (change as Change) : {}),
 );
-// La page d'un projet déménage sa cuisine, d'un geste, vers une autre station appairée — cet
-// ordinateur, sa box, une autre : l'opération du runtime l'écrit, ou dit en une phrase pourquoi non.
-// Une issue d'un choix, sur la carte d'un besoin qui manque (#1400) : elle s'écrit dans la demande de la principale,
-// qui la pose à son journal (projects/projects.ts, `choisir`).
-ipcMain.handle("choisirUneIssue", (_, name: unknown, choice: unknown, issue: unknown) => projectsOfStations.choisir(name, choice, issue));
 ipcMain.handle("demenagerLaCuisine", (_, name: unknown, to: unknown) => projectsOfStations.demenager(name, to));
 // La page GitHub où autoriser brigade sur un dépôt : seulement une de celles qu'une station a publiées.
 ipcMain.handle("autoriserSurGitHub", (_, url: unknown) => {
@@ -737,12 +684,6 @@ ipcMain.handle("projetsServis", async () => {
   const { projectsOfTheKitchen } = await ofRuntime<typeof import("../../runtime/src/kitchen/projects.ts")>("kitchen", "projects.ts");
   return { depots: projectsOfTheKitchen(rootOfTheStation).map(({ repo }) => repo) };
 });
-// Ce que seule l'ancienne station tenait — les stations que le chef appairait ou enregistrait sous son compte, ses GitHub
-// Apps, ses projets servis écrits par l'app, ce que la machine fournit, le rail publié dans un gist, les propositions du
-// second, la préparation d'un dépôt pour elle, les commandes `sensitive` et `undo` — ne se lit ni ne s'écrit plus : la
-// cuisine (runtime/src/kitchen/) n'en a rien, et un dépôt n'a rien à préparer pour elle. Les écrans qui les demandent
-// encore reçoivent ce qu'ils disent quand il n'y a rien ; ils partent avec leurs tickets (#4503, #4505).
-const NOT_PAIRED = "Stations are no longer paired nor registered on GitHub: a station's kitchen serves the projects of its kitchen/projects file.";
 // « This computer » sur un projet (#4568) : sa ligne entre dans le fichier des projets de la cuisine de cet ordinateur
 // (serve-here.ts), que la station relit seule. Le retirer ne se fait pas d'ici.
 ipcMain.handle("servirUnProjet", async (_, repository: unknown, served: unknown) => {
@@ -761,7 +702,6 @@ ipcMain.handle("servirUnProjet", async (_, repository: unknown, served: unknown)
     readBase: async (folder) => (await readClone(git, folder)).base ?? undefined,
   });
 });
-ipcMain.handle("defautsDeStation", () => ({ refus: "this computer could not be read", detail: NOT_PAIRED }));
 const READY = { ready: true, missingBindings: false, missingLabels: [] };
 ipcMain.handle("checkRepoSetup", () => READY);
 ipcMain.handle("runRepoSetup", () => READY);

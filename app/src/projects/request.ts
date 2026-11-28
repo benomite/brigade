@@ -26,7 +26,6 @@ export type Calibrated = { modele: string; effort: string };
 // Le fil entre l'app et les stations garde sa clé historique `principale` : la station dont le gist porte le suivi du
 // projet (son onboarding, son refus, ses choix). L'app ne le lit et ne l'écrit que par ces deux gestes.
 export const doorTheTracking = (project: Pick<ProjectRequest, "principale">): boolean => project.principale;
-export const withTheTracking = (project: Omit<ProjectRequest, "principale">, tracking: boolean): ProjectRequest => ({ ...project, principale: tracking });
 
 export type ProjectRequest = {
   nom: string;

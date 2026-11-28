@@ -59,7 +59,7 @@ import { Terminal as Xterm } from "@xterm/xterm";
 import { holdBanner } from "./update/banner.js";
 import { setConnected, setTheListGitHub, holdConnectionGitHub } from "./connection-github.js";
 import { setTheProjectsServed, holdTheProjectsServed } from "./projects-served/projects-served.js";
-import { buttonAction, caseATick, hover } from "./bricks.js";
+import { buttonAction, hover } from "./bricks.js";
 import { lineError } from "./components/line-error/line-error.js";
 import { rowOfSetting as rowOfTheFamily } from "./components/setting/setting.js";
 import { button as buttonOfTheFamily } from "./components/button/button.js";
@@ -78,9 +78,6 @@ import { LIST_OF_CHEF, isRed, tidyTheRail } from "./todo/todo.js";
 import { kitchenBoardGrid } from "./kitchen-board/kitchen-board.js";
 import { aOneAction, whatAwaitingYou, lineParked, setTheTodo } from "./kitchen/kitchen.js";
 import { setRepositoryHeld } from "./installation-project/repository-held.js";
-import { setBlockages } from "./project/blockages.js";
-import { setDelay } from "./project/delay.js";
-import { setChoice, withoutTheChoice } from "./project/choice.js";
 import { mountTheCardProject } from "./card-project/mount-card-project.js";
 import { levelOf, LEVELS_SAID } from "./levels.js";
 import { lineOfAlert } from "./stations-of-cooking.js";
@@ -90,7 +87,7 @@ import { keyOf, OR_DISPLACE, setTheTabOfStations, WHO_COOKED as WHO_COOKED_TAB, 
 import { BY_DEFAULT as ENGINE_BY_DEFAULT } from "./engine/engines.js";
 import { holdTheAccount } from "./addition-project/account.js";
 import { CLONE_IN, setTheScreenOfAddition, readTheProject } from "./addition-project/addition.js";
-import { AT_RETURN, thisComputerOfFirst, nameSaid, proposedOfOffice, BRING_BACK, oneMachine } from "./choice-station/choice-station.js";
+import { BRING_BACK } from "./choice-station/choice-station.js";
 import { choiceOfStation, HERE } from "./stations-tab/choice.js";
 import { setTheRequestOfStation, holdTheRequestsOfStation, addTheStation } from "./installation-project/installation-project.js";
 import { repositoryPastesBy, NOT_ONE_REPOSITORY } from "./addition-project/step-project.js";
@@ -297,95 +294,13 @@ const blockOfProjects = setBlockOfProjects(document, projectsOfTheHome);
 // une. Tant qu'aucune ne la fait, une phrase le dit, et « choose its machine » ouvre le choix
 // parmi les stations appairées : c'est le seul geste qui installe un projet sur une station.
 const stationsOfProject = element("stations-du-projet");
-// Ce qui bloque le projet affiché (ticket 1399), sous ses stations, tel que le suivi le publie : une ligne par
-// blocage (project/blockages.js). Les détails que le chef a dépliés, par projet et blocage : une relecture ne les replie pas.
-const delayOfProject = element("delai-du-projet");
 // L'onglet Agents du projet affiché (ticket 4224, agents/) : ses agents au travail, lus à l'ouverture de l'onglet (ticket 4569).
 const agentsOfProject = holdTheAgents(document);
-const blockagesOfProject = element("blocages-du-projet");
-/** @type {Map<string, Set<string>>} */
-const blockagesUnfolded = new Map();
 // Les projets dont le chef a déplié « Awaiting others » au pied de TODO (ticket 2985) : la lecture suivante la garde dépliée.
 /** @type {Set<string>} */
 const othersUnfolded = new Set();
-// Ce qui manque au projet pour ses tests (ticket 1400), au-dessus de ses blocages : une carte par besoin
-// (project/choice.js). Par projet : les choix dont l'issue part (`enCours`), celles qui sont écrites et que la station
-// n'a pas encore relues (`retenus`), et pourquoi une issue n'a pas été retenue (`refus`).
-const choiceOfProject = element("choix-du-projet");
-/** @type {Map<string, { enCours: Set<string>, retenus: Set<string>, refus: Map<string, { refus: string, detail?: string }> }>} */
-const choiceHeld = new Map();
 const lineOfStationsOfProject = document.createElement("p");
 lineOfStationsOfProject.ariaLive = "polite";
-const openTheTrust = /** @type {HTMLButtonElement} */ (button("", undefined));
-openTheTrust.className = "ajout-de-station";
-// Le choix lui-même, une carte (ticket 1107). En tête, une phrase dit ce que le chef fait, et une autre
-// ce que fait la machine qu'il choisit. Puis les machines, une à choisir, chacune avec ce qu'elle implique — cet
-// ordinateur d'abord, une station en ligne proposée d'office (choix-station/, ticket 3187) —, et les cooks à la fois de
-// la machine choisie. Le calibrage du manager et du reviewer n'y est pas : il part tel que l'app le recommande, et se
-// change dans les réglages du projet. Chaque valeur arrive posée, avec d'où elle vient : le chef peut tout changer, ou
-// lancer sans rien toucher.
-const formOfTrust = document.createElement("form");
-formOfTrust.className = "confiance";
-formOfTrust.hidden = true;
-const titleOfTrust = document.createElement("h3");
-const meaningOfTrust = document.createElement("p");
-meaningOfTrust.className = "aide";
-// Un champ : son libellé, en entier au-dessus de lui, et ce qu'il en est dit dessous.
-/** @param {string} wording @param {HTMLElement} input @param {HTMLElement | undefined} said @param {HTMLElement} level l'étiquette du réglage (levels.js) */
-function fieldOfTrust(wording, input, said, level) {
-  const pose = document.createElement("div");
-  pose.className = "champ";
-  const named = block("label", wording);
-  input.id = `confiance-${wording.toLowerCase().replace(/[^a-z]+/g, "-")}`;
-  /** @type {HTMLLabelElement} */ (named).htmlFor = input.id;
-  pose.append(named, level, input, ...(said === undefined ? [] : [said]));
-  return pose;
-}
-const repositoryOfTrust = /** @type {HTMLSelectElement} */ (document.createElement("select"));
-repositoryOfTrust.ariaLabel = "repository";
-const baseOfTrust = document.createElement("input");
-baseOfTrust.ariaLabel = "integration branch";
-baseOfTrust.spellcheck = false;
-const fieldOfRepository = fieldOfTrust("Its GitHub repository", repositoryOfTrust, undefined, levelOf(document, "depot"));
-const fieldOfTheBase = fieldOfTrust("Its integration branch", baseOfTrust, block("small", "The branch the kitchen delivers to."), levelOf(document, "branche"));
-const stationsChosenOfTrust = document.createElement("fieldset");
-const legendOfStationsChosen = document.createElement("legend");
-const meaningOfStationsChosen = document.createElement("p");
-meaningOfStationsChosen.className = "aide";
-const choiceOfStationsChosen = document.createElement("div");
-choiceOfStationsChosen.className = "machines";
-stationsChosenOfTrust.append(legendOfStationsChosen, meaningOfStationsChosen, choiceOfStationsChosen);
-const cooksOfTrust = document.createElement("input");
-cooksOfTrust.type = "number";
-cooksOfTrust.min = "1";
-cooksOfTrust.ariaLabel = "cooks at once";
-const cooksSaid = document.createElement("small");
-cooksSaid.className = "propose";
-const fieldOfCooks = fieldOfTrust("Cooks at once", cooksOfTrust, cooksSaid, levelOf(document, "cooks"));
-// Une station de plus (ticket 1307) ne dit que ce qui est à sa machine, posé d'emblée : ses cooks, le dossier où sa
-// station pose les espaces de travail de ses cooks — qu'elle choisit elle-même : il se lit, il ne se change pas ici —,
-// et ce que la machine sait faire, une case par capacité, cochée quand elle y est détectée.
-const folderOfTrust = document.createElement("input");
-folderOfTrust.readOnly = true;
-folderOfTrust.spellcheck = false;
-folderOfTrust.ariaLabel = "workspace folder";
-const folderSays = document.createElement("small");
-const fieldOfFolder = fieldOfTrust("Workspace folder", folderOfTrust, folderSays, levelOf(document, "dossier"));
-const capacitiesOfTrust = document.createElement("fieldset");
-const legendOfCapacities = document.createElement("legend");
-const capacitiesChoice = document.createElement("div");
-capacitiesChoice.className = "capacites";
-capacitiesOfTrust.append(legendOfCapacities, levelOf(document, "capacites"), capacitiesChoice);
-const trustRefused = document.createElement("div");
-trustRefused.ariaLive = "polite";
-const validateTrust = /** @type {HTMLButtonElement} */ (buttonOfTheFamily(document, "", undefined, { sorte: "recommande", type: "submit" }));
-const cancelTrust = /** @type {HTMLButtonElement} */ (button(CANCEL, undefined, "discret"));
-const actionsOfTrust = document.createElement("div");
-actionsOfTrust.className = "lancer";
-actionsOfTrust.append(validateTrust, cancelTrust);
-formOfTrust.append(titleOfTrust, meaningOfTrust, fieldOfRepository, fieldOfTheBase, stationsChosenOfTrust, fieldOfCooks, fieldOfFolder, capacitiesOfTrust, trustRefused, actionsOfTrust);
-const trustSaid = document.createElement("p");
-trustSaid.ariaLive = "polite";
 // Déménager sa cuisine (ticket 1095), d'un seul geste : « move the kitchen » ouvre, sous la ligne, le
 // choix de la machine où l'emmener — cet ordinateur, sa box, une autre —, et ce que ça coûte, en une
 // ligne. Un clic sur une machine la déménage, sans retrait ni rajout. Refusé, la raison se dit en une
@@ -408,7 +323,7 @@ moveSays.ariaLive = "polite";
 // impossible à préparer, avec sa raison et l'heure du prochain essai — à la place de « prepares it within a minute ».
 const repositoryHeld = document.createElement("div");
 repositoryHeld.hidden = true;
-stationsOfProject.append(lineOfStationsOfProject, openTheMove, openTheTrust, choiceOfMove, formOfTrust, moveSays, repositoryHeld, trustSaid);
+stationsOfProject.append(lineOfStationsOfProject, openTheMove, choiceOfMove, moveSays, repositoryHeld);
 
 /** @type {Map<number, { terminal: Terminal, xterm: Xterm, ajuste: FitAddon, cadre: HTMLDivElement }>} */
 const views = new Map();
@@ -633,18 +548,6 @@ let stationsViews;
 // Les projets des stations (projects/projects.ts). Indéfini : pas encore lus.
 /** @type {import("../projects/projects.ts").SeenOfProjects | undefined} */
 let projectsSeen;
-// Le choix des stations auxquelles confier la cuisine du projet affiché, tant qu'il est ouvert : le
-// même que le parcours, pour ce projet-là — une relecture des stations ne perd pas ce qui est coché.
-// `choisies` : la seule machine choisie (ticket 3187) ;
-// `cooksTouches` : le chef a changé la valeur proposée — elle ne suit plus la machine ni les projets relus.
-// `defauts` : ce que cet ordinateur propose pour une station de plus (ticket 1307), lu à l'ouverture ;
-// `capacites` : par machine, les capacités cochées — celles qu'on y détecte, tant que le chef n'y a pas touché.
-/** @type {{ projet: string, ouvertLe: string, depots: import("../projects/github.ts").RepositoryOfChef[], choisies: Set<string>, touchee: boolean, cooksTouches: boolean, defauts?: import("../projects/projects.ts").DefaultsOfTheMachine, capacites: Map<string, Set<string>> } | undefined} */
-let trust;
-// Ce que le dernier geste de confiance a rendu, et pour quel projet : dit sous la ligne de ses stations.
-// `a` : quand (`Date.now()`). Ce qu'il annonce « within a minute » ne se dit plus passé la minute, ni
-// une fois le parcours du projet publié : c'est lui qui dit où il en est (ticket 1111).
-let trustSaidFor = { projet: "", dit: "", a: 0 };
 // Le déménagement dont le choix est ouvert — pour quel projet —, s'il part, et vers quelle station (son gist).
 /** @type {{ projet: string, part: boolean, vers?: string } | undefined} */
 let move;
@@ -2915,7 +2818,7 @@ function displacementOf(project, or, inProgress, readEntries) {
 function setTheMove(project, or, inProgress, readEntries) {
   if (move !== undefined && move.projet !== project.nom) closeMove();
   const { offert, destinations } = displacementOf(project, or, inProgress, readEntries);
-  openTheMove.hidden = !offert || move !== undefined || trust !== undefined;
+  openTheMove.hidden = !offert || move !== undefined;
   if (!offert) closeMove();
 
   // Ce que le dernier déménagement a rendu ; à défaut, un refus de la station visée.
@@ -3011,14 +2914,8 @@ async function relocate(project, to, { nomme: named, depuis: since, garder: keep
 function setStationsOfProject() {
   const project = current;
   stationsOfProject.hidden = project === undefined;
-  if (project === undefined) {
-    setTheChoice(undefined);
-    setTheBlockages(undefined);
-    setTheDelay(undefined);
-    return;
-  }
-  if (trust !== undefined && trust.projet !== project.nom) closeTrust();
-  const { stations, demande: request, tenue: heldOne } = kitchenOf(project);
+  if (project === undefined) return;
+  const { stations } = kitchenOf(project);
   const readEntries = stationsViews !== undefined && projectsSeen !== undefined;
   const or = orCooked(project, stations);
   const named = [];
@@ -3028,19 +2925,10 @@ function setStationsOfProject() {
   if (stations.length > 0 || or !== undefined || named.length > 0) lineOfStationsOfProject.replaceChildren(...(inProgress !== null && inProgress.etape !== "refusee" ? [inMovement(inProgress)] : []));
   else lineOfStationsOfProject.textContent = readEntries ? `No station cooks ${project.nom} yet.` : READ_OF("your stations on GitHub");
   setTheMove(project, or, inProgress, readEntries);
-  setTheChoice(project);
-  setTheBlockages(project);
-  setTheDelay(project);
-  openTheTrust.textContent = stations.length === 0 && named.length === 0 && !itselfLit(project) && project.sansStation !== true ? "choose its machine" : "+ station";
-  // « + station » n'est plus sur Rail : une station s'ajoute depuis l'onglet Stations (ticket 3523).
-  openTheTrust.hidden = trust !== undefined || move !== undefined || !readEntries || openTheTrust.textContent === "+ station";
   const seenOne = projectsSeen?.projets.find(({ nom: name }) => name === project.nom);
   const retained = setRepositoryHeld(document, { acces: seenOne?.acces ?? null, clone: seenOne?.clone ?? null, refus: seenOne?.refus ?? null, worktree: seenOne?.worktree ?? null, maintenant: Date.now(), copier: (command) => void navigator.clipboard.writeText(command), ouvrir: (url) => void brigade.autoriserSurGitHub(url) });
   repositoryHeld.hidden = retained === null;
   repositoryHeld.replaceChildren(...(retained === null ? [] : [retained]));
-  // La station dit ce qui la retient : la phrase qui promet de se préparer « within a minute » ne se dit plus.
-  const announcementHeld = retained === null && Date.now() - trustSaidFor.a < 60_000;
-  trustSaid.textContent = trustSaidFor.projet === project.nom && announcementHeld ? trustSaidFor.dit : "";
   // Les stations sont de l'onglet Stations (ticket 1184). Sur Rail, elles restent en vue tant qu'elles sont ce qui
   // t'attend : le projet ne cuit nulle part, son parcours est à suivre, un choix de machine est ouvert, ou
   // sa cuisine est retenue — un worktree qui ne se prépare pas (ticket 1119). L'accès au dépôt refusé et le refus de
@@ -3054,32 +2942,17 @@ function setStationsOfProject() {
   // de sa machine restent en tête.
   const onStations = tabOf(project) === STATIONS;
   lineOfStationsOfProject.hidden = onStations || lineOfStationsOfProject.childElementCount === 0;
-  if (onStations) for (const pose of [moveSays, choiceOfMove, openTheMove, openTheTrust]) pose.hidden = true;
+  if (onStations) for (const pose of [moveSays, choiceOfMove, openTheMove]) pose.hidden = true;
   // « move the kitchen » n'est plus sur Rail (ticket 3523) : le déménagement se demande dans l'onglet Stations.
   openTheMove.hidden = true;
   stationsOfProject.hidden =
     rows ||
-    (itselfLit(project) && (repositoryHeld.hidden || saysByTheAlert) && trust === undefined && move?.projet !== project.nom) ||
-    (onStations && repositoryHeld.hidden && trust === undefined && trustSaid.textContent === "") ||
+    (itselfLit(project) && (repositoryHeld.hidden || saysByTheAlert) && move?.projet !== project.nom) ||
+    (onStations && repositoryHeld.hidden) ||
     // Sur Rail, rien au-dessus des colonnes qu'un bouton (ticket 3523) : « move the kitchen » est dans l'onglet Stations, qui le dit.
-    ((repositoryHeld.hidden || saysByTheAlert) && trust === undefined && move?.projet !== project.nom && moveSays.hidden && lineOfStationsOfProject.hidden && openTheTrust.hidden && trustSaid.textContent === "");
-  if (trust === undefined) return;
-  setTheTrust(trust, project, { exclues: stations.map(({ id }) => id), demande: request, tenue: heldOne });
+    ((repositoryHeld.hidden || saysByTheAlert) && move?.projet !== project.nom && moveSays.hidden && lineOfStationsOfProject.hidden);
 }
 
-// Le temps de l'ajout du projet affiché à son premier ticket servi (ticket 1401) : il court tant qu'aucun n'est servi,
-// se repose de lui-même, et se fige à la lecture qui dit le premier servi.
-/** @param {Project | undefined} project */
-function setTheDelay(project) {
-  const seenOne = project === undefined ? undefined : projectsSeen?.projets.find(({ nom: name }) => name === project.nom);
-  const pose = setDelay(document, { delai: seenOne?.delai, maintenant: Date.now() });
-  delayOfProject.hidden = pose === null;
-  delayOfProject.replaceChildren(...(pose === null ? [] : [pose]));
-}
-
-setInterval(() => {
-  if (current !== undefined && !delayOfProject.hidden) setTheDelay(current);
-}, 30_000);
 
 // Le savoir-faire du projet (know-how/, ticket 4239), sous son onglet (ticket 4570) : lu sur GitHub par le process principal.
 /** @type {Map<string, ReturnType<typeof holdTheKnowledge>>} */
@@ -3104,322 +2977,8 @@ function knowledgeOfProject(project) {
   return held;
 }
 
-// Les blocages du projet affiché (ticket 1399). Les gestes que l'app sait faire pour en lever un, par l'identifiant
-// d'action que la station publie : « choose-station » ouvre le choix de la machine, comme le parcours (ticket 1113) —
-// quand le déménagement est offert, qu'une autre station peut le reprendre ; sinon, la ligne dit pourquoi il n'y a pas
-// de bouton. Posés après le déménagement, qui le décide. Un lien ne s'ouvre que par le process principal, qui ne
-// connaît que les pages que les stations publient.
-/** @param {Project | undefined} project */
-function setTheBlockages(project) {
-  const movable = project !== undefined && (!openTheMove.hidden || move?.projet === project.nom);
-  const seenOne = project === undefined ? undefined : projectsSeen?.projets.find(({ nom: name }) => name === project.nom);
-  // Un besoin qui a sa carte n'a pas, en plus, sa ligne (ticket 1400).
-  const blockages = withoutTheChoice(seenOne?.blocages ?? [], seenOne?.choix ?? [], seenOne?.choisis, choiceHeld.get(seenOne?.nom ?? "")?.retenus);
-  const name = project?.nom ?? "";
-  const unfoldedOnes = blockagesUnfolded.get(name) ?? new Set();
-  for (const id of unfoldedOnes) if (!blockages.some((blockage) => blockage.id === id)) unfoldedOnes.delete(id);
-  const pose = setBlockages(document, {
-    projet: name,
-    blocages: blockages,
-    gestes: { "choose-station": movable ? { libelle: "choose another station", faire: openTheChoiceOfMachine } : { sans: "no other station can take it right now" } },
-    ouvrir: (url) => void brigade.autoriserSurGitHub(url),
-    deplies: unfoldedOnes,
-    deplier: (id, opened) => {
-      if (opened) unfoldedOnes.add(id);
-      else unfoldedOnes.delete(id);
-      blockagesUnfolded.set(name, unfoldedOnes);
-    },
-  });
-  blockagesOfProject.hidden = pose === null;
-  blockagesOfProject.replaceChildren(...(pose === null ? [] : [pose]));
-}
 
-// Les choix que le projet affiché attend (ticket 1400) : une carte par besoin. Un clic écrit l'issue
-// dans sa demande (projects/projects.ts, `choisir`) ; écrite, la carte part, sans attendre que la station la relise.
-// Ce que la vue retient s'oublie dès que la station ne publie plus le choix en attente.
-// L'issue « Cook it on a station that has it » déclarait une capacité sur une station : l'app ne lit plus les stations
-// qu'un projet déclare, elle ne la propose plus.
-const COOK_ELSEWHERE = "cook-elsewhere";
-/** @param {Project | undefined} project */
-function setTheChoice(project) {
-  const seenOne = project === undefined ? undefined : projectsSeen?.projets.find(({ nom: name }) => name === project.nom);
-  const choice = seenOne?.choix ?? [];
-  const name = project?.nom ?? "";
-  const heldOnes = choiceHeld.get(name) ?? { enCours: new Set(), retenus: new Set(), refus: new Map() };
-  for (const id of heldOnes.retenus) if (!choice.some((oneOf) => oneOf.id === id && oneOf.status === "pending")) heldOnes.retenus.delete(id);
-  for (const id of heldOnes.refus.keys()) if (!choice.some((oneOf) => oneOf.id === id)) heldOnes.refus.delete(id);
-  choiceHeld.set(name, heldOnes);
-  const pose = setChoice(document, { projet: name, choix: choice.map((oneOf) => ({ ...oneOf, options: oneOf.options.filter(({ id }) => id !== COOK_ELSEWHERE) })), choisis: seenOne?.choisis, retenus: heldOnes.retenus, enCours: heldOnes.enCours, refus: heldOnes.refus, choisir: (id, issue) => void chooseOneIssue(name, id, issue) });
-  choiceOfProject.hidden = pose === null;
-  choiceOfProject.replaceChildren(...(pose === null ? [] : [pose]));
-}
 
-/** @param {string} name @param {string} id @param {string} issue */
-async function chooseOneIssue(name, id, issue) {
-  const heldOnes = choiceHeld.get(name) ?? { enCours: new Set(), retenus: new Set(), refus: new Map() };
-  choiceHeld.set(name, heldOnes);
-  if (heldOnes.enCours.has(id)) return;
-  heldOnes.enCours.add(id);
-  heldOnes.refus.delete(id);
-  setStationsOfProject();
-  /** @type {{ fait: string } | { refus: string, detail?: string }} */
-  let rendered;
-  try {
-    rendered = await brigade.choisirUneIssue(name, id, issue);
-  } catch (error) {
-    rendered = { refus: "the choice could not be recorded", detail: error instanceof Error ? error.message : String(error) };
-  }
-  heldOnes.enCours.delete(id);
-  if (rendered !== undefined && "fait" in rendered) heldOnes.retenus.add(id);
-  else heldOnes.refus.set(id, rendered ?? { refus: "the choice could not be recorded" });
-  setStationsOfProject();
-}
-
-// Le choix ouvert, posé de nouveau à chaque relecture des stations et des projets : ce que le chef a
-// coché ou changé reste, ce qu'il n'a pas touché suit ce qui est proposé. Un projet dont une station a déjà
-// la cuisine ne prend que des stations de plus ; une station de plus reprend ce que l'app a déjà demandé, ni
-// cooks ni calibrage à redire.
-/**
- * @param {NonNullable<typeof trust>} aims @param {Project} project
- * @param {{ exclues: readonly string[], demande: boolean, tenue: boolean }} deja
- */
-function setTheTrust(aims, project, { exclues, demande: request, tenue: heldOne }) {
-  const locale = projectsSeen?.locale ?? null;
-  const paired = thisComputerOfFirst(
-    (stationsViews?.stations ?? []).filter(({ id, cuisine: kitchen }) => kitchen !== false && !exclues.includes(id)),
-    locale,
-  );
-  const machines = projectsSeen?.machines ?? {};
-  const recommended = projectsSeen?.recommandee ?? undefined;
-  const first = !heldOne;
-  // Une machine à la fois, proposée d'office tant que le chef n'a rien touché : une station qui peut cuire maintenant —
-  // la recommandée, sinon cet ordinateur, sinon la première en ligne (choix-station/). Aucune en ligne : aucune.
-  if (!aims.touchee || !paired.some(({ id }) => aims.choisies.has(id))) {
-    const proposed = proposedOfOffice(paired, { recommandee: first ? recommended : null, locale });
-    aims.choisies = new Set(proposed === undefined ? [] : [proposed]);
-  }
-  const nameOf = (/** @type {string} */ id) => {
-    const station = paired.find((one) => one.id === id);
-    return station === undefined ? "" : nameSaid(station, locale);
-  };
-
-  titleOfTrust.textContent = first ? `Choose the machine that cooks ${project.nom}.` : `Add a station to ${project.nom}'s kitchen.`;
-  meaningOfTrust.textContent = first
-    ? "Every station cooks, takes, reviews and merges. Everything below is set to what is recommended: change what you like, or start as it is."
-    : "Every station cooks, takes, reviews and merges.";
-  // Un projet ajouté depuis l'app connaît son dépôt et sa branche ; un projet écrit à la main les choisit ici.
-  const knownOne = project.depot !== undefined && project.base !== undefined;
-  // Une station de plus ne les demande jamais (ticket 1307) : la première les sert, ou le clone du projet les dit.
-  fieldOfRepository.hidden = !first || knownOne;
-  fieldOfTheBase.hidden = !first || knownOne;
-
-  legendOfStationsChosen.textContent = "Machine";
-  meaningOfStationsChosen.textContent = "";
-  meaningOfStationsChosen.hidden = true;
-  choiceOfStationsChosen.replaceChildren(
-    ...(paired.length === 0
-      ? [block("p", first ? "no station to cook it: pair one first, with “+ station” under All stations, on the home" : "no other paired machine: pair one from the home, with “+ station”")]
-      : paired.map((station) => {
-          const suggests = machines[station.id];
-          return oneMachine(
-            document,
-            {
-              station,
-              nom: first ? "station-choisie" : "station-ajoutee",
-              ici: station.id === locale,
-              choisie: aims.choisies.has(station.id),
-              recommandee: first && station.id === recommended && station.etat === "en-ligne",
-              implique: suggests?.implique ?? "",
-              ordinateur: suggests?.toujoursAllumee === false,
-              aria: first ? `${station.nom} cooks it` : `${station.nom} is the station to add`,
-            },
-            () => {
-              aims.touchee = true;
-              aims.choisies = new Set([station.id]);
-              setStationsOfProject();
-            },
-          );
-        })),
-  );
-  stationsChosenOfTrust.hidden = false;
-
-  // Les cooks à la fois : ceux de la machine choisie, tirés de ses cœurs à elle — ceux de cet ordinateur tels que le
-  // runtime les calcule, sinon ses cœurs publiés. Une station de plus dit aussi son dossier et ses capacités.
-  const decide = first && !request;
-  const chosenOne = [...aims.choisies][0];
-  const withoutMachine = chosenOne === undefined;
-  const here = chosenOne !== undefined && chosenOne === locale;
-  const defaults = aims.defauts !== undefined && "cooks" in aims.defauts ? aims.defauts : undefined;
-  fieldOfCooks.hidden = first ? !decide || withoutMachine : withoutMachine;
-  const proposed = here && defaults !== undefined ? defaults : machines[chosenOne ?? ""];
-  if (!aims.cooksTouches) cooksOfTrust.value = proposed === undefined ? "" : String(proposed.cooks);
-  cooksSaid.textContent = aims.cooksTouches || proposed === undefined ? "" : `recommended — ${proposed.cooksDit}`;
-  fieldOfFolder.hidden = first || withoutMachine;
-  capacitiesOfTrust.hidden = first || withoutMachine;
-  if (!first && chosenOne !== undefined) setTheMachineAdded(aims, chosenOne, nameOf(chosenOne), here, defaults);
-
-  const name = chosenOne === undefined ? "" : nameOf(chosenOne);
-  validateTrust.textContent = first ? (name === "" ? "Start the kitchen" : `Start the kitchen on ${name}`) : ADD_ONE_PROJECT;
-  actionsOfTrust.hidden = paired.length === 0;
-}
-
-// Ce qui est à la machine d'une station de plus (ticket 1307) : le dossier des espaces de travail de ses cooks, et ses
-// capacités, une case chacune. Cet ordinateur les dit tels que le runtime les y lit, les cases détectées cochées ;
-// une autre machine ne se sonde pas d'ici : son dossier est le sien, et ses cases partent vides. Ce que le chef a
-// coché ou décoché reste, par machine, d'une relecture à l'autre.
-/**
- * @param {NonNullable<typeof trust>} aims @param {string} id @param {string} name @param {boolean} here
- * @param {Extract<import("../projects/projects.ts").DefaultsOfTheMachine, { cooks: number }> | undefined} defaults
- */
-function setTheMachineAdded(aims, id, name, here, defaults) {
-  folderOfTrust.value = here ? (defaults?.espaceDeTravail ?? "") : "";
-  folderOfTrust.placeholder = here ? "" : `chosen on ${name}`;
-  folderSays.textContent = here ? `where ${THIS_COMPUTER}'s station puts its cooks' workspaces` : `${name}'s station chooses it on that machine`;
-  legendOfCapacities.textContent = `What ${here ? THIS_COMPUTER : name} can do`;
-  const catalog = defaults?.capacites ?? [];
-  let ticked = aims.capacites.get(id);
-  if (ticked === undefined) {
-    ticked = new Set(here ? catalog.filter(({ detectee }) => detectee).map(({ capacite: capacity }) => capacity) : []);
-    aims.capacites.set(id, ticked);
-  }
-  const heldEntries = ticked;
-  const refusal = aims.defauts !== undefined && "refus" in aims.defauts ? aims.defauts : { refus: `${THIS_COMPUTER} could not be read`, detail: "" };
-  capacitiesChoice.replaceChildren(
-    ...(catalog.length === 0
-      ? [lineError(document, refusal.refus, refusal.detail ?? "")]
-      : catalog.map(({ capacite: capacity, nom: saidOne, detectee }) =>
-          caseATick(document, { nom: saidOne, dit: !here ? `not detectable from ${THIS_COMPUTER}` : detectee ? "detected" : `not found on ${THIS_COMPUTER}`, cochee: heldEntries.has(capacity) }, (tickedOne) => {
-            if (tickedOne) heldEntries.add(capacity);
-            else heldEntries.delete(capacity);
-          }),
-        )),
-  );
-}
-
-// Ouvrir le choix : l'heure en est gardée, comme pour le parcours — c'est d'elle que se mesure le temps
-// jusqu'au projet servi. Un projet écrit à la main choisit son dépôt parmi ceux du chef, lus sur GitHub.
-// Pour une station de plus, ce que cet ordinateur propose est lu avant que le formulaire se montre : chaque champ y
-// paraît d'emblée, rempli (ticket 1307).
-openTheTrust.addEventListener("click", () => void openTrust());
-async function openTrust() {
-  const project = current;
-  if (project === undefined || openTheTrust.disabled) return;
-  /** @type {NonNullable<typeof trust>} */
-  const aims = { projet: project.nom, ouvertLe: new Date().toISOString(), depots: [], choisies: new Set(), touchee: false, cooksTouches: false, capacites: new Map() };
-  if (kitchenOf(project).tenue) {
-    openTheTrust.disabled = true;
-    aims.defauts = await defaultsOfThisComputer(project.nom);
-    openTheTrust.disabled = false;
-    if (current?.nom !== project.nom) return;
-  }
-  trust = aims;
-  formOfTrust.hidden = false;
-  trustSaidFor = { projet: "", dit: "", a: 0 };
-  trustRefused.replaceChildren();
-  baseOfTrust.value = project.base ?? "";
-  setStationsOfProject();
-  if ((project.depot !== undefined && project.base !== undefined) || aims.defauts !== undefined) return;
-  await readTheRepositories(aims, project);
-}
-/** @param {string} name @returns {Promise<import("../projects/projects.ts").DefaultsOfTheMachine>} */
-async function defaultsOfThisComputer(name) {
-  try {
-    return (await brigade.defautsDeStation(name)) ?? { refus: `${THIS_COMPUTER} could not be read` };
-  } catch (error) {
-    return { refus: `${THIS_COMPUTER} could not be read`, detail: error instanceof Error ? error.message : String(error) };
-  }
-}
-// Le dépôt à choisir : ceux du chef, lus sur GitHub, avec celui que le projet connaît déjà d'avance.
-/** @param {NonNullable<typeof trust>} aims @param {Project} project */
-async function readTheRepositories(aims, project) {
-  repositoryOfTrust.replaceChildren(new Option(READ_OF("your repositories on GitHub"), ""));
-  const readOnes = await brigade.depotsDuChef();
-  if (trust !== aims) return;
-  if ("refus" in readOnes) {
-    repositoryOfTrust.replaceChildren(new Option("— repository —", ""), ...(project.depot === undefined ? [] : [new Option(project.depot, project.depot)]));
-    if (project.depot !== undefined) repositoryOfTrust.value = project.depot;
-    trustRefused.replaceChildren(lineError(document, readOnes.refus, "", { classe: "" }));
-    return;
-  }
-  aims.depots = readOnes.depots;
-  propose(repositoryOfTrust, readOnes.depots.map(({ depot: repository }) => repository), "— repository —");
-  if (project.depot !== undefined) {
-    if (!readOnes.depots.some(({ depot: repository }) => repository === project.depot)) repositoryOfTrust.append(new Option(project.depot, project.depot));
-    repositoryOfTrust.value = project.depot;
-  }
-}
-// Le dépôt choisi propose sa branche par défaut comme branche d'intégration.
-repositoryOfTrust.addEventListener("change", () => {
-  const chosen = trust?.depots.find(({ depot: repository }) => repository === repositoryOfTrust.value);
-  if (chosen !== undefined) baseOfTrust.value = chosen.base;
-});
-// Une valeur changée par le chef est la sienne : elle ne suit plus ce qui est proposé, et sa
-// provenance ne se dit plus.
-cooksOfTrust.addEventListener("input", () => {
-  if (trust === undefined) return;
-  trust.cooksTouches = true;
-  cooksSaid.textContent = "";
-});
-cancelTrust.addEventListener("click", () => {
-  closeTrust();
-  setStationsOfProject();
-});
-function closeTrust() {
-  trust = undefined;
-  formOfTrust.hidden = true;
-}
-// Lancer : la demande part au process principal, qui l'écrit dans le gist de chaque station choisie
-// — ou chaque champ qui manque se lit sous le choix, et rien n'est écrit.
-formOfTrust.addEventListener("submit", (event) => {
-  event.preventDefault();
-  void entrust();
-});
-async function entrust() {
-  const project = current;
-  const aims = trust;
-  if (project === undefined || aims === undefined || aims.projet !== project.nom) return;
-  const chosen = [...aims.choisies];
-  const readEntries = chosen.map((id) => (stationsViews?.stations ?? []).find((station) => station.id === id));
-  const names = chosen.map((id, rank) => readEntries[rank]?.nom ?? id);
-  // Hors ligne, la station choisie prend le projet à son retour (ticket 3187) : la page le dit en clair.
-  const absent = readEntries.find((station) => station?.etat === "hors-ligne");
-  validateTrust.disabled = true;
-  trustRefused.replaceChildren(block("p", "writing the request on your stations' gists…"));
-  try {
-    const rendered = await brigade.confierAUneStation({
-      nom: project.nom,
-      depot: !fieldOfRepository.hidden ? repositoryOfTrust.value : (project.depot ?? ""),
-      base: !fieldOfTheBase.hidden ? baseOfTrust.value : (project.base ?? ""),
-      stations: chosen,
-      cooks: fieldOfCooks.hidden && kitchenOf(project).tenue ? "" : cooksOfTrust.value,
-      ...(capacitiesOfTrust.hidden ? {} : { capacites: [...(aims.capacites.get(chosen[0] ?? "") ?? [])] }),
-      // Le calibrage que l'app recommande (ticket 3187) : il se change dans les réglages du projet, pas ici.
-      manager: projectsSeen?.calibrage?.manager ?? { modele: "", effort: "" },
-      reviewer: projectsSeen?.calibrage?.reviewer ?? { modele: "", effort: "" },
-      ouvertLe: aims.ouvertLe,
-    });
-    if ("signales" in rendered) trustRefused.replaceChildren(...Object.values(rendered.signales).map((reason) => lineError(document, reason ?? "", "", { classe: "" })));
-    else if ("refus" in rendered) trustRefused.replaceChildren(lineError(document, rendered.refus, "", { classe: "" }));
-    else {
-      if (trust === aims) closeTrust();
-      trustRefused.replaceChildren();
-      trustSaidFor = {
-        projet: project.nom,
-        dit:
-          absent !== undefined
-            ? AT_RETURN(absent.nom, rendered.ajoute)
-            : `${rendered.ajoute} is asked of ${names.join(", ")}: ${names.length > 1 ? "each" : "it"} prepares it within a minute — if GitHub asks you to authorize brigade, its button appears on this line`,
-        a: Date.now(),
-      };
-      if (current?.nom === project.nom) setStationsOfProject();
-      // Les blocs de Cooks viennent des faits de la box : relus tout de suite, la station neuve y paraît sans attendre.
-      readTheFacts();
-    }
-  } catch (error) {
-    trustRefused.replaceChildren(lineError(document, "nothing was sent", error instanceof Error ? error.message : String(error), { classe: "" }));
-  }
-  validateTrust.disabled = false;
-}
 
 
 // Tout ce qui se dessine du projet affiché, d'après ses derniers faits. Le rail en est : il est
@@ -3547,10 +3106,6 @@ function openAll() {
 }
 
 
-// Le statut de la station de cet ordinateur (`statutDeLaStation`, le contrat du ticket 2189) : la version qui tourne ici, la
-// dernière publiée, et si elle est en retard. Tant que le pont ne le lit pas, la case de ce poste dit sa version inconnue.
-/** @type {unknown} */
-let statusOfTheStationSeen;
 
 
 
@@ -3727,14 +3282,6 @@ brigade.surConnexionGitHub?.((end) => {
   accountOfJourney.apresLaConnexion();
 });
 
-// Les choix d'une liste, précédés de celui qui n'en est pas un : rien n'est choisi d'avance.
-/** @param {HTMLSelectElement} list @param {readonly string[]} choice @param {string} no */
-function propose(list, choice, no) {
-  const guard = list.value;
-  const empty = new Option(no, "");
-  list.replaceChildren(empty, ...choice.map((value) => new Option(value, value)));
-  list.value = choice.includes(guard) ? guard : "";
-}
 
 // L'écran « Add a project » (ticket 3181, addition-project/addition.js) : il ne fait que choisir le dépôt. Ses dépôts se
 // relisent à chaque ouverture — les derniers poussés d'abord —, la recherche et le collage restent d'un passage à l'autre.
@@ -3928,17 +3475,6 @@ brigade.surMiseAJour((seenOne) => {
 const bannerOfVersion = holdBanner(element("nouvelle-version"), document, { telecharger: (url) => brigade.telechargerVersion(url), installer: () => brigade.installerMiseAJour() });
 brigade.surAvisDeVersion((opinion) => bannerOfVersion.recevoir(opinion));
 void Promise.resolve(brigade.avisDeVersion()).then((opinion) => bannerOfVersion.recevoir(opinion), () => undefined);
-// Le statut de la station de cet ordinateur : lu au lancement, puis à chaque fois que le pont le relit. Une lecture qui
-// échoue le laisse inconnu — la case le dit, sans erreur.
-brigade.surStatutDeLaStation?.((status) => {
-  statusOfTheStationSeen = status;
-});
-void Promise.resolve(brigade.statutDeLaStation?.()).then(
-  (status) => {
-    statusOfTheStationSeen = status;
-  },
-  () => undefined,
-);
 // Les stations relues : ce que la page d'une station en montre suit — leurs lignes de l'accueil viennent par `surAccueil`.
 brigade.surStations((seenOne) => {
   stationsViews = seenOne;

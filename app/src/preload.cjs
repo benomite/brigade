@@ -26,13 +26,11 @@ const bridge = {
   shell: (project, machine) => ipcRenderer.invoke("shell", project, machine),
   fermerShell: (id) => ipcRenderer.invoke("fermerShell", id),
   demander: (project, ticket) => ipcRenderer.invoke("demander", project, ticket),
-  lireQuestion: (project, ticket) => ipcRenderer.invoke("lireQuestion", project, ticket),
   gestesDeFiche: (card) => ipcRenderer.invoke("gestesDeFiche", card),
   demanderAuSecond: (project, ticket) => ipcRenderer.invoke("demanderAuSecond", project, ticket),
   passerAuSecond: (project, ticket, question) => ipcRenderer.invoke("passerAuSecond", project, ticket, question),
   lireTitre: (project, ticket) => ipcRenderer.invoke("lireTitre", project, ticket),
   relireBox: (request) => ipcRenderer.send("relireBox", request),
-  repondreQuestion: (project, ticket, answer) => ipcRenderer.invoke("repondreQuestion", project, ticket, answer),
   // La mise à jour de l'app installée (update/state.ts) : `miseAJour` rend son état
   // (`EtatDeMiseAJour` : inactive, verification, a-jour, disponible, telechargement, prete,
   // installation, erreur), `verifierMiseAJour` relit le flux des versions publiées et rend l'état
@@ -52,12 +50,9 @@ const bridge = {
   // `{ ready, missingBindings, missingLabels }`, ou un rejet dont le message est la phrase du refus.
   checkRepoSetup: (repo) => ipcRenderer.invoke("checkRepoSetup", repo).then(findingOrRejection),
   runRepoSetup: (repo) => ipcRenderer.invoke("runRepoSetup", repo).then(findingOrRejection),
-  confierAUneStation: (input) => ipcRenderer.invoke("confierAUneStation", input),
-  defautsDeStation: (name) => ipcRenderer.invoke("defautsDeStation", name),
   dossiersDeLaStation: (name) => ipcRenderer.invoke("dossiersDeLaStation", name),
   lireReglagesDeLaStation: () => ipcRenderer.invoke("reglagesDeLaStation:lire"),
   ecrireReglagesDeLaStation: (change) => ipcRenderer.invoke("reglagesDeLaStation:ecrire", change),
-  choisirUneIssue: (name, choice, issue) => ipcRenderer.invoke("choisirUneIssue", name, choice, issue),
   demenagerLaCuisine: (name, to) => ipcRenderer.invoke("demenagerLaCuisine", name, to),
   autoriserSurGitHub: (url) => ipcRenderer.invoke("autoriserSurGitHub", url),
   agentsAtWork: (project) => ipcRenderer.invoke("agentsAtWork", project),

@@ -39,9 +39,6 @@ export function placeOf(url) {
   }
 }
 
-// Le titre de la section : ce qu'on attend du chef, en une phrase.
-/** @param {string} project @param {number} howMany */
-export const titleOfBlockages = (project, howMany) => (howMany === 1 ? `One thing blocks ${project}` : `${howMany} things block ${project}`);
 
 /**
  * @param {Fabrique} doc @param {Blockage} blockage
@@ -104,17 +101,3 @@ function line(doc, blockage, { gestes: actions, ouvrir: open, deplies: unfoldedO
   return pose;
 }
 
-// La section à poser sur la page du projet, ou null : rien ne le bloque.
-/**
- * @param {Fabrique} doc
- * @param {{ projet: string, blocages: readonly Blockage[], gestes?: Readonly<Record<string, Action>>, ouvrir?: (url: string) => void, deplies?: ReadonlySet<string>, deplier?: (id: string, opened: boolean) => void }} lu
- */
-export function setBlockages(doc, { projet: project, blocages: blockages, gestes: actions = {}, ouvrir: open = () => {}, deplies: unfoldedOnes = new Set(), deplier: unfold = () => {} }) {
-  if (blockages.length === 0) return null;
-  const pose = created(doc, "div");
-  pose.className = "blocages";
-  const list = created(doc, "ul");
-  list.append(...blockages.map((blockage) => line(doc, blockage, { gestes: actions, ouvrir: open, deplies: unfoldedOnes, deplier: unfold })));
-  pose.append(created(doc, "h3", titleOfBlockages(project, blockages.length)), list);
-  return pose;
-}

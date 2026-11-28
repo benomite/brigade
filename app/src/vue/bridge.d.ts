@@ -1,6 +1,5 @@
 // Ce que le process principal offre à la vue (preload.cjs).
 import type { Home } from "../home.ts";
-import type { Seen as SeenUpstream } from "../upstream.ts";
 import type { Shown } from "../bar.ts";
 import type { Reading } from "../box.ts";
 import type { PALETTE, Role } from "../colors.ts";
@@ -9,8 +8,6 @@ import type { Tab, Heading } from "../tabs.ts";
 import type { Block } from "../ordinary.ts";
 import type { StateOfUpdate } from "../update/state.ts";
 import type { Opinion as OpinionOfVersion } from "../update/opinion.ts";
-import type { Read as QuestionRead, Rendered as AnswerRendered } from "../question.ts";
-import type { Seen as SeenOfCode } from "../delay.ts";
 import type { Opinion, Removal } from "../removal.ts";
 import type { Request as RequestOfReport, RenderedOfReport } from "./report/opening.ts";
 import type { RepositoryOfChef } from "../projects/github.ts";
@@ -57,10 +54,6 @@ export type Bridge = {
   // et le second est affiché. La vue nomme le projet et le ticket ; la phrase vient de ce que le bloc
   // `attend` en dit. Rien pour un ticket que le bloc ne nomme pas.
   demander(project: string, ticket: number): Promise<Terminal | { refus: string } | undefined>;
-  // La question qu'une carte de T'attend pose, telle qu'elle est écrite sur son issue (question.ts) :
-  // l'issue lue par le `gh` du poste. La vue nomme le projet et le ticket. Rien pour un ticket que
-  // le bloc `attend` ne nomme pas.
-  lireQuestion(project: string, ticket: number): Promise<QuestionRead | undefined>;
   // Les gestes de la fiche de cette carte, à cet instant, chacun avec son prix (card-actions.ts) :
   // ceux qui tranchent ce qu'on attend du chef, puis ceux que la table du chef permet pour son
   // état, et dont l'action est branchée.
@@ -69,17 +62,10 @@ export type Bridge = {
   // Passe une carte de TODO au second (handover-second.ts, ticket 3133) : son numéro, sa question — nulle, « no
   // question found » —, et ce que son issue dit, écrits dans le second du projet sans Entrée.
   passerAuSecond(project: string, ticket: number, question: string | null): Promise<Terminal | { refus: string }>;
-  // Ouvre dans le navigateur le lien de la PR d'une carte. Absent, la page l'ouvre elle-même.
-  ouvrirLien?(project: string, ticket: number, url: string): Promise<boolean>;
   // Le titre d'une issue que la box ne donne pas, lu par le `gh` du poste à l'adresse que la box a rendue.
   lireTitre(project: string, ticket: number): Promise<import("../question.ts").Title | undefined>;
   // « réessayer maintenant » : les lectures de la box repartent tout de suite, au lieu d'attendre leur tour.
   relireBox(request: number): void;
-  // La réponse du chef à cette question — un choix par sa lettre, ou sa phrase —, postée sur
-  // l'issue par le même `gh`. `question` : l'adresse de la question montrée — rien ne part sur une autre.
-  // `vu` : l'adresse du dernier commentaire montré sous elle, vide s'il n'y en avait pas — rien ne part
-  // si quelque chose y a été écrit depuis.
-  repondreQuestion(project: string, ticket: number, answer: { question: string; vu: string; choix: string } | { question: string; vu: string; texte: string }): Promise<AnswerRendered>;
   // La mise à jour de l'app installée (mise-a-jour/etat.ts) — l'état et ses deux gestes. L'état :
   // `inactive` (lancée depuis le dépôt, elle ne regarde rien), `verification`, `a-jour`,
   // `disponible` (avec la `nouvelle` version), `telechargement` (`recus` sur `taille` octets),
@@ -98,11 +84,6 @@ export type Bridge = {
   avisDeVersion(): Promise<OpinionOfVersion | undefined>;
   surAvisDeVersion(receive: (opinion: OpinionOfVersion | undefined) => void): void;
   telechargerVersion(url: string): Promise<boolean>;
-  // Le statut de la station de cet ordinateur (le ticket 2191, épique 2182 ; le contrat du runtime, ticket 2189) : la version
-  // qui tourne ici, la dernière publiée, et si elle est en retard. Absents tant que le pont ne le lit pas : la vue dit
-  // alors sa version inconnue (station-version/station-version.js).
-  statutDeLaStation?(): Promise<unknown>;
-  surStatutDeLaStation?(receive: (status: unknown) => void): void;
   // L'app Android seule (le ticket 2501) : la liste des projets vient d'être lue sur GitHub, ou ne l'a pas été — `liste`
   // dit laquelle. Les projets eux-mêmes arrivent par `surConfiguration`.
   surTelephone?(receive: (phone: Phone) => void): void;
@@ -121,13 +102,6 @@ export type Bridge = {
   // sa raison en une phrase.
   checkRepoSetup(repo: string): Promise<import("./addition-project/installation-of-repository.js").StateOfRepository>;
   runRepoSetup(repo: string): Promise<import("./addition-project/installation-of-repository.js").StateOfRepository>;
-  // Confie la cuisine d'un projet de l'app à une première station, ou à une de plus (ticket 983) : la
-  // demande s'écrit dans le gist de chaque station choisie, et rend le nom du projet — ou chaque champ
-  // qui manque, ou le refus de GitHub. Rien n'est écrit alors.
-  confierAUneStation(input: { nom: string; depot: string; base: string; stations: string[]; cooks: string; capacites?: string[]; manager: { modele: string; effort: string }; reviewer: { modele: string; effort: string }; ouvertLe: string }): Promise<Addition>;
-  // Ce que le formulaire d'ajout d'une station montre d'emblée pour cet ordinateur (ticket 1307) : ses cooks, le dossier
-  // des espaces de travail de sa station, ses capacités détectées — ou pourquoi il n'a pas pu être lu.
-  defautsDeStation(name: string): Promise<DefaultsOfTheMachine>;
   // Les dossiers de la station de cet ordinateur pour un projet (ticket 2489) : son clone, les worktrees de ses cooks —
   // ou pourquoi ils ne se lisent pas. Absent d'un pont qui n'en a pas (le téléphone).
   dossiersDeLaStation?(name: string): Promise<import("../projects/projects.ts").FoldersOfTheStation>;
@@ -136,9 +110,6 @@ export type Bridge = {
   ecrireReglagesDeLaStation?(change: import("../settings-of-the-station.ts").Change): Promise<{ fait: string } | import("../settings-of-the-station.ts").Refusal>;
   // Déménage la cuisine d'un projet vers une station appairée — son gist (projects/move.ts).
   demenagerLaCuisine(name: string, to: string): Promise<Move>;
-  // Une issue de la carte d'un besoin qui manque à la principale du projet (ticket 1400) : le choix — sa clé —, l'issue
-  // retenue. Elle s'écrit dans la demande de la principale, qui la pose à son journal. Rend ce qui est fait, ou pourquoi rien.
-  choisirUneIssue(name: string, choice: string, issue: string): Promise<Chosen>;
   // Ouvre dans le navigateur une page où autoriser brigade sur GitHub — une de celles qu'une station a publiées —,
   // ou une page que le parcours d'un projet neuf montre (ticket 1111) : son geste, son ticket de préparation, sa PR.
   autoriserSurGitHub(url: string): Promise<boolean>;
