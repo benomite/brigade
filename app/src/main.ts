@@ -28,7 +28,6 @@ import { pathConfiguration, EXAMPLE, type Project } from "./config.ts";
 import { holdTheTrials } from "./trial.ts";
 import { openTheReport, versionAimed } from "./vue/report/opening.ts";
 import { readTheAgents } from "./team-of-the-box.ts";
-import { holdLastLooks, sinceYouLastLooked } from "./since-last-looked.ts";
 import { writeInTheProject, readInTheProject } from "./vue/card-project/card-project-folder.ts";
 import { choice, whole, PALETTE } from "./colors.ts";
 import { blockOfOrdinary } from "./ordinary.ts";
@@ -59,7 +58,6 @@ import { changeTheCap, readTheCaps } from "./caps-duration.ts";
 import { changeTheSetting, changeTheVerifications, readTheCloser } from "./closer-health.ts";
 import { changeTheKnowledge, readTheKnowledgeOfProject } from "./vue/know-how/know-how-github.ts";
 import { answerOnGithub } from "./board-actions/answer-github.ts";
-import { readTheAutonomyOfRepository, holdTheAutonomy } from "./vue/autonomy/autonomy-github.ts";
 import { repositoryOfTheOrigin, readClone } from "./addition.ts";
 import { readTheAccountGitHub, holdConnectionGitHub, signInToGitHub } from "./connection-github.ts";
 import { pathOf, locationsOf, readPathOfShell } from "./locations.ts";
@@ -807,27 +805,6 @@ ipcMain.handle("lireDiscussion", async (_, name: unknown, ticket: unknown) => {
   if (!("sans" in readEntry)) linksRead.discussion(`${aims.nom}#${String(ticket)}`, readEntry.liens);
   return readEntry;
 });
-// Les chiffres d'autonomie d'un projet, ou de tous ceux que la vue nomme (vue/autonomy/autonomy-github.ts, #3222) : lus
-// de GitHub par le jeton du `gh` de ce poste, sous le même budget et les mêmes lectures conditionnelles que le rail, chaque
-// dépôt gardé dix minutes, ses issues déjà lues gardées au-delà (#3379). Un clic de la vue n'ouvre que l'adresse d'un ticket qu'une de ces lectures a rendue.
-const autonomy = holdTheAutonomy({
-  lire: (repository, readEntries) => readTheAutonomyOfRepository({ depot: repository, appeler: readConditional(callUnderBudget, memoryOfRail(repository)), maintenant: new Date(), lues: readEntries }),
-  fraicheurMs: 10 * 60_000,
-});
-const linksOfAutonomy = new Set<string>();
-ipcMain.handle("lireAutonomie", async (_, names: unknown, days: unknown) => {
-  const aimed = (Array.isArray(names) ? names : []).flatMap((name) => knownOne(name) ?? []);
-  const readEntry = await autonomy.chiffres(await Promise.all(aimed.map(async (project) => ({ nom: project.nom, depot: await repositoryOfProject(project) }))), Number(days));
-  if ("chiffres" in readEntry) for (const { url } of readEntry.chiffres.avecHumain) linksOfAutonomy.add(url);
-  return readEntry;
-});
-ipcMain.handle("ouvrirTicketDAutonomie", (_, url: unknown) => {
-  if (typeof url !== "string" || !linksOfAutonomy.has(url)) return false;
-  return shell.openExternal(url).then(
-    () => true,
-    () => false,
-  );
-});
 ipcMain.handle("commenter", (_, name: unknown, ticket: unknown, text: unknown) => {
   const aims = knownOne(name);
   if (aims === undefined) return { poste: false, refus: `nothing was posted: “${String(name)}” is no longer in the projects file` };
@@ -1169,19 +1146,6 @@ ipcMain.handle("agentsAtWork", (_, name: unknown) => {
   if (aims === undefined) throw new Error(`${String(name)} is no longer in the projects file`);
   return readTheAgents({ station: hostname(), cooksHere: readOne !== undefined, board: () => boards.lire(aims), now: Date.now });
 });
-// "Since you last looked" (#4649, since-last-looked.ts): the vue asks it each time the chef opens a project, and this opening
-// becomes the last look, kept per project beside the configuration. Read from GitHub alone, through the board's conditional
-// memory; the addresses it gives are the ones its entries open (`ouvrirIssue`).
-const lastLooks = holdLastLooks(join(dirname(pathConfiguration()), "last-looked.json"));
-const addressesLooked = new Map<string, Map<number, string>>();
-ipcMain.handle("sinceYouLastLooked", async (_, name: unknown) => {
-  const aims = knownOne(name);
-  if (aims === undefined) throw new Error(`${String(name)} is no longer in the projects file`);
-  const repository = await repositoryOfProject(aims);
-  const read = await sinceYouLastLooked({ projet: aims.nom, depot: repository, appeler: readConditional(callUnderBudget, memoryOfRail(repository)), looks: lastLooks });
-  if ("groups" in read) addressesLooked.set(aims.nom, new Map(read.groups.flatMap(({ entries }) => entries.map(({ ticket, url }) => [ticket, url] as const))));
-  return read;
-});
 // La fiche du projet, sous Settings (#4240) : `.brigade/fiche-projet.json`, lue et écrite dans le dossier du projet sur ce
 // poste (vue/card-project/card-project-folder.ts).
 ipcMain.handle("lireUnFichierDuProjet", (_, name: unknown, path: unknown) => readInTheProject(knownOne(name), path));
@@ -1297,7 +1261,7 @@ ipcMain.handle("lireFeu", async (_, name: unknown) => {
 // projet et le ticket, l'adresse est celle que la box a rendue (facts.ts) — ou, pour une issue
 // qui n'est pas encore sur le rail, celle que la lecture de l'amont a donnée (upstream.ts). Rend si elle a été ouverte.
 ipcMain.handle("ouvrirIssue", (_, name: unknown, ticket: unknown) => {
-  const address = facts.adresse(name, ticket) ?? upstreams.adresse(name, ticket) ?? (typeof ticket === "number" ? (adressesOfFire.get(String(name))?.get(ticket) ?? addressesLooked.get(String(name))?.get(ticket)) : undefined);
+  const address = facts.adresse(name, ticket) ?? upstreams.adresse(name, ticket) ?? (typeof ticket === "number" ? (adressesOfFire.get(String(name))?.get(ticket)) : undefined);
   return address === undefined ? false : shell.openExternal(address).then(
     () => true,
     () => false,

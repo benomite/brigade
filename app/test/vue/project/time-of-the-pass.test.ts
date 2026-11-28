@@ -116,14 +116,14 @@ describe("dans la vue, ce que la station publie", () => {
     projetsDesStations: projects(TIME),
   });
 
-  test("le temps de la pass que la station publie se lit dans Settings, avant les chiffres d'autonomie", async () => {
+  test("le temps de la pass que la station publie se lit dans Settings, avant les post-mortems", async () => {
     const vue = await playTheVue({ demarrage: startup, espace: () => [], autoriserSurGitHub: () => true });
     (vue.element("projets").children.at(1) ?? assert.fail("pas de case « parade »")).click();
     await repos();
     await openRead(vue, "Settings");
     const blocks = vue.element("bandeau-sante").children;
     const block = blocks.find(({ dataset }) => dataset.bloc === "temps-de-la-passe") ?? assert.fail("pas de temps de la pass");
-    assert.equal(blocks[blocks.indexOf(block) + 1]?.dataset.bloc, "chiffres-autonomie");
+    assert.equal(blocks[blocks.indexOf(block) + 1]?.dataset.bloc, "post-mortems");
     assert.deepEqual(textOf(block, "plus-lourde").map((t) => t.split(" · ")[0]), ["CI waiting for runners: 62% of pass time"]);
     assert.equal(rows(block).length, 7);
   });

@@ -142,7 +142,7 @@ try {
   writeFileSync(join(runtime, "package.json"), `${JSON.stringify({ ...JSON.parse(readFileSync(join(RUNTIME, "package.json"), "utf8")), version }, null, 2)}\n`);
   chmodSync(join(runtime, "package.json"), 0o644);
   // Les fichiers du dépôt hors de runtime/src que le runtime importe
-  // (app/src/vue/autonomy/compute.ts), et ceux qu'ils importent, posés au même
+  // (scripts/autonomy-page/compute.ts, if one returns), et ceux qu'ils importent, posés au même
   // chemin sous l'installation : sans eux la station ne démarre pas (#4552).
   const horsDuRuntime = new Set<string>();
   const suivre = (fichier: string) => {

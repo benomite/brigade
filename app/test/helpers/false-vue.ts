@@ -537,26 +537,6 @@ export async function openRead(vue: Played, title: string): Promise<Fake> {
   return click(vue.element("onglets-du-projet"), "Settings");
 }
 
-// La ligne de tous les projets, « Autonomy », est en bas du bandeau de santé de chaque projet (#2638, #2921), une
-// section de Settings (#3014) : le premier projet de la barre s'ouvre, puis Settings, comme le chef le fait. Rend la ligne qui
-// porte ce nom.
-async function lineOfAllTheProjects(vue: Played, name: string): Promise<Fake> {
-  vue.element("projets").children[1]?.click();
-  await repos();
-  await openRead(vue, "Settings");
-  const line = vue.element("de-tous-les-projets").dessous("button").find(({ ariaLabel }) => ariaLabel === name);
-  if (line === undefined) throw new Error(`pas de ligne « ${name} » dans le bandeau de santé`);
-  return line;
-}
-
-// Ouvre la page des chiffres d'autonomie de tous les projets comme le chef le fait (#3222) : par sa ligne « Autonomy »,
-// sous Health (#2638). Rend la page.
-export async function openTheCosts(vue: Played): Promise<Fake> {
-  (await lineOfAllTheProjects(vue, "the autonomy of all projects")).click();
-  await repos();
-  return vue.element("cout");
-}
-
 // Toutes les stations et « + station », un bloc de l'accueil (#3195) : l'entrée « Tous les projets » de la barre l'ouvre.
 // Rend leur bloc.
 export async function openAllTheStations(vue: Played): Promise<Fake> {
