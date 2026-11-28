@@ -74,6 +74,7 @@ function world(t: TestContext, { commentaires41: comments41 }: { commentaires41?
     }
     const commented = /\/issues\/(\d+)\/comments/.exec(path)?.[1];
     if (commented !== undefined) return ok(issues.get(Number(commented))?.commentaires ?? []);
+    if (path === `/repos/${REPOSITORY}/pulls/77`) return ok({ number: 77, state: "open" });
     if (/\/issues\/\d+\/events/.test(path) || path.includes("/pulls?")) return ok([]);
     if (path === `/repos/${REPOSITORY}`) return ok({ default_branch: "main", permissions: { push: true } });
     if (path.includes("/commits/main/check-runs")) return ok({ check_runs: [{ conclusion: "success" }] });
@@ -84,6 +85,7 @@ function world(t: TestContext, { commentaires41: comments41 }: { commentaires41?
     if (withoutToken(headers)) return ok({ message: "Requires authentication" }, 401);
     const path = address.replace("https://api.github.com", "");
     writtenOnes.push({ methode: method, chemin: path, ...(body === undefined ? {} : { corps: body }) });
+    if (method === "PUT" && path === `/repos/${REPOSITORY}/pulls/77/merge`) return ok({ merged: true });
     const [, number, remains] = /^\/repos\/[^/]+\/[^/]+\/issues\/(\d+)(.*)$/.exec(path) ?? [];
     const issue = issues.get(Number(number));
     if (issue === undefined) return ok({ message: "Not Found" }, 404);
@@ -168,5 +170,24 @@ describe("#4474 : une issue `parked:chef` est une carte du TODO, et Answer la re
     const [card] = await theTodo(theWorld.client);
     assert.equal(card?.ticket, 41);
     assert.equal(card?.todo?.question, "Parked for the chef, with no kitchen comment that says why: read the issue, then answer.");
+  });
+
+  // #4789 : le commentaire de la zone à risque (`riskZoneComment`) — la carte nomme la PR et les fichiers, son bouton répond `merge`.
+  test("#4789 : une PR approuvée qui attend le chef pour une zone à risque : la carte la nomme, ses fichiers, et son bouton merge", async (t) => {
+    const RISK = "The pass approves PR #77, but it touches a risk zone (runtime/src/kitchen/decide.ts, app/src/main.ts): it waits for the chef to merge it.";
+    const theWorld = world(t, { commentaires41: [{ id: 1, body: RISK, author_association: "OWNER", created_at: "2026-11-26T08:00:00Z" }] });
+    const [card] = await theTodo(theWorld.client);
+    assert.equal(card?.ticket, 41);
+    assert.equal(card?.todo?.question, RISK);
+    assert.match(card?.todo?.question ?? "", /PR #77.*runtime\/src\/kitchen\/decide\.ts, app\/src\/main\.ts/);
+    assert.deepEqual(card?.todo?.choix.map(({ texte }) => texte), ["Merge PR #77"]);
+    assert.deepEqual(card?.chef && (await import("../../src/card-todo.ts")).cardReadOfChef(card.chef)?.choix, [{ texte: "Merge PR #77", suite: "merge" }]);
+    const rendered = await answerOnGithub({ depot: REPOSITORY, ticket: 41, chef: card?.chef, reponse: { question: RISK, choix: 1 }, client: theWorld.client });
+    assert.ok("repondue" in rendered, JSON.stringify(rendered));
+    assert.deepEqual(
+      theWorld.ecrits.map(({ methode: method, chemin: path }) => `${method} ${path}`),
+      [`POST /repos/${REPOSITORY}/issues/41/comments`, `PUT /repos/${REPOSITORY}/pulls/77/merge`, `DELETE /repos/${REPOSITORY}/issues/41/labels/parked%3Achef`],
+    );
+    assert.equal(theWorld.issues.get(41)?.commentaires.at(-1)?.body, "<!-- brigade:reponse gesture=merge -->\nMerge PR #77");
   });
 });

@@ -118,6 +118,7 @@ class OutsideLine extends Error {}
 function lineOfTheCard({ sorte: kind, texte: said }: CardOfChef): string {
   const { question, choix: choice } = shapeOfChef(said);
   if (kind === KIND_OF_VALIDATION && question !== null) return `${question} — on its Todo card: Validate, or Send back to the kitchen with a comment`;
+  if (kind === KIND_PARKED_CHEF && question !== null && choice.length > 0) return `${question} — on its Todo card: ${choice.map(({ texte: wording }) => `“${wording}”`).join(" or ")} — or answer in your own words`;
   if (kind === KIND_PARKED_CHEF && question !== null) return `${question} — on its Todo card: Answer, in your own words — the ticket goes back on the rail`;
   const reply = choice.length === 0 ? "answer on its Todo card, in your own words" : `answer on its Todo card: ${choice.map(({ texte: wording }) => `“${wording}”`).join(" or ")} — or in your own words`;
   return `${question ?? `A ${kind} card without its question: what does it ask you?`} — ${reply}`;

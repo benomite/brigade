@@ -106,8 +106,9 @@ export function cardOfChefOfTodo(card: CardOfChef): CardOfTodo | undefined {
   }
   // Un ticket que la nouvelle cuisine parque pour le chef (#4474) : ce qu'elle en dit, un seul geste — Answer, qui poste le
   // texte du chef et retire `parked:chef` —, et « Open on GitHub ». Aucun choix : le commentaire de la cuisine n'en propose pas.
+  // Une PR que la passe approuve et qui touche une zone à risque (#4489) a son choix `merge`.
   if (kind === KIND_PARKED_CHEF) {
-    return { sorte: kind, question, ...(context === "" ? {} : { contexte: context }), choix: [], prixDuTexte: PRICE_PARKED_CHEF, repondre: "Answer", surGithub: true };
+    return { sorte: kind, question, ...(context === "" ? {} : { contexte: context }), choix: choice.map(({ texte: wording, suite }) => ({ texte: wording, prix: PRICE_ON_GITHUB[suite] as string })), prixDuTexte: PRICE_PARKED_CHEF, repondre: "Answer", surGithub: true };
   }
   const situation = situationOf(context);
   // Le choix que le manager recommande, par son rang : un libellé qui n'est plus parmi les choix n'en recommande aucun.
@@ -126,9 +127,7 @@ export function cardOfChefOfTodo(card: CardOfChef): CardOfTodo | undefined {
 
 // La même carte telle que la réponse du chef se contrôle (`reponseLue`) : sa question et ses choix, chacun son geste.
 export function cardReadOfChef({ sorte: kind, texte: text }: CardOfChef): CardRead | undefined {
-  const { question, choix: readOnes } = shapeOfChef(text);
-  // La carte d'un ticket parqué par la nouvelle cuisine n'a que sa réponse libre (#4474).
-  const choice = kind === KIND_PARKED_CHEF ? [] : readOnes;
+  const { question, choix: choice } = shapeOfChef(text);
   // La carte « Validate its screen » ne se répond pas : ses deux gestes sont la commande du runtime (vue/validation-design/).
   return question === null || kind === KIND_OF_VALIDATION ? undefined : { type: kind, question, choix: choice };
 }
