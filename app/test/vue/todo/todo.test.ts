@@ -7,7 +7,7 @@ import { describe, test } from "node:test";
 import { forTheBar } from "../../../src/bar.ts";
 import { EXAMPLE } from "../../../src/config.ts";
 import { PALETTE } from "../../../src/colors.ts";
-import { BANNER, rail, holdFacts, type Card, type Column, type Facts } from "../../../src/facts.ts";
+import { rail, holdFacts, type Card, type Column, type Facts } from "../../../src/facts.ts";
 import { TABS, HEADINGS } from "../../../src/tabs.ts";
 import { EFFORTS, MODELS } from "../../../src/projects/projects.ts";
 import { columnOf, isRed, LIST_OF_CHEF, tidyTheRail } from "../../../src/vue/todo/todo.js";
@@ -26,9 +26,7 @@ const THIRD = { quoi: "the signed quote", qui: "the client", depuis: "2026-11-01
 const FACTS: Facts = {
   etat: "ouverte",
   lu: "2026-11-13T10:04:11.000Z",
-  dernierTick: null,
   compteurs: { rail: 2, auTravail: 2, aLaPass: 2, attend: 5, livres24h: 0 },
-  dernierEvenement: null,
   rail: [
     ticket(21, "en attente"),
     ticket(20, "en attente"),
@@ -121,10 +119,8 @@ const startup = () => ({
   onglets: TABS,
   rubriques: HEADINGS,
   gestes: {},
-  banniere: BANNER,
   calibrage: { modeles: MODELS, efforts: EFFORTS },
-  code: undefined,
-});
+  });
 async function open(narrow: boolean, facts: Facts = FACTS): Promise<Played> {
   const vue = await playTheVue({ demarrage: startup, espace: () => [], machines: () => [] }, { ecran: new FakeScreen(narrow) });
   (vue.element("projets").children.at(1) ?? assert.fail("pas de case pour parade")).click();

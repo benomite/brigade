@@ -7,7 +7,7 @@ import { forTheBar } from "../../../src/bar.ts";
 import type { CardOfTodo } from "../../../src/card-todo.ts";
 import { EXAMPLE } from "../../../src/config.ts";
 import { PALETTE } from "../../../src/colors.ts";
-import { BANNER, holdFacts, type Card, type Facts } from "../../../src/facts.ts";
+import { holdFacts, type Card, type Facts } from "../../../src/facts.ts";
 import { TABS, HEADINGS } from "../../../src/tabs.ts";
 import { EFFORTS, MODELS } from "../../../src/projects/projects.ts";
 import { parkedTodo } from "../../../src/vue/parked/parked-todo.js";
@@ -149,15 +149,13 @@ const A = "2026-11-25T09:00:00.000Z";
 const url = (ticket: number) => `https://github.com/chef/parade/issues/${ticket}`;
 const QUESTION = { sorte: "product-question", texte: "Ship the export as CSV?\n- [resume] Yes, ship it\n- [close] No, drop it" };
 const WORLD: Facts = {
-  etat: "ouverte", lu: A, dernierTick: A, compteurs: { rail: 0, auTravail: 0, aLaPass: 0, attend: 0, livres24h: 0 }, dernierEvenement: null, cooks: [],
-  rail: [],
+  etat: "ouverte", lu: A, compteurs: { rail: 0, auTravail: 0, aLaPass: 0, attend: 0, livres24h: 0 }, cooks: [],
   attend: [{ ticket: 50, titre: "Ticket 50", url: url(50), chef: QUESTION }, { ticket: 51, titre: "Ticket 51", url: url(51), chef: QUESTION }],
 } as unknown as Facts;
 const startup = () => ({
   configuration: forTheBar({ chemin: "/tmp/app.json", projets: [{ nom: PARADE, dossier: "/tmp/parade" }] }, () => true),
   palette: PALETTE, exemple: EXAMPLE, onglets: TABS, rubriques: HEADINGS,
-  banniere: BANNER, calibrage: { modeles: MODELS, efforts: EFFORTS }, code: undefined,
-});
+  calibrage: { modeles: MODELS, efforts: EFFORTS }, });
 async function show(): Promise<Played> {
   const vue = await playTheVue({ demarrage: startup, espace: () => [], ouvrirIssue: () => true, repondreCarte: () => ({ repondue: true, dit: "posted", commentaire: 7 }) });
   (vue.element("projets").children.at(1) ?? assert.fail("pas d'entrée")).click();

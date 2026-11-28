@@ -15,7 +15,7 @@ import type { Reading } from "../src/box.ts";
 import { putAside } from "../src/awaiting.ts";
 import { withoutQuestion } from "../src/handover-second.ts";
 import { hourHM } from "../src/format.ts";
-import { ACTIVITY_NOT_COMMUNICATED, BANNER, COMMAND, understand, draw, tellInThisMoment, duration, event, rail, board, holdFacts, tick, titleOfFailure, type Facts } from "../src/facts.ts";
+import { ACTIVITY_NOT_COMMUNICATED, COMMAND, understand, draw, tellInThisMoment, duration, event, rail, board, holdFacts, tick, titleOfFailure, type Facts } from "../src/facts.ts";
 import type { Header } from "../src/card.ts";
 
 const ROOT = join(import.meta.dirname, "../..");
@@ -26,7 +26,6 @@ const EXAMPLE = "{\"etat\":\"ouverte\",\"lu\":\"2026-10-12T10:04:11.000Z\",\"der
 const FACTS: Facts = {
   etat: "ouverte",
   lu: "2026-10-12T10:04:11.000Z",
-  dernierTick: "2026-10-12T10:04:02.000Z",
   compteurs: { rail: 2, auTravail: 1, aLaPass: 1, attend: 1, livres24h: 3 },
   dernierEvenement: { seq: 812, at: "2026-10-12T10:03:58.000Z", type: "merge.done", ticket: 216 },
   rail: [
@@ -94,7 +93,7 @@ describe("les faits que l'app dessine", () => {
   });
 
   test("un journal vide, un runtime sans tick, un événement hors ticket, un rail vide : ce sont des faits, pas une forme manquée", () => {
-    const calm = { ...FACTS, dernierTick: null, dernierEvenement: null, rail: [], compteurs: { rail: 0, auTravail: 0, aLaPass: 0, attend: 0, livres24h: 0 } };
+    const calm = { ...FACTS, compteurs: { rail: 0, auTravail: 0, aLaPass: 0, attend: 0, livres24h: 0 } };
     const outsideTicket = { ...FACTS, dernierEvenement: { seq: 3, at: "2026-10-12T10:03:58.000Z", type: "kitchen.stopped", ticket: null } };
 
     assert.deepEqual(understand(renderedOnes(calm)), calm);
@@ -412,7 +411,7 @@ describe("un ticket s'ouvre sur son issue", () => {
   test("une carte qui attend un autre humain du projet s'ouvre et se répond comme les autres : son adresse et sa carte du chef sont lues (#3071)", () => {
     const heldOnes = holdFacts();
     const chef = { sorte: "product-question", texte: "Open the beta?\n\n- [resume] Yes" };
-    heldOnes.recevoir(readEntry(renderedOnes({ ...FACTS, attend: [], rail: [], attendAutres: [{ ticket: 77, titre: "Open the beta", url: "https://github.com/benomite/brigade/issues/77", chef, qui: ["carol"] }] })));
+    heldOnes.recevoir(readEntry(renderedOnes({ ...FACTS, attend: [], attendAutres: [{ ticket: 77, titre: "Open the beta", url: "https://github.com/benomite/brigade/issues/77", chef, qui: ["carol"] }] })));
     assert.equal(heldOnes.adresse("brigade", 77), "https://github.com/benomite/brigade/issues/77");
     assert.deepEqual(heldOnes.chef("brigade", 77), chef);
   });
@@ -585,7 +584,7 @@ describe("le rail en six colonnes", () => {
       ...card(undefined, expected(30)),
       ...atChef(30),
     });
-    const title = rail({ ...WITHOUT_DELIVERED, rail: [], attend: [{ ticket: 30, titre: "Un titre", url: "https://github.com/benomite/brigade/issues/30" }] }, BLOCK).colonnes[3]?.cartes.find(({ ticket }) => ticket === 30);
+    const title = rail({ ...WITHOUT_DELIVERED, attend: [{ ticket: 30, titre: "Un titre", url: "https://github.com/benomite/brigade/issues/30" }] }, BLOCK).colonnes[3]?.cartes.find(({ ticket }) => ticket === 30);
     assert.deepEqual([title?.titre, title?.ouvrable], ["Un titre", true]);
     // Sans adresse, ou une adresse qui n'est pas en https : rien ne s'ouvre.
     for (const url of [null, "http://exemple.fr/30", "file:///etc/passwd"]) assert.equal(cardsOf({ ...WITHOUT_DELIVERED, rail: RAIL, attend: [{ ticket: 30, titre: "", url }] })?.[1]?.ouvrable, false);
@@ -721,7 +720,7 @@ describe("Livré, d'après `livres`", () => {
   });
 
   test("rien de servi en 24 h : la colonne le dit, elle n'est pas simplement vide — d'une box d'avant `livres`, c'est « aucun ticket »", () => {
-    assert.deepEqual(deliversCol(rail({ ...FACTS, rail: [], livres: [] })), { nom: "Served", ton: "vert", compte: "0", cartes: [], vide: "nothing served in the last 24 h", defile: true });
+    assert.deepEqual(deliversCol(rail({ ...FACTS, livres: [] })), { nom: "Served", ton: "vert", compte: "0", cartes: [], vide: "nothing served in the last 24 h", defile: true });
     assert.deepEqual(deliversCol(rail({ ...WITHOUT_DELIVERED, rail: [] })), { nom: "Served", ton: "vert", compte: "0", cartes: [], vide: "no ticket" });
   });
 
@@ -735,7 +734,7 @@ describe("Livré, d'après `livres`", () => {
   });
 
   test("ce que `livres` ne dit pas est écrit sur la carte : ni cuisinier ni PR, ni titre ni issue pour une livraison hors du rail", () => {
-    const [cardItem] = deliversCol(rail({ ...FACTS, rail: [], livres: [delivers(378, "2026-10-12T10:00:00.000Z", { titre: "", url: null, station: null, pr: null })] }))?.cartes ?? [];
+    const [cardItem] = deliversCol(rail({ ...FACTS, livres: [delivers(378, "2026-10-12T10:00:00.000Z", { titre: "", url: null, station: null, pr: null })] }))?.cartes ?? [];
 
     assert.deepEqual(cardItem, {
       ticket: 378,
@@ -760,13 +759,13 @@ describe("Livré, d'après `livres`", () => {
   });
 
   test("une PR dont l'adresse n'est pas en https ne s'ouvre pas : la carte le sait, le process principal ne la donne pas", () => {
-    const [cardItem] = deliversCol(rail({ ...FACTS, rail: [], livres: [delivers(30, "2026-10-12T10:00:00.000Z", { pr: "javascript:alert(1)" })] }))?.cartes ?? [];
+    const [cardItem] = deliversCol(rail({ ...FACTS, livres: [delivers(30, "2026-10-12T10:00:00.000Z", { pr: "javascript:alert(1)" })] }))?.cartes ?? [];
     assert.equal(cardItem?.pr, false);
   });
 
   test("le process principal ouvre la PR mergée et l'issue d'un ticket livré, d'après la dernière lecture de son projet — rien d'autre", () => {
     const heldOnes = holdFacts();
-    heldOnes.recevoir(readEntry(renderedOnes({ ...FACTS, rail: [], attend: [], livres: [...DELIVERED, delivers(40, "2026-10-12T08:00:00.000Z", { pr: "file:///etc/passwd", url: "http://exemple.fr/40" }), delivers(41, "2026-10-12T08:00:00.000Z", { pr: null })] })));
+    heldOnes.recevoir(readEntry(renderedOnes({ ...FACTS, attend: [], livres: [...DELIVERED, delivers(40, "2026-10-12T08:00:00.000Z", { pr: "file:///etc/passwd", url: "http://exemple.fr/40" }), delivers(41, "2026-10-12T08:00:00.000Z", { pr: null })] })));
 
     assert.equal(heldOnes.pr("brigade", 30), "https://github.com/benomite/brigade/pull/130");
     assert.equal(heldOnes.adresse("brigade", 30), "https://github.com/benomite/brigade/issues/30");
@@ -929,7 +928,7 @@ describe("station et capacités sur les cartes du rail", () => {
 
 describe("la question d'une carte de TODO, des faits à la carte (#3131)", () => {
   test("une entrée sans carte du chef ne devine rien : « no question found on #N »", () => {
-    const without = rail({ ...WITHOUT_DELIVERED, rail: [], attend: [{ ticket: 41, titre: "Export", url: "https://github.com/benomite/brigade/issues/41" }] }, BLOCK).colonnes[3]?.cartes.find(({ ticket }) => ticket === 41);
+    const without = rail({ ...WITHOUT_DELIVERED, attend: [{ ticket: 41, titre: "Export", url: "https://github.com/benomite/brigade/issues/41" }] }, BLOCK).colonnes[3]?.cartes.find(({ ticket }) => ticket === 41);
     assert.equal(without?.ligne, "no question found on #41");
     assert.equal(without?.fiche.attendu, "no question found on #41");
   });

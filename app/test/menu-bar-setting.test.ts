@@ -9,7 +9,7 @@ import { describe, test, type TestContext } from "node:test";
 import { forTheBar } from "../src/bar.ts";
 import { changeMenuBar, EXAMPLE, readConfiguration, type Project } from "../src/config.ts";
 import { PALETTE } from "../src/colors.ts";
-import { BANNER } from "../src/facts.ts";
+
 import { TABS, HEADINGS } from "../src/tabs.ts";
 import { EFFORTS, MODELS } from "../src/projects/projects.ts";
 import { personal } from "../src/settings-personal/share.ts";
@@ -86,10 +86,8 @@ describe("la ligne de Settings", () => {
         onglets: TABS,
         rubriques: HEADINGS,
         gestes: {},
-        banniere: BANNER,
         calibrage: { modeles: MODELS, efforts: EFFORTS },
-        code: undefined,
-      }),
+        }),
       espace: () => [],
       changerBarreDeMenus: changeMenuBar,
     });
@@ -154,10 +152,8 @@ describe("une question cliquée dans le menu", () => {
         onglets: TABS,
         rubriques: HEADINGS,
         gestes: {},
-        banniere: BANNER,
         calibrage: { modeles: MODELS, efforts: EFFORTS },
-        code: undefined,
-      }),
+        }),
       espace: () => [],
     });
     assert.equal(vue.element("fiche").hidden, true);

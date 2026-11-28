@@ -13,7 +13,7 @@ import { Fake } from "../../helpers/false-vue.ts";
 process.env.TZ = "UTC";
 const doc = { createElement: (balise: string) => new Fake(balise) };
 const READ = "2026-10-13T10:04:11.000Z";
-const FACTS: Facts = { etat: "ouverte", lu: READ, dernierTick: READ, compteurs: { rail: 0, auTravail: 0, aLaPass: 0, attend: 0, livres24h: 0 }, dernierEvenement: null, rail: [], cooks: [] };
+const FACTS: Facts = { etat: "ouverte", lu: READ, compteurs: { rail: 0, auTravail: 0, aLaPass: 0, attend: 0, livres24h: 0 }, cooks: [] };
 const station = (more: object = {}) => ({ station: "parade-box/claude", distante: false, plafond: 2, ordinaires: false, bacASable: null, prendOrdinaires: true, cuisson: "idle", arreteeDepuis: null, refus: null, cooks: [], ...more });
 const IN_FALLBACK = { chosen: "claude-subscription", active: "claude-api-key", onFallback: true, blockedUntil: "2026-10-13T15:00:00Z" };
 

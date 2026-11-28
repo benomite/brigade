@@ -10,7 +10,7 @@ import { putAside } from "../../src/awaiting.ts";
 import { forTheBar } from "../../src/bar.ts";
 import { EXAMPLE, type Project } from "../../src/config.ts";
 import { PALETTE } from "../../src/colors.ts";
-import { BANNER, holdFacts, type Facts } from "../../src/facts.ts";
+import { holdFacts, type Facts } from "../../src/facts.ts";
 import { TABS, HEADINGS } from "../../src/tabs.ts";
 import { calibrationRecommended, EFFORTS, machineProposed, MODELS, type ProjectSeen, type SeenOfProjects } from "../../src/projects/projects.ts";
 import type { StationVue, SeenOfStations } from "../../src/stations/stations.ts";
@@ -33,10 +33,7 @@ const lineOfMac = { station: "macbook/claude", distante: false, plafond: 2, ordi
 const FACTS = {
   etat: "ouverte",
   lu: A,
-  dernierTick: A,
   compteurs: { rail: 8, auTravail: 0, aLaPass: 0, attend: 0, livres24h: 0 },
-  dernierEvenement: null,
-  rail: [],
   cooks: [],
   attend: [],
   livres: [],
@@ -56,9 +53,7 @@ async function thePage({ facts = FACTS as Facts | null, lue: readEntry = true } 
       onglets: TABS,
       rubriques: HEADINGS,
       gestes: {},
-      banniere: BANNER,
       calibrage: { modeles: MODELS, efforts: EFFORTS },
-      code: undefined,
       stations: { a: A, stations: [MAC] } satisfies SeenOfStations,
       accueil: HOME,
       projetsDesStations: SEEN,

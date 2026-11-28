@@ -12,7 +12,7 @@ import { putAside } from "../src/awaiting.ts";
 import { forTheBar } from "../src/bar.ts";
 import { EXAMPLE } from "../src/config.ts";
 import { PALETTE } from "../src/colors.ts";
-import { BANNER, holdFacts, type Drawable, type Facts } from "../src/facts.ts";
+import { holdFacts, type Drawable, type Facts } from "../src/facts.ts";
 import { actionsOfCard } from "../src/card-actions.ts";
 import { hourHM } from "../src/format.ts";
 import { EFFORTS, MODELS } from "../src/projects/projects.ts";
@@ -34,10 +34,8 @@ const startup = (projects: Parameters<typeof forTheBar>[0]["projets"] = [{ nom: 
   exemple: EXAMPLE,
   onglets: TABS, rubriques: HEADINGS,
   gestes: {},
-  banniere: BANNER,
   calibrage: { modeles: MODELS, efforts: EFFORTS },
-  code: undefined,
-});
+  });
 
 async function open(answers: Answers = {}): Promise<Played> {
   // Les gestes de la fiche sont ceux que le process principal propose : le module tel qu'il est.
@@ -52,9 +50,7 @@ async function open(answers: Answers = {}): Promise<Played> {
 const FACTS: Facts = {
   etat: "ouverte",
   lu: "2026-10-13T10:04:11.000Z",
-  dernierTick: "2026-10-13T10:04:02.000Z",
   compteurs: { rail: 2, auTravail: 1, aLaPass: 1, attend: 1, livres24h: 1 },
-  dernierEvenement: null,
   rail: [
     { ticket: 14, etat: "pris", titre: "Le journal en ajout seul", url: "https://github.com/benomite/brigade/issues/14", activite: { fait: "écrit", faitEn: "writing", cible: "app/src/bon.ts", depuis: "2026-10-13T10:02:11.000Z" } },
     { ticket: 21, etat: "en attente", titre: "L'export du journal", url: "https://github.com/benomite/brigade/issues/21", activite: null },
@@ -194,7 +190,7 @@ describe("le rail occupe le centre de l'écran principal", () => {
     assert.equal(vue.element("rail").inert, false);
     assert.deepEqual(five(), EXPECTED);
     // Aucun onglet ne lui est plus nécessaire : une lecture de `faits` le redessine où que l'on soit.
-    receive(vue, drawable({ ...FACTS, rail: [], attend: [], cooks: [] }, NOT_READ));
+    receive(vue, drawable({ ...FACTS, attend: [], cooks: [] }, NOT_READ));
     assert.deepEqual(five(), [["Backlog", "0"], ["Manager", "0"], ["Cooks", "0"], ["Pass", "0"], ["Served", "0"]]);
     assert.equal(entry(), "TODO (0)");
   });

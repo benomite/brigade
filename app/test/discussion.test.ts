@@ -9,7 +9,7 @@ import { EXAMPLE } from "../src/config.ts";
 import { PALETTE } from "../src/colors.ts";
 import { askAtSecond, noteOfTheQuestion } from "../src/discussion.ts";
 import { putAside } from "../src/awaiting.ts";
-import { BANNER, holdFacts, type Facts } from "../src/facts.ts";
+import { holdFacts, type Facts } from "../src/facts.ts";
 import { actionsOfCard } from "../src/card-actions.ts";
 import { EFFORTS, MODELS } from "../src/projects/projects.ts";
 import { TABS, HEADINGS } from "../src/tabs.ts";
@@ -32,16 +32,12 @@ const startup = () => ({
   onglets: TABS,
   rubriques: HEADINGS,
   gestes: {},
-  banniere: BANNER,
   calibrage: { modeles: MODELS, efforts: EFFORTS },
-  code: undefined,
-});
+  });
 const FACTS: Facts = {
   etat: "ouverte",
   lu: "2026-10-14T12:00:00.000Z",
-  dernierTick: "2026-10-14T12:00:00.000Z",
   compteurs: { rail: 3, auTravail: 1, aLaPass: 0, attend: 0, livres24h: 1 },
-  dernierEvenement: null,
   rail: [
     { ticket: 14, etat: "pris", titre: "Le journal en ajout seul", url: "https://github.com/benomite/brigade/issues/14", activite: null },
     { ticket: 21, etat: "en attente", titre: "L'export du journal", url: "https://github.com/benomite/brigade/issues/21", activite: null },

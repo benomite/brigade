@@ -9,7 +9,7 @@ import type { Home } from "../../../src/home.ts";
 import { forTheBar } from "../../../src/bar.ts";
 import { EXAMPLE, type Project } from "../../../src/config.ts";
 import { PALETTE } from "../../../src/colors.ts";
-import { BANNER } from "../../../src/facts.ts";
+
 import { TABS, HEADINGS } from "../../../src/tabs.ts";
 import { calibrationRecommended, EFFORTS, machineProposed, MODELS, type ProjectSeen, type SeenOfProjects } from "../../../src/projects/projects.ts";
 import type { StationVue, SeenOfStations } from "../../../src/stations/stations.ts";
@@ -59,9 +59,7 @@ async function theTab(root: Station, write?: (repository: string, served: boolea
       onglets: TABS,
       rubriques: HEADINGS,
       gestes: {},
-      banniere: BANNER,
       calibrage: { modeles: MODELS, efforts: EFFORTS },
-      code: undefined,
       stations: { a: A, stations: [BOX, MAC] } satisfies SeenOfStations,
       accueil: HOME,
       projetsDesStations: SEEN,

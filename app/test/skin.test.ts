@@ -11,7 +11,7 @@ import { describe, test } from "node:test";
 import { forTheBar } from "../src/bar.ts";
 import { EXAMPLE } from "../src/config.ts";
 import { PALETTE } from "../src/colors.ts";
-import { BANNER, type Drawable } from "../src/facts.ts";
+import { type Drawable } from "../src/facts.ts";
 import { header } from "../src/card.ts";
 import { EFFORTS, MODELS } from "../src/projects/projects.ts";
 import { TABS, HEADINGS } from "../src/tabs.ts";
@@ -238,10 +238,8 @@ const startup = () => ({
   exemple: EXAMPLE,
   onglets: TABS, rubriques: HEADINGS,
   gestes: {},
-  banniere: BANNER,
   calibrage: { modeles: MODELS, efforts: EFFORTS },
-  code: undefined,
-});
+  });
 const ANSWERS: Answers & Required<Pick<Answers, "demarrage">> = {
   demarrage: startup,
   espace: () => [SECOND],

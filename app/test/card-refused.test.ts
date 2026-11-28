@@ -8,7 +8,7 @@ import { putAside } from "../src/awaiting.ts";
 import { forTheBar } from "../src/bar.ts";
 import { EXAMPLE } from "../src/config.ts";
 import { PALETTE } from "../src/colors.ts";
-import { BANNER, holdFacts, type Drawable, type Facts } from "../src/facts.ts";
+import { holdFacts, type Drawable, type Facts } from "../src/facts.ts";
 import { TABS, HEADINGS } from "../src/tabs.ts";
 import { EFFORTS, MODELS } from "../src/projects/projects.ts";
 import type { Terminal } from "../src/terminals.ts";
@@ -23,10 +23,8 @@ const startup = () => ({
   onglets: TABS,
   rubriques: HEADINGS,
   gestes: {},
-  banniere: BANNER,
   calibrage: { modeles: MODELS, efforts: EFFORTS },
-  code: undefined,
-});
+  });
 async function open(answers: Answers = {}): Promise<Played> {
   const vue = await playTheVue({ demarrage: startup, espace: () => [SECOND], machines: () => [{ id: "poste", titre: "this computer" }], ...answers });
   (vue.element("projets").children.at(1) ?? assert.fail("pas d'entrée")).click();
@@ -42,7 +40,7 @@ const rail = (refuses: boolean): Facts["rail"] => [
     ? { ticket: 22, etat: "86", titre: "Le ticket refusé", url: ISSUE(22), activite: null, attente: { raison: "off the kitchen after 3 cooks without a delivery — the cook added nothing…", complete: RAW, label: "served-elsewhere", colonne: "en attente", retour: null } }
     : { ticket: 22, etat: "en attente", titre: "Le ticket refusé", url: ISSUE(22), activite: null, attente: null },
 ];
-const facts = (refuses: boolean): Facts => ({ etat: "ouverte", lu: "2026-11-10T10:04:11.000Z", dernierTick: "2026-11-10T10:04:11.000Z", compteurs: { rail: 2, auTravail: 0, aLaPass: 0, attend: 0, livres24h: 0 }, dernierEvenement: null, rail: rail(refuses), cooks: [], attend: [] });
+const facts = (refuses: boolean): Facts => ({ etat: "ouverte", lu: "2026-11-10T10:04:11.000Z", compteurs: { rail: 2, auTravail: 0, aLaPass: 0, attend: 0, livres24h: 0 }, rail: rail(refuses), cooks: [], attend: [] });
 const STATUS = ["projet     parade", "cuisine    ouverte", "", "rail       2 en attente", "  #21  en attente  -  zone tenue par #3128 (app/src) — depuis 2 h 05  L'export", ""].join("\n");
 function drawable(refuses: boolean): Drawable {
   const heldOnes = holdFacts();

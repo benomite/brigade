@@ -11,7 +11,7 @@ import type { Facts as FactsOfRuntime } from "../src/facts.ts"; // the app's own
 import { forTheBar } from "../src/bar.ts";
 import { EXAMPLE } from "../src/config.ts";
 import { PALETTE } from "../src/colors.ts";
-import { BANNER, holdFacts, type Facts } from "../src/facts.ts";
+import { holdFacts, type Facts } from "../src/facts.ts";
 import { actionsOfCard } from "../src/card-actions.ts";
 import { ACCESS_IN_WRITING, pageOfTheReadOnly } from "../src/read-only.ts";
 import { TABS, HEADINGS } from "../src/tabs.ts";
@@ -34,10 +34,8 @@ const startup = () => ({
   onglets: TABS,
   rubriques: HEADINGS,
   gestes: {},
-  banniere: BANNER,
   calibrage: { modeles: MODELS, efforts: EFFORTS },
-  code: undefined,
-});
+  });
 
 // Le rail : #21 attend le chef d'une question à deux choix ; #22 n'est plus pris par aucun cook (Relaunch) ; #23, pris par
 // box/claude, son cook au travail.
@@ -56,9 +54,7 @@ const BOX: OfRuntime = { station: "box/claude", distante: false, plafond: 2, ord
 const facts = (readOnly: boolean) => ({
   etat: "ouverte",
   lu: "2026-11-11T10:04:11.000Z",
-  dernierTick: "2026-11-11T10:04:11.000Z",
   compteurs: { rail: 3, auTravail: 1, aLaPass: 0, attend: 1, livres24h: 0 },
-  dernierEvenement: null,
   rail: [
     { ticket: 21, etat: "en attente", titre: "L'export du journal", url: ISSUE(21), activite: null },
     { ticket: 22, etat: "86", titre: "Le ticket refusé", url: ISSUE(22), activite: null, attente: { raison: "off the kitchen after 3 cooks without a delivery", complete: "off the kitchen after 3 cooks without a delivery", label: "served-elsewhere", colonne: "en attente", retour: null } },

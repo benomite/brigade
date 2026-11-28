@@ -7,7 +7,7 @@ import { forTheBar } from "../../../src/bar.ts";
 import { EXAMPLE } from "../../../src/config.ts";
 import { PALETTE } from "../../../src/colors.ts";
 import { putAside } from "../../../src/awaiting.ts";
-import { BANNER, holdFacts, type Facts } from "../../../src/facts.ts";
+import { holdFacts, type Facts } from "../../../src/facts.ts";
 import { actionsOfCard } from "../../../src/card-actions.ts";
 import { TABS, HEADINGS } from "../../../src/tabs.ts";
 import { EFFORTS, MODELS } from "../../../src/projects/projects.ts";
@@ -25,8 +25,7 @@ const startup = () => ({
   configuration: forTheBar({ chemin: "/tmp/app.json", projets: [{ nom: PARADE, dossier: "/tmp/parade" }] }, () => true),
   palette: PALETTE, exemple: EXAMPLE, onglets: TABS, rubriques: HEADINGS,
   gestes: {},
-  banniere: BANNER, calibrage: { modeles: MODELS, efforts: EFFORTS }, code: undefined,
-});
+  calibrage: { modeles: MODELS, efforts: EFFORTS }, });
 async function open(answers: Record<string, unknown> = {}): Promise<Played> {
   const vue = await playTheVue({ demarrage: startup, espace: () => [SECOND], ouvrirIssue: () => true, gestesDeFiche: (card) => actionsOfCard(card), ...answers });
   (vue.element("projets").children.at(1) ?? assert.fail("pas d'entrée")).click();
@@ -34,7 +33,7 @@ async function open(answers: Record<string, unknown> = {}): Promise<Played> {
   return vue;
 }
 const entry = (ticket: number, state: string, more: object = {}) => ({ ticket, etat: state, titre: `Ticket ${ticket}`, url: url(ticket), activite: null, ...more });
-const facts = (more: Partial<Facts> & { rail: Facts["rail"] }): Facts => ({ etat: "ouverte", lu: A, dernierTick: A, compteurs: { rail: 0, auTravail: 0, aLaPass: 0, attend: 0, livres24h: 0 }, dernierEvenement: null, cooks: [], attend: [], ...more });
+const facts = (more: Partial<Facts> & { rail: Facts["rail"] }): Facts => ({ etat: "ouverte", lu: A, compteurs: { rail: 0, auTravail: 0, aLaPass: 0, attend: 0, livres24h: 0 }, cooks: [], attend: [], ...more });
 async function show(vue: Played, more: Partial<Facts> & { rail: Facts["rail"] }, a = new Date().toISOString()): Promise<Fake> {
   const receivedOne = holdFacts().recevoir({ projet: PARADE, demande: 0, a, sorties: [{ commande: "facts", texte: JSON.stringify(facts(more)) }] });
   vue.dire("surFaits", { ...receivedOne, demande: vue.dernier("faits")[0] as number });

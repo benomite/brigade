@@ -10,7 +10,7 @@ import type { Home } from "../../src/home.ts";
 import { forTheBar } from "../../src/bar.ts";
 import { EXAMPLE, type Project } from "../../src/config.ts";
 import { PALETTE } from "../../src/colors.ts";
-import { BANNER, holdFacts, type Facts } from "../../src/facts.ts";
+import { holdFacts, type Facts } from "../../src/facts.ts";
 import { TABS, HEADINGS } from "../../src/tabs.ts";
 import { calibrationRecommended, EFFORTS, machineProposed, MODELS, type ProjectSeen, type SeenOfProjects } from "../../src/projects/projects.ts";
 import type { SeenOfStations } from "../../src/stations/stations.ts";
@@ -51,9 +51,7 @@ const COOK_14 = { ticket: 14, titre: "Le journal en ajout seul", station: "box/c
 const FACTS: Facts = {
   etat: "ouverte",
   lu: "2026-10-27T10:04:11.000Z",
-  dernierTick: "2026-10-27T10:04:02.000Z",
   compteurs: { rail: 0, auTravail: 1, aLaPass: 0, attend: 0, livres24h: 0 },
-  dernierEvenement: null,
   rail: [{ ticket: 14, etat: "pris", titre: COOK_14.titre, url: "https://github.com/benomite/parade/issues/14", activite: null }],
   cooks: [COOK_14],
   attend: [],
@@ -68,9 +66,7 @@ const startup = (seenOne: SeenOfProjects) => () => ({
   onglets: TABS,
   rubriques: HEADINGS,
   gestes: {},
-  banniere: BANNER,
   calibrage: { modeles: MODELS, efforts: EFFORTS },
-  code: undefined,
   stations: STATIONS,
   accueil: HOME,
   projetsDesStations: seenOne,

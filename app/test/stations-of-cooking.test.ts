@@ -11,7 +11,7 @@ import type { Facts as FactsOfRuntime } from "../src/facts.ts"; // the app's own
 import { forTheBar } from "../src/bar.ts";
 import { EXAMPLE } from "../src/config.ts";
 import { PALETTE } from "../src/colors.ts";
-import { BANNER, holdFacts, type Drawable, type Facts } from "../src/facts.ts";
+import { holdFacts, type Drawable, type Facts } from "../src/facts.ts";
 import { TABS, HEADINGS } from "../src/tabs.ts";
 import { calibrationRecommended, EFFORTS, MODELS, type SeenOfProjects } from "../src/projects/projects.ts";
 import type { Terminal } from "../src/terminals.ts";
@@ -30,10 +30,8 @@ const startup = () => ({
   onglets: TABS,
   rubriques: HEADINGS,
   gestes: {},
-  banniere: BANNER,
   calibrage: { modeles: MODELS, efforts: EFFORTS },
-  code: undefined,
-});
+  });
 
 type OfRuntime = NonNullable<FactsOfRuntime["stations"]>[number];
 // Une station telle que le runtime la rend dans `facts` (runtime/src/etat.ts, #1183), mot pour mot.
@@ -64,9 +62,7 @@ const STATIONS: OfRuntime[] = [
 const FACTS: Facts = {
   etat: "ouverte",
   lu: "2026-10-20T10:04:11.000Z",
-  dernierTick: "2026-10-20T10:04:02.000Z",
   compteurs: { rail: 1, auTravail: 2, aLaPass: 0, attend: 0, livres24h: 0 },
-  dernierEvenement: null,
   rail: [
     { ticket: 14, etat: "pris", titre: COOK_14.titre, url: "https://github.com/benomite/brigade/issues/14", activite: null },
     { ticket: 15, etat: "pris", titre: COOK_15.titre, url: "https://github.com/benomite/brigade/issues/15", activite: null },

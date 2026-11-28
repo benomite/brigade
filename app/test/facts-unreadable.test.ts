@@ -4,7 +4,7 @@ import { describe, test } from "node:test";
 import { understand, rail, board, type Facts } from "../src/facts.ts";
 
 const base = (rail: unknown[], extra: Record<string, unknown> = {}) =>
-  JSON.stringify({ etat: "ouverte", lu: "2026-10-27T08:00:00Z", dernierTick: null, compteurs: { rail: rail.length, auTravail: 0, aLaPass: 0, attend: 0, livres24h: 0 }, dernierEvenement: null, rail, ...extra });
+  JSON.stringify({ etat: "ouverte", lu: "2026-10-27T08:00:00Z", compteurs: { rail: rail.length, auTravail: 0, aLaPass: 0, attend: 0, livres24h: 0 }, rail, ...extra });
 const normal = { ticket: 1, etat: "en attente", titre: "Normal", url: "https://github.com/o/r/issues/1" };
 const WITHOUT_RELAUNCH = { ticket: 22, etat: "WAITING", titre: "Set aside", url: "https://github.com/o/r/issues/22", tiers: { quoi: "a station", qui: "chef", depuis: null, relance: null, aLArrivee: "x" } };
 const SAYS = "the app could not read this card — update the app to fix it";

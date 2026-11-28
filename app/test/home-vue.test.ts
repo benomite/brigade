@@ -9,7 +9,7 @@ import { holdHome, type Home } from "../src/home.ts";
 import { forTheBar } from "../src/bar.ts";
 import { EXAMPLE, type Project } from "../src/config.ts";
 import { PALETTE } from "../src/colors.ts";
-import { BANNER } from "../src/facts.ts";
+
 import { EFFORTS, MODELS } from "../src/projects/projects.ts";
 import { TABS, HEADINGS } from "../src/tabs.ts";
 import type { Seen as SeenOfCode } from "../src/delay.ts";
@@ -42,7 +42,6 @@ const startup = (home: Home | undefined = HOME, code: SeenOfCode | undefined = C
   onglets: TABS,
   rubriques: HEADINGS,
   gestes: {},
-  banniere: BANNER,
   calibrage: { modeles: MODELS, efforts: EFFORTS },
   code,
   ...(home === undefined ? {} : { accueil: home }),

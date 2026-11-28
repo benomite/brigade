@@ -15,10 +15,7 @@ const PROJECT: ProjectOfTheHome = { nom: "brigade", servi: true };
 const someFacts = (fields: Partial<Facts> = {}, counters: Partial<Facts["compteurs"]> = {}): Facts => ({
   etat: "ouverte",
   lu: A,
-  dernierTick: A,
   compteurs: { rail: 4, auTravail: 0, aLaPass: 0, attend: 0, livres24h: 2, ...counters },
-  dernierEvenement: null,
-  rail: [],
   cooks: [],
   attend: [],
   livres: [],

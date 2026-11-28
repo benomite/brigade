@@ -11,7 +11,7 @@ import { forTheBar } from "../src/bar.ts";
 import type { Reading } from "../src/box.ts";
 import { EXAMPLE } from "../src/config.ts";
 import { PALETTE } from "../src/colors.ts";
-import { BANNER, holdFacts, type Drawable, type Facts } from "../src/facts.ts";
+import { holdFacts, type Drawable, type Facts } from "../src/facts.ts";
 import { EFFORTS, MODELS } from "../src/projects/projects.ts";
 import { TABS, HEADINGS } from "../src/tabs.ts";
 import type { Terminal } from "../src/terminals.ts";
@@ -170,11 +170,8 @@ const readEntry = (text: string): Reading => ({ projet: PARADE, demande: 1, a: "
 const FACTS: Facts = {
   etat: "retenue",
   lu: "2026-10-14T10:00:00.000Z",
-  dernierTick: null,
   compteurs: { rail: 0, auTravail: 0, aLaPass: 0, attend: 0, livres24h: 0 },
-  dernierEvenement: null,
-  rail: [],
-};
+  };
 // La carte telle que l'app la reçoit : les faits d'abord, puis le `status` de la même box.
 function drawn(text: string): Drawable {
   const facts = holdFacts();
@@ -191,10 +188,8 @@ const ANSWERS = {
     exemple: EXAMPLE,
     onglets: TABS, rubriques: HEADINGS,
     gestes: {},
-    banniere: BANNER,
     calibrage: { modeles: MODELS, efforts: EFFORTS },
-    code: undefined,
-  }),
+    }),
   espace: () => [SECOND],
 };
 

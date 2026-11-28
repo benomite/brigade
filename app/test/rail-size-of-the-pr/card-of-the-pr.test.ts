@@ -4,7 +4,7 @@ import { test } from "node:test";
 import { forTheBar } from "../../src/bar.ts";
 import { EXAMPLE } from "../../src/config.ts";
 import { PALETTE } from "../../src/colors.ts";
-import { BANNER, understand, holdFacts, type Facts } from "../../src/facts.ts";
+import { understand, holdFacts, type Facts } from "../../src/facts.ts";
 import { TABS, HEADINGS } from "../../src/tabs.ts";
 import { EFFORTS, MODELS } from "../../src/projects/projects.ts";
 import type { Terminal } from "../../src/terminals.ts";
@@ -20,17 +20,12 @@ const startup = () => ({
   onglets: TABS,
   rubriques: HEADINGS,
   gestes: {},
-  banniere: BANNER,
   calibrage: { modeles: MODELS, efforts: EFFORTS },
-  code: undefined,
-});
+  });
 const delivered = (prRead?: Record<string, unknown>) => ({
   etat: "ouverte",
   lu: READ,
-  dernierTick: READ,
   compteurs: { rail: 0, auTravail: 0, aLaPass: 0, attend: 0, livres24h: 1 },
-  dernierEvenement: null,
-  rail: [],
   cooks: [],
   attend: [],
   livres: [{ ticket: 80, titre: "Served one", url: "https://github.com/chef/parade/issues/80", livre: "2026-11-24T11:50:00Z", station: null, pr: "https://github.com/chef/parade/pull/81", ...(prRead === undefined ? {} : { prLue: prRead }) }],
@@ -38,9 +33,7 @@ const delivered = (prRead?: Record<string, unknown>) => ({
 const facts = (pr: Record<string, unknown>) => ({
   etat: "ouverte",
   lu: READ,
-  dernierTick: READ,
   compteurs: { rail: 1, auTravail: 0, aLaPass: 1, attend: 0, livres24h: 0 },
-  dernierEvenement: null,
   rail: [{ ticket: 70, etat: "en pass", titre: "Pass one", url: "https://github.com/chef/parade/issues/70", pr: { numero: 71, url: URL_PR, ...pr } }],
   cooks: [],
   attend: [],

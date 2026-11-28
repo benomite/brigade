@@ -6,7 +6,7 @@ import { describe, test } from "node:test";
 import { forTheBar } from "../src/bar.ts";
 import { EXAMPLE } from "../src/config.ts";
 import { PALETTE } from "../src/colors.ts";
-import { BANNER, holdFacts, type Facts } from "../src/facts.ts";
+import { holdFacts, type Facts } from "../src/facts.ts";
 import { TABS, HEADINGS } from "../src/tabs.ts";
 import { EFFORTS, MODELS } from "../src/projects/projects.ts";
 import type { Terminal } from "../src/terminals.ts";
@@ -22,17 +22,13 @@ const startup = () => ({
   onglets: TABS,
   rubriques: HEADINGS,
   gestes: {},
-  banniere: BANNER,
   calibrage: { modeles: MODELS, efforts: EFFORTS },
-  code: undefined,
-});
+  });
 // #3228 attend le chef pour un geste, sans carte lue : ni question à choix, ni carte du chef.
 const FACTS: Facts = {
   etat: "ouverte",
   lu: A,
-  dernierTick: A,
   compteurs: { rail: 1, auTravail: 0, aLaPass: 0, attend: 1, livres24h: 0 },
-  dernierEvenement: null,
   rail: [{ ticket: 3228, etat: "en attente", titre: "Un geste du chef", url: ISSUE, activite: null }],
   cooks: [],
   attend: [{ ticket: 3228, titre: "Un geste du chef", url: ISSUE }],

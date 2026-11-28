@@ -12,9 +12,7 @@ const a = (minute: number) => `2026-10-27T13:${String(minute).padStart(2, "0")}:
 const FACTS: Facts = {
   etat: "ouverte",
   lu: a(0),
-  dernierTick: a(0),
   compteurs: { rail: 1, auTravail: 1, aLaPass: 0, attend: 0, livres24h: 0 },
-  dernierEvenement: null,
   rail: [{ ticket: 14, etat: "pris", titre: "Le journal en ajout seul", url: "https://github.com/benomite/brigade/issues/14", activite: null }],
   cooks: [{ ticket: 14, titre: "Le journal en ajout seul", station: "box/claude" }],
 };

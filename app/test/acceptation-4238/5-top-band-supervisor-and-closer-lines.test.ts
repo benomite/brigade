@@ -5,7 +5,7 @@ import { test } from "node:test";
 import { forTheBar } from "../../src/bar.ts";
 import { EXAMPLE } from "../../src/config.ts";
 import { PALETTE } from "../../src/colors.ts";
-import { BANNER, holdFacts, type Facts } from "../../src/facts.ts";
+import { holdFacts, type Facts } from "../../src/facts.ts";
 import { actionsOfCard } from "../../src/card-actions.ts";
 import { TABS, HEADINGS } from "../../src/tabs.ts";
 import { EFFORTS, MODELS } from "../../src/projects/projects.ts";
@@ -20,8 +20,7 @@ const startup = () => ({
   configuration: forTheBar({ chemin: "/tmp/app.json", projets: [{ nom: PARADE, dossier: "/tmp/parade" }] }, () => true),
   palette: PALETTE, exemple: EXAMPLE, onglets: TABS, rubriques: HEADINGS,
   gestes: {},
-  banniere: BANNER, calibrage: { modeles: MODELS, efforts: EFFORTS }, code: undefined,
-});
+  calibrage: { modeles: MODELS, efforts: EFFORTS }, });
 async function open(): Promise<Played> {
   const vue = await playTheVue({ demarrage: startup, espace: () => [SECOND], ouvrirIssue: () => true, gestesDeFiche: (card) => actionsOfCard(card) });
   (vue.element("projets").children.at(1) ?? assert.fail("pas d'entrée")).click();
@@ -31,7 +30,7 @@ async function open(): Promise<Played> {
 const card = (ticket: number, state: string, extra: object = {}) => ({ ticket, etat: state, titre: `Ticket ${ticket}`, url: url(ticket), activite: null, ...extra });
 async function show(facts: Partial<Facts> & { rail: Facts["rail"] }, vue?: Played): Promise<Played> {
   const openOne = vue ?? (await open());
-  const complete: Facts = { etat: "ouverte", lu: A, dernierTick: A, compteurs: { rail: 0, auTravail: 0, aLaPass: 0, attend: 0, livres24h: 0 }, dernierEvenement: null, cooks: [], attend: [], ...facts };
+  const complete: Facts = { etat: "ouverte", lu: A, compteurs: { rail: 0, auTravail: 0, aLaPass: 0, attend: 0, livres24h: 0 }, cooks: [], attend: [], ...facts };
   const receivedOne = holdFacts().recevoir({ projet: PARADE, demande: 0, a: A, sorties: [{ commande: "facts", texte: JSON.stringify(complete) }] });
   openOne.dire("surFaits", { ...receivedOne, demande: openOne.dernier("faits")[0] as number });
   await repos();

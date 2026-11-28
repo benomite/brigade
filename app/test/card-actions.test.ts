@@ -66,9 +66,7 @@ describe("la demande au second, depuis la fiche d'un ticket qui ne t'attend pas"
     const facts: Facts = {
       etat: "ouverte",
       lu: "2026-10-13T10:04:11.000Z",
-      dernierTick: null,
       compteurs: { rail: 1, auTravail: 1, aLaPass: 0, attend: 1, livres24h: 1 },
-      dernierEvenement: null,
       rail: [{ ticket: 14, etat: "pris", titre: "Le journal", url: "https://github.com/o/r/issues/14" }],
       attend: [{ ticket: 40, titre: "", url: null }],
       livres: [{ ticket: 216, titre: "Les mesures", url: "https://github.com/o/r/issues/216", livre: "2026-10-13T10:03:58.000Z", station: "box/claude", pr: null }],

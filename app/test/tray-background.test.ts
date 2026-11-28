@@ -15,10 +15,7 @@ const station = (name: string, cooking: string, remote = false) => ({ station: n
 const someFacts = (cooks: number, questions: number, more: Partial<Facts> = {}): Facts => ({
   etat: "ouverte",
   lu: A,
-  dernierTick: A,
   compteurs: { rail: 0, auTravail: cooks, aLaPass: 0, attend: questions, livres24h: 0 },
-  dernierEvenement: null,
-  rail: [],
   cooks: Array.from({ length: cooks }, (_, i) => ({ ticket: i + 1, titre: `ticket ${i + 1}`, station: "mac/claude" })),
   attend: Array.from({ length: questions }, (_, i) => ({ ticket: 100 + i, titre: `question ${i}`, url: null })),
   livres: [],

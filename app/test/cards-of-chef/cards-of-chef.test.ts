@@ -11,7 +11,7 @@ import { forTheBar } from "../../src/bar.ts";
 import { EXAMPLE } from "../../src/config.ts";
 import { kindOfTheCard, setTheCard } from "../../src/vue/cards-of-chef/cards-of-chef.js";
 import { PALETTE } from "../../src/colors.ts";
-import { BANNER, holdFacts, type Drawable, type Facts } from "../../src/facts.ts";
+import { holdFacts, type Drawable, type Facts } from "../../src/facts.ts";
 import { TABS, HEADINGS } from "../../src/tabs.ts";
 import { EFFORTS, MODELS } from "../../src/projects/projects.ts";
 import { Fake, FakeScreen, type Played, playTheVue, repos } from "../helpers/false-vue.ts";
@@ -29,9 +29,7 @@ const startup = () => ({
   onglets: TABS,
   rubriques: HEADINGS,
   gestes: {},
-  banniere: BANNER,
   calibrage: { modeles: MODELS, efforts: EFFORTS },
-  code: undefined,
   telephone: { github: { compte: "chef" } },
 });
 
@@ -40,9 +38,7 @@ const startup = () => ({
 const FACTS = {
   etat: "ouverte",
   lu: "2026-10-21T10:04:11.000Z",
-  dernierTick: "2026-10-21T10:04:02.000Z",
   compteurs: { rail: 1, auTravail: 0, aLaPass: 0, attend: 1, livres24h: 0 },
-  dernierEvenement: null,
   rail: [{ ticket: 21, etat: "en attente", titre: "L'export du journal", url: "https://github.com/chef/parade/issues/21", activite: null }],
   cooks: [],
   attend: [

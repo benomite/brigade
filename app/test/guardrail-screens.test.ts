@@ -9,7 +9,7 @@ import { forTheBar } from "../src/bar.ts";
 import { EXAMPLE, type Project } from "../src/config.ts";
 import { PALETTE } from "../src/colors.ts";
 import { header } from "../src/card.ts";
-import { BANNER, type Drawable, type Facts } from "../src/facts.ts";
+import { type Drawable, type Facts } from "../src/facts.ts";
 import { actionsOfCard } from "../src/card-actions.ts";
 import { EFFORTS, MODELS } from "../src/projects/projects.ts";
 import { TABS, HEADINGS } from "../src/tabs.ts";
@@ -39,10 +39,8 @@ const startup = () => ({
   onglets: TABS,
   rubriques: HEADINGS,
   gestes: {},
-  banniere: BANNER,
   calibrage: { modeles: MODELS, efforts: EFFORTS },
-  code: undefined,
-});
+  });
 
 async function open(answers: Answers = {}, enter = true): Promise<Played> {
   const vue = await playTheVue({
@@ -215,7 +213,7 @@ describe("une lecture en échec tient en une ligne, son détail n'est qu'au surv
 
 // L'accueil devant un projet où une décision attend : sa ligne, telle que home.ts la dit.
 const ONE_DECISION = "attend     1 décision attend le chef depuis 5 h 28\n  #535  depuis 5 h 28  merge à faire  Titre\nfin attend\n";
-const QUEUED_FACTS: Facts = { etat: "ouverte", lu: A, dernierTick: A, compteurs: { rail: 1, auTravail: 0, aLaPass: 0, attend: 1, livres24h: 0 }, dernierEvenement: null, rail: [], cooks: [], attend: [], livres: [] };
+const QUEUED_FACTS: Facts = { etat: "ouverte", lu: A, compteurs: { rail: 1, auTravail: 0, aLaPass: 0, attend: 1, livres24h: 0 }, cooks: [], attend: [], livres: [] };
 async function homeQueued(): Promise<Plays> {
   const vue = await open({}, false);
   const line = lineOfProject(PARADE_AT_THE_HOME, { a: A, faits: QUEUED_FACTS }, { texte: "cuisine    ouverte", attend: ONE_DECISION });

@@ -7,7 +7,7 @@ import { describe, test } from "node:test";
 import { forTheBar } from "../../../src/bar.ts";
 import { EXAMPLE } from "../../../src/config.ts";
 import { PALETTE } from "../../../src/colors.ts";
-import { BANNER, holdFacts, type Facts } from "../../../src/facts.ts";
+import { holdFacts, type Facts } from "../../../src/facts.ts";
 import { TABS, HEADINGS } from "../../../src/tabs.ts";
 import { EFFORTS, MODELS } from "../../../src/projects/projects.ts";
 import { PROPOSES } from "../../../src/box.ts";
@@ -330,10 +330,8 @@ const startup = () => ({
   onglets: TABS,
   rubriques: HEADINGS,
   gestes: {},
-  banniere: BANNER,
   calibrage: { modeles: MODELS, efforts: EFFORTS },
-  code: undefined,
-});
+  });
 
 async function play(reading: ReadOfKnowledge): Promise<{ vue: Played; envoyes: unknown[][] }> {
   const sent: unknown[][] = [];
@@ -357,7 +355,7 @@ const FACTS_OF_RAIL = holdFacts(() => new Map()).recevoir({
   projet: "parade",
   demande: 0,
   a: "2026-11-27T10:00:00.000Z",
-  sorties: [{ commande: "facts", texte: JSON.stringify({ etat: "ouverte", lu: "2026-11-27T10:00:00.000Z", dernierTick: "2026-11-27T10:00:00.000Z", compteurs: { rail: 0, auTravail: 0, aLaPass: 0, attend: 0, livres24h: 0 }, dernierEvenement: null, rail: [], cooks: [], attend: [] } satisfies Facts) }],
+  sorties: [{ commande: "facts", texte: JSON.stringify({ etat: "ouverte", lu: "2026-11-27T10:00:00.000Z", compteurs: { rail: 0, auTravail: 0, aLaPass: 0, attend: 0, livres24h: 0 }, cooks: [], attend: [] } satisfies Facts) }],
 });
 const blockOf = (vue: Played) => vue.element("rail").dessous("section").find(({ dataset }) => dataset.bloc === "know-how") ?? assert.fail("no know-how block in the Know-how tab");
 

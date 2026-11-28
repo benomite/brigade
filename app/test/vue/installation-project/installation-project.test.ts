@@ -10,7 +10,7 @@ import { forTheBar } from "../../../src/bar.ts";
 import { EXAMPLE, type Project } from "../../../src/config.ts";
 import type { StationRecorded } from "../../../src/stations-of-account.ts";
 import { PALETTE } from "../../../src/colors.ts";
-import { BANNER, holdFacts, type Facts } from "../../../src/facts.ts";
+import { holdFacts, type Facts } from "../../../src/facts.ts";
 import { TABS, HEADINGS } from "../../../src/tabs.ts";
 import { EFFORTS, MODELS } from "../../../src/projects/projects.ts";
 import type { SeenOfStations } from "../../../src/stations/stations.ts";
@@ -154,19 +154,14 @@ const startup = (stations: SeenOfStations | undefined) => () => ({
   onglets: TABS,
   rubriques: HEADINGS,
   gestes: {},
-  banniere: BANNER,
   calibrage: { modeles: MODELS, efforts: EFFORTS },
-  code: undefined,
   ...(stations === undefined ? {} : { stations }),
 });
 // Le rail de secondes, lu sur GitHub : ses tickets fire attendent, aucun cook.
 const facts = (): Facts => ({
   etat: "ouverte",
   lu: A,
-  dernierTick: A,
   compteurs: { rail: 9, auTravail: 0, aLaPass: 0, attend: 0, livres24h: 0 },
-  dernierEvenement: null,
-  rail: [],
   cooks: [],
   attend: [],
 });

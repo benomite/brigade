@@ -11,7 +11,7 @@ import { putAside } from "../../../src/awaiting.ts";
 import { forTheBar } from "../../../src/bar.ts";
 import { EXAMPLE, type Project } from "../../../src/config.ts";
 import { PALETTE } from "../../../src/colors.ts";
-import { BANNER, holdFacts } from "../../../src/facts.ts";
+import { holdFacts } from "../../../src/facts.ts";
 import { TABS, HEADINGS } from "../../../src/tabs.ts";
 import { calibrationRecommended, EFFORTS, machineProposed, MODELS, type ProjectSeen, type SeenOfProjects } from "../../../src/projects/projects.ts";
 import { writeSettingsOfTheStation, readSettingsOfTheStation } from "../../../src/settings-of-the-station.ts";
@@ -27,7 +27,7 @@ const PARADE: Project = { nom: "parade", dossier: "/tmp/parade", depot: REPOSITO
 const ON_THIS_MAC: ProjectSeen = { nom: "parade", depot: REPOSITORY, base: "main", suiviPar: undefined, stations: [], servi: null, cuitSur: null, demenagement: null } as never;
 const SEEN: SeenOfProjects = { a: A, projets: [ON_THIS_MAC], locale: "gmac", recommandee: "gmac", avertissements: {}, machines: { gmac: machineProposed(MAC) }, calibrage: calibrationRecommended([]) };
 const lineOfMac = { station: "macbook/claude", distante: false, plafond: 2, ordinaires: false, bacASable: null, prendOrdinaires: true, cuisson: "idle", arreteeDepuis: null, refus: null, presente: true, cooks: [] };
-const facts = (line: object) => ({ etat: "ouverte", lu: A, dernierTick: A, compteurs: { rail: 0, auTravail: 0, aLaPass: 0, attend: 0, livres24h: 0 }, dernierEvenement: null, rail: [], cooks: [], attend: [], livres: [], stations: [line] });
+const facts = (line: object) => ({ etat: "ouverte", lu: A, compteurs: { rail: 0, auTravail: 0, aLaPass: 0, attend: 0, livres24h: 0 }, cooks: [], attend: [], livres: [], stations: [line] });
 
 const roots: string[] = [];
 after(() => {
@@ -48,9 +48,7 @@ async function thePage(engine: string | undefined, line: object) {
       onglets: TABS,
       rubriques: HEADINGS,
       gestes: {},
-      banniere: BANNER,
       calibrage: { modeles: MODELS, efforts: EFFORTS },
-      code: undefined,
       stations: { a: A, stations: [MAC] } satisfies SeenOfStations,
       accueil: HOME,
       projetsDesStations: SEEN,

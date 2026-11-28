@@ -12,9 +12,7 @@ const ticket = (number: number, state: string) => ({ ticket: number, etat: state
 const facts = (rail: Facts["rail"], awaiting: Facts["attend"] = []): Facts => ({
   etat: "ouverte",
   lu: a(0),
-  dernierTick: a(0),
   compteurs: { rail: rail.length, auTravail: 0, aLaPass: 0, attend: awaiting?.length ?? 0, livres24h: 0 },
-  dernierEvenement: null,
   rail,
   cooks: [],
   attend: awaiting,

@@ -10,7 +10,7 @@ import { putAside } from "../src/awaiting.ts";
 import { forTheBar } from "../src/bar.ts";
 import { EXAMPLE } from "../src/config.ts";
 import { PALETTE } from "../src/colors.ts";
-import { BANNER, understand, rail, holdFacts, type Drawable, type Facts } from "../src/facts.ts";
+import { understand, rail, holdFacts, type Drawable, type Facts } from "../src/facts.ts";
 import { EFFORTS, MODELS } from "../src/projects/projects.ts";
 import { TABS, HEADINGS } from "../src/tabs.ts";
 import type { ClientOfThePriority } from "../src/priority.ts";
@@ -71,9 +71,7 @@ const THIRD = { quoi: "sa validation écrite du devis", qui: "le client", depuis
 const FACTS: Facts = {
   etat: "ouverte",
   lu: "2026-10-15T10:04:20.000Z",
-  dernierTick: null,
   compteurs: { rail: 2, auTravail: 0, aLaPass: 1, attend: 2, livres24h: 0 },
-  dernierEvenement: null,
   rail: [
     ticket(21, "en attente"),
     ticket(8, "WAITING", { attente: { raison: "attend : un tiers (WAITING)", colonne: "WAITING", retour: null }, tiers: THIRD }),
@@ -188,10 +186,8 @@ const startup = () => ({
   exemple: EXAMPLE,
   onglets: TABS,
   rubriques: HEADINGS,
-  banniere: BANNER,
   calibrage: { modeles: MODELS, efforts: EFFORTS },
-  code: undefined,
-});
+  });
 const SECOND: Terminal = { id: 1, projet: "parade", genre: "second", titre: "second · claude", note: "session neuve", arrete: false };
 
 async function open(answers: Answers = {}): Promise<Played> {

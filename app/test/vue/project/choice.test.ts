@@ -10,7 +10,7 @@ import type { Home } from "../../../src/home.ts";
 import { forTheBar } from "../../../src/bar.ts";
 import { EXAMPLE, type Project } from "../../../src/config.ts";
 import { PALETTE } from "../../../src/colors.ts";
-import { BANNER } from "../../../src/facts.ts";
+
 import { TABS, HEADINGS } from "../../../src/tabs.ts";
 import { type Choice, documentOfRequest, FILE_PROJECTS, FILE_TRACKING, readRequest, readTracking, type ProjectRequest } from "../../../src/projects/request.ts";
 import { calibrationRecommended, type Chosen, EFFORTS, machineProposed, MODELS, type ProjectSeen, holdProjects, type SeenOfProjects } from "../../../src/projects/projects.ts";
@@ -235,9 +235,7 @@ describe("sur la page du projet", () => {
     onglets: TABS,
     rubriques: HEADINGS,
     gestes: {},
-    banniere: BANNER,
     calibrage: { modeles: MODELS, efforts: EFFORTS },
-    code: undefined,
     stations: { a: A, stations: [BOX] } satisfies SeenOfStations,
     accueil: HOME,
     projetsDesStations: projectsOfStations,

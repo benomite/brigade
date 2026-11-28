@@ -5,7 +5,7 @@ import { test } from "node:test";
 import { forTheBar } from "../../../src/bar.ts";
 import { EXAMPLE } from "../../../src/config.ts";
 import { PALETTE } from "../../../src/colors.ts";
-import { BANNER, holdFacts } from "../../../src/facts.ts";
+import { holdFacts } from "../../../src/facts.ts";
 import { TABS, HEADINGS } from "../../../src/tabs.ts";
 import { EFFORTS, MODELS } from "../../../src/projects/projects.ts";
 import { cardOfTicket, playTheVue, repos, type Played } from "../../helpers/false-vue.ts";
@@ -19,10 +19,8 @@ const startup = () => ({
   onglets: TABS,
   rubriques: HEADINGS,
   gestes: {},
-  banniere: BANNER,
   calibrage: { modeles: MODELS, efforts: EFFORTS },
-  code: undefined,
-});
+  });
 const card = (ticket: number, state: string, more: object = {}) => ({ ticket, etat: state, titre: `Ticket ${ticket}`, url: `https://github.com/chef/parade/issues/${ticket}`, activite: null, ...more });
 const activity = (doneIn: string, since: string) => ({ fait: doneIn, faitEn: doneIn, cible: null, depuis: since });
 
@@ -33,7 +31,7 @@ async function open(rail: unknown[]): Promise<{ vue: Played; lire: (rail: unknow
   await repos();
   const read = async (lines: unknown[], readOne: string) => {
     const requests = vue.appels.filter(({ geste: action }) => action === "faits" || action === "relireBox");
-    const facts = { etat: "ouverte", lu: readOne, dernierTick: readOne, compteurs: { rail: lines.length, auTravail: lines.length, aLaPass: 0, attend: 0, livres24h: 0 }, dernierEvenement: null, rail: lines, cooks: [], attend: [] };
+    const facts = { etat: "ouverte", lu: readOne, compteurs: { rail: lines.length, auTravail: lines.length, aLaPass: 0, attend: 0, livres24h: 0 }, rail: lines, cooks: [], attend: [] };
     const receivedOne = holdFacts(() => new Map()).recevoir({ projet: "parade", demande: 0, a: readOne, sorties: [{ commande: "facts", texte: JSON.stringify(facts) }] });
     vue.dire("surFaits", { ...receivedOne, demande: requests.at(-1)?.args[0] as number });
     await repos();

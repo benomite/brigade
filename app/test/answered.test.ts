@@ -81,9 +81,7 @@ describe("ce qui est su des questions répondues", () => {
 const FACTS: Facts = {
   etat: "ouverte",
   lu: "2026-10-15T10:04:11.000Z",
-  dernierTick: "2026-10-15T10:04:02.000Z",
   compteurs: { rail: 1, auTravail: 0, aLaPass: 1, attend: 3, livres24h: 0 },
-  dernierEvenement: null,
   rail: [{ ticket: 12, etat: "en pass", titre: "Validation SIRET", url: "https://github.com/benomite/brigade/issues/12", activite: null }],
   attend: [
     { ticket: 30, titre: "", url: ISSUE },

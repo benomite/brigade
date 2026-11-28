@@ -8,7 +8,7 @@ import { describe, test } from "node:test";
 import { forTheBar } from "../../../src/bar.ts";
 import { EXAMPLE } from "../../../src/config.ts";
 import { PALETTE } from "../../../src/colors.ts";
-import { BANNER } from "../../../src/facts.ts";
+
 import { TABS, HEADINGS } from "../../../src/tabs.ts";
 import { calibrationRecommended, EFFORTS, MODELS } from "../../../src/projects/projects.ts";
 import type { StationVue } from "../../../src/stations/stations.ts";
@@ -31,10 +31,8 @@ const startup = () => ({
   onglets: TABS,
   rubriques: HEADINGS,
   gestes: {},
-  banniere: BANNER,
   calibrage: { modeles: MODELS, efforts: EFFORTS },
-  code: undefined,
-});
+  });
 
 
 async function open(): Promise<Played> {

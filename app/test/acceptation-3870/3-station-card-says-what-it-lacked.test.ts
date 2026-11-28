@@ -8,7 +8,7 @@ import { putAside } from "../../src/awaiting.ts";
 import { forTheBar } from "../../src/bar.ts";
 import { EXAMPLE, type Project } from "../../src/config.ts";
 import { PALETTE } from "../../src/colors.ts";
-import { BANNER, holdFacts, type Facts } from "../../src/facts.ts";
+import { holdFacts, type Facts } from "../../src/facts.ts";
 import { TABS, HEADINGS } from "../../src/tabs.ts";
 import { calibrationRecommended, machineProposed, EFFORTS, MODELS, type ProjectSeen, type SeenOfProjects } from "../../src/projects/projects.ts";
 import type { StationVue, SeenOfStations } from "../../src/stations/stations.ts";
@@ -24,7 +24,7 @@ const OTHER: Project = { nom: "cantine", dossier: "/tmp/cantine", depot: "benomi
 const SEEN_PROJECT: ProjectSeen = { nom: "brigade", depot: REPOSITORY, base: "main", suiviPar: undefined, stations: [], servi: null, cuitSur: null, demenagement: null } as never;
 const SEEN: SeenOfProjects = { a: A, projets: [SEEN_PROJECT], locale: "gmac", recommandee: "gmac", avertissements: {}, machines: { gmac: machineProposed(MAC) }, calibrage: calibrationRecommended([]) };
 const lineOfMac = { station: "macbook/claude", distante: false, plafond: 2, ordinaires: false, bacASable: null, prendOrdinaires: true, cuisson: "idle", arreteeDepuis: null, refus: null, presente: true, cooks: [], lacks: GAP };
-const FACTS = { etat: "ouverte", lu: A, dernierTick: A, compteurs: { rail: 1, auTravail: 0, aLaPass: 0, attend: 0, livres24h: 0 }, dernierEvenement: null, rail: [], cooks: [], attend: [], livres: [], stations: [lineOfMac] } as unknown as Facts;
+const FACTS = { etat: "ouverte", lu: A, compteurs: { rail: 1, auTravail: 0, aLaPass: 0, attend: 0, livres24h: 0 }, cooks: [], attend: [], livres: [], stations: [lineOfMac] } as unknown as Facts;
 
 test("a station that lacked what a ticket needs says it in one line on its card in the Stations tab", async () => {
   const vue = await playTheVue({
@@ -35,9 +35,7 @@ test("a station that lacked what a ticket needs says it in one line on its card 
       onglets: TABS,
       rubriques: HEADINGS,
       gestes: {},
-      banniere: BANNER,
       calibrage: { modeles: MODELS, efforts: EFFORTS },
-      code: undefined,
       stations: { a: A, stations: [MAC] } satisfies SeenOfStations,
       accueil: HOME,
       projetsDesStations: SEEN,

@@ -8,7 +8,7 @@ import { describe, test } from "node:test";
 import { forTheBar } from "../../../src/bar.ts";
 import { EXAMPLE } from "../../../src/config.ts";
 import { PALETTE } from "../../../src/colors.ts";
-import { BANNER, holdFacts, type Facts } from "../../../src/facts.ts";
+import { holdFacts, type Facts } from "../../../src/facts.ts";
 import { TABS, HEADINGS } from "../../../src/tabs.ts";
 import { EFFORTS, MODELS } from "../../../src/projects/projects.ts";
 import { red } from "../../helpers/red.ts";
@@ -24,10 +24,8 @@ const startup = () => ({
   onglets: TABS,
   rubriques: HEADINGS,
   gestes: {},
-  banniere: BANNER,
   calibrage: { modeles: MODELS, efforts: EFFORTS },
-  code: undefined,
-});
+  });
 
 // Une carte du chef lue de GitHub (board/todo-github.ts) : sa question, puis un choix par ligne.
 const CARD = (question: string) => ({ sorte: "product", texte: `${question}\n- [resume] Yes.\n- [resume] No.` });
@@ -36,9 +34,7 @@ const CARD = (question: string) => ({ sorte: "product", texte: `${question}\n- [
 const FACTS: Facts = {
   etat: "ouverte",
   lu: "2026-11-09T10:04:11.000Z",
-  dernierTick: null,
   compteurs: { rail: 2, auTravail: 0, aLaPass: 0, attend: 1, livres24h: 0 },
-  dernierEvenement: null,
   rail: [
     { ticket: 21, etat: "en attente", titre: "L'export du journal", url: issue(21), activite: null },
     { ticket: 22, etat: "86", titre: "Drop the importer", url: issue(22), activite: null },

@@ -12,7 +12,7 @@ import type { Facts as FactsOfRuntime } from "../../src/facts.ts"; // the app's 
 import { forTheBar } from "../../src/bar.ts";
 import { EXAMPLE } from "../../src/config.ts";
 import { PALETTE } from "../../src/colors.ts";
-import { BANNER, holdFacts, type Drawable, type Facts } from "../../src/facts.ts";
+import { holdFacts, type Drawable, type Facts } from "../../src/facts.ts";
 import { TABS, HEADINGS } from "../../src/tabs.ts";
 import { EFFORTS, MODELS } from "../../src/projects/projects.ts";
 import { red } from "../helpers/red.ts";
@@ -32,9 +32,7 @@ const startup = () => ({
   onglets: TABS,
   rubriques: HEADINGS,
   gestes: {},
-  banniere: BANNER,
   calibrage: { modeles: MODELS, efforts: EFFORTS },
-  code: undefined,
   telephone: { github: { compte: "chef" } },
 });
 
@@ -59,9 +57,7 @@ const COOK_15 = { ticket: 15, titre: "La carte des desserts", station: "mac/clau
 const FACTS: Facts = {
   etat: "ouverte",
   lu: "2026-10-21T10:04:11.000Z",
-  dernierTick: "2026-10-21T10:04:02.000Z",
   compteurs: { rail: 2, auTravail: 2, aLaPass: 1, attend: 1, livres24h: 1 },
-  dernierEvenement: null,
   rail: [
     { ticket: 14, etat: "pris", titre: COOK_14.titre, url: issue(14), activite: null },
     { ticket: 15, etat: "pris", titre: COOK_15.titre, url: issue(15), activite: null },

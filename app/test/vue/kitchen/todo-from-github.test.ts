@@ -6,7 +6,7 @@ import { describe, test } from "node:test";
 import { forTheBar } from "../../../src/bar.ts";
 import { EXAMPLE } from "../../../src/config.ts";
 import { PALETTE } from "../../../src/colors.ts";
-import { BANNER, holdFacts } from "../../../src/facts.ts";
+import { holdFacts } from "../../../src/facts.ts";
 import { TABS, HEADINGS } from "../../../src/tabs.ts";
 import { EFFORTS, MODELS } from "../../../src/projects/projects.ts";
 import { putAside } from "../../../src/awaiting.ts";
@@ -40,7 +40,7 @@ const github = (assignees: string[]): CallGitHub => async (address) => {
 const startup = () => ({
   configuration: forTheBar({ chemin: "/tmp/app.json", projets: [{ nom: PARADE, dossier: "/tmp/parade" }] }, () => true),
   palette: PALETTE, exemple: EXAMPLE, onglets: TABS, rubriques: HEADINGS,
-  banniere: BANNER, calibrage: { modeles: MODELS, efforts: EFFORTS }, code: undefined, telephone: { github: { compte: "chef" } },
+  calibrage: { modeles: MODELS, efforts: EFFORTS }, telephone: { github: { compte: "chef" } },
 });
 
 // Comme main.ts : la lecture du rail, ce qui attend le chef partagé pour le compte connecté, les faits, puis le `status`.

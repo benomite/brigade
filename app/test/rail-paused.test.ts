@@ -7,7 +7,7 @@ import { describe, test } from "node:test";
 import { forTheBar } from "../src/bar.ts";
 import { EXAMPLE } from "../src/config.ts";
 import { PALETTE } from "../src/colors.ts";
-import { BANNER, holdFacts, type Drawable } from "../src/facts.ts";
+import { holdFacts, type Drawable } from "../src/facts.ts";
 import { TABS, HEADINGS } from "../src/tabs.ts";
 import { EFFORTS, MODELS } from "../src/projects/projects.ts";
 import { NO_STATION } from "../src/vue/cooks/without-station.js";
@@ -27,10 +27,8 @@ const startup = (served: boolean) => () => ({
   onglets: TABS,
   rubriques: HEADINGS,
   gestes: {},
-  banniere: BANNER,
   calibrage: { modeles: MODELS, efforts: EFFORTS },
-  code: undefined,
-});
+  });
 async function open(answers: Answers = {}, served = true): Promise<Played> {
   const vue = await playTheVue({ demarrage: startup(served), espace: () => [], ...answers });
   (vue.element("projets").children.at(1) ?? assert.fail("pas d'entrée")).click();
@@ -103,7 +101,6 @@ describe("le dernier rail lu survit au redémarrage (#4620)", () => {
     const facts: Facts = {
       etat: "ouverte", lu: a(0), dernierTick: a(0),
       compteurs: { rail: 1, auTravail: 1, aLaPass: 0, attend: 0, livres24h: 0 },
-      dernierEvenement: null,
       rail: [{ ticket: 14, etat: "pris", titre: "Le journal en ajout seul", url: "https://github.com/chef/parade/issues/14", activite: null }],
       cooks: [{ ticket: 14, titre: "Le journal en ajout seul", station: "box/claude" }],
       attend: [],

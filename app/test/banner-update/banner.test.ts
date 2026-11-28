@@ -8,7 +8,7 @@ import { holdHome } from "../../src/home.ts";
 import { forTheBar } from "../../src/bar.ts";
 import { EXAMPLE } from "../../src/config.ts";
 import { PALETTE } from "../../src/colors.ts";
-import { BANNER } from "../../src/facts.ts";
+
 import { searchOneUpdate, type Workstation } from "../../src/update/opinion.ts";
 import type { StateOfUpdate } from "../../src/update/state.ts";
 import { TABS, HEADINGS } from "../../src/tabs.ts";
@@ -37,9 +37,7 @@ const startup = (update?: StateOfUpdate) => ({
   onglets: TABS,
   rubriques: HEADINGS,
   gestes: {},
-  banniere: BANNER,
   calibrage: { modeles: MODELS, efforts: EFFORTS },
-  code: undefined,
   accueil: { projets: [], stations: [], sante: { ton: "vert", dit: "Max ✓  ·  GitHub ✓", survol: "" } } as ReturnType<ReturnType<typeof holdHome>["faits"]> extends infer T ? Exclude<T, undefined> : never,
   ...(update === undefined ? {} : { miseAJour: update }),
 });

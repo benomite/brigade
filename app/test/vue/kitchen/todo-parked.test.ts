@@ -8,7 +8,7 @@ import { forTheBar } from "../../../src/bar.ts";
 import type { CardOfTodo } from "../../../src/card-todo.ts";
 import { EXAMPLE } from "../../../src/config.ts";
 import { PALETTE } from "../../../src/colors.ts";
-import { BANNER, holdFacts, type Card, type Facts } from "../../../src/facts.ts";
+import { holdFacts, type Card, type Facts } from "../../../src/facts.ts";
 import { TABS, HEADINGS } from "../../../src/tabs.ts";
 import { EFFORTS, MODELS } from "../../../src/projects/projects.ts";
 import { whatAwaitingYou, actionsOfTodo, planOfTheKitchen, setTheTodo } from "../../../src/vue/kitchen/kitchen.js";
@@ -19,7 +19,7 @@ const PARADE = "parade";
 const A = "2026-11-25T09:00:00.000Z";
 const url = (ticket: number) => `https://github.com/chef/parade/issues/${ticket}`;
 const entry = (ticket: number, state: string, more: object = {}) => ({ ticket, etat: state, titre: `Ticket ${ticket}`, url: url(ticket), activite: null, ...more });
-const facts = (more: Partial<Facts> & { rail: Facts["rail"] }): Facts => ({ etat: "ouverte", lu: A, dernierTick: A, compteurs: { rail: 0, auTravail: 0, aLaPass: 0, attend: 0, livres24h: 0 }, dernierEvenement: null, cooks: [], attend: [], ...more });
+const facts = (more: Partial<Facts> & { rail: Facts["rail"] }): Facts => ({ etat: "ouverte", lu: A, compteurs: { rail: 0, auTravail: 0, aLaPass: 0, attend: 0, livres24h: 0 }, cooks: [], attend: [], ...more });
 const third = (who: string, relaunch: string) => ({ quoi: "the signed quote", qui: who, depuis: "2026-11-20T10:00:00Z", relance: relaunch, aLArrivee: "goes back to the kitchen" });
 // La carte que le manager pose au chef, lue de GitHub : sa question, ses deux choix.
 const QUESTION = { sorte: "product-question", texte: "Ship the export as CSV?\n- [resume] Yes, ship it\n- [close] No, drop it" };
@@ -129,8 +129,7 @@ describe("chaque entrée du TODO dit ce qui est demandé, avec ses boutons", () 
 const startup = () => ({
   configuration: forTheBar({ chemin: "/tmp/app.json", projets: [{ nom: PARADE, dossier: "/tmp/parade" }] }, () => true),
   palette: PALETTE, exemple: EXAMPLE, onglets: TABS, rubriques: HEADINGS,
-  banniere: BANNER, calibrage: { modeles: MODELS, efforts: EFFORTS }, code: undefined,
-});
+  calibrage: { modeles: MODELS, efforts: EFFORTS }, });
 async function show(readOnes: Facts): Promise<Played> {
   const vue = await playTheVue({ demarrage: startup, espace: () => [], ouvrirIssue: () => true, repondreCarte: () => ({ repondue: true, dit: "posted", commentaire: 7 }) });
   (vue.element("projets").children.at(1) ?? assert.fail("pas d'entrée")).click();

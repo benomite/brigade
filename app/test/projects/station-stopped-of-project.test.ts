@@ -7,7 +7,7 @@ import { forTheBar } from "../../src/bar.ts";
 import type { Reading } from "../../src/box.ts";
 import { EXAMPLE } from "../../src/config.ts";
 import { PALETTE } from "../../src/colors.ts";
-import { BANNER, holdFacts, type Facts } from "../../src/facts.ts";
+import { holdFacts, type Facts } from "../../src/facts.ts";
 import { TABS, HEADINGS } from "../../src/tabs.ts";
 import { calibrationRecommended, EFFORTS, MODELS, type SeenOfProjects } from "../../src/projects/projects.ts";
 import type { SeenOfStations } from "../../src/stations/stations.ts";
@@ -17,10 +17,7 @@ const A = "2026-11-13T10:04:12.000Z";
 const FACTS: Facts = {
   etat: "ouverte",
   lu: "2026-11-13T10:04:11.000Z",
-  dernierTick: "2026-11-13T10:04:02.000Z",
   compteurs: { rail: 0, auTravail: 0, aLaPass: 0, attend: 0, livres24h: 0 },
-  dernierEvenement: null,
-  rail: [],
   cooks: [],
   attend: [],
 };
@@ -33,9 +30,7 @@ const startup = () => ({
   onglets: TABS,
   rubriques: HEADINGS,
   gestes: {},
-  banniere: BANNER,
   calibrage: { modeles: MODELS, efforts: EFFORTS },
-  code: undefined,
   // Les stations du compte, lues, sans que l'app en connaisse une qui serve le projet : seul `facts` dit celle qui le sert.
   stations: { a: A, stations: [] } satisfies SeenOfStations,
   projetsDesStations: { a: A, projets: [], recommandee: null, avertissements: {}, machines: {}, calibrage: calibrationRecommended([]) } as SeenOfProjects,

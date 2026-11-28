@@ -6,7 +6,7 @@ import { describe, test } from "node:test";
 import { forTheBar } from "../../src/bar.ts";
 import { EXAMPLE } from "../../src/config.ts";
 import { PALETTE } from "../../src/colors.ts";
-import { BANNER } from "../../src/facts.ts";
+
 import { TABS, HEADINGS } from "../../src/tabs.ts";
 import { EFFORTS, MODELS } from "../../src/projects/projects.ts";
 import { mountTheCardProject } from "../../src/vue/card-project/mount-card-project.js";
@@ -23,10 +23,8 @@ const startup = () => ({
   onglets: TABS,
   rubriques: HEADINGS,
   gestes: {},
-  banniere: BANNER,
   calibrage: { modeles: MODELS, efforts: EFFORTS },
-  code: undefined,
-});
+  });
 const FULL = { work: "an episode", stages: ["script", "render"], tools: [], rules: [], risks: ["publishing"], served: "the published episode", recurring: [], humans: ["the chef"] };
 const doc = { createElement: (balise: string) => new Fake(balise) };
 const field = (root: Fake, key: string) => [...root.descendants()].find((pose) => pose.dataset.item === key) ?? assert.fail(`pas de champ ${key}`);

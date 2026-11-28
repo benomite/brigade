@@ -11,7 +11,7 @@ import { forTheBar } from "../src/bar.ts";
 import type { Rendered } from "../src/card-todo.ts";
 import { EXAMPLE } from "../src/config.ts";
 import { PALETTE } from "../src/colors.ts";
-import { BANNER, holdFacts, type Drawable, type Facts } from "../src/facts.ts";
+import { holdFacts, type Drawable, type Facts } from "../src/facts.ts";
 import { TABS, HEADINGS } from "../src/tabs.ts";
 import { EFFORTS, MODELS } from "../src/projects/projects.ts";
 import { cardOfTicket, type Fake, type Played, playTheVue, type Answers, repos } from "./helpers/false-vue.ts";
@@ -34,9 +34,7 @@ const CHEF = { sorte: PRODUCT.type, texte: [PRODUCT.question, ...PRODUCT.choix.m
 const FACTS: Facts = {
   etat: "ouverte",
   lu: a(0),
-  dernierTick: a(0),
   compteurs: { rail: 2, auTravail: 1, aLaPass: 0, attend: 1, livres24h: 0 },
-  dernierEvenement: null,
   rail: [
     { ticket: 14, etat: "pris", titre: "Le journal en ajout seul", url: ISSUE(14), activite: null },
     { ticket: 21, etat: "en attente", titre: "L'export du journal", url: ISSUE(21), activite: null },
@@ -56,10 +54,8 @@ const startup = (served: boolean) => () => ({
   onglets: TABS,
   rubriques: HEADINGS,
   gestes: {},
-  banniere: BANNER,
   calibrage: { modeles: MODELS, efforts: EFFORTS },
-  code: undefined,
-});
+  });
 
 async function open(answers: Answers = {}, served = true): Promise<Played> {
   const vue = await playTheVue({ demarrage: startup(served), espace: () => [], ...answers });

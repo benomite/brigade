@@ -12,7 +12,7 @@ import { cardOfChefOfTodo, type CardRead, type SendSeen, type Rendered } from ".
 import type { CardOfChef } from "../../src/board/todo-github.ts";
 import { EXAMPLE } from "../../src/config.ts";
 import { PALETTE } from "../../src/colors.ts";
-import { BANNER, holdFacts, type Facts } from "../../src/facts.ts";
+import { holdFacts, type Facts } from "../../src/facts.ts";
 import { TABS, HEADINGS } from "../../src/tabs.ts";
 import { EFFORTS, MODELS } from "../../src/projects/projects.ts";
 import type { Reading } from "../../src/box.ts";
@@ -48,9 +48,7 @@ const chefOf = ({ type, question, choix: choice }: CardRead, context = ""): Card
 const FACTS: Facts = {
   etat: "ouverte",
   lu: "2026-10-21T10:04:11.000Z",
-  dernierTick: "2026-10-21T10:04:02.000Z",
   compteurs: { rail: 2, auTravail: 0, aLaPass: 1, attend: 2, livres24h: 0 },
-  dernierEvenement: null,
   rail: [
     { ticket: 12, etat: "en pass", titre: "Validation SIRET", url: ISSUE(12), activite: null },
     { ticket: 21, etat: "en attente", titre: "L'export du journal", url: ISSUE(21), activite: null },
@@ -81,10 +79,8 @@ const startup = () => ({
   onglets: TABS,
   rubriques: HEADINGS,
   gestes: {},
-  banniere: BANNER,
   calibrage: { modeles: MODELS, efforts: EFFORTS },
-  code: undefined,
-});
+  });
 
 async function open(answers: Answers = {}): Promise<Played> {
   const vue = await playTheVue({ demarrage: startup, espace: () => [], ...answers });
