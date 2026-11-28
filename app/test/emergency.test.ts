@@ -3,7 +3,7 @@
 // depuis combien de temps tout est à l'arrêt ; la case du projet la dit, autrement qu'une alerte
 // (alerts.ts, « L'urgence »). Une décision qui ne retient qu'une partie du rail ne change rien.
 // Ce que la box rend est ce que l'ancien runtime (runtime/src/etat.ts) écrivait — `faits` et `status`, figés dans
-// fixtures/old-runtime-emergency.json : la forme que la bande lit est tenue contre celle qu'il écrivait.
+// fixtures/old-runtime-emergency.frozen : la forme que la bande lit est tenue contre celle qu'il écrivait.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, test } from "node:test";
@@ -22,14 +22,14 @@ const DAY = "2026-10-15";
 const hour = (h: string) => `${DAY}T${h}.000Z`;
 const reading = (command: string, text: string, a: string): Reading => ({ projet: "parade", demande: 1, a, sorties: [{ commande: command, texte: text }] });
 
-// Ce que le runtime d'avant la #4775 rendait de la cuisine de ces tests, figé dans fixtures/old-runtime-emergency.json
+// Ce que le runtime d'avant la #4775 rendait de la cuisine de ces tests, figé dans fixtures/old-runtime-emergency.frozen
 // (`faits`, la forme, et `status`, le texte, de l'ancien `faits` et `decrireEtat`, runtime/src/etat.ts, à 10:00:00) :
 //   plain : une cuisine où tout va bien hors du rail — runtime en marche, manager activé, la station box/claude annoncée ;
 //   allHeld : l'exemple du ticket — #535, #536, #537 arrivés, #535 livré et laissé au chef (une livraison à merger à la
 //     main qui tient toutes les zones du rail) ;
 //   allHeldThenStopped : le même, après le « stop » du chef.
 type Scenario = "plain" | "allHeld" | "allHeldThenStopped";
-const RENDERED = JSON.parse(readFileSync(new URL("./fixtures/old-runtime-emergency.json", import.meta.url), "utf8")) as Record<Scenario, { faits: Record<string, unknown>; status: string }>;
+const RENDERED = JSON.parse(readFileSync(new URL("./fixtures/old-runtime-emergency.frozen", import.meta.url), "utf8")) as Record<Scenario, { faits: Record<string, unknown>; status: string }>;
 
 // Une cuisine figée, et ce que l'app en dessine : `faits` et `status` de l'ancien runtime, lus comme le process principal
 // les lit.

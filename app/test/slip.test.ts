@@ -12,7 +12,7 @@ import { understand, rail, type Card, type Facts } from "../src/facts.ts";
 
 const NOW = new Date("2026-10-13T10:00:00.000Z");
 
-// Ce que le runtime d'avant la #4775 rendait de ce rail, figé dans fixtures/old-runtime-slip.json (`status`, le texte, et
+// Ce que le runtime d'avant la #4775 rendait de ce rail, figé dans fixtures/old-runtime-slip.frozen (`status`, le texte, et
 // `faits`, la forme, de l'ancien `decrireEtat` et `faits`, runtime/src/etat.ts, joués sur un rail de chaque sorte, à NOW) :
 //   base : #14, #15, #16 pris (bail qui avance, qui coince, échu), #20 à #23 en attente, #30 en pass, #31 servi, #40 mis de côté ;
 //   withoutStation : le même, sans station déclarée depuis 30 min ;
@@ -20,7 +20,7 @@ const NOW = new Date("2026-10-13T10:00:00.000Z");
 //   boxOnly : le même, avec box/claude seule ;
 //   awaiting : le même, et la PR fermée de #23 qui attend le chef.
 type Scenario = "base" | "withoutStation" | "twoStations" | "boxOnly" | "awaiting";
-const RENDERED = JSON.parse(readFileSync(new URL("./fixtures/old-runtime-slip.json", import.meta.url), "utf8")) as Record<Scenario, { status: string; faits: unknown }>;
+const RENDERED = JSON.parse(readFileSync(new URL("./fixtures/old-runtime-slip.frozen", import.meta.url), "utf8")) as Record<Scenario, { status: string; faits: unknown }>;
 // Les tickets du rail de la fixture, dans l'ordre où la file les écrit.
 const RAIL_TICKETS = [14, 15, 16, 20, 21, 22, 23, 30, 31, 40];
 

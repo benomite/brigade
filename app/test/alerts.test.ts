@@ -3,7 +3,7 @@
 // et chacun s'y éprouve sain (rien n'est posé), en panne (une ligne, sa cause, son
 // geste, son prix) et non dit (une ligne « non vérifié » qui le nomme).
 // Ce que la box rend est ce que l'ancien runtime (runtime/src/etat.ts) écrivait — `faits` et `status`, figés
-// dans fixtures/old-runtime-alerts.json : la forme que la bande lit est tenue contre celle qu'il écrivait.
+// dans fixtures/old-runtime-alerts.frozen : la forme que la bande lit est tenue contre celle qu'il écrivait.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, test, type TestContext } from "node:test";
@@ -27,11 +27,11 @@ const MISSED: Reading = { projet: "parade", demande: 1, a: `${DAY}T10:00:01.000Z
 const NOT_JOINED: Reading = { projet: "parade", demande: 1, a: `${DAY}T10:00:01.000Z`, erreur: "$ station parade facts\nconnection refused\n\n→ code de sortie 255", atteinte: false, cas: null };
 
 // Ce que le runtime d'avant la #4775 rendait d'une cuisine saine — runtime en marche, manager activé — puis de la même
-// après un seul événement, figé dans fixtures/old-runtime-alerts.json (`faits`, la forme, et `status`, le texte, de
+// après un seul événement, figé dans fixtures/old-runtime-alerts.frozen (`faits`, la forme, et `status`, le texte, de
 // l'ancien `faits` et `decrireEtat`, runtime/src/etat.ts, à 10:00:00 le jour du test ; `GESTE` : l'ancien
 // GESTE_DE_STATION_A_CHAUD_EN, runtime/src/stations-declarees.ts). Un événement noté choisit l'état figé qui lui répond.
 type Scenario = "healthy" | "backupTooOld" | "undeclared" | "stopped" | "breakerOpen" | "runtimeStopped";
-const RENDERED = JSON.parse(readFileSync(new URL("./fixtures/old-runtime-alerts.json", import.meta.url), "utf8")) as Record<Scenario, { faits: unknown; status: string }> & { GESTE: string };
+const RENDERED = JSON.parse(readFileSync(new URL("./fixtures/old-runtime-alerts.frozen", import.meta.url), "utf8")) as Record<Scenario, { faits: unknown; status: string }> & { GESTE: string };
 const GESTE_DE_STATION_A_CHAUD_EN = RENDERED.GESTE;
 const SCENARIO_OF_EVENT: Record<string, Scenario> = {
   "stations.undeclared": "undeclared",

@@ -2,7 +2,7 @@
 // et sa cause et son geste dans l'entrée `setup` du bloc `attend`. L'app le dit dans la bande
 // d'alertes du projet — ce texte-là, mot pour mot — et sur la pastille de sa case ; quand le
 // runtime ne le dit plus, bande et pastille reviennent d'elles-mêmes. Ce que la box rend est écrit
-// ici par l'ancien runtime (runtime/src/etat.ts), figé dans fixtures/old-runtime-setup.json, comme alerts.test.ts.
+// ici par l'ancien runtime (runtime/src/etat.ts), figé dans fixtures/old-runtime-setup.frozen, comme alerts.test.ts.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, test } from "node:test";
@@ -27,13 +27,13 @@ const SETUP_A_FIX =
   "setup impossible: `.claude/brigade/worktree-setup.sh` fails twice identically (code de sortie 1) — what it said is on #15 — to fix: the project's setup, then merge into the integration branch; setups start again on their own as soon as the integration branch moves; until then, none is launched, for any ticket";
 
 // Ce que le runtime d'avant la #4775 rendait d'une cuisine saine — runtime en marche, une station, version à jour —
-// à 10:00:00, puis après chaque geste de ces tests, figé dans fixtures/old-runtime-setup.json (`faits`, la forme, et
+// à 10:00:00, puis après chaque geste de ces tests, figé dans fixtures/old-runtime-setup.frozen (`faits`, la forme, et
 // `status`, le texte, de l'ancien `faits` et `decrireEtat`, runtime/src/etat.ts) :
 //   healthy ; blockedHost : deux échecs à l'identique refusés par l'hôte cdn.sheetjs.com:443 bloquent le setup à 9 h 30,
 //   sur la base `ba5e0001` ; blockedNoHost : le même, sans hôte refusé ; blockedRemote : le même, et une station distante
 //   annoncée ; unblocked : la branche d'intégration a bougé à 9 h 45, les setups reprennent ; reblocked : bloqué de nouveau.
 type Scenario = "healthy" | "blockedHost" | "blockedNoHost" | "blockedRemote" | "unblocked" | "reblocked";
-const RENDERED = JSON.parse(readFileSync(new URL("./fixtures/old-runtime-setup.json", import.meta.url), "utf8")) as Record<Scenario, { faits: unknown; status: string }>;
+const RENDERED = JSON.parse(readFileSync(new URL("./fixtures/old-runtime-setup.frozen", import.meta.url), "utf8")) as Record<Scenario, { faits: unknown; status: string }>;
 
 // Une cuisine figée, et ce que l'app en dessine : `bande`, lu comme le process principal le lit.
 function kitchen() {

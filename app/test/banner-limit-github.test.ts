@@ -28,8 +28,8 @@ const LINE = `GitHub is rate-limiting calls: too many writes per minute, since $
 const PROJECTS = ["brigade", "mirrorlab"];
 
 // Le `facts` d'une cuisine saine, tel que l'ancien runtime l'écrivait (runtime/src/etat.ts, `faits`, runtime en marche, à
-// 15:30), figé dans fixtures/old-runtime-banner-limit-github.json — puis le même, l'entrée `github` posée.
-const payload = (): string => JSON.stringify(JSON.parse(readFileSync(new URL("./fixtures/old-runtime-banner-limit-github.json", import.meta.url), "utf8")));
+// 15:30), figé dans fixtures/old-runtime-banner-limit-github.frozen — puis le même, l'entrée `github` posée.
+const payload = (): string => JSON.stringify(JSON.parse(readFileSync(new URL("./fixtures/old-runtime-banner-limit-github.frozen", import.meta.url), "utf8")));
 const limit = (healthy: string, github: unknown = { limit: "secondary-writes", since: SINCE, backAt: RETURN }) => JSON.stringify({ ...JSON.parse(healthy), github });
 const reading = (project: string, text: string, a: string): Reading => ({ projet: project, demande: 1, a, sorties: [{ commande: "facts", texte: `${text}\n` }] });
 const github = (alerts: readonly Alert[]) => alerts.filter(({ sujet: subject }) => subject === "github");
