@@ -19,9 +19,6 @@
 //
 // Call site: at launch, `checkAtLaunch(...)` returns at once and calls `onResult` later, only with
 // an offer. Launch never waits for it.
-//
-// The desktop reads the same manifest for its phone offer (#3303): `apkLink(...)` gives the latest
-// `apkUrl`, whatever version runs, or the releases page when the manifest cannot be read.
 import { compareVersions, isOneVersion } from "./flux.ts";
 
 export const MANIFEST_URL = "https://github.com/benomite/brigade/releases/latest/download/latest-android.json";
@@ -78,10 +75,3 @@ export function checkAtLaunch(options: CheckOptions, onResult: (offer: UpdateOff
   });
 }
 
-// The link to the latest Android app, for the desktop's phone offer (#3303): the manifest's
-// `apkUrl` — read against the lowest version, so any published one is an offer —, or
-// `RELEASES_URL` on any failure. Never throws.
-export async function apkLink(options: Omit<CheckOptions, "currentVersion"> = {}): Promise<string> {
-  const result = await checkForUpdate({ ...options, currentVersion: "0" });
-  return result.kind === "offer" ? result.apkUrl : RELEASES_URL;
-}

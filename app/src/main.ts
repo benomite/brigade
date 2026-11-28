@@ -44,18 +44,15 @@ import { keptReadsInFile } from "./board/kept-reads.ts";
 import { readingUnderBudget, holdTheBudgetGitHub } from "./budget-github.ts";
 import { holdTheQuotaGitHub, withTheQuota } from "./quota-github.ts";
 import { ticketOfTheBiggest } from "./spenders-of-token.ts";
-import { REPOSITORY_OF_THE_VISIT } from "./visit.ts";
+import { RELEASES_URL } from "./update/android.ts";
 import { FRESHNESS_MAX_OF_A_READ_MS } from "./vue/served/freshness.ts";
 import { activitiesPublished, readTheBoardOfRepository, type ReadOfBoardOfRepository } from "./board/read.ts";
-import { readTheKitchenVisited } from "./visit.ts";
 import { pageOfFacts } from "./read-only.ts";
 import { openStandbyOfBoard, holdReadsOfBoard } from "./board/rail.ts";
 import { playTheRefusal } from "./actions-refusal.ts";
 import { commentTheIssue, removeTheLabel, WITHOUT_DONE, onGithub } from "./actions-github.ts";
 import { requestOf, requestOfTheAlert, requestOnTheTicket, noteOfTheRequest } from "./request.ts";
 import { actionsOfCard } from "./card-actions.ts";
-import { launchTheTriage, putOnTheRail, proposeTheDeparture } from "./departure-of-project.ts";
-import { create as createTheFirstTicket, draft as draftTheFirstTicket } from "./first-ticket.ts";
 import { changeThePriority, clientOfThePriority, sendByFetch, holdPrioritiesWritten } from "./priority.ts";
 import { changeTheCap, readTheCaps } from "./caps-duration.ts";
 import { changeTheSetting, changeTheVerifications, readTheCloser } from "./closer-health.ts";
@@ -66,7 +63,6 @@ import { readTheAccountGitHub, holdConnectionGitHub, signInToGitHub } from "./co
 import { pathOf, locationsOf, readPathOfShell } from "./locations.ts";
 import { searchOneUpdate, workstationOf, type Opinion as OpinionOfVersion } from "./update/opinion.ts";
 import { holdUpdate } from "./update/state.ts";
-import { apkLink, RELEASES_URL } from "./update/android.ts";
 import { fluxOf, formatOf } from "./update/flux.ts";
 import { installerOfWorkstation } from "./update/installation.ts";
 import { machineChosen, machinesOf } from "./machines.ts";
@@ -88,7 +84,6 @@ import { openPty } from "./pty.ts";
 import { claudeOf, connectionOfTheSession, openOfAStation } from "./first-launch.ts";
 import { openTheLocalCopy, sessionOfClaude } from "./local-copy.ts";
 import { probesOfTheRuntime, serveHere } from "./serve-here.ts";
-import { opinionOfMacOS, passTheFirstLaunch, holdTheOpinionOfBackground } from "./first-launch/index.ts";
 import { readQuestion, reply as answerQuestion, titleOf, type Read as QuestionRead } from "./question.ts";
 import { relaunchOf, holdPassage } from "./catch-up.ts";
 import { holdAnswered } from "./answered.ts";
@@ -241,12 +236,14 @@ const accountConnected = holdTheLogin(() => readTheAccountGitHub({ gh: process.e
 const budgetGitHub = holdTheBudgetGitHub();
 const callUnderBudget = budgetGitHub.appeler(callGitHub);
 // Un ticket pour le plus gros dépensier du jeton, s'il a pris plus que sa part (#4620) : un par pause, sans réessai si GitHub refuse.
+// Le dépôt de Brigade, où ce ticket se pose.
+const REPOSITORY_OF_BRIGADE = "benomite/brigade";
 let pauseSignalled = 0;
 const signalTheBiggest = (report: Parameters<typeof ticketOfTheBiggest>[0], until: number): void => {
   if (until === pauseSignalled) return;
   pauseSignalled = until;
   const ticket = ticketOfTheBiggest(report);
-  if (ticket !== null) void clientOfLabels.ecrire("POST", `/repos/${REPOSITORY_OF_THE_VISIT}/issues`, { title: ticket.title, body: ticket.body, labels: ["product"] }).catch(() => undefined);
+  if (ticket !== null) void clientOfLabels.ecrire("POST", `/repos/${REPOSITORY_OF_BRIGADE}/issues`, { title: ticket.title, body: ticket.body, labels: ["product"] }).catch(() => undefined);
 };
 // Le quota du compte, pour la jauge de l'onglet Stations (#4645) : lu par `/rate_limit`, hors du budget — GitHub ne le compte
 // pas, et la pause ne le retient pas.
@@ -587,16 +584,6 @@ async function holdWhatProvidesThisComputer(seenOne: SeenOfStations): Promise<vo
     console.error(`brigade: what this computer's station provides could not be written on GitHub — ${error instanceof Error ? error.message : String(error)}`);
   }
 }
-// L'écran du premier lancement avant l'avis de macOS (premier-lancement/, #4081) : sur un Mac neuf, inscrire la station à
-// l'ouverture de session fait dire à macOS qu'un élément d'arrière-plan s'est ajouté. L'inscription attend que le nouvel
-// arrivant ait vu l'écran qui le lui annonce et pressé son bouton ; la marque, à côté du fichier des projets, dit qu'il
-// l'a vu, et l'écran ne revient plus.
-const opinionOfBackground = holdTheOpinionOfBackground(() => tell("avisDeFond"));
-const brandOfTheOpinionOfBackground = join(dirname(pathConfiguration()), "avis-de-fond-vu");
-ipcMain.handle("avisDeFond", () => opinionOfBackground.attendu());
-ipcMain.handle("continuerLePremierLancement", () => opinionOfBackground.continuer());
-const afterTheOpinionOfBackground = <T>(declencher: () => Promise<T>): Promise<T> =>
-  passTheFirstLaunch({ avis: opinionOfMacOS({ mac: isOneMac(platform), inscrite: stationOfBackgroundInstalled({ plateforme: platform, maison: homedir(), localAppData: process.env.LOCALAPPDATA }) }), marque: brandOfTheOpinionOfBackground, afficher: opinionOfBackground.afficher, declencher, dire: (line) => console.error(line) });
 // Sur un ordinateur, l'app est une station (`role`) : la station de la machine — la même que celle d'un serveur —, sous
 // `station/` à côté du fichier des projets, tourne en fond, sans dépendre de l'app (station-fond/, #3630). L'app
 // installée l'inscrit à l'ouverture de session ; ouverte, elle la rejoint si elle tourne, la lance sinon, et l'appaire
@@ -607,7 +594,7 @@ const stationLocale =
         racine: rootOfTheStation,
         inscrire: async () =>
           locations.facon === "installee"
-            ? afterTheOpinionOfBackground(() => registerTheStationOfBackground({ plateforme: platform, maison: homedir(), localAppData: process.env.LOCALAPPDATA, uid: userInfo().uid, executer: run, node: locations.node, hote: HOST, racine: rootOfTheStation, embarque: role.principal, chemin: process.env.PATH, binaire: process.execPath }))
+            ? registerTheStationOfBackground({ plateforme: platform, maison: homedir(), localAppData: process.env.LOCALAPPDATA, uid: userInfo().uid, executer: run, node: locations.node, hote: HOST, racine: rootOfTheStation, embarque: role.principal, chemin: process.env.PATH, binaire: process.execPath })
             : { par: "aucune" },
         // Le `node` de `npm start`, ou celui du paquet de l'app installée : Electron n'en est pas un.
         lancer: () => launchTheBackground({ node: locations.node, embarque: role.principal, racine: rootOfTheStation, env: process.env }),
@@ -758,32 +745,6 @@ ipcMain.handle("gesteDeFiche", async (_, name: unknown, id: unknown, ticket: unk
   const rendered = await removeTheLabel(boards.dernier(aims.nom), id, ticket, clientOfLabels);
   if ("fait" in rendered) boards.oublier();
   return rendered;
-});
-// Le départ d'un projet qu'« Add a project » vient d'ouvrir (ticket 3268, departure-of-project.ts) : ses issues ouvertes lues sur
-// GitHub, triées par le second (son triage, `claude -p`), puis les lignes que le chef garde mises sur le rail — `product`,
-// `prio:<n>` et `fire` —, par le jeton du `gh` de ce poste.
-ipcMain.handle("departDuProjet", async (_, name: unknown) => {
-  const aims = knownOne(name);
-  if (aims === undefined) return { sans: `${String(name)} is no longer in the projects file` };
-  return proposeTheDeparture({ depot: await repositoryOfProject(aims), dossier: aims.dossier, lire: callGitHub, claude: process.env.BRIGADE_CLAUDE_BIN || "claude" });
-});
-ipcMain.handle("mettreSurLeRail", async (_, name: unknown, lines: unknown) => {
-  const aims = knownOne(name);
-  if (aims === undefined) return gone(name);
-  return putOnTheRail({ depot: await repositoryOfProject(aims), lignes: lines, client: clientOfLabels });
-});
-// Le premier ticket d'un projet prêt (ticket 3306, first-ticket.ts) : le second l'écrit d'après la réponse du chef, par
-// `claude -p` lancé comme son triage (`lancerLeTriage`) — rien n'est créé ; sur le « oui » du chef seul, l'issue est créée
-// avec ses labels, `fire` compris, par le jeton du `gh` de ce poste.
-ipcMain.handle("redigerLePremierTicket", async (_, name: unknown, request: unknown) => {
-  const aims = knownOne(name);
-  if (aims === undefined) return { refus: `${String(name)} is no longer in the projects file`, detail: "" };
-  return draftTheFirstTicket({ depot: await repositoryOfProject(aims), dossier: aims.dossier, demande: request, claude: process.env.BRIGADE_CLAUDE_BIN || "claude", lancer: launchTheTriage });
-});
-ipcMain.handle("creerLePremierTicket", async (_, name: unknown, draft: unknown) => {
-  const aims = knownOne(name);
-  if (aims === undefined) return { refus: `nothing was created: ${String(name)} is no longer in the projects file`, detail: "" };
-  return createTheFirstTicket(clientOfLabels, await repositoryOfProject(aims), draft);
 });
 // Un geste d'une carte que la station a mise de côté (ticket 3147) : « Relaunch » retire `served-elsewhere` de l'issue,
 // « Close as already done » la ferme comme terminée — chacun par l'accès GitHub de l'app (actions-refusal.ts). « Ask the second »
@@ -981,9 +942,6 @@ ipcMain.handle("reglagesDeLaStation:ecrire", (_, change: unknown) =>
 ipcMain.handle("retirerDUneStation", (_, name: unknown) => projectsOfStations.retirer(name));
 // La page d'un projet déménage sa cuisine, d'un geste, vers une autre station appairée — cet
 // ordinateur, sa box, une autre : l'opération du runtime l'écrit, ou dit en une phrase pourquoi non.
-// « Continue without sandbox » (#1113) : la décision du chef se note par la fonction du runtime, dans l'état
-// du projet sur la station de cet ordinateur.
-ipcMain.handle("continuerSansBacASable", (_, name: unknown) => projectsOfStations.continuerSansBac(name));
 // Une issue d'un choix, sur la carte d'un besoin qui manque (#1400) : elle s'écrit dans la demande de la principale,
 // qui la pose à son journal (projects/projects.ts, `choisir`).
 ipcMain.handle("choisirUneIssue", (_, name: unknown, choice: unknown, issue: unknown) => projectsOfStations.choisir(name, choice, issue));
@@ -1053,7 +1011,6 @@ ipcMain.handle("projetsServis", async () => {
 // encore reçoivent ce qu'ils disent quand il n'y a rien ; ils partent avec leurs tickets (#4503, #4505).
 const NOT_PAIRED = "Stations are no longer paired nor registered on GitHub: a station's kitchen serves the projects of its kitchen/projects file.";
 const NOT_DONE = { refus: "nothing was done: stations are no longer paired", detail: NOT_PAIRED };
-ipcMain.handle("stationsDuChef", () => ({ state: "listed", stations: [], unreadable: [], reason: NOT_PAIRED }));
 ipcMain.handle("stationsDuCompte", () => ({ state: "listed", stations: [], unreadable: [], reason: NOT_PAIRED }));
 ipcMain.handle("choisirLesProjets", () => NOT_DONE);
 // « This computer » sur un projet (#4568) : sa ligne entre dans le fichier des projets de la cuisine de cet ordinateur
@@ -1103,31 +1060,6 @@ ipcMain.handle("ouvrirLaPage", (_, url: unknown) => {
     () => false,
   );
 });
-// Le lien de l'app Android que l'offre du téléphone montre (#3303, update/android.ts) : l'`apkUrl` de la dernière
-// version publiée, ou la page des versions s'il ne se lit pas — et lui seul, ensuite, s'ouvre par `ouvrirLaPage`.
-ipcMain.handle("lienDeLApk", async () => {
-  const link = await apkLink();
-  pagesOfFirst.add(link);
-  return link;
-});
-// Un téléphone déjà connecté au compte GitHub de cet ordinateur (#3303, phone-connected.ts) : la trace que l'app
-// Android pose dans un gist, lue par le `gh` du poste. `illisible` quand la liste ne se lit pas : l'offre ne se montre pas.
-ipcMain.handle("telephoneConnecte", async (): Promise<{ connecte: boolean } | { illisible: string }> => {
-  try {
-    return { connecte: (await githubOfStations({ gh: ghHere, delaiMs: 30_000 }).telephone?.()) === true };
-  } catch (error) {
-    return { illisible: error instanceof Error ? error.message : String(error) };
-  }
-});
-// La cuisine que la visite montre (#4087, visit.ts) : benomite/brigade, son rail et ce qui y attend un humain, lus sur
-// GitHub par la lecture même du rail d'un projet — des lectures seules, sous le budget du jeton du chef. Rien n'est cloné
-// ni ajouté au fichier des projets.
-ipcMain.handle("lireLaCuisineVisitee", (_, repository: unknown) =>
-  readTheKitchenVisited(repository, async (aims) => {
-    const readOne = await readTheBoardOfRepository({ depot: aims, appeler: callUnderBudget, memoire: memoryOfRail(aims) });
-    return withWhatAwaitingTheChef(readOne, readConditional(callUnderBudget, memoryOfRail(aims)));
-  }),
-);
 // Les labels d'une issue, lus et changés depuis une fiche (priority.ts, actions-github.ts), et le commentaire du chef,
 // avec le jeton du `gh` de ce poste.
 const clientOfLabels = clientOfThePriority({ jeton: tokenOfGh({ gh: ghHere, delaiMs: 10_000 }), appeler: callGitHub, envoyer: sendByFetch() });

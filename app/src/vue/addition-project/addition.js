@@ -8,16 +8,17 @@
 // n'a que le bouton de la connexion ; un collage qui n'est pas un dépôt se dit après lui.
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément (bricks.js), et rend des éléments.
 
-import { buttonAction } from "../bricks.js";
+import { buttonAction, sentence } from "../bricks.js";
 import { lineError } from "../components/line-error/line-error.js";
-import { ADD_ONE_PROJECT, READ_OF, NOT_REACHED } from "../lexicon.js";
-import { sentence } from "../onboarding/journey.js";
-import { openingSaid } from "../first-launch.js";
-import { setTheAccount } from "./account.js";
-import { actions } from "./connection.js";
+import { ADD_ONE_PROJECT, READ_OF, NOT_REACHED, RETRY } from "../lexicon.js";
+import { setTheAccount, ITSELF_CONNECT } from "./account.js";
+import { actions, buttonOfThePage, connectionSaid } from "./connection.js";
 import { filter } from "./step-project.js";
 
 /** @typedef {import("../bricks.js").Fabrique} Fabrique */
+/** @typedef {import("../../first-launch.ts").Opening} Opened */
+/** @typedef {import("../../first-launch.ts").Progress} Progress */
+/** @typedef {{ station: string, projet: string, depot: string, base?: string, etape?: Progress, echec?: Extract<Opened, { state: "failed" | "login" }>, login?: import("../../outages/actions.ts").RenderedOfOutage }} Opening */
 /** @typedef {{ depot: string, base: string }} Repository */
 /**
  * Ce que l'écran tient. `compte` : le compte GitHub de cet ordinateur — absent, sa lecture est en route ; `connexion` :
@@ -32,7 +33,7 @@ import { filter } from "./step-project.js";
  *   depots?: { depots: readonly Repository[] } | { refus: string },
  *   saisie: { recherche: string, colle: string },
  *   refus?: string,
- *   ouverture?: import("../first-launch.js").StateOfFirst["ouverture"],
+ *   ouverture?: Opening,
  * }} StateOfTheAddition
  */
 /**
@@ -49,6 +50,14 @@ import { filter } from "./step-project.js";
  *   ouvrirLaPage: (url: string) => void,
  * }} ActionsOfTheAddition
  */
+
+/** @typedef {import("./connection.js").Connection} Connection */
+export const OPENING_OF = (/** @type {string} */ project) => `Opening ${project}…`;
+// Le geste qui connecte Claude Code sur cet ordinateur : le mot du bouton de la panne « Max connection lost » (outages/outages.ts).
+export const ITSELF_CONNECT_A_CLAUDE = "log in";
+export const PROJECT_MISSING = "Type the project to work on: its GitHub repository, `owner/repo`.";
+export const ACCOUNT_MISSING = "Connect to GitHub above, or type the project as `owner/repo`: a name alone does not say whose it is.";
+export const PROJECT_UNREADABLE = "This is not a GitHub repository, `owner/repo`.";
 
 export const TITLE = ADD_ONE_PROJECT;
 export const EXPECTED = "Pick the repository of your project.";
@@ -164,4 +173,57 @@ export function setTheScreenOfAddition(doc, state, action) {
   if (state.refus !== undefined) root.append(lineError(doc, sentence(doc, "span", state.refus), undefined, { classe: "refus", alerte: true }));
   if (opening !== undefined && opening.station === "") root.append(...openingSaid(doc, opening, state.connexion === undefined ? {} : { connexion: state.connexion }, action));
   return root;
+}
+
+// Ce que le chef a tapé, lu : un dépôt `owner/repo` — ou un nom seul, complété par le compte connecté —, sinon pourquoi
+// rien ne s'ouvre. Rien n'est deviné : l'adresse de GitHub se reconnaît, le reste se refuse. Le nom du projet est celui du
+// dépôt, en minuscules : l'écran « Add a project » (addition-project/addition.js) le nomme de même.
+/** @param {string} account @param {string} project @returns {{ depot: string, nom: string } | { refus: string }} */
+export function readTheProject(account, project) {
+  const said = project.trim();
+  const who = account.trim();
+  if (said === "") return { refus: PROJECT_MISSING };
+  const withoutAddress = said.replace(/^https?:\/\/github\.com\//, "").replace(/\/+$/, "").replace(/\.git$/, "");
+  const complete = /^[A-Za-z0-9][A-Za-z0-9-]*\/[A-Za-z0-9_.-]+$/.test(withoutAddress) ? withoutAddress : /^[A-Za-z0-9_.-]+$/.test(withoutAddress) && who !== "" ? `${who}/${withoutAddress}` : undefined;
+  if (complete === undefined) return { refus: /^[A-Za-z0-9_.-]+$/.test(withoutAddress) ? ACCOUNT_MISSING : PROJECT_UNREADABLE };
+  if (!/^[A-Za-z0-9][A-Za-z0-9-]*\/[A-Za-z0-9_.-]+$/.test(complete)) return { refus: PROJECT_UNREADABLE };
+  const name = (complete.split("/")[1] ?? "").toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "");
+  return name === "" ? { refus: PROJECT_UNREADABLE } : { depot: complete, nom: name };
+}
+
+// Où en est le projet qu'un clic ouvre — sa copie en cours, ou ce qui l'a empêchée, avec ses gestes. Sous sa station, ou
+// sous le formulaire quand il vient de là (station vide) — ou sous la liste de l'écran « Add a project » (addition.js).
+/**
+ * @param {Fabrique} doc @param {Opening} opening @param {{ connexion?: Connection }} state
+ * @param {{ ouvrir: (station: string, project: string, repository: string, base?: string) => void, seConnecter: () => void, seConnecterAClaude?: () => void, ouvrirLaPage: (url: string) => void }} action
+ */
+export function openingSaid(doc, opening, state, action) {
+  if (opening.echec === undefined) {
+    const said = created(doc, "p", opening.etape?.sentence ?? OPENING_OF(opening.projet));
+    said.className = "ouverture";
+    said.role = "status";
+    return [said];
+  }
+  const { echec: failure } = opening;
+  const retry = buttonAction(doc, RETRY, () => action.ouvrir(opening.station, opening.projet, opening.depot, opening.base));
+  // Claude Code pas connecté (ticket 4057) : rien n'a commencé. « log in » lance son login ; la copie repart quand il finit.
+  if (failure.state === "login") {
+    const login = opening.login;
+    return [
+      lineError(doc, sentence(doc, "span", failure.reason), undefined, { classe: "refus" }),
+      ...(login === undefined || "outilManquant" in login ? [] : ["fait" in login ? sentence(doc, "p", login.fait) : lineError(doc, sentence(doc, "span", login.refus), undefined, { classe: "refus" })]),
+      actions(doc, [...(action.seConnecterAClaude === undefined ? [] : [buttonAction(doc, ITSELF_CONNECT_A_CLAUDE, () => action.seConnecterAClaude?.(), { recommande: true })]), retry]),
+    ];
+  }
+  const refusal = lineError(doc, sentence(doc, "span", failure.reason), failure.detail, { classe: "refus" });
+  const link = "link" in failure ? failure.link : undefined;
+  return [
+    refusal,
+    // Le bouton de la connexion, dit des mots du compte : un même geste, un même nom sur l'écran.
+    ...("action" in failure && failure.action !== undefined ? connectionSaid(doc, state.connexion, ITSELF_CONNECT, action) : []),
+    actions(doc, [
+      ...(link === undefined ? [] : [buttonAction(doc, buttonOfThePage(link), () => action.ouvrirLaPage(link), { recommande: !("action" in failure && failure.action !== undefined) })]),
+      retry,
+    ]),
+  ];
 }

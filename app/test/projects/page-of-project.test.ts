@@ -143,9 +143,9 @@ test("un dépôt choisi n'appelle que son ouverture — sa copie, puis le fichie
   // sa station publierait sur GitHub (#1435), et le tableau de la cuisine de son dépôt (#1588) ; l'accueil, les stations du
   // compte GitHub (#1706), les GitHub Apps de la station de cet ordinateur (#2317), les projets qu'elle sert (#2359), ses
   // humains, les stations qui y contribuent, ses agents (#4029), les outils
-  // que son clone demande (#4059), sa fiche (#4240), ce qui a changé depuis sa dernière ouverture (#4649) : des lectures, pas des gestes.
+  // que son clone demande (#4059), la mise en place de son dépôt (`checkRepoSetup`, #3170), sa fiche (#4240), ce qui a changé depuis sa dernière ouverture (#4649) : des lectures, pas des gestes.
   assert.deepEqual(
-    played.appels.slice(calledBefore).map(({ geste: action }) => action).filter((action) => !["ouvrirDUneStation", "faits", "regarder", "espace", "onglet", "retrait", "ordinaires", "tous", "tableauDuProjet", "stationsDuCompte", "appsDeLaStation", "projetsServis", "lireLesAgents", "outilsManquants", "lireUnFichierDuProjet", "sinceYouLastLooked"].includes(action)),
+    played.appels.slice(calledBefore).map(({ geste: action }) => action).filter((action) => !["ouvrirDUneStation", "faits", "regarder", "espace", "onglet", "retrait", "ordinaires", "tous", "tableauDuProjet", "checkRepoSetup", "stationsDuCompte", "appsDeLaStation", "projetsServis", "lireLesAgents", "outilsManquants", "lireUnFichierDuProjet", "sinceYouLastLooked"].includes(action)),
     [],
   );
   assert.equal(played.appels.some(({ geste: action }) => action === "confierAUneStation" || action === "ajouterAUneStation"), false);

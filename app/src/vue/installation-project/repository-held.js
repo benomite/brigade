@@ -8,15 +8,27 @@
 // (projets/demande.ts) ; le runtime efface l'état dès que le geste est fait, et la page, relue, revient
 // à son message. Ce module ne touche pas `document` : il reçoit de quoi créer un élément (bricks.js).
 
-import { buttonAction } from "../bricks.js";
+import { buttonAction, sentence } from "../bricks.js";
 import { lineError } from "../components/line-error/line-error.js";
-import { sentence, nextTrialSays } from "./journey.js";
 
 /** @typedef {import("../bricks.js").Fabrique} Fabrique */
 /** @typedef {import("../../projects/request.ts").AccessBlocked} Access */
 /** @typedef {import("../../projects/request.ts").FailureOfWorktree} Failure */
 /** @typedef {import("../../projects/request.ts").Refusal} Refusal */
 /** @typedef {import("../../projects/request.ts").FailureOfClone} Clone */
+
+// L'heure du prochain essai d'une préparation en échec, d'après l'instant où la page se pose.
+// Passée, elle ne s'annonce plus : l'essai est dû, la prochaine lecture dira ce qu'il a donné.
+/** @param {string | null} nextTrial @param {number} now */
+export function nextTrialSays(nextTrial, now) {
+  if (nextTrial === null) return "It is not retried by itself.";
+  const instant = Date.parse(nextTrial);
+  if (Number.isNaN(instant)) return "It is retried by itself.";
+  const remains = instant - now;
+  if (remains <= 0) return "Its retry is due now.";
+  const hour = new Date(instant).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  return `Next retry at ${hour}, in ${Math.ceil(remains / 60_000)} min.`;
+}
 
 // Le détail de git, que la raison de l'accès porte entre parenthèses à sa fin : au survol, pas à l'écran.
 const DETAIL_OF_GIT = /\s*\(git: ([^)]*)\)\.?$/;

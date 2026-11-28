@@ -1,6 +1,5 @@
 // La trace du téléphone connecté (#3303) : l'app Android, une fois connectée au compte GitHub du chef (le ticket 2500),
-// pose dans ce compte un gist secret qui porte `brigade-telephone.json` — et rien d'autre. Le desktop la lit pour ne pas
-// offrir d'installer le téléphone au chef dont un téléphone est déjà connecté (vue/offer-phone/). Aucune liaison
+// pose dans ce compte un gist secret qui porte `brigade-telephone.json` — et rien d'autre. Le desktop la lit. Aucune liaison
 // directe : comme les stations (stations/document.ts), le téléphone écrit sur GitHub, le desktop y lit.
 //
 // Le gist : { "brigade": "telephone", "format": 1, "connecteLe": "<ISO>" }, sous la description « brigade — phone ».

@@ -16,7 +16,7 @@ import type { Outage } from "../../src/outages/outages.ts";
 import { readTracking } from "../../src/projects/request.ts";
 import { calibrationRecommended, EFFORTS, machineProposed, MODELS, type ProjectSeen, type SeenOfProjects } from "../../src/projects/projects.ts";
 import type { SeenOfStations } from "../../src/stations/stations.ts";
-import { COPIED, COPY, DETAILS, OPEN_ON_GITHUB, setRepositoryHeld } from "../../src/vue/onboarding/repository-held.js";
+import { COPIED, COPY, DETAILS, OPEN_ON_GITHUB, setRepositoryHeld } from "../../src/vue/installation-project/repository-held.js";
 import { Fake as Fabrique, type Fake, playTheVue, repos } from "../helpers/false-vue.ts";
 
 const A = "2026-10-19T12:00:00.000Z";

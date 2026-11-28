@@ -4,7 +4,7 @@
 // d'appairage à taper, ni QR à scanner, ni adresse de station. Ce qu'on attend du chef, en tête, en une phrase ; dessous,
 // un bouton, « sign in with GitHub ». Le pont du téléphone (app/android/web/pont.js) mène le login avec GitHub : la vue
 // montre le code à taper sur la page de GitHub qu'il a ouverte, comme le premier lancement du desktop le montre — la même
-// brique, `connexionDite` (first-launch.js). Connecté, l'app passe à ses projets ; refusé sur GitHub, le code
+// brique, `connexionDite` (addition-project/connection.js). Connecté, l'app passe à ses projets ; refusé sur GitHub, le code
 // expiré ou GitHub injoignable, une ligne le dit sous le bouton, le détail au survol, et le chef recommence d'un clic.
 // Un pont qui sait lire les outils de sa machine (`outilsManquants`, ticket 4059) les vérifie à l'ouverture et avant
 // chaque connexion : un outil qui manque prend la place du bouton — l'écran de l'outil manquant (outils-requis/) —, et
@@ -14,7 +14,7 @@
 
 import { buttonAction, hover } from "./bricks.js";
 import { lineError } from "./components/line-error/line-error.js";
-import { connectionSaid } from "./first-launch.js";
+import { connectionSaid } from "./addition-project/connection.js";
 import { NOT_STILL } from "./lexicon.js";
 import { setTheTools, holdTheTools } from "./tools-required/tools-required.js";
 

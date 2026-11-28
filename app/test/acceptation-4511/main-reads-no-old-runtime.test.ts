@@ -1,6 +1,6 @@
 // #4511 — main.ts and the bridge read nothing from the old runtime: none of them names a `runtime/src/<x>`
 // but `runtime/src/kitchen/`; every channel the desktop bridge wires has its handler, and the bridge declares no channel
-// that none has; what main.ts read through the old runtime's modules — the GitHub sign-in, the first ticket, a project's
+// that none has; what main.ts read through the old runtime's modules — the GitHub sign-in, a project's
 // local copy, Claude Code's session — it now does itself.
 import assert from "node:assert/strict";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
@@ -8,7 +8,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, test, type TestContext } from "node:test";
 import { failureOfGh, readTheAccountGitHub, signInToGitHub } from "../../src/connection-github.ts";
-import { create, draft } from "../../src/first-ticket.ts";
 import { openTheLocalCopy, sessionOfClaude } from "../../src/local-copy.ts";
 import { WITHOUT_POSIX } from "../helpers/posix.ts";
 
@@ -84,32 +83,6 @@ describe("#4511 — a `gh` that fails, judged by the app", () => {
     const offline = program(t, "echo 'error connecting to api.github.com' >&2\nexit 1");
     const readOne = await readTheAccountGitHub({ gh: offline, env: process.env });
     assert.ok("refus" in readOne && /cannot be reached/.test(readOne.refus));
-  });
-});
-
-describe("#4511 — the first ticket, written by the second and created on GitHub by the app", () => {
-  const DRAFT = { title: "Show the rail first", body: "## Context\nThe chef wants the rail.\n\n## Acceptance criteria\n- when I open the app, I see the rail" };
-
-  test("the second gets the chef's answer, and its JSON is the draft; nothing it cannot read is a draft", async () => {
-    const given: string[] = [];
-    const launch = async (command: string, args: readonly string[], entry: string) => (given.push(`${command} ${args.join(" ")}`, entry), { code: 0, sortie: `Here it is: ${JSON.stringify(DRAFT)}`, erreur: "" });
-    assert.deepEqual(await draft({ depot: "acme/parade", dossier: "/tmp", demande: { answer: "the rail" }, claude: "claude", lancer: launch }), { draft: DRAFT });
-    assert.equal(given[0], "claude -p");
-    assert.match(given[1] ?? "", /You are the second of the project acme\/parade[\s\S]*The chef's answer:\nthe rail$/);
-    const badly = async () => ({ code: 0, sortie: '{"title": "no sections", "body": "text"}', erreur: "" });
-    const refused = await draft({ depot: "acme/parade", dossier: "/tmp", demande: { answer: "x" }, claude: "claude", lancer: badly });
-    assert.ok("refus" in refused && /cannot read as a ticket/.test(refused.refus) && /## Context/.test(refused.detail));
-    const empty = await draft({ depot: "acme/parade", dossier: "/tmp", demande: { answer: " " }, claude: "claude", lancer: badly });
-    assert.ok("refus" in empty && /nothing was sent/.test(empty.refus));
-  });
-
-  test("on the chef's yes, the issue is created with `product`, `prio:1` and `fire`; a refusal of GitHub is said", async () => {
-    const posted: unknown[] = [];
-    const client = { ecrire: async (method: string, path: string, body?: unknown) => (posted.push({ method, path, body }), { status: 201, data: { number: 12, html_url: "https://github.com/acme/parade/issues/12" } }) };
-    assert.deepEqual(await create(client, "acme/parade", DRAFT), { ticket: 12, url: "https://github.com/acme/parade/issues/12" });
-    assert.deepEqual(posted, [{ method: "POST", path: "/repos/acme/parade/issues", body: { ...DRAFT, labels: ["product", "prio:1", "fire"] } }]);
-    const refusing = { ecrire: async () => ({ status: 403, data: { message: "Resource not accessible" } }) };
-    assert.deepEqual(await create(refusing, "acme/parade", DRAFT), { refus: "nothing was created: GitHub refused the issue on acme/parade", detail: "HTTP 403 — Resource not accessible" });
   });
 });
 

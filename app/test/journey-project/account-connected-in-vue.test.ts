@@ -2,7 +2,7 @@
 // « connecté » net — pas une phrase de plus en petit. Joué devant un faux document.
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { setTheAccount, type ActionsOfAccount } from "../../src/vue/journey-project/account.js";
+import { setTheAccount, type ActionsOfAccount } from "../../src/vue/addition-project/account.js";
 import { Fake } from "../helpers/false-vue.ts";
 
 const doc = { createElement: (balise: string) => new Fake(balise) };

@@ -32,10 +32,6 @@ const bridge = {
   lireQuestion: (project, ticket) => ipcRenderer.invoke("lireQuestion", project, ticket),
   situation: (card) => ipcRenderer.invoke("situation", card),
   gestesDeFiche: (card) => ipcRenderer.invoke("gestesDeFiche", card),
-  departDuProjet: (project) => ipcRenderer.invoke("departDuProjet", project),
-  mettreSurLeRail: (project, lines) => ipcRenderer.invoke("mettreSurLeRail", project, lines),
-  redigerLePremierTicket: (project, request) => ipcRenderer.invoke("redigerLePremierTicket", project, request),
-  creerLePremierTicket: (project, draft) => ipcRenderer.invoke("creerLePremierTicket", project, draft),
   gesteDeFiche: (project, id, ticket, value) => ipcRenderer.invoke("gesteDeFiche", project, id, ticket, value),
   lireHistoire: (project, ticket) => ipcRenderer.invoke("lireHistoire", project, ticket),
   lireDiscussion: (project, ticket) => ipcRenderer.invoke("lireDiscussion", project, ticket),
@@ -83,7 +79,6 @@ const bridge = {
   lireReglagesDeLaStation: () => ipcRenderer.invoke("reglagesDeLaStation:lire"),
   ecrireReglagesDeLaStation: (change) => ipcRenderer.invoke("reglagesDeLaStation:ecrire", change),
   retirerDUneStation: (name) => ipcRenderer.invoke("retirerDUneStation", name),
-  continuerSansBacASable: (name) => ipcRenderer.invoke("continuerSansBacASable", name),
   choisirUneIssue: (name, choice, issue) => ipcRenderer.invoke("choisirUneIssue", name, choice, issue),
   signaler: (request) => ipcRenderer.invoke("signaler", request),
   demenagerLaCuisine: (name, to) => ipcRenderer.invoke("demenagerLaCuisine", name, to),
@@ -110,10 +105,8 @@ const bridge = {
   // Les projets que la station de cet ordinateur sert (ticket 2359) : sa liste, et un projet ajouté ou retiré.
   projetsServis: () => ipcRenderer.invoke("projetsServis"),
   servirUnProjet: (repository, served) => ipcRenderer.invoke("servirUnProjet", repository, served),
-  // Le premier lancement, sur un ordinateur neuf (ticket 1434) : les stations du chef et leurs projets, lus par le
-  // runtime ; un projet ouvert d'un clic — chaque étape de sa copie arrive par `surOuverture` — ; la connexion à
+  // Un projet ouvert d'un clic — chaque étape de sa copie arrive par `surOuverture` — ; la connexion à
   // GitHub, dont la fin arrive par `surConnexionGitHub` ; une page qu'un échec a nommée.
-  stationsDuChef: () => ipcRenderer.invoke("stationsDuChef"),
   ouvrirDUneStation: (name, repository, base) => ipcRenderer.invoke("ouvrirDUneStation", name, repository, base),
   seConnecterAClaude: () => ipcRenderer.invoke("seConnecterAClaude"),
   seConnecterAGitHub: () => ipcRenderer.invoke("seConnecterAGitHub"),
@@ -123,12 +116,6 @@ const bridge = {
   // Le compte GitHub de cet ordinateur, que dit l'étape du compte du parcours d'ajout (ticket 2475).
   compteGitHub: () => ipcRenderer.invoke("compteGitHub"),
   ouvrirLaPage: (url) => ipcRenderer.invoke("ouvrirLaPage", url),
-  // Le lien de l'app Android que l'offre du téléphone montre (ticket 3303) : son `apkUrl`, ou la page des versions.
-  lienDeLApk: () => ipcRenderer.invoke("lienDeLApk"),
-  // Un téléphone déjà connecté au compte GitHub du poste (ticket 3303) : la trace qu'il pose dans un gist.
-  telephoneConnecte: () => ipcRenderer.invoke("telephoneConnecte"),
-  // La cuisine que la visite montre (ticket 4087) : son rail, lu sur GitHub en lectures seules, sans clone.
-  lireLaCuisineVisitee: (repository) => ipcRenderer.invoke("lireLaCuisineVisitee", repository),
   // Les stations enregistrées sous le compte GitHub du chef (ticket 1706), et les projets que chacune sert, écrits dans
   // son gist.
   stationsDuCompte: () => ipcRenderer.invoke("stationsDuCompte"),
@@ -156,11 +143,6 @@ const bridge = {
   surUrgence: (receive) => void ipcRenderer.on("urgence", (_, project) => receive(project)),
   // Une question cliquée dans le menu de la barre des menus (menu-bar.ts) : sa carte s'ouvre.
   surOuvrirCarte: (receive) => void ipcRenderer.on("ouvrirCarte", (_, project, ticket) => receive(project, ticket)),
-  // L'écran du premier lancement avant l'avis de macOS (ticket 4081, vue/first-launch/) : attendu dès l'ouverture de
-  // la vue, ou plus tard par `surAvisDeFond` ; son bouton rend la main à l'inscription de la station.
-  avisDeFond: () => ipcRenderer.invoke("avisDeFond"),
-  surAvisDeFond: (receive) => void ipcRenderer.on("avisDeFond", () => receive()),
-  continuerLePremierLancement: () => ipcRenderer.invoke("continuerLePremierLancement"),
   surAmont: (receive) => void ipcRenderer.on("amont", (_, seenOne) => receive(seenOne)),
   surCode: (receive) => void ipcRenderer.on("code", (_, seenOne) => receive(seenOne)),
   surMiseAJour: (receive) => void ipcRenderer.on("miseAJour", (_, state) => receive(state)),

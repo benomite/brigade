@@ -3,7 +3,7 @@
 // chef —, et ce qui n'est pas un dépôt, qui se dit sans rien ajouter.
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { NO, NOT_ONE_REPOSITORY, repositoryPastesBy, filter, setStepProject } from "../../src/vue/journey-project/step-project.js";
+import { NO, NOT_ONE_REPOSITORY, repositoryPastesBy, filter, setStepProject } from "../../src/vue/addition-project/step-project.js";
 import { Fake } from "../helpers/false-vue.ts";
 
 const doc = { createElement: (balise: string) => new Fake(balise) };
