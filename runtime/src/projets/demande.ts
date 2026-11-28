@@ -110,7 +110,7 @@ import type { Delai } from "../installation/delai/delai.ts";
 import { selectionsLues, type Choix, type Selections } from "../installation/besoins/besoins.ts";
 import type { AccesBloque } from "./acces.ts";
 import type { EchecDuClone } from "./echec-du-clone.ts";
-import type { Refus } from "./refus.ts";
+import type { Refus } from "../remedes/registre.ts";
 import { NOM_DE_PROJET } from "../runtime.ts";
 
 export const FICHIER_PROJETS = "brigade-projets.json";

@@ -56,7 +56,7 @@ import { aSortirAvec, direSortieAvecEn, type AbandonEnChaine } from "./abandon-e
 import { decisionsPosees } from "./decisions.ts";
 import { GESTE_DE_STATION_A_CHAUD_EN } from "./stations-declarees.ts";
 import { prendLesOrdinaires } from "./bac-a-sable/ordinaires.ts";
-import type { Refus } from "./projets/refus.ts";
+import type { Refus } from "./remedes/registre.ts";
 import { dernierAbandon, dernierDigest, type AbandonNotifie, type DigestPublie } from "./journal-du-jour/publication.ts";
 
 // La raison d'un ticket 86 sous sa carte : ce que la cuisine fait d'une

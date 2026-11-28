@@ -4,7 +4,7 @@
 import { existsSync, mkdirSync } from "node:fs";
 import { hostname } from "node:os";
 import type { Fait } from "./evenements.ts";
-import type { CodeDeRefus } from "./projets/refus.ts";
+import type { CodeDeRefus } from "./projets/codes-de-refus.ts";
 import { cheminJournal, ouvrirJournal, type Journal } from "./journal.ts";
 import { sessionEnCours } from "./projections/sessions.ts";
 import { prendreVerrou, VerrouTenu } from "./verrou.ts";

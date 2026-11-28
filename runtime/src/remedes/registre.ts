@@ -14,7 +14,7 @@
 // remède lève ce refus.
 //
 // Ce que le payload porte est en anglais : c'est l'app qui le montre.
-import type { CodeDeRefus } from "../projets/refus.ts";
+import type { CodeDeRefus } from "../projets/codes-de-refus.ts";
 import { remedesDuCatalogue } from "./catalogue/index.ts";
 
 // Ce que la station donne au remède qu'elle joue.
@@ -47,6 +47,9 @@ export type Remede = {
 // Ce que le refus servi dit de son remède.
 export type DescripteurDeRemede = { id: string; description: string; destructive: boolean };
 export type CoteRemede = { remedy: DescripteurDeRemede } | { noRemedy: string };
+
+// Ce que le suivi d'un projet refusé porte (`projets/refus.ts` le construit).
+export type Refus = { status: "refused"; code: CodeDeRefus; message: string; action: string } & CoteRemede;
 
 export type Registre = {
   // Ajoute un remède ; refuse, en le disant, un identifiant pris, un refus déjà
