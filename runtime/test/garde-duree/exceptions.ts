@@ -160,4 +160,5 @@ export const EXCEPTIONS: Exception[] = [
   { file: "test/support/windows.ts", garde: "GARDE_MS: 60_000" },
   { file: "test/support/windows.ts", garde: "timeout: 300000" },
   { file: "test/support/windows.ts", garde: "timeout: 60_000" },
+  { file: "test/sandbox/installation.test.ts", test: "le cook rejoue `pnpm install --frozen-lockfile` sur un node_modules déjà installé, sans « Operation not permitted »" },
 ];
