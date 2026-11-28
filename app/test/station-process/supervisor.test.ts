@@ -310,3 +310,36 @@ test("l'app rouverte relance la station sur la version retenue — sauf si son p
   await jusqua(() => inService(ordi.racine)?.version === "1.0.2");
   assert.equal(freshOne.station.version(), "1.0.2");
 });
+
+test("#4795 : le paquet de l'app mis à jour pendant que la station tourne — sa cuisine repart sur le nouveau runtime, et un agent sous son relais n'est pas arrêté", { skip: WITHOUT_POSIX }, async (t) => {
+  const ordi = oneComputer(t);
+  const agentPid = join(ordi.machine, "agent.pid");
+  // Une cuisine d'essai qui laisse, une fois, un agent à elle : un process détaché, comme sous un relais.
+  const withAgent = `import { spawn } from "node:child_process";
+import * as fs from "node:fs";
+const fichierDeLAgent = ${JSON.stringify(agentPid)};
+if (!fs.existsSync(fichierDeLAgent)) fs.writeFileSync(fichierDeLAgent, String(spawn("sleep", ["60"], { detached: true, stdio: "ignore" }).pid));
+${HEALTHY}`;
+  const runtime = join(ordi.paquet, "Contents", "Resources", "runtime");
+  setRuntime(runtime, "1.0.0", withAgent);
+  const held = hold(t, ordi, { paquetMs: 20 });
+  await jusqua(() => inService(ordi.racine)?.version === "1.0.0");
+  const old = inService(ordi.racine)?.pid;
+  const agent = Number(readFileSync(agentPid, "utf8"));
+  t.after(() => {
+    try {
+      process.kill(agent, "SIGKILL");
+    } catch {
+      // Déjà parti.
+    }
+  });
+  assert.ok(vivant(agent));
+
+  // La mise à jour de l'app remplace le runtime du paquet, en place.
+  setRuntime(runtime, "1.0.1", withAgent);
+  await jusqua(() => inService(ordi.racine)?.version === "1.0.1" && inService(ordi.racine)?.pid !== old);
+  assert.ok(mort(old as number) || !vivant(old as number), "l'ancienne cuisine est arrêtée");
+  assert.ok(vivant(agent), "l'agent sous son relais tourne encore");
+  await jusqua(() => held.issues.at(-1)?.quoi === "passee");
+  assert.equal(held.station.version(), "1.0.1");
+});
