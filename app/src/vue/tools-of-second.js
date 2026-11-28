@@ -11,8 +11,7 @@
 // raison suffit.
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément (bricks.js), et rend des éléments.
 
-import { buttonAction, hover } from "./bricks.js";
-import { sentence } from "./onboarding/journey.js";
+import { buttonAction, hover, sentence } from "./bricks.js";
 import { RETRY } from "./lexicon.js";
 import { NAMES } from "./tools-required/tools-required.js";
 

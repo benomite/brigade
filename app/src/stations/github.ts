@@ -3,7 +3,6 @@
 // station directement, par aucun chemin : elle lit sur GitHub ce que chacune y a
 // écrit, et y écrit l'appairage.
 import { execFile, type ExecFileException } from "node:child_process";
-import { doorTheTrace } from "../phone-connected.ts";
 import { FILE_PAIRING, FILE_STATION } from "./document.ts";
 
 export type Settings = { gh: string; delaiMs: number };
@@ -22,8 +21,6 @@ export type GitHubOfStations = {
   ecrire(id: string, files: Files): Promise<void>;
   // Retire ce fichier du gist, sans toucher aux autres.
   supprimer(id: string, file: string): Promise<void>;
-  // Vrai : un gist du compte porte la trace d'un téléphone connecté (#3303, phone-connected.ts). Lève quand la liste ne se lit pas.
-  telephone?(): Promise<boolean>;
   // Quand GitHub rend les appels du compte, une fois sa limite atteinte — lu sans en dépenser un —, ou null s'il ne le dit pas.
   reprise?(): Promise<string | null>;
 };
@@ -108,15 +105,6 @@ export function githubOfStations(settings: Settings): GitHubOfStations {
         if (readOnes.length < BY_PAGE) break;
       }
       return gists;
-    },
-    async telephone() {
-      for (let page = 1; page <= PAGES_MAX; page++) {
-        const readOnes = JSON.parse(await read(`/gists?per_page=${BY_PAGE}&page=${page}`)) as unknown[];
-        if (!Array.isArray(readOnes)) throw new Error("the list of your gists is not what GitHub returns");
-        if (readOnes.some(doorTheTrace)) return true;
-        if (readOnes.length < BY_PAGE) return false;
-      }
-      return false;
     },
     async lire(id) {
       let output: string;

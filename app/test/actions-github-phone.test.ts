@@ -351,8 +351,6 @@ describe("par le pont de l'APK, sans station, les gestes du chef s'écrivent sur
     const { pont: bridge } = await bridgeOfLAPK(github());
     assert.equal(typeof bridge.repondreCarte, "function");
     assert.equal(typeof bridge.gesteDeValidation, "function");
-    // Tout autre geste ne fait rien et ne rend rien.
-    assert.equal(await bridge.gesteDeFiche!(PROJECT, "retirer", 22), undefined);
     assert.equal(await bridge.attente!(PROJECT, "attente-reprendre", 31), undefined);
   });
 });

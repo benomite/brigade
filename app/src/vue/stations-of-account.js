@@ -14,12 +14,12 @@
 // elle sert ce qui est choisi à son retour.
 // Sous la liste, ce que la lecture du compte a de plus à dire (`lectureDuCompte`) : sans aucune station, la commande
 // d'installation, que copie un bouton ; une connexion à GitHub qui manque, le bouton du premier lancement
-// (first-launch.js) ; une lecture qui échoue, une ligne, son détail au survol.
+// (addition-project/connection.js) ; une lecture qui échoue, une ligne, son détail au survol.
 // Ce module ne touche pas `document` : il reçoit de quoi créer un élément (bricks.js), et rend des éléments.
 
 import { buttonAction, caseATick, hover } from "./bricks.js";
 import { lineError } from "./components/line-error/line-error.js";
-import { buttonOfThePage, connectionSaid, actions, sentenceAndDetail } from "./journey-project/connection.js";
+import { buttonOfThePage, connectionSaid, actions, sentenceAndDetail } from "./addition-project/connection.js";
 import { button as buttonOfTheFamily } from "./components/button/button.js";
 import { lineEmpty } from "./components/line-empty/line-empty.js";
 import { NOT_STILL, READ_OF, RECORDING } from "./lexicon.js";
@@ -29,7 +29,7 @@ import { outsideLineOfAccount } from "./choice-station/choice-station.js";
 /** @typedef {import("../stations-of-account.ts").StationsOfAccount} StationsOfAccount */
 /** @typedef {import("../stations-of-account.ts").StationRecorded} StationRecorded */
 /** @typedef {import("../projects/github.ts").RepositoryOfChef} RepositoryOfChef */
-/** @typedef {import("./first-launch.js").StateOfFirst["connexion"]} Connection */
+/** @typedef {import("./addition-project/connection.js").Connection} Connection */
 
 // Ce que la vue tient du bloc. `stations` : absentes, leur lecture est en route. `envoi` : la station dont la sélection
 // s'écrit. `refus` : pourquoi la dernière écriture n'a pas eu lieu. `copiee` : la commande d'installation que le bouton vient

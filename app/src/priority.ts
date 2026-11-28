@@ -1,13 +1,7 @@
-// Le client GitHub de l'app, et le label `prio:<n>` d'une issue que le triage du premier ticket d'un projet pose (#3268,
-// departure-of-project.ts) : l'ancien retiré, le nouveau posé, par l'API REST et le jeton du `gh` de ce poste.
+// Le client GitHub de l'app : la lecture et l'écriture des issues, par l'API REST et le jeton du `gh` de ce poste.
 //
 // Ce module compose les demandes ; ce qui les porte est donné par la plateforme — le `fetch` du desktop (`envoyerParFetch`).
-import { clientGitHub, bodyRead, DELAY_MS, refusalOf, type CallGitHub, type AnswerGitHub } from "./board/client.ts";
-
-// Les priorités qu'un ticket peut prendre : 1 est servi d'abord ; `none` retire son label, il passe après les autres.
-export const PRIORITIES: readonly string[] = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "none"];
-// Les labels de priorité que la cuisine lit (board/kitchen-board.ts, `priority`) : `prio:0` à `prio:9`.
-const LABEL_OF_PRIORITY = /^prio:([0-9])$/;
+import { clientGitHub, bodyRead, DELAY_MS, type CallGitHub, type AnswerGitHub } from "./board/client.ts";
 
 // Un `POST` ou un `DELETE` à cette adresse — ou un `PUT`, un `PATCH`, pour la réponse à une carte du chef (#2434,
 // board-actions/answer-github.ts) —, avec ces en-têtes et ce corps — un objet, que la plateforme écrit en JSON.
@@ -23,63 +17,6 @@ export function clientOfThePriority({ jeton: token, appeler: call, envoyer: send
     ecrire: (method, path, body) =>
       clientGitHub({ jeton: token, envoyer: (address, headers) => send(method, address, body === undefined ? headers : { ...headers, "Content-Type": "application/json" }, body) })(path),
   };
-}
-
-// La priorité que des labels portent, comme la box la lit : la plus forte, nulle sans aucune.
-export function priorityOfLabels(labels: readonly string[]): number | null {
-  const levels = labels.flatMap((label) => LABEL_OF_PRIORITY.exec(label)?.[1] ?? []).map(Number);
-  return levels.length === 0 ? null : Math.min(...levels);
-}
-
-// Ce que le départ reçoit : la priorité écrite — `niveau`, et `avant`, celle que l'issue
-// portait —, ou pourquoi rien n'a changé. `detail` : au survol.
-export type RenderedOfThePriority = { fait: string; detail: string; niveau: number | null; avant: number | null } | { refus: string; detail: string };
-
-const saidOne = (level: number | null) => (level === null ? "no `prio:` label" : `\`prio:${level}\``);
-const failure = (refusal: string, error: unknown): RenderedOfThePriority => ({ refus: refusal, detail: error instanceof Error ? error.message : String(error) });
-
-// Remplace le label `prio:` de l'issue de ce ticket, dans ce dépôt : l'issue est lue d'abord, puis le label voulu posé
-// s'il n'y est pas, et chaque autre `prio:` retiré. `valeur` : l'une des `PRIORITES`.
-export async function changeThePriority({ depot: repository, ticket, valeur: value, client }: { depot: string; ticket: unknown; valeur: unknown; client: ClientOfThePriority }): Promise<RenderedOfThePriority> {
-  if (typeof ticket !== "number" || !Number.isSafeInteger(ticket) || ticket < 1) return { refus: "nothing was changed: the action names no ticket", detail: "" };
-  if (typeof value !== "string" || !PRIORITIES.includes(value)) return { refus: `nothing was changed: the priority ${JSON.stringify(value) ?? String(value)} is not one of ${PRIORITIES.join(", ")}`, detail: "" };
-  const level = value === "none" ? null : Number(value);
-  const wanted = level === null ? null : `prio:${level}`;
-  const issue = `/repos/${repository}/issues/${ticket}`;
-  let labels: string[];
-  try {
-    const readEntry = await client.lire(issue);
-    if (readEntry.status !== 200) throw refusalOf(`the reading of issue #${ticket}`, readEntry);
-    const given = (typeof readEntry.data === "object" && readEntry.data !== null ? (readEntry.data as { labels?: unknown }).labels : undefined) ?? [];
-    labels = (Array.isArray(given) ? given : []).flatMap((label: unknown) => {
-      const name = typeof label === "string" ? label : typeof label === "object" && label !== null ? (label as { name?: unknown }).name : undefined;
-      return typeof name === "string" ? [name] : [];
-    });
-  } catch (error) {
-    return failure(`nothing was changed: issue #${ticket} was not read on GitHub`, error);
-  }
-  const before = priorityOfLabels(labels);
-  const old = labels.filter((label) => LABEL_OF_PRIORITY.test(label) && label !== wanted);
-  // Posé d'abord, puis les autres retirés : l'issue ne reste jamais sans priorité en chemin.
-  if (wanted !== null && !labels.includes(wanted)) {
-    try {
-      const setOne = await client.ecrire("POST", `${issue}/labels`, { labels: [wanted] });
-      if (setOne.status !== 200) throw refusalOf(`the label \`${wanted}\``, setOne);
-    } catch (error) {
-      return failure(`nothing was changed: GitHub did not put \`${wanted}\` on #${ticket}`, error);
-    }
-  }
-  for (const former of old) {
-    try {
-      const removed = await client.ecrire("DELETE", `${issue}/labels/${encodeURIComponent(former)}`);
-      // Déjà retiré : rien à faire.
-      if (removed.status !== 200 && removed.status !== 404) throw refusalOf(`the removal of \`${former}\``, removed);
-    } catch (error) {
-      const door = [...new Set([...labels.filter((label) => LABEL_OF_PRIORITY.test(label)), ...(wanted === null ? [] : [wanted])])].map((label) => `\`${label}\``).join(", ");
-      return failure(`the priority did not change: GitHub did not remove \`${former}\` from #${ticket} — its issue carries ${door}`, error);
-    }
-  }
-  return { fait: `priority changed on GitHub: #${ticket} now carries ${saidOne(level)} — the box reorders the rail when it reads it`, detail: `https://github.com/${repository}/issues/${ticket}`, niveau: level, avant: before };
 }
 
 // Une demande par `fetch` — celui de Node sur le desktop. Abandonnée passé `delaiMs`.

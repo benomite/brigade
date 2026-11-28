@@ -53,7 +53,6 @@ code,
 #projets button,
 .carte dd,
 #rail h4 > span:last-child,
-.premier-lancement .formulaire-du-premier input,
 .ajout-d-un-projet .depot button {
   font-family: var(--police-mono);
 }
@@ -303,29 +302,6 @@ main > header,
 #stations-du-projet p {
   margin: 0;
 }
-/* L'offre du téléphone (ticket 3303) : une ligne sous le délai, ses gestes au bout ; le lien et le compte côte à côte. */
-#offre-telephone {
-  padding: var(--pas-2) var(--pas-4);
-  border-bottom: 1px solid var(--trait-doux);
-}
-#offre-telephone .offre-telephone {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--pas-3);
-  margin: 0;
-  padding: 0;
-  color: var(--texte);
-}
-#offre-telephone .lien-apk {
-  color: var(--bleu);
-  text-decoration: underline;
-  cursor: pointer;
-}
-#offre-telephone .lecture,
-#offre-telephone .meme-compte {
-  color: var(--texte-doux);
-}
 /* Le temps de l'ajout au premier ticket servi (ticket 1401) : une ligne douce ; verte une fois figé. */
 #delai-du-projet {
   padding: var(--pas-2) var(--pas-4);
@@ -515,89 +491,6 @@ main > header,
   display: flex;
   align-items: center;
   gap: var(--pas-2);
-  color: var(--texte-doux);
-}
-/* Le parcours d'un projet neuf (ticket 1111), sous la ligne : en tête ce qu'on attend du chef, puis
-   ses quatre étapes, une par ligne, chacune avec son état — la courante sous un trait de l'accent,
-   comme dans l'installation guidée, celles à venir plus discrètes.
-   En échec, la préparation dit sa raison et son prochain essai en rouge clair, à la place du vide. */
-#stations-du-projet .parcours-du-projet {
-  flex-basis: 100%;
-}
-#stations-du-projet .parcours {
-  display: flex;
-  flex-direction: column;
-  gap: var(--pas-3);
-  max-width: 640px;
-  margin: var(--pas-2) 0 var(--pas-3);
-  padding: var(--pas-4) var(--pas-5);
-  border: 1px solid var(--trait);
-  border-radius: var(--rayon-carte);
-}
-#stations-du-projet .parcours .attendu {
-  font-size: var(--taille-intertitre);
-  font-weight: 700;
-}
-#stations-du-projet .parcours .etapes {
-  display: flex;
-  flex-direction: column;
-  gap: var(--pas-3);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-#stations-du-projet .parcours .etape {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--pas-3);
-}
-#stations-du-projet .parcours .etape.courante {
-  margin-left: calc(-1 * var(--pas-3));
-  padding-left: var(--pas-2);
-  border-left: 4px solid var(--accent);
-}
-#stations-du-projet .parcours .etape[data-etat="faite"] .titre .etat {
-  color: var(--vert);
-}
-#stations-du-projet .parcours .etape[data-etat="courante"] .titre .etat {
-  color: var(--texte);
-}
-#stations-du-projet .parcours .corps {
-  display: flex;
-  flex-direction: column;
-  gap: var(--pas-1);
-  min-width: 0;
-}
-#stations-du-projet .parcours .titre {
-  display: flex;
-  align-items: baseline;
-  gap: var(--pas-2);
-}
-#stations-du-projet .parcours .titre .etat,
-#stations-du-projet .parcours .geste .ou {
-  color: var(--discret);
-}
-#stations-du-projet .parcours .dit {
-  color: var(--texte-doux);
-  overflow-wrap: anywhere;
-}
-#stations-du-projet .parcours .etape[data-etat="a-venir"] .titre,
-#stations-du-projet .parcours .etape[data-etat="a-venir"] .dit {
-  color: var(--discret);
-}
-#stations-du-projet .parcours .geste,
-#stations-du-projet .parcours .ticket,
-#stations-du-projet .parcours .gestes-du-parcours {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--pas-2);
-}
-#stations-du-projet .parcours .dit.avertissement {
-  color: var(--texte);
-  font-weight: 600;
-}
-#stations-du-projet .parcours .etat-de-preparation {
   color: var(--texte-doux);
 }
 #stations-du-projet .depot-retenu {
@@ -1028,90 +921,7 @@ main > header,
   color: var(--texte-doux);
   overflow-wrap: anywhere;
 }
-/* Le premier lancement, sur un ordinateur neuf (ticket 1434) : en tête la phrase de ce qu'on attend du chef — ou
-   pourquoi rien ne se lit —, puis une carte par station, ses projets en boutons. Ce qui se passe sous une station —
-   la copie en cours, sa raison d'échouer — se lit sous ses projets ; le bouton vers « Add a project », discret, ferme l'écran. */
-.premier-lancement {
-  display: flex;
-  flex-direction: column;
-  gap: var(--pas-4);
-  max-width: 640px;
-}
-/* La phrase des stations, sous le compte : un titre de section, pas celui des sections de « Tous les projets ». */
-#tous .premier-lancement > .tete-des-stations {
-  margin-top: var(--pas-2);
-  font-size: var(--taille-intertitre);
-  font-weight: 700;
-  color: var(--texte);
-}
-.premier-lancement .tete-de-station {
-  display: flex;
-  align-items: baseline;
-  gap: var(--pas-3);
-  color: var(--texte-doux);
-}
-.premier-lancement .tete-de-station strong {
-  color: var(--texte);
-}
-.premier-lancement .gestes {
-  gap: var(--pas-2);
-  padding: 0;
-}
-.premier-lancement .ouverture {
-  color: var(--texte-doux);
-}
-.premier-lancement .code-de-connexion {
-  margin: 0;
-  color: var(--texte-doux);
-}
-.premier-lancement .code-de-connexion strong {
-  font-size: var(--taille-intertitre);
-  color: var(--texte);
-}
-.premier-lancement > .gestes:last-child {
-  margin-top: var(--pas-2);
-}
-.premier-lancement :is(h3) .survol {
-  margin-left: var(--pas-2);
-}
-/* Le premier lancement, en tête : sa phrase d'accueil, puis le compte GitHub de cet ordinateur (journey-project/account.js). */
-.premier-lancement > .bienvenue {
-  margin: 0;
-  font-size: var(--taille-intertitre);
-  color: var(--texte-doux);
-}
-.compte-du-premier {
-  display: flex;
-  flex-direction: column;
-  gap: var(--pas-2);
-}
-.compte-du-premier p {
-  margin: 0;
-}
-/* Connecté : le compte ressort, son état « connected » à côté ; changer de compte reste un petit lien dessous. */
-.compte-du-premier .compte-carte {
-  display: flex;
-  align-items: center;
-  gap: var(--pas-3);
-}
-.compte-du-premier .etat-connecte {
-  padding: var(--pas-1) var(--pas-2);
-  border-radius: var(--rayon-bouton);
-  border: 1px solid currentColor;
-  font-size: var(--taille-meta);
-  color: var(--vert);
-}
-.compte-du-premier .compte-connecte {
-  font-size: var(--taille-intertitre);
-  color: var(--texte);
-}
-.compte-du-premier .compte-connecte strong {
-  font-weight: 700;
-}
-.compte-du-premier .dit {
-  color: var(--texte-doux);
-}
-/* L'écran « Add a project » (ticket 3181, journey-project/addition.js) : une carte. En tête son titre et l'attendu, puis le
+/* L'écran « Add a project » (ticket 3181, addition-project/addition.js) : une carte. En tête son titre et l'attendu, puis le
    champ qui cherche parmi les dépôts du compte, une rangée par dépôt — les derniers poussés d'abord —, et le champ où
    coller un dépôt public, avec « add ». Ce que l'ouverture du dépôt choisi dit se lit dessous. */
 .ajout-d-un-projet.carte {
@@ -2630,23 +2440,6 @@ main > header {
   color: var(--discret);
   white-space: nowrap;
   vertical-align: middle;
-  border: 1px solid var(--trait);
-  border-radius: var(--rayon-bouton);
-}
-/* Le formulaire du premier lancement : le compte GitHub du chef et son projet, deux champs vides aux exemples neutres. */
-.premier-lancement .formulaire-du-premier {
-  display: flex;
-  flex-direction: column;
-  gap: var(--pas-2);
-}
-.premier-lancement .formulaire-du-premier label {
-  color: var(--texte-doux);
-}
-.premier-lancement .formulaire-du-premier input {
-  padding: var(--pas-2) var(--pas-3);
-  font-size: var(--taille-corps);
-  color: var(--texte);
-  background: var(--fond);
   border: 1px solid var(--trait);
   border-radius: var(--rayon-bouton);
 }

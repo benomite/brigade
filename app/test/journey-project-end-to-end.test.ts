@@ -12,10 +12,10 @@ import { BANNER } from "../src/facts.ts";
 import { TABS, HEADINGS } from "../src/tabs.ts";
 import type { Opening } from "../src/first-launch.ts";
 import { EFFORTS, MODELS } from "../src/projects/projects.ts";
-import { ADD, EXPECTED, NO, CLONE_IN, PASTE, SINCE_ONE_COMPUTER, UNREADABLE, READING, SEARCH, REREAD, WITHOUT_ACCOUNT, TITLE } from "../src/vue/journey-project/addition.js";
-import { ITSELF_CONNECT } from "../src/vue/journey-project/account.js";
-import { NOT_ONE_REPOSITORY } from "../src/vue/journey-project/step-project.js";
-import { RETRY } from "../src/vue/first-launch.js";
+import { ADD, EXPECTED, NO, CLONE_IN, PASTE, SINCE_ONE_COMPUTER, UNREADABLE, READING, SEARCH, REREAD, WITHOUT_ACCOUNT, TITLE } from "../src/vue/addition-project/addition.js";
+import { ITSELF_CONNECT } from "../src/vue/addition-project/account.js";
+import { NOT_ONE_REPOSITORY } from "../src/vue/addition-project/step-project.js";
+import { RETRY } from "../src/vue/lexicon.js";
 import { type Fake, type Played, playTheVue, type Answers, repos } from "./helpers/false-vue.ts";
 
 const PATH = "/home/chef/.config/brigade/app.json";
@@ -49,7 +49,6 @@ async function theApp(answers: Answers & { copie?: (name: string, repository: st
   const { copie: copy = (name: string, repository: string) => ({ state: "open" as const, project: name, repository: repository, folder: `${COPIES}/${name}`, cloned: true }), ...others } = answers;
   vue = await playTheVue({
     demarrage: startup,
-    stationsDuChef: () => NOT_ONE,
     compteGitHub: () => ({ login: "octo-chef" }),
     depotsDuChef: () => ({ depots: REPOSITORIES }),
     ouvrirDUneStation: (name, repository, base) => {

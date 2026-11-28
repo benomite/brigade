@@ -149,3 +149,26 @@ function titleAndResume(doc, title, resume) {
   said.textContent = resume;
   return [name, said];
 }
+
+/** @param {Fabrique} doc @param {string} balise @param {string} [text] */
+function created(doc, balise, text) {
+  const pose = doc.createElement(balise);
+  if (text !== undefined) pose.textContent = text;
+  return pose;
+}
+
+// Une phrase du runtime, ses mots entre accents graves — un label, `fire` — posés en code.
+/** @param {Fabrique} doc @param {string} balise @param {string} text */
+export function sentence(doc, balise, text) {
+  const pose = doc.createElement(balise);
+  text.split("`").forEach((piece, rank) => {
+    if (piece === "") return;
+    if (rank % 2 === 0) pose.append(piece);
+    else {
+      const code = created(doc, "code", piece);
+      code.className = "mono";
+      pose.append(code);
+    }
+  });
+  return pose;
+}

@@ -71,12 +71,10 @@ import { Terminal as Xterm } from "@xterm/xterm";
 // d'un geste dans son survol, une lecture qui manque en une ligne, une confirmation qui dit son prix.
 import { holdBanner } from "./update/banner.js";
 import { setConnected, setTheListGitHub, holdConnectionGitHub } from "./connection-github.js";
-import { holdOpinionOfBackground } from "./first-launch/opinion-of-background.js";
 import { setTheIdentities, holdTheIdentities } from "./identities-github.js";
 import { setTheProjectsServed, holdTheProjectsServed } from "./projects-served/projects-served.js";
 import { setTheProjectsOfTheStation, projectsServedBy } from "./station/page/StationProjects.js";
-import { setStepProject } from "./journey-project/step-project.js";
-import { buttonAction, caseATick, priceSays, hover } from "./bricks.js";
+import { buttonAction, caseATick, priceSays, hover, sentence } from "./bricks.js";
 import { confirmationOfAction } from "./components/confirmation/confirmation.js";
 import { lineError } from "./components/line-error/line-error.js";
 import { rowOfSetting as rowOfTheFamily } from "./components/setting/setting.js";
@@ -98,11 +96,10 @@ import { kitchenBoardGrid } from "./kitchen-board/kitchen-board.js";
 import { COOKS, OF_RAIL, columnOfPlan, NOT_READY, PASS as COLUMN_PASS, NOTHING_OF_READY, aOneAction, whatAwaitingYou, lineParked, planOfTheKitchen, setTheBandOfTop, setTheTodo } from "./kitchen/kitchen.js";
 import { lineOfAlerts } from "./line-of-status/line-of-status.js";
 import { setLineOfBreaker } from "./todo-breaker-line.js";
-import { setRepositoryHeld } from "./onboarding/repository-held.js";
+import { setRepositoryHeld } from "./installation-project/repository-held.js";
 import { setBlockages } from "./project/blockages.js";
 import { linesOfRefusal } from "./project/rail/refusal-of-station.js";
 import { setDelay } from "./project/delay.js";
-import { setTheOffer, firstProjectServed, holdTheOffer } from "./offer-phone/offer-phone.js";
 import { setChoice, withoutTheChoice } from "./project/choice.js";
 import { mountTheCardProject } from "./card-project/mount-card-project.js";
 import { levelOf, LEVELS_SAID } from "./levels.js";
@@ -119,19 +116,13 @@ import { setAge, setTrials } from "./cadence.js";
 import { setRankOfTrial } from "./card/trial.js";
 import { setLabels } from "./labels-of-slip.js";
 import { lineOfRefusal, rowOfRefusal } from "./refusal/refusal.js";
-import { afterTheDecision, sentence, setJourney as journeyOfOnboarding } from "./onboarding/journey.js";
-import { readTheProject, setFirstLaunch } from "./first-launch.js";
-import { holdTheAccount } from "./journey-project/account.js";
+import { holdTheAccount } from "./addition-project/account.js";
 import { setTheTools, holdTheTools } from "./tools-required/tools-required.js";
-import { REPOSITORY_OF_THE_VISIT, REPLAY, stepsOfTheVisit, markerOfTarget, setTheKitchenVisited, setVisit, holdTheVisit, findTheTarget } from "./visit/visit.js";
-import { CLONE_IN, setTheScreenOfAddition } from "./journey-project/addition.js";
+import { CLONE_IN, setTheScreenOfAddition, readTheProject } from "./addition-project/addition.js";
 import { AT_RETURN, thisComputerOfFirst, nameSaid, proposedOfOffice, BRING_BACK, oneMachine } from "./choice-station/choice-station.js";
-import { setTheDeparture, holdTheDepartures } from "./journey-first-project/departure.js";
-import { addTheStation, cardOfSetup, choiceOfStation, HERE, setJourneyFirstProject, progression, holdTheJourney, workOfSecond, seenOfJourney } from "./journey-first-project/journey-first-project.js";
-import { setTheRequestOfStation, holdTheRequestsOfStation } from "./installation-project/installation-project.js";
-import { setFirstTicket, holdTheFirstTickets } from "./first-ticket/first-ticket.js";
-import { setStoryOfFirstTicket, holdTheStoryOfFirstTicket } from "./story-first-ticket/story-first-ticket.js";
-import { repositoryPastesBy, NOT_ONE_REPOSITORY } from "./journey-project/step-project.js";
+import { choiceOfStation, HERE } from "./stations-tab/choice.js";
+import { setTheRequestOfStation, holdTheRequestsOfStation, addTheStation } from "./installation-project/installation-project.js";
+import { repositoryPastesBy, NOT_ONE_REPOSITORY } from "./addition-project/step-project.js";
 import { buttonOfAddition, stateOfTheLine, linesOfProjects, nowOfTheLine } from "./home/projects/projects.js";
 import { additionsOfProject as additionsOfRecorded, detailsOf, stateSays, issueOfTheAddition, readOfAccount, lineOfTheRecorded, lineFade, yourOf, oneLineByMachine } from "./stations-of-account.js";
 import { tellTheRead, setTheRead } from "./rail-read-stale.js";
@@ -259,47 +250,14 @@ function storageOfTheVue() {
     return undefined;
   }
 }
-// La visite d'une vraie cuisine (ticket 4087, visite/) : son écran par-dessus tout, la cuisine de Brigade en lecture seule,
-// l'étape où en est la visite guidée, et ce que la dernière lecture de cette cuisine a rendu — absente, elle est en route.
-const sectionVisit = element("visite");
-// L'app derrière la visite : inerte tant que la visite est ouverte — aucun de ses gestes sur un ticket ne se focalise, ne
-// se lit ni ne se clique sous l'écran de la visite, même quand un projet est ouvert dessous.
-const frameUnderTheVisit = element("cadre");
-const visit = holdTheVisit({ rendre: () => setTheVisit() });
-/** @type {import("../visit.ts").KitchenVisited | undefined} */
-let kitchenVisited;
-let readOfTheVisit = 0;
-const markTheTarget = markerOfTarget();
-// Ce que la page d'un projet montre tant qu'il n'est pas prêt (ticket 3166, parcours-premier-projet/) : à la place du rail,
-// une question à la fois — qui le cuit, puis sa mise en place s'il le faut. Le parcours de chaque projet qu'« Add a
-// project » a ouvert ; ceux qui attendent leur première lecture — elle seule dit si le compte GitHub peut écrire dans
-// leur dépôt ; les lectures de leur mise en place en route ; et le dernier titre que `claude` a donné au terminal du
-// second de chaque projet : au travail, ou au repos à son invite.
-const sectionOfJourney = element("parcours-premier-projet");
-const journeyOfProjects = holdTheJourney({ rendre: (name) => void (current?.nom === name && setTheProjectAPrepare()) });
-// Le récit du premier ticket du premier projet du chef (ticket 3302, recit-premier-ticket/) : au-dessus du rail, une ligne à
-// chaque vraie étape que les lectures du rail montrent, gardée dans le stockage de la vue jusqu'à ce que le chef la range.
-const sectionOfStory = element("recit-premier-ticket");
-const storyOfFirstTicket = holdTheStoryOfFirstTicket({ stockage: window.localStorage ?? undefined, rendre: () => setTheStoryOfFirstTicket() });
-// Le départ d'un projet qui arrive avec des issues ouvertes (ticket 3268, journey-first-project/departure.js) : l'écran des
-// propositions du second, avant les questions du parcours.
-const departuresOfProjects = holdTheDepartures({ rendre: (name) => void (current?.nom === name && setTheProjectAPrepare()) });
-// Le premier ticket d'un projet prêt (ticket 3306, premier-ticket/) : la question du second, son brouillon, le « oui » du chef.
-const firstTickets = holdTheFirstTickets({
-  rendre: (name) => void (current?.nom === name && setTheProjectAPrepare()),
-  rediger: (name, request) => brigade.redigerLePremierTicket(name, request),
-  creer: (name, draft) => brigade.creerLePremierTicket(name, draft),
-});
 // Un projet dont la mise en place vient de passer, qu'aucune station ne sert (ticket 3400, installation-projet/) : sa page
 // demande aussitôt laquelle le sert, cet ordinateur en tête. Rangée par « not now », la question ne revient pas.
 const sectionOfTheRequest = element("installation-projet");
 const requestsOfStation = holdTheRequestsOfStation({ rendre: (name) => void (current?.nom === name && setTheRequestOfStationHere()) });
-/** @type {Map<string, string>} */
-const aGuide = new Map();
 /** @type {Set<string>} */
 const preparationsInRead = new Set();
-/** @type {Map<string, string>} */
-const titlesOfSeconds = new Map();
+/** @type {Set<string>} */
+const setupsFollowed = new Set();
 const thread = element("fil");
 const banner = element("bandeau");
 const headOfSecond = element("tete-du-second");
@@ -393,10 +351,9 @@ function restTheTabStations() {
 let serverExpected;
 /** @param {import("../stations-of-account.ts").StationsOfAccount | undefined} readEntries */
 const idsOfAccount = (readEntries) => (readEntries?.state === "listed" ? new Set(readEntries.stations.map(({ id }) => id)) : undefined);
-// Le panneau se repose là où il est montré : l'onglet Stations, ou la page d'un projet pas prêt.
+// Le panneau se repose là où il est montré : l'onglet Stations.
 function restTheServer() {
   restTheTabStations();
-  if (current !== undefined && journeyOfProjects.de(current.nom) !== undefined) setTheProjectAPrepare();
 }
 // Ce que le panneau montre pour un projet. `confiable` : l'écran sait lui confier le projet — il le nomme alors.
 /** @param {string} project @param {boolean} confiable @returns {import("./add-server/add-server.js").StateOfServer} */
@@ -585,17 +542,6 @@ const stationsOfProject = element("stations-du-projet");
 const delayOfProject = element("delai-du-projet");
 // L'onglet Agents du projet affiché (ticket 4224, agents/) : ses agents au travail, lus à l'ouverture de l'onglet (ticket 4569).
 const agentsOfProject = holdTheAgents(document);
-// L'offre du téléphone (ticket 3303, offre-telephone/) : sous le délai du premier projet du chef, une fois son premier
-// ticket servi, si aucun téléphone n'est déjà connecté au compte GitHub ; acceptée, le lien de l'app Android ; déclinée
-// ou suivie, gardée rangée dans le stockage de la vue.
-const offerOfPhone = element("offre-telephone");
-const offer = holdTheOffer({
-  stockage: storageOfTheVue(),
-  lire: async () => brigade.lienDeLApk?.(),
-  connecte: async () => brigade.telephoneConnecte?.(),
-  ouvrir: (link) => void brigade.ouvrirLaPage?.(link),
-  rendre: () => setTheOfferOfPhone(current),
-});
 const bannerHealth = element("bandeau-sante");
 const blockagesOfProject = element("blocages-du-projet");
 /** @type {Map<string, Set<string>>} */
@@ -702,16 +648,11 @@ moveSays.ariaLive = "polite";
 const stationRefused = document.createElement("div");
 stationRefused.ariaLive = "polite";
 stationRefused.hidden = true;
-// Le parcours d'un projet neuf (ticket 1111) : de sa station choisie à son premier ticket, en quatre
-// étapes, telles que le suivi les publie — à la place du vide sous la ligne (onboarding/journey.js).
-const journeyOfProject = document.createElement("div");
-journeyOfProject.className = "parcours-du-projet";
-journeyOfProject.ariaLive = "polite";
 // Ce qui retient la cuisine du projet (ticket 1119) : l'accès au dépôt refusé, avec son geste, ou un worktree
 // impossible à préparer, avec sa raison et l'heure du prochain essai — à la place de « prepares it within a minute ».
 const repositoryHeld = document.createElement("div");
 repositoryHeld.hidden = true;
-stationsOfProject.append(lineOfStationsOfProject, openTheMove, openTheTrust, choiceOfMove, formOfTrust, moveSays, stationRefused, repositoryHeld, trustSaid, journeyOfProject);
+stationsOfProject.append(lineOfStationsOfProject, openTheMove, openTheTrust, choiceOfMove, formOfTrust, moveSays, stationRefused, repositoryHeld, trustSaid);
 
 /** @type {Map<number, { terminal: Terminal, xterm: Xterm, ajuste: FitAddon, cadre: HTMLDivElement }>} */
 const views = new Map();
@@ -1012,12 +953,6 @@ let trust;
 // `a` : quand (`Date.now()`). Ce qu'il annonce « within a minute » ne se dit plus passé la minute, ni
 // une fois le parcours du projet publié : c'est lui qui dit où il en est (ticket 1111).
 let trustSaidFor = { projet: "", dit: "", a: 0 };
-// Le parcours prêt d'un projet (ticket 1111) : celui dont la page le montre, et ceux où le chef l'a
-// écarté ou déjà vu — il ne revient pas à la visite suivante.
-/** @type {string | undefined} */
-let readyShows;
-/** @type {Set<string>} */
-const journeyRanges = new Set();
 // Le déménagement dont le choix est ouvert — pour quel projet —, s'il part, et vers quelle station (son gist).
 /** @type {{ projet: string, part: boolean, vers?: string } | undefined} */
 let move;
@@ -1126,13 +1061,6 @@ function vue(id) {
       return false;
     });
     xterm.onResize(({ cols, rows }) => brigade.redimensionner(id, cols, rows));
-    // Le titre que `claude` donne au terminal du second dit s'il tourne ou attend le chef : la mise en place le dit (ticket 3166).
-    xterm.onTitleChange((title) => {
-      const { terminal } = vue(id);
-      if (terminal.genre !== "second") return;
-      titlesOfSeconds.set(terminal.projet, title);
-      if (current?.nom === terminal.projet) setTheProjectAPrepare();
-    });
     /** @type {Terminal} */
     const terminal = { id, projet: "", genre: "shell", titre: "", note: "", arrete: false };
     heldOne = { terminal, xterm, ajuste: adjusts, cadre: frame };
@@ -1549,8 +1477,6 @@ function readTheTab() {
 /** @param {Terminal} terminal */
 function receive(terminal) {
   vue(terminal.id).terminal = terminal;
-  // Un second qui ne part pas, ou repart : la mise en place le dit (ticket 3166).
-  if (terminal.genre === "second" && current?.nom === terminal.projet) setTheProjectAPrepare();
 }
 
 // « + shell » demande où ouvrir : ce poste, la box, ou une station du projet. Là où il n'y a que ce
@@ -3972,8 +3898,6 @@ function opinionOfRepository(project, place) {
     void readTheRepository(project);
     return undefined;
   }
-  // Le projet n'est pas prêt et sa page le dit, une question à la fois (ticket 3166) : l'avis n'y ajoute pas un second geste.
-  if (journeyOpen(project.nom)) return undefined;
   const prepare = () => void prepareTheRepository(project);
   return place === "page" ? setOpinionOfRepository(document, "page", state, prepare) : setOpinionOfTodo(document, state, prepare);
 }
@@ -3983,7 +3907,6 @@ function setTheRepository(project, state) {
   repositories.set(project.nom, state);
   requestsOfStation.preparation(project.nom, state.etape);
   if (current?.nom !== project.nom) return;
-  setTheProjectAPrepare();
   setAlerts(project);
   setRail(project);
 }
@@ -4646,24 +4569,6 @@ function openTheChoiceOfMachine() {
   restTheTabStations();
 }
 openTheMove.addEventListener("click", openTheChoiceOfMachine);
-// « Continue without sandbox » : le chef décide pour la station du projet. Ce que le runtime a répondu se dit sous
-// la ligne ; l'avertissement, lui, s'en va quand la station publie l'état suivant.
-// Les projets dont le chef a décidé de continuer sans bac à sable : le parcours le montre sans attendre la station.
-/** @type {Set<string>} */
-const decisionsTaken = new Set();
-/** @param {string} name */
-async function continueWithoutSandbox(name) {
-  moveSaysFor = { projet: name, dit: "telling the station to continue without a sandbox…", refus: false, detail: "" };
-  setStationsOfProject();
-  try {
-    const rendered = await brigade.continuerSansBacASable(name);
-    if ("fait" in rendered) decisionsTaken.add(name);
-    moveSaysFor = "fait" in rendered ? { projet: name, dit: rendered.fait, refus: false, detail: "" } : { projet: name, dit: rendered.refus, refus: true, detail: rendered.detail ?? "" };
-  } catch (error) {
-    moveSaysFor = { projet: name, dit: "the choice could not be recorded: nothing was changed", refus: true, detail: error instanceof Error ? error.message : String(error) };
-  }
-  setStationsOfProject();
-}
 function closeMove() {
   move = undefined;
   choiceOfMove.hidden = true;
@@ -4717,11 +4622,6 @@ function stationsOfGithubOfProject(project) {
 // celles à qui le confier. Aucune lecture des stations n'est encore arrivée : le vide ne se dit pas.
 function setStationsOfProject() {
   const project = current;
-  // Le parcours prêt, montré puis quitté : il ne se remontre pas à la visite suivante.
-  if (readyShows !== undefined && readyShows !== project?.nom) {
-    journeyRanges.add(readyShows);
-    readyShows = undefined;
-  }
   stationsOfProject.hidden = project === undefined;
   if (project === undefined) {
     setTheChoice(undefined);
@@ -4753,14 +4653,12 @@ function setStationsOfProject() {
   // « + station » n'est plus sur Rail : une station s'ajoute depuis l'onglet Stations (ticket 3523).
   openTheTrust.hidden = trust !== undefined || move !== undefined || !readEntries || openTheTrust.textContent === "+ station";
   const seenOne = projectsSeen?.projets.find(({ nom: name }) => name === project.nom);
-  const onboarding = seenOne?.onboarding ?? null;
   const retained = setRepositoryHeld(document, { acces: seenOne?.acces ?? null, clone: seenOne?.clone ?? null, refus: seenOne?.refus ?? null, worktree: seenOne?.worktree ?? null, maintenant: Date.now(), copier: (command) => void navigator.clipboard.writeText(command), ouvrir: (url) => void brigade.autoriserSurGitHub(url) });
   repositoryHeld.hidden = retained === null;
   repositoryHeld.replaceChildren(...(retained === null ? [] : [retained]));
   // La station dit ce qui la retient : la phrase qui promet de se préparer « within a minute » ne se dit plus.
-  const announcementHeld = onboarding === null && retained === null && Date.now() - trustSaidFor.a < 60_000;
+  const announcementHeld = retained === null && Date.now() - trustSaidFor.a < 60_000;
   trustSaid.textContent = trustSaidFor.projet === project.nom && announcementHeld ? trustSaidFor.dit : "";
-  setTheJourney(project.nom, onboarding);
   // Les stations sont de l'onglet Stations (ticket 1184). Sur Rail, elles restent en vue tant qu'elles sont ce qui
   // t'attend : le projet ne cuit nulle part, son parcours est à suivre, un choix de machine est ouvert, ou
   // sa cuisine est retenue — un worktree qui ne se prépare pas (ticket 1119). L'accès au dépôt refusé et le refus de
@@ -4779,10 +4677,10 @@ function setStationsOfProject() {
   openTheMove.hidden = true;
   stationsOfProject.hidden =
     rows ||
-    (itselfLit(project) && journeyOfProject.hidden && (repositoryHeld.hidden || saysByTheAlert) && stationRefused.hidden && trust === undefined && move?.projet !== project.nom) ||
-    (onStations && journeyOfProject.hidden && repositoryHeld.hidden && trust === undefined && trustSaid.textContent === "") ||
+    (itselfLit(project) && (repositoryHeld.hidden || saysByTheAlert) && stationRefused.hidden && trust === undefined && move?.projet !== project.nom) ||
+    (onStations && repositoryHeld.hidden && trust === undefined && trustSaid.textContent === "") ||
     // Sur Rail, rien au-dessus des colonnes qu'un bouton (ticket 3523) : « move the kitchen » est dans l'onglet Stations, qui le dit.
-    (journeyOfProject.hidden && (repositoryHeld.hidden || saysByTheAlert) && stationRefused.hidden && trust === undefined && move?.projet !== project.nom && moveSays.hidden && lineOfStationsOfProject.hidden && openTheTrust.hidden && trustSaid.textContent === "");
+    ((repositoryHeld.hidden || saysByTheAlert) && stationRefused.hidden && trust === undefined && move?.projet !== project.nom && moveSays.hidden && lineOfStationsOfProject.hidden && openTheTrust.hidden && trustSaid.textContent === "");
   if (trust === undefined) return;
   setTheTrust(trust, project, { exclues: stations.map(({ id }) => id), demande: request, tenue: heldOne });
 }
@@ -4795,17 +4693,8 @@ function setTheDelay(project) {
   const pose = setDelay(document, { delai: seenOne?.delai, maintenant: Date.now() });
   delayOfProject.hidden = pose === null;
   delayOfProject.replaceChildren(...(pose === null ? [] : [pose]));
-  setTheOfferOfPhone(project);
 }
 
-// L'offre du téléphone, sur la page du premier projet servi seulement — ni sur le téléphone, ni rangée, ni quand un
-// téléphone est déjà connecté : la trace n'est lue qu'une fois le reste tenu.
-/** @param {Project | undefined} project */
-function setTheOfferOfPhone(project) {
-  const shownOne = project !== undefined && phoneSeen === undefined && firstProjectServed(projectsSeen?.projets ?? []) === project.nom && offer.montrable();
-  offerOfPhone.hidden = !shownOne;
-  offerOfPhone.replaceChildren(...(shownOne ? [setTheOffer(document, offer.etat, offer)] : []));
-}
 setInterval(() => {
   if (current !== undefined && !delayOfProject.hidden) setTheDelay(current);
 }, 30_000);
@@ -5097,34 +4986,6 @@ async function chooseOneIssue(name, id, issue) {
   if (rendered !== undefined && "fait" in rendered) heldOnes.retenus.add(id);
   else heldOnes.refus.set(id, rendered ?? { refus: "the choice could not be recorded" });
   setStationsOfProject();
-}
-
-// Le parcours du projet affiché, sous la ligne de ses stations (ticket 1111) : ses quatre étapes tant
-// qu'il se prépare ; prêt, la phrase qui invite à poser le premier ticket, jusqu'à ce que le chef
-// l'écarte ou quitte la page. Chaque page qu'il ouvre est une de celles que la station a publiées.
-/** @param {string} name @param {import("../projects/request.ts").Onboarding | null} onboarding */
-function setTheJourney(name, onboarding) {
-  if (onboarding?.decisionAttendue !== true) decisionsTaken.delete(name);
-  else if (decisionsTaken.has(name)) onboarding = afterTheDecision(onboarding);
-  const range = onboarding !== null && onboarding.termine && journeyRanges.has(name);
-  const pose = range
-    ? null
-    : journeyOfOnboarding(document, {
-        projet: name,
-        onboarding,
-        maintenant: Date.now(),
-        ouvrir: (url) => void brigade.autoriserSurGitHub(url),
-        continuerSansBac: () => void continueWithoutSandbox(name),
-        autreStation: openTheChoiceOfMachine,
-        ecarter: () => {
-          journeyRanges.add(name);
-          readyShows = undefined;
-          setStationsOfProject();
-        },
-      });
-  if (pose !== null && onboarding?.termine === true) readyShows = name;
-  journeyOfProject.hidden = pose === null;
-  journeyOfProject.replaceChildren(...(pose === null ? [] : [pose]));
 }
 
 // Le choix ouvert, posé de nouveau à chaque relecture des stations et des projets : ce que le chef a
@@ -5713,8 +5574,8 @@ function mark() {
   for (const project of configuration.projets) markSignal(project.nom);
   all.hidden = refuses || adds || current !== undefined;
   // À la largeur d'un téléphone, l'accueil est la liste des cartes qui attendent le chef (ticket 2915) : elle prend la place
-  // de « Tous les projets », sauf sous une page de l'app, une station ou le premier lancement, qui la couvrent comme lui.
-  const underOnePage = stationOpen !== undefined || (screenOfFirst !== undefined && screenOfFirst.parentElement === all);
+  // de « Tous les projets », sauf sous une station, qui la couvre comme lui.
+  const underOnePage = stationOpen !== undefined;
   const onTheCards = narrow() && !all.hidden && !underOnePage;
   cardsOfChef.hidden = !onTheCards;
   if (onTheCards) {
@@ -5726,17 +5587,12 @@ function mark() {
   principal.hidden = !refuses && current === undefined;
   columnSecond.hidden = current === undefined;
   readTheTab();
-  setTheProjectAPrepare();
   setTheRequestOfStationHere();
-  setTheStoryOfFirstTicket();
 }
 
 // Tous les projets, dans l'ordre du fichier, puis la station de cet ordinateur (ticket 2638), puis toutes les stations et
 // « + station », relues à chaque ouverture (ticket 3195) : l'écran se regarde, et un clic ouvre ce qu'il montre. Ce qui s'y voit se traite dans l'espace du projet, ou sur la page de la station.
 function openAll() {
-  // Sans projet (ticket 4082), « Tous les projets » est l'écran d'accueil du premier lancement : la marque du logo, et
-  // chaque retour des pages de l'app, y ramènent le novice en un clic.
-  if (withFirst()) return openFirst();
   current = undefined;
   adds = false;
   stationOpen = undefined;
@@ -5887,25 +5743,18 @@ async function chooseForOneRecorded(id, repositories) {
   return rendered;
 }
 
-// Le premier lancement, sur un ordinateur neuf (ticket 1434, first-launch.js) : tant que le fichier n'a aucun
-// projet, l'app s'ouvre sur les stations du chef et leurs projets, lus par le runtime, à la place de l'accueil —
-// « T » reste l'entrée affichée, et y ramène ; « + » mène à l'écran « Add a project ». Un projet s'ouvre d'un clic :
-// sa copie se fait, chaque étape se dit sous sa station, puis il entre dans le fichier, et son espace s'ouvre. Une
-// connexion à GitHub qui manque se fait d'un bouton ; faite, les stations sont relues — et une ouverture qu'elle
-// retenait repart d'elle-même.
-/** @type {import("./first-launch.js").StateOfFirst} */
-const first = { poste: WORKSTATION.nom, saisie: { projet: "" } };
-/** @type {any} */
-let screenOfFirst;
-let readOfFirst = 0;
+// L'ouverture d'un projet, depuis « Add a project » : sa copie se fait, chaque étape se dit sous la liste, puis il entre
+// dans le fichier, et son espace s'ouvre. La connexion à GitHub qui manque se fait d'un bouton, de l'accueil comme de
+// « Add a project » ; faite, une ouverture qu'elle retenait repart d'elle-même.
+/** @type {{ connexion?: import("./addition-project/connection.js").Connection, ouverture?: import("./addition-project/addition.js").Opening }} */
+const first = {};
 // Le projet ouvert, que le fichier n'a peut-être pas encore rendu : son espace s'ouvre dès qu'il y est.
 /** @type {string | undefined} */
 let firstAOpen;
-// Le compte GitHub de cet ordinateur (journey-project/account.js, ticket 2475), que disent le premier lancement et l'écran
-// « Add a project » : lu une fois à l'ouverture de l'un ou l'autre, et relu au bout d'une connexion — ou d'un changement de
-// compte, qui en est une. Chaque lecture repose les deux.
+// Le compte GitHub de cet ordinateur (addition-project/account.js, ticket 2475), que dit l'écran « Add a project » :
+// lu une fois à son ouverture, et relu au bout d'une connexion — ou d'un changement de compte, qui en est une.
 const accountOfJourney = holdTheAccount({ pont: brigade, rendre: () => setTheFirst() });
-/** @returns {import("./journey-project/account.js").StateOfAccount} */
+/** @returns {import("./addition-project/account.js").StateOfAccount} */
 const stateOfJourney = () => ({ ...accountOfJourney.etat, ...(first.connexion === undefined ? {} : { connexion: first.connexion }) });
 // Les outils que l'app ne livre pas (ticket 4059, outils-requis/) : la connexion à GitHub et le clone d'un projet
 // demandent Git et le GitHub CLI, le login Max demande Claude Code. Un pas qui en manque cède la place à l'écran de
@@ -5928,9 +5777,8 @@ const toolsOfLogin = holdTheTools({ pont: brigade, outils: ["claude"], rendre: (
 const actionsOfTools = (heldOnes) => ({ ouvrir: (/** @type {string} */ url) => void brigade.ouvrirLaPage?.(url), verifier: () => void heldOnes.verifier(true) });
 let opinionOfTools = false;
 function setTheToolsHere() {
-  const onTheFirst = screenOfFirst !== undefined && screenOfFirst.parentElement === all && !all.hidden;
-  if (onTheFirst) setTheFirst();
-  const heldOnes = [...(onTheFirst ? [] : [toolsOfJourney]), toolsOfLogin].find(({ etat: state }) => state.manque !== undefined);
+  setTheFirst();
+  const heldOnes = [toolsOfJourney, toolsOfLogin].find(({ etat: state }) => state.manque !== undefined);
   if (heldOnes === undefined) {
     if (opinionOfTools) opinion.hidden = true;
     opinionOfTools = false;
@@ -5947,184 +5795,37 @@ function setTheToolsHere() {
 function ifClaudeMissing(rendered) {
   if ("outilManquant" in rendered) void toolsOfLogin.verifier();
 }
-/** @type {import("./first-launch.js").ActionsOfFirst} */
+/** @type {Pick<import("./addition-project/addition.js").ActionsOfTheAddition, "ouvrir" | "seConnecter" | "changerDeCompte" | "relireLeCompte" | "ouvrirLaPage"> & { seConnecterAClaude?: () => void }} */
 const actionsOfFirst = {
   ouvrir: (station, project, repository, base) => void openOfAStation(station, project, repository, base),
   seConnecter: () => void itselfConnectAGitHub(),
   ...(brigade.seConnecterAClaude === undefined ? {} : { seConnecterAClaude: () => void itselfConnectAClaude() }),
   changerDeCompte: () => void itselfConnectAGitHub(),
   relireLeCompte: () => void accountOfJourney.lire(),
-  relire: () => void rereadTheFirst(),
   ouvrirLaPage: (url) => void brigade.ouvrirLaPage?.(url),
-  ajouterUnProjet: () => openAddition(),
-  visiter: () => beginTheVisit(),
-  outils: actionsOfTools(toolsOfJourney),
 };
-// Le desktop porte le premier lancement ; un pont qui ne le porte pas s'ouvre sur l'écran « Add a project ».
-const withFirst = () => configuration.projets.length === 0 && phone === undefined && brigade.stationsDuChef !== undefined;
-function openFirst() {
-  current = undefined;
-  adds = false;
-  stationOpen = undefined;
-  mark();
-  screenOfFirst = setFirstLaunch(document, { ...first, ...stateOfJourney(), poste: WORKSTATION.nom, outils: toolsOfJourney.etat }, actionsOfFirst);
-  all.replaceChildren(screenOfFirst);
-  accountOfJourney.lireUneFois();
-  if (!toolsOfJourney.etat.lu && toolsOfJourney.etat.enCours === undefined) void toolsOfJourney.verifier();
-  if (first.stations === undefined && readOfFirst === 0) void rereadTheFirst();
-}
-
-// Reposé à chaque changement — tant qu'il est l'écran montré : un autre l'a remplacé, rien n'y est reposé.
+// Reposé à chaque changement : la connexion lancée se dit sur l'accueil, et l'écran « Add a project » dit aussi le compte,
+// la connexion en route et le dépôt qui s'ouvre.
 function setTheFirst() {
-  // La connexion lancée depuis les stations du compte s'y dit aussi.
   if (first.connexion === undefined) delete stateOfRecorded.connexion;
   else stateOfRecorded.connexion = first.connexion;
   setStationsOfTheHome();
-  // L'écran « Add a project » dit aussi le compte, la connexion en route et le dépôt qui s'ouvre.
   if (adds) setTheAddition();
-  if (screenOfFirst === undefined || screenOfFirst.parentElement !== all || all.hidden) return;
-  screenOfFirst = setFirstLaunch(document, { ...first, ...stateOfJourney(), poste: WORKSTATION.nom, outils: toolsOfJourney.etat }, actionsOfFirst);
-  all.replaceChildren(screenOfFirst);
 }
 
-// L'écran de la visite, par-dessus tout, et la bulle de son étape ; la visite pas commencée ou quittée, rien. L'étape
-// désigne ce que l'écran de la cuisine visitée montre à l'instant.
-function setTheVisit() {
-  const inProgress = visit.etat;
-  if (inProgress === undefined) {
-    markTheTarget(undefined);
-    sectionVisit.hidden = true;
-    frameUnderTheVisit.inert = false;
-    return sectionVisit.replaceChildren();
-  }
-  const screen = setTheKitchenVisited(document, kitchenVisited, { quitter: () => visit.quitter(), relire: () => void readTheKitchenVisited() });
-  const steps = stepsOfTheVisit(kitchenVisited !== undefined && "tableau" in kitchenVisited ? kitchenVisited.tableau.rail.colonnes : undefined);
-  const step = steps[inProgress.rang] ?? steps[0];
-  sectionVisit.replaceChildren(
-    screen.racine,
-    setVisit(document, { etapes: steps, rang: inProgress.rang }, {
-      suivante: () => visit.suivante(steps.length),
-      // Le seul appel à agir de la dernière étape : l'ajout d'un projet, le même que « add my project ».
-      ajouter: () => {
-        visit.quitter();
-        openAddition();
-      },
-    }),
-  );
-  sectionVisit.hidden = false;
-  frameUnderTheVisit.inert = true;
-  markTheTarget(step === undefined ? undefined : findTheTarget({ rail: screen.rail, second: screen.second }, step.cible));
-}
-
-// La visite, choisie sur l'écran d'accueil ou rejouée depuis la barre : de sa première étape, sur la cuisine relue.
-function beginTheVisit() {
-  visit.commencer();
-  void readTheKitchenVisited();
-}
-
-// La cuisine de Brigade, lue sur GitHub par le process principal en lectures seules (visit.ts) : aucun clone, aucun
-// projet ajouté. Ce qui ne se lit pas — un pont qui ne répond pas, ou qui lève — se dit sur l'écran, avec « read again ».
-// Seule la dernière lecture demandée se pose.
-async function readTheKitchenVisited() {
-  const request = ++readOfTheVisit;
-  kitchenVisited = undefined;
-  setTheVisit();
-  /** @type {import("../visit.ts").KitchenVisited} */
-  const readEntry = await Promise.resolve(brigade.lireLaCuisineVisitee?.(REPOSITORY_OF_THE_VISIT)).then(
-    (renderedOne) => renderedOne ?? { sans: "Brigade's kitchen could not be read: the app gave no answer." },
-    (/** @type {unknown} */ error) => ({ sans: error instanceof Error ? error.message : String(error) }),
-  );
-  if (request !== readOfTheVisit) return;
-  kitchenVisited = readEntry;
-  setTheVisit();
-}
-
-// La page d'un projet pas encore prêt (ticket 3166, parcours-premier-projet/). La lecture d'un projet qu'« Add a project »
-// vient d'ouvrir décide : en lecture seule (ticket 3163), rien ne s'ouvre ; une lecture ratée ne décide rien, la suivante
-// décidera. Le parcours ouvert, chaque lecture relit la mise en place tant que le projet ne l'a pas — la PR de mise en
-// place mergée, la suivante le dit prêt (ticket 3170).
+// Un projet qu'« Add a project » vient d'ouvrir : chaque lecture de son rail relit sa mise en place, tant qu'elle n'est pas
+// faite (ticket 3170) — sa PR de mise en place mergée, la lecture suivante le dit prêt, et la question « qui le cuit »
+// (ticket 3400) se juge. Un dépôt qui ne peut pas s'écrire (ticket 3163) n'est pas suivi.
 /** @param {string} name */
-function followTheJourney(name) {
-  const held = heldOnes.get(name);
-  const readOne = held !== undefined && "tableau" in held;
+function followTheSetup(name) {
+  if (!setupsFollowed.has(name)) return;
   const project = projectOf(name);
-  if (project === undefined || !readOne) return;
-  const repository = aGuide.get(name);
-  if (repository !== undefined) {
-    aGuide.delete(name);
-    if (readOnlyOf(project) !== undefined) return;
-    journeyOfProjects.commencer(name, repository, alreadyCooked(project, repository));
-    // Le premier projet du chef : le fichier n'en a pas d'autre que benomite/brigade, que l'app ajoutait d'elle-même avant
-    // la visite en lecture seule (ticket 4087).
-    storyOfFirstTicket.projetAjoute(name, configuration.projets.some((other) => other.nom !== name && other.depot !== REPOSITORY_OF_THE_VISIT));
-    if (held !== undefined && "tableau" in held) storyOfFirstTicket.observer(name, held.tableau.etapesDesTickets);
-    departuresOfProjects.commencer(name);
-    void readTheDeparture(name);
-    // Les stations du compte se proposent à « qui le cuit » : relues, la question se repose.
-    void readTheRecorded().then(() => setTheProjectAPrepare());
-    void readPreparation(project);
-    if (current?.nom === name) restThePage(project);
-    return;
-  }
-  const journey = journeyOfProjects.de(name);
-  if (journey === undefined || journey.pret !== undefined) return;
   const step = repositories.get(name)?.etape;
-  if ((journey.station === "ajoutee" || journey.station === "inutile") && step !== "prepare" && step !== "en-route") void readPreparation(project);
-  if (current?.nom === name) setTheProjectAPrepare();
-}
-
-// Les issues ouvertes du projet et ce que le second en propose, lus par l'app (departure-of-project.ts) : le départ le montre, ou
-// s'efface quand il n'y a rien à proposer. Une lecture qui échoue se dit sur l'écran, jamais un écran vide.
-/** @param {string} name */
-async function readTheDeparture(name) {
-  try {
-    departuresOfProjects.recu(name, await brigade.departDuProjet(name));
-  } catch (error) {
-    departuresOfProjects.recu(name, { sans: "the app could not ask the second for its proposals", detail: error instanceof Error ? error.message : String(error) });
-  }
-}
-
-// Le bouton unique : les lignes restantes, avec les priorités montrées à l'écran, sur le rail.
-/** @param {string} name */
-async function putTheDepartureOnTheRail(name) {
-  const putting = departuresOfProjects.commencerLaMise(name);
-  if (putting === undefined) return;
-  try {
-    const rendered = await brigade.mettreSurLeRail(name, putting.lignes.map(({ ticket, priorite: priority }) => ({ ticket, priorite: priority })));
-    if ("fait" in rendered) departuresOfProjects.mise(name, rendered.fait, rendered.refus);
-    else departuresOfProjects.miseRatee(name, rendered.refus, rendered.detail ?? "");
-  } catch (error) {
-    departuresOfProjects.miseRatee(name, "nothing was put on the rail: GitHub could not be reached", error instanceof Error ? error.message : String(error));
-  }
-}
-
-// La question est posée sur ce projet : sa page n'a qu'elle.
-/** @param {string} name */
-function journeyOpen(name) {
-  const journey = journeyOfProjects.de(name);
-  return journey !== undefined && journey.pret === undefined;
-}
-
-// Une station cuit déjà le projet — elle le sert, l'app le lui a demandé, ou c'est celle de cet ordinateur : « qui le
-// cuit » n'est pas posée.
-/** @param {Project} project @param {string} repository */
-function alreadyCooked(project, repository) {
-  const { stations } = kitchenOf(project);
-  const reading = servedOnes.etat?.lecture;
-  const here = reading !== undefined && "depots" in reading && reading.depots.some((served) => served.toLowerCase() === repository.toLowerCase());
-  return here || stations.length > 0 || orCooked(project, stations) !== undefined;
-}
-
-/** @param {Project} project */
-async function readPreparation(project) {
-  if (preparationsInRead.has(project.nom)) return;
-  preparationsInRead.add(project.nom);
-  try {
-    const failure = await readTheRepository(project);
-    journeyOfProjects.illisible(project.nom, failure);
-  } finally {
-    preparationsInRead.delete(project.nom);
-  }
+  if (project === undefined || readOnlyOf(project) !== undefined) return;
+  if (step === "prepare") return void setupsFollowed.delete(name);
+  if (step === "en-route" || preparationsInRead.has(name)) return;
+  preparationsInRead.add(name);
+  void readTheRepository(project).finally(() => preparationsInRead.delete(name));
 }
 
 // Une station sert le projet : celle de cet ordinateur l'a dans sa liste (projets-servis/), une station dit le servir
@@ -6143,8 +5844,7 @@ function servedByOneStation(project, repository, servedHere) {
 }
 
 // La question du ticket 3400, au-dessus du rail du projet affiché. Sa mise en place vient de passer : elle se juge dès que
-// la liste de cet ordinateur et les stations sont lues — jamais sur une lecture manquante, ni pendant que le parcours
-// pose sa propre question « qui le cuit ».
+// la liste de cet ordinateur et les stations sont lues — jamais sur une lecture manquante.
 function setTheRequestOfStationHere() {
   const project = current;
   const close = () => {
@@ -6159,9 +5859,7 @@ function setTheRequestOfStationHere() {
   const reading = servedOnes.etat?.lecture;
   const servedHere = reading !== undefined && "depots" in reading ? reading.depots : undefined;
   if (state.etape === "a-juger") {
-    const journey = journeyOfProjects.de(name);
-    const questionOfJourney = journey !== undefined && journey.pret === undefined && journey.station !== "ajoutee" && journey.station !== "inutile";
-    if (servedHere === undefined || stationsViews === undefined || questionOfJourney) return close();
+    if (servedHere === undefined || stationsViews === undefined) return close();
     const served = servedByOneStation(project, repository, servedHere);
     // Posée : les stations du compte se proposent après cet ordinateur — relues, la question se repose.
     if (!served) void readTheRecorded().then(() => setTheRequestOfStationHere());
@@ -6197,191 +5895,6 @@ function setTheRequestOfStationHere() {
     ),
   );
   sectionOfTheRequest.hidden = false;
-}
-
-// La question posée ou levée : l'avis d'un projet pas préparé (ticket 2628) et le rail se reposent.
-/** @param {Project} project */
-function restThePage(project) {
-  if (current?.nom !== project.nom) return;
-  setAlerts(project);
-  setRail(project);
-}
-
-// Ce que la vue sait du second du projet : il ne part pas, et ce que le titre de son terminal dit.
-/** @param {string} name @returns {import("./journey-first-project/journey-first-project.js").Second} */
-function secondOfJourney(name) {
-  const second = [...views.values()].find(({ terminal }) => terminal.projet === name && terminal.genre === "second")?.terminal;
-  const title = workOfSecond(titlesOfSeconds.get(name));
-  return {
-    ...(second?.empeche === undefined ? {} : { empeche: true }),
-    ...(title === undefined ? {} : { titre: title }),
-  };
-}
-
-// La page du projet affiché, s'il n'est pas prêt (ticket 3166) : la question à la place du rail — `main` le porte (`data-parcours`), et
-// sa feuille de style y cache le reste ; prêt, la ligne du premier ticket au-dessus du rail ; sinon, rien.
-function setTheProjectAPrepare() {
-  const project = current;
-  const journey = project === undefined ? undefined : journeyOfProjects.de(project.nom);
-  const close = () => {
-    sectionOfJourney.hidden = true;
-    sectionOfJourney.replaceChildren();
-    delete principal.dataset.parcours;
-  };
-  if (project === undefined || journey === undefined) return close();
-  const name = project.nom;
-  // L'accès en écriture perdu en route : la page s'ouvre en lecture seule (ticket 3163), sans rien de tout cela.
-  if (readOnlyOf(project) !== undefined) {
-    journeyOfProjects.fermer(name);
-    return restThePage(project);
-  }
-  // Prêt : au-dessus du rail, le second demande au chef ce qu'il veut changer d'abord (ticket 3306). Le champ tapé garde le
-  // clavier quand la page se repose.
-  if (journey.pret !== undefined) {
-    delete principal.dataset.parcours;
-    firstTickets.commencer(name);
-    const state = firstTickets.de(name);
-    if (state === undefined) return close();
-    const renderTheField = keepTheKeyboard(document.activeElement, sectionOfJourney);
-    sectionOfJourney.replaceChildren(
-      setFirstTicket(document, { depot: journey.depot, etat: state, ...(journey.absente === undefined ? {} : { absente: journey.absente }) }, {
-        ecrire: (text) => firstTickets.ecrire(name, text),
-        envoyer: () => void firstTickets.envoyer(name),
-        oui: () => void firstTickets.oui(name),
-        changer: () => void firstTickets.changer(name),
-        fermer: () => {
-          firstTickets.oublier(name);
-          journeyOfProjects.fermer(name);
-        },
-      }),
-    );
-    sectionOfJourney.hidden = false;
-    renderTheField();
-    return;
-  }
-  const departure = departuresOfProjects.de(name);
-  if (departure !== undefined) {
-    principal.dataset.parcours = "depart";
-    sectionOfJourney.replaceChildren(
-      setTheDeparture(
-        document,
-        { depot: journey.depot, etat: departure },
-        {
-          changer: (ticket, priority) => departuresOfProjects.changer(name, ticket, priority),
-          lacher: (ticket) => departuresOfProjects.lacher(name, ticket),
-          mettre: () => void putTheDepartureOnTheRail(name),
-          passer: () => departuresOfProjects.passer(name),
-          relire: () => {
-            departuresOfProjects.relire(name);
-            void readTheDeparture(name);
-          },
-        },
-      ),
-    );
-    sectionOfJourney.hidden = false;
-    return;
-  }
-  if (journey.station === "a-faire" && alreadyCooked(project, journey.depot)) return journeyOfProjects.station(name, "inutile");
-  const preparation = repositories.get(name);
-  const held = heldOnes.get(name);
-  const cardItem = held !== undefined && "tableau" in held ? cardOfSetup(held.tableau.rail.colonnes) : undefined;
-  const readOne = { station: journey.station, ...(preparation === undefined ? {} : { preparation }) };
-  const seenOne = seenOfJourney({ ...readOne, ...(journey.illisible === undefined ? {} : { illisible: journey.illisible }), carte: cardItem !== undefined, second: secondOfJourney(name) });
-  if (seenOne.etape === "pret") {
-    journeyOfProjects.pret(name);
-    return restThePage(project);
-  }
-  if (seenOne.etape === "setup" && seenOne.attente !== "lecture") journeyOfProjects.setupMontre(name);
-  const reading = servedOnes.etat?.lecture;
-  const readEntries = recordedAbsent ? undefined : stateOfRecorded.stations;
-  const choice = choiceOfStation({
-    // Cet ordinateur est offert tant que sa lecture ne dit pas qu'il n'a pas de station.
-    ici: reading === undefined || "depots" in reading,
-    hote: WORKSTATION.nom === THIS_COMPUTER ? "" : WORKSTATION.nom,
-    stations: readEntries?.state === "listed" ? stationsAPropose(readEntries.stations, journey.depot, projectsSeen?.locale) : [],
-    maintenant: Date.now(),
-  });
-  // Un clic, et la page passe à la suite : cet ordinateur sert le dépôt par le geste de « Add a station »
-  // (`servirUnProjet`) ; une station du compte le reçoit dans sa sélection (`choisirLesProjets`).
-  /** @param {import("./stations-tab/choice.js").Choice} oneOf */
-  const choose = async (oneOf) => {
-    const before = journeyOfProjects.de(name)?.station;
-    if (before === undefined || (typeof before === "object" && "enCours" in before)) return;
-    journeyOfProjects.station(name, { enCours: oneOf.cle });
-    const pairedOne = readEntries?.state === "listed" ? readEntries.stations.find(({ id }) => id === oneOf.cle) : undefined;
-    const station = await addTheStation(oneOf.nom, () =>
-      oneOf.cle === HERE || pairedOne === undefined ? serveHereTheRepository(journey.depot) : chooseForOneRecorded(pairedOne.id, [...(pairedOne.selection ?? []), journey.depot]),
-    );
-    journeyOfProjects.station(name, station, oneOf.horsLigne ? oneOf.nom : undefined);
-    const step = repositories.get(name)?.etape;
-    if (station === "ajoutee" && step !== "prepare" && step !== "en-route") void readPreparation(project);
-  };
-  principal.dataset.parcours = seenOne.etape;
-  sectionOfJourney.replaceChildren(
-    setJourneyFirstProject(
-      document,
-      {
-        depot: journey.depot,
-        vu: seenOne,
-        progression: progression(seenOne, readOne),
-        station: journey.station,
-        choix: choice,
-        ...(journey.illisible === undefined ? {} : { illisible: journey.illisible }),
-        ...(preparation?.etape === "refus" ? { refus: preparation.dit } : {}),
-        ...(journey.absente === undefined ? {} : { absente: journey.absente }),
-        serveur: serverOf(name, true),
-      },
-      {
-        choisir: choose,
-        // Le serveur arrivé est un choix comme les autres : la même station du compte, par le même geste.
-        serveur: actionsOfServer(name, (station) => void choose({ cle: station.id, nom: station.name, horsLigne: !station.available, recommande: station.available })),
-        relire: () => void readPreparation(project),
-        preparer: () => void prepareTheRepository(project),
-        ouvrirLaCarte: () => {
-          if (cardItem !== undefined) openCard(project, cardItem, sectionOfJourney);
-        },
-      },
-    ),
-  );
-  sectionOfJourney.hidden = false;
-}
-
-// Le récit du premier ticket, sur la page du projet qui l'a (ticket 3302) : rien ailleurs, ni en lecture seule. Ses liens
-// ouvrent la PR du ticket — celle de son cook tant qu'il est sur le rail, puis celle qui l'a servi.
-function setTheStoryOfFirstTicket() {
-  const project = current;
-  const story = project === undefined || readOnlyOf(project) !== undefined ? undefined : storyOfFirstTicket.de(project.nom);
-  if (project === undefined || story === undefined) {
-    sectionOfStory.hidden = true;
-    sectionOfStory.replaceChildren();
-    return;
-  }
-  const { nom: name } = project;
-  const { ticket } = story;
-  sectionOfStory.replaceChildren(
-    setStoryOfFirstTicket(document, story, {
-      ouvrir: () => void brigade.ouvrirPrDuCook(name, ticket).then((openOne) => openOne || brigade.ouvrirPr(name, ticket)),
-      ranger: () => storyOfFirstTicket.ranger(),
-    }),
-  );
-  sectionOfStory.hidden = false;
-}
-
-async function rereadTheFirst() {
-  const requested = ++readOfFirst;
-  delete first.stations;
-  setTheFirst();
-  /** @type {import("../first-launch.ts").StationsOfChef} */
-  let readOne;
-  try {
-    readOne = (await brigade.stationsDuChef?.()) ?? { state: "unavailable", cause: "github", reason: "Your stations could not be read: the app gave no answer." };
-  } catch (error) {
-    const detail = error instanceof Error ? error.message : String(error);
-    readOne = { state: "unavailable", cause: "github", reason: "Your stations could not be read: the app failed while reading them.", detail };
-  }
-  if (requested !== readOfFirst) return;
-  first.stations = readOne;
-  setTheFirst();
 }
 
 // `base` : la branche par défaut que GitHub a donnée du dépôt (l'écran « Add a project ») — à défaut, celle que l'origine
@@ -6455,12 +5968,11 @@ async function itselfConnectAGitHub() {
   setTheFirst();
 }
 
-// Connecté : le compte et les stations sont relus, et une ouverture que la connexion retenait repart.
+// Connecté : le compte est relu, et une ouverture que la connexion retenait repart.
 function connectedAGitHub() {
   delete first.connexion;
   accountOfJourney.apresLaConnexion();
   const retainedOne = first.ouverture?.echec?.cause === "sign-in-required" ? first.ouverture : undefined;
-  void rereadTheFirst();
   if (!recordedAbsent) void readTheRecorded();
   // Les dépôts de l'écran « Add a project » se lisent du compte qui vient de se connecter.
   if (adds) void readTheRepositoriesOfTheAddition();
@@ -6513,14 +6025,14 @@ function propose(list, choice, no) {
   list.value = choice.includes(guard) ? guard : "";
 }
 
-// L'écran « Add a project » (ticket 3181, journey-project/addition.js) : il ne fait que choisir le dépôt. Ses dépôts se
+// L'écran « Add a project » (ticket 3181, addition-project/addition.js) : il ne fait que choisir le dépôt. Ses dépôts se
 // relisent à chaque ouverture — les derniers poussés d'abord —, la recherche et le collage restent d'un passage à l'autre.
 // Un dépôt choisi s'ouvre comme un projet du premier lancement : sa copie reprise ou clonée, il entre dans la colonne de
 // gauche, et sa page s'ouvre (`ouvrirDUneStation`).
-/** @type {import("./journey-project/addition.js").StateOfTheAddition} */
+/** @type {import("./addition-project/addition.js").StateOfTheAddition} */
 const stateOfTheAddition = { saisie: { recherche: "", colle: "" } };
 let readOfRepositoriesOfTheAddition = 0;
-/** @type {import("./journey-project/addition.js").ActionsOfTheAddition} */
+/** @type {import("./addition-project/addition.js").ActionsOfTheAddition} */
 const actionsOfTheAddition = {
   ...actionsOfFirst,
   choisir: (chosen) => chooseTheRepository(chosen),
@@ -6554,7 +6066,7 @@ async function readTheRepositoriesOfTheAddition() {
   const requested = ++readOfRepositoriesOfTheAddition;
   delete stateOfTheAddition.depots;
   if (adds) setTheAddition();
-  /** @type {NonNullable<import("./journey-project/addition.js").StateOfTheAddition["depots"]>} */
+  /** @type {NonNullable<import("./addition-project/addition.js").StateOfTheAddition["depots"]>} */
   let readOnes;
   try {
     readOnes = (await brigade.depotsDuChef()) ?? { refus: "the app gave no answer" };
@@ -6576,15 +6088,13 @@ function chooseTheRepository(chosen) {
     stateOfTheAddition.refus = readOne.refus;
     return setTheAddition();
   }
-  // Le projet ouvert, sa page dit ce qui reste à faire avant qu'il soit prêt (ticket 3166) — quand sa première lecture
-  // dit que le compte peut écrire dans son dépôt. Une ouverture ratée n'a rien à guider.
-  aGuide.set(readOne.nom, readOne.depot);
+  setupsFollowed.add(readOne.nom);
   void openOfAStation("", readOne.nom, readOne.depot, chosen.base).then(() => {
-    // Retenue tant que Claude Code n'est pas connecté (ticket 4057) : elle repart à la fin du login, son projet reste à guider.
+    // Retenue tant que Claude Code n'est pas connecté (ticket 4057) : elle repart à la fin du login, son projet reste suivi.
     if (first.ouverture?.echec?.state === "login") return;
-    if (first.ouverture?.echec !== undefined && first.ouverture.projet === readOne.nom) aGuide.delete(readOne.nom);
+    if (first.ouverture?.echec !== undefined && first.ouverture.projet === readOne.nom) setupsFollowed.delete(readOne.nom);
     // Le projet était déjà lu — dans le fichier avant d'être choisi : sa lecture tenue décide sans attendre la suivante.
-    else followTheJourney(readOne.nom);
+    else followTheSetup(readOne.nom);
   });
 }
 
@@ -6753,15 +6263,12 @@ brigade.surFaits((receivedOne) => {
   if (outsideLine && (keptOne === undefined || !("tableau" in keptOne))) heldOnes.delete(receivedOne.projet);
   else if (!((silentOne || outsideLine || missed) && keptOne !== undefined && "tableau" in keptOne)) heldOnes.set(receivedOne.projet, receivedOne);
   markPill(receivedOne.projet);
-  followTheJourney(receivedOne.projet);
-  // Le premier ticket du premier projet suit chaque lecture de son rail (ticket 3302).
-  if ("tableau" in receivedOne) storyOfFirstTicket.observer(receivedOne.projet, receivedOne.tableau.etapesDesTickets);
+  followTheSetup(receivedOne.projet);
   setTheCardsOfChef();
   // L'accueil affiché dit ce qui attend le chef du même compte que « TODO (N) » : une lecture qui le change le repose.
   if (current === undefined && !adds && stationOpen === undefined && todosOfTheHome.has(receivedOne.projet) && todosOfTheHome.get(receivedOne.projet) !== accountOfTodo(receivedOne.projet)) setHome();
   if (current?.nom === receivedOne.projet) {
     draw();
-    setTheStoryOfFirstTicket();
     void setOrdinary(current);
     setStationsOfProject();
   }
@@ -7009,13 +6516,6 @@ function display() {
   foot.id = "entree-ajout";
   bar.prepend(entry);
   bar.append(foot);
-  // Rejouer la visite (ticket 4087), sous « + » : elle repart de sa première étape, en lecture seule et sans clone. Le
-  // téléphone n'a pas de visite.
-  if (phone === undefined) {
-    const tour = icon("?", REPLAY, beginTheVisit);
-    tour.id = "entree-visite";
-    bar.append(tour);
-  }
   // La case du logo est neuve : ce que la dernière lecture des clones en dit y est reposé.
   setCode();
 
@@ -7026,11 +6526,9 @@ function display() {
   if (expected !== undefined) void open(expected);
   else if (same !== undefined) void open(same);
   else if (stationOpen !== undefined && !adds) openStation(stationOpen);
-  // Sur un ordinateur neuf, sans projet : ses stations et leurs projets (first-launch.js). Sur le téléphone,
-  // aucun projet ne s'ajoute d'un dossier : sans projet, l'app reste sur « Tous les projets ».
-  else if (adds || (configuration.projets.length === 0 && phone === undefined && !withFirst())) openAddition();
-  else if (withFirst()) openFirst();
-  // L'app s'ouvre sur « Tous les projets », en tête de la barre.
+  else if (adds) openAddition();
+  // L'app s'ouvre sur « Tous les projets », en tête de la barre : sans projet, l'accueil offre la connexion à GitHub et
+  // « Add a project ».
   else openAll();
   show();
 }
@@ -7092,9 +6590,6 @@ if (phone !== undefined && phone.github === undefined) {
   connectionOfPhone.className = "fait";
   connectionOfPhone.replaceChildren(setConnected(document, phone.github.compte));
 }
-// Sur un Mac neuf, avant l'avis de macOS (ticket 4081) : l'écran qui annonce que Brigade tourne en arrière-plan, l'app
-// cachée derrière jusqu'à son bouton.
-await holdOpinionOfBackground(element("avis-de-fond"), frameOfTheApp, document, brigade);
 // Le terminal mesure ses cases à l'ouverture : sa police, embarquée, est chargée avant qu'aucun
 // ne s'ouvre. Si elle ne se charge pas, l'app s'ouvre quand même, sur la police de repli.
 await Promise.all(["13px", "bold 13px"].map((body) => document.fonts.load(`${body} ${token("--police-mono")}`))).catch(() => undefined);

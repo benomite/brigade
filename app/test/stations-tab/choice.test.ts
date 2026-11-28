@@ -1,10 +1,9 @@
 // Le choix de station (#3195) : une seule pièce pour demander qui cuit un projet — sur l'onglet Stations (« Choose who
-// cooks it », « Move to another station ») et sur la page d'un projet pas encore prêt (« 1 of 2: who cooks it », #3166).
+// cooks it », « Move to another station »).
 // Cet ordinateur d'abord ; une station hors ligne n'est jamais recommandée et dit depuis quand, et comment la ramener (#3187).
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import type { StationVue } from "../../src/stations/stations.ts";
-import { setJourneyFirstProject, progression, seenOfJourney } from "../../src/vue/journey-first-project/journey-first-project.js";
 import { choiceOfStation, choiceOfDisplacement, HERE, setTheChoice, type Choice } from "../../src/vue/stations-tab/choice.js";
 import { isOneComputer } from "../../src/vue/stations-tab/state.js";
 import { Fake } from "../helpers/false-vue.ts";
@@ -31,17 +30,6 @@ const recordedOne = (id: string, name: string, available: boolean, platform = "l
 const vue = (id: string, name: string, state: StationVue["etat"], machine: string): StationVue => ({ id, nom: name, machine, etat: state, ligne: "", pannes: [], dit: state === "en-ligne" ? "online" : "offline for 22 min", version: "2.4.0", projets: [], max: null });
 
 describe("le choix de station, une seule pièce (#3195)", () => {
-  test("la question « who cooks it » d'un projet pas encore prêt (#3166) pose exactement la liste du choix de l'onglet", () => {
-    const choice = choiceOfStation({ ici: true, hote: "macbook", stations: [recordedOne("g1", "parade-box", true), recordedOne("g2", "nas", false)] as never, maintenant: NOW });
-    const station = { enCours: "g1" } as const;
-    const seenOne = seenOfJourney({ station, second: {} });
-    assert.equal(seenOne.etape, "station");
-    const page = setJourneyFirstProject(doc as never, { depot: "chef/cantine", vu: seenOne as never, progression: progression(seenOne, { station }), station, choix: choice }, { choisir() {}, relire() {}, preparer() {}, ouvrirLaCarte() {} }) as unknown as Fake;
-    const [list] = setTheChoice(doc as never, { choix: choice, enCours: "g1" }, () => {}) as unknown as Fake[];
-    const inThePage = page.dessous("ul").find(({ className }) => className === "choix-de-station") ?? assert.fail("pas de liste de choix sur la page");
-    assert.deepEqual(tree(inThePage), tree(list ?? assert.fail()));
-  });
-
   test("cet ordinateur d'abord, son nom d'hôte après lui ; la station en ligne recommandée ; une hors ligne dit depuis quand et comment la ramener", () => {
     const choice = choiceOfStation({ ici: true, hote: "macbook", stations: [recordedOne("g2", "nas", false), recordedOne("g1", "parade-box", true)] as never, maintenant: NOW });
     assert.deepEqual(choice.map(({ cle: key, nom: name, recommande: recommended, horsLigne: outsideLine }) => [key, name, recommended, outsideLine]), [[HERE, "this computer", false, false], ["g1", "parade-box", true, false], ["g2", "nas", false, true]]);
