@@ -33,8 +33,7 @@ function kitchenOf(project: KitchenProject) {
   let risk: string[] = [];
   let release: "auto" | "chef" = "auto";
   let hosts: Regle[] = REGLES_DE_BASE;
-  const worktrees = worktreesOf(project);
-  const launcher = launcherOf({ project: project.name, env: process.env, claude: claudeBin, state, clone: project.clone, worktrees, hosts: () => hosts, probes: sondesDeLaMachine(claudeBin), portsFile, portOf });
+  const launcher = launcherOf({ project: project.name, env: process.env, claude: claudeBin, state, clone: project.clone, worktrees: worktreesOf(project), hosts: () => hosts, probes: sondesDeLaMachine(claudeBin), portsFile, portOf });
   if ("refused" in launcher) return launcher;
   return {
     // What the base branch declares, read before each turn.
@@ -48,7 +47,7 @@ function kitchenOf(project: KitchenProject) {
       repo: project.repo,
       base: project.base,
       clone: project.clone,
-      worktrees,
+      worktrees: worktreesOf(project),
       state,
       gh: ghCli(process.env.BRIGADE_GH_BIN || "gh", process.env),
       git,

@@ -17,9 +17,7 @@ export function readProjects(text: string, stationDir: string): KitchenProject[]
     });
 }
 
-// A project's worktrees live beside its clone, never under the station dir: on macOS the station dir is one the sandbox forbids a cook to read (#4783).
-export const worktreesOf = (project: KitchenProject) => join(dirname(project.clone), ".brigade-worktrees", project.name);
-
+export const worktreesOf = (project: KitchenProject) => join(dirname(project.clone), ".brigade-worktrees", project.name); // beside the clone, never under the station dir (#4783)
 export const projectsFile = (stationDir: string) => join(stationDir, "kitchen", "projects");
 
 export function projectsOfTheKitchen(stationDir: string): KitchenProject[] {
