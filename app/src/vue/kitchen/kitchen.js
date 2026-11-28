@@ -19,7 +19,6 @@ import { NOT_STILL } from "../lexicon.js";
 import { parkedTodo } from "../parked/parked-todo.js";
 import { CHEF, chefRecords } from "../parked/records.js";
 import { isRed } from "../todo/todo.js";
-import { isOneValidation, VALIDATE } from "../validation-design/validation-design.js";
 
 /** @typedef {import("../../facts.ts").Card} Card */
 /** @typedef {import("../../facts.ts").Column} Column */
@@ -130,9 +129,8 @@ export function lineParked(doc, parked) {
   return line;
 }
 
-// Les gestes qui tranchent une carte du TODO d'un clic, chacun par son nom (vue.js les joue) : répondre d'un choix, valider
-// un écran.
-/** @typedef {"repondre" | "valider"} KindOfAction */
+// Les gestes qui tranchent une carte du TODO d'un clic, chacun par son nom (vue.js les joue) : répondre d'un choix.
+/** @typedef {"repondre"} KindOfAction */
 /** @typedef {{ texte: string, recommande: boolean, sorte: KindOfAction, reponse?: import("../../card-todo.ts").Answer, ouvre?: true }} ActionOfTodo */
 /**
  * Ce que le TODO sait de la vue pour trancher ses cartes : où en est la réponse d'une carte (`etat`), et de quoi jouer un geste (`jouer`).
@@ -143,15 +141,13 @@ export function lineParked(doc, parked) {
 const READ_ONLY = "read-only: nothing is decided from here";
 
 /**
- * Les boutons d'une carte du TODO, ceux de sa carte (ticket 4261) : « Validate » d'un écran à valider,
- * un par choix d'une question — le recommandé plein d'accent —, tant que sa réponse n'est pas partie d'ici. Aucun sur une carte qui ne se tranche qu'en mots : un clic sur son entrée ouvre sa carte et son champ.
+ * Les boutons d'une carte du TODO, ceux de sa carte (ticket 4261) : un par choix d'une question — le recommandé plein d'accent —, tant que sa réponse n'est pas partie d'ici.
+ * Aucun sur une carte qui ne se tranche qu'en mots : un clic sur son entrée ouvre sa carte et son champ.
  * @param {Card} card @param {ActionsOfTodo} actions @returns {ActionOfTodo[]}
  */
 export function actionsOfTodo(card, actions) {
   const { todo } = card;
   if (todo === undefined) return [];
-  // Un écran à valider : son bouton, quand sa carte dit la PR qu'il tranche — sinon aucun, comme sur sa carte.
-  if (isOneValidation(todo)) return "pr" in (todo.validation ?? {}) ? [{ texte: VALIDATE, recommande: true, sorte: "valider" }] : [];
   if (!["repos", "refus"].includes(seenOfTheCard(todo, actions.etat(card.ticket, todo)).vu)) return [];
   // Une carte qui ne se répond qu'en mots (`parked:chef`) : son bouton ouvre sa carte, où le chef écrit sa réponse.
   if (todo.choix.length === 0 && todo.repondre !== undefined) return [{ texte: todo.repondre, recommande: true, sorte: "repondre", ouvre: true }];
@@ -174,7 +170,7 @@ export function setTheTodo(doc, { cartes: cards, ouvrir: open, gestes: actions, 
   const present = new Set(cards.map(({ ticket }) => ticket));
   for (const ticket of [...answered.keys(), ...later]) if (!present.has(ticket)) void (answered.delete(ticket), later.delete(ticket));
   for (const { ticket, todo } of cards) {
-    if (actions === undefined || todo === undefined || isOneValidation(todo)) continue;
+    if (actions === undefined || todo === undefined) continue;
     const state = actions.etat(ticket, todo);
     const seen = seenOfTheCard(todo, state);
     if (seen.vu === "refus") answered.delete(ticket);
@@ -234,13 +230,12 @@ const itYA = (ms) => {
 /**
  * La bande du haut (ticket 4354) : une carte pour le supervisor, une pour le closer, sur une ligne — son nom, un point d'état
  * (au travail, au repos, en alerte) et deux ou trois mots. Un clic sur une carte déplie son détail dessous : ce qu'il fait,
- * sa dernière action et son heure ; `deplies` garde ce qui est déplié d'un rendu à l'autre. Un agent que l'équipe lue montre
- * déjà (autonomy/team.js, `montre`) n'a pas de carte ici : son badge est la sienne. `alerte` : l'issue que la cuisine a
+ * sa dernière action et son heure ; `deplies` garde ce qui est déplié d'un rendu à l'autre. `alerte` : l'issue que la cuisine a
  * ouverte sur elle-même, que le supervisor dit. Le message du haut, s'il y en a un, se pose juste dessous (vue.js).
  * @param {Fabrique} doc
- * @param {{ roles: readonly RoleOfKitchen[] | undefined, montre: (name: string) => boolean, alerte: number | undefined, maintenant: number, deplies: Set<string> }} bande
+ * @param {{ roles: readonly RoleOfKitchen[] | undefined, alerte: number | undefined, maintenant: number, deplies: Set<string> }} bande
  */
-export function setTheBandOfTop(doc, { roles, montre: shows, alerte: alert, maintenant: now, deplies: unfoldedOnes }) {
+export function setTheBandOfTop(doc, { roles, alerte: alert, maintenant: now, deplies: unfoldedOnes }) {
   const frame = doc.createElement("div");
   frame.className = "bande-du-haut";
   const line = doc.createElement("div");
@@ -275,9 +270,9 @@ export function setTheBandOfTop(doc, { roles, montre: shows, alerte: alert, main
     line.append(setOne);
     if (unfoldedOnes.has(name)) frame.append(detail);
   };
-  if (!shows("supervisor")) card("supervisor", alert === undefined ? "gris" : "rouge", alert === undefined ? "ok" : `alert: #${alert}`);
+  card("supervisor", alert === undefined ? "gris" : "rouge", alert === undefined ? "ok" : `alert: #${alert}`);
   const cleanup = role("closer")?.latest ?? null;
-  if (!shows("closer")) card("closer", "gris", cleanup === null ? NOT_STILL("tidy") : `tidied ${itYA(now - Date.parse(cleanup.at))}`);
+  card("closer", "gris", cleanup === null ? NOT_STILL("tidy") : `tidied ${itYA(now - Date.parse(cleanup.at))}`);
   return frame;
 }
 

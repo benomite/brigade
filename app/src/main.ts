@@ -19,14 +19,12 @@ import { readFire } from "./fire.ts";
 import { COMMAND as COMMAND_UPSTREAM, holdUpstream } from "./upstream.ts";
 import { putAside } from "./awaiting.ts";
 import { forTheBar } from "./bar.ts";
-import { LinksRead } from "./links-read.ts";
 import { askAtSecond, noteOfTheQuestion } from "./discussion.ts";
 import { noteOfTheHandover, passAtSecond } from "./handover-second.ts";
 import { discussionOfGitHub } from "./card-github.ts";
 import { pathConfiguration, EXAMPLE, type Project } from "./config.ts";
 import { openTheReport, versionAimed } from "./vue/report/opening.ts";
 import { readTheAgents } from "./team-of-the-box.ts";
-import { holdLastLooks, sinceYouLastLooked } from "./since-last-looked.ts";
 import { writeInTheProject, readInTheProject } from "./vue/card-project/card-project-folder.ts";
 import { choice, whole, PALETTE } from "./colors.ts";
 import { blockOfOrdinary } from "./ordinary.ts";
@@ -58,8 +56,6 @@ import { changeTheCap, readTheCaps } from "./caps-duration.ts";
 import { changeTheSetting, changeTheVerifications, readTheCloser } from "./closer-health.ts";
 import { changeTheKnowledge, readTheKnowledgeOfProject } from "./vue/know-how/know-how-github.ts";
 import { answerOnGithub } from "./board-actions/answer-github.ts";
-import { validateOnGithub } from "./vue/validation-design/validation-design-github.ts";
-import { readTheAutonomyOfRepository, holdTheAutonomy } from "./vue/autonomy/autonomy-github.ts";
 import { repositoryOfTheOrigin, readClone } from "./addition.ts";
 import { readTheAccountGitHub, holdConnectionGitHub, signInToGitHub } from "./connection-github.ts";
 import { pathOf, locationsOf, readPathOfShell } from "./locations.ts";
@@ -89,7 +85,6 @@ import { openTheLocalCopy, sessionOfClaude } from "./local-copy.ts";
 import { probesOfTheRuntime, serveHere } from "./serve-here.ts";
 import { opinionOfMacOS, passTheFirstLaunch, holdTheOpinionOfBackground } from "./first-launch/index.ts";
 import { readQuestion, reply as answerQuestion, titleOf, type Read as QuestionRead } from "./question.ts";
-import { readCapture } from "./captures.ts";
 import { relaunchOf, holdPassage } from "./catch-up.ts";
 import { holdAnswered } from "./answered.ts";
 import { APP, holdDelays } from "./delay.ts";
@@ -795,27 +790,6 @@ ipcMain.handle("lireQuestion", (_, name: unknown, ticket: unknown) => {
   const address = facts.adresse(aims.nom, ticket);
   return address === undefined ? { a: new Date().toISOString(), sans: "the station gave no https address for this issue: the app has nothing to read" } : readQuestion(settingsGh(), address).then((readEntry) => holdRead(aims.nom, ticket, readEntry));
 });
-// Les chiffres d'autonomie d'un projet, ou de tous ceux que la vue nomme (vue/autonomy/autonomy-github.ts, #3222) : lus
-// de GitHub par le jeton du `gh` de ce poste, sous le même budget et les mêmes lectures conditionnelles que le rail, chaque
-// dépôt gardé dix minutes, ses issues déjà lues gardées au-delà (#3379). Un clic de la vue n'ouvre que l'adresse d'un ticket qu'une de ces lectures a rendue.
-const autonomy = holdTheAutonomy({
-  lire: (repository, readEntries) => readTheAutonomyOfRepository({ depot: repository, appeler: readConditional(callUnderBudget, memoryOfRail(repository)), maintenant: new Date(), lues: readEntries }),
-  fraicheurMs: 10 * 60_000,
-});
-const linksOfAutonomy = new Set<string>();
-ipcMain.handle("lireAutonomie", async (_, names: unknown, days: unknown) => {
-  const aimed = (Array.isArray(names) ? names : []).flatMap((name) => knownOne(name) ?? []);
-  const readEntry = await autonomy.chiffres(await Promise.all(aimed.map(async (project) => ({ nom: project.nom, depot: await repositoryOfProject(project) }))), Number(days));
-  if ("chiffres" in readEntry) for (const { url } of readEntry.chiffres.avecHumain) linksOfAutonomy.add(url);
-  return readEntry;
-});
-ipcMain.handle("ouvrirTicketDAutonomie", (_, url: unknown) => {
-  if (typeof url !== "string" || !linksOfAutonomy.has(url)) return false;
-  return shell.openExternal(url).then(
-    () => true,
-    () => false,
-  );
-});
 // « ask the second », au clic : `/brigade:ask <ticket> ` est écrit dans le second du projet, sans Entrée — le chef tape
 // sa question à la suite (discussion.ts). Rien ne part sur le tableau ni sur la box, quelle que soit la station du
 // projet.
@@ -830,31 +804,6 @@ ipcMain.handle("passerAuSecond", (_, name: unknown, ticket: unknown, question: u
   if (aims === undefined) return { refus: gone(name).refus };
   const read = async (number: number) => discussionOfGitHub(settingsGh(), await repositoryOfProject(aims), number);
   return passAtSecond((message) => terminals.inscrire(aims, message, noteOfTheHandover), read, aims, ticket, question);
-});
-// Les adresses que la vue peut ouvrir par `ouvrirLien` : celles d'une capture qui ne se lit pas (links-read.ts).
-const linksRead = new LinksRead();
-ipcMain.handle("ouvrirLien", (_, name: unknown, ticket: unknown, url: unknown) => {
-  if (typeof url !== "string" || !linksRead.connait(`${String(name)}#${String(ticket)}`, url) || !/^https?:$/.test(URL.parse(url)?.protocol ?? "")) return false;
-  return shell.openExternal(url).then(
-    () => true,
-    () => false,
-  );
-});
-// Une capture d'un ticket d'interface, sur sa carte (captures.ts) : lue par le `gh` du poste à
-// l'adresse que la box a rendue dans `facts`, et rendue à la vue en `data:`. La vue nomme le
-// projet, le ticket, l'écran et le moment ; l'adresse ne quitte pas le process principal.
-ipcMain.handle("lireCapture", (_, name: unknown, ticket: unknown, screen: unknown, moment: unknown) => {
-  const aims = knownOne(name);
-  if (aims === undefined) return undefined;
-  const address = facts.capture(aims.nom, ticket, screen, moment);
-  if (address === undefined) return { sans: "the station gave no address for this screenshot: the app has nothing to read" };
-  return readCapture(settingsGh(), address).then((readEntry) => {
-    // Le lien d'une capture qui ne se lit pas : la vue ne l'ouvre que par `ouvrirLien`, qui ne connaît que ce qu'une lecture a rendu.
-    if ("sans" in readEntry && readEntry.lien !== undefined) {
-      linksRead.capture(`${aims.nom}#${String(ticket)}`, readEntry.lien);
-    }
-    return readEntry;
-  });
 });
 // Le titre d'une issue que la box ne donne pas (hors rail) : lu par le `gh` du poste, à l'adresse que
 // la box a rendue pour ce ticket — jamais une adresse venue de la vue.
@@ -1168,19 +1117,6 @@ ipcMain.handle("agentsAtWork", (_, name: unknown) => {
   if (aims === undefined) throw new Error(`${String(name)} is no longer in the projects file`);
   return readTheAgents({ station: hostname(), cooksHere: readOne !== undefined, board: () => boards.lire(aims), now: Date.now });
 });
-// "Since you last looked" (#4649, since-last-looked.ts): the vue asks it each time the chef opens a project, and this opening
-// becomes the last look, kept per project beside the configuration. Read from GitHub alone, through the board's conditional
-// memory; the addresses it gives are the ones its entries open (`ouvrirIssue`).
-const lastLooks = holdLastLooks(join(dirname(pathConfiguration()), "last-looked.json"));
-const addressesLooked = new Map<string, Map<number, string>>();
-ipcMain.handle("sinceYouLastLooked", async (_, name: unknown) => {
-  const aims = knownOne(name);
-  if (aims === undefined) throw new Error(`${String(name)} is no longer in the projects file`);
-  const repository = await repositoryOfProject(aims);
-  const read = await sinceYouLastLooked({ projet: aims.nom, depot: repository, appeler: readConditional(callUnderBudget, memoryOfRail(repository)), looks: lastLooks });
-  if ("groups" in read) addressesLooked.set(aims.nom, new Map(read.groups.flatMap(({ entries }) => entries.map(({ ticket, url }) => [ticket, url] as const))));
-  return read;
-});
 // La fiche du projet, sous Settings (#4240) : `.brigade/fiche-projet.json`, lue et écrite dans le dossier du projet sur ce
 // poste (vue/card-project/card-project-folder.ts).
 ipcMain.handle("lireUnFichierDuProjet", (_, name: unknown, path: unknown) => readInTheProject(knownOne(name), path));
@@ -1241,16 +1177,6 @@ ipcMain.handle("repondreCarte", async (_, name: unknown, ticket: unknown, answer
   if ("repondue" in rendered) boards.oublier();
   return rendered;
 });
-// Un geste du chef sur la carte « Validate its screen » (vue/validation-design/, ticket 3185) : écrit sur GitHub, comme sur
-// le téléphone, par le jeton du `gh` de ce poste — `validate` merge la PR et ferme la carte, `send-back` la renvoie à un cook
-// avec le commentaire du chef. La carte est celle que la dernière lecture porte ; faite, la lecture suivante va à GitHub.
-ipcMain.handle("gesteDeValidation", async (_, name: unknown, ticket: unknown, action: unknown) => {
-  const aims = knownOne(name);
-  if (aims === undefined) return undefined;
-  const rendered = await validateOnGithub({ depot: await repositoryOfProject(aims), carte: ticket, design: facts.chef(aims.nom, ticket)?.design, geste: action, client: clientOfLabels });
-  if ("fait" in rendered) boards.oublier();
-  return rendered;
-});
 // La PR qu'un nettoyage fini a ouverte (bilan du closer, #992) s'ouvre dans le navigateur du poste :
 // une adresse https seulement, pour un projet que l'app connaît. Rend si elle a été ouverte.
 ipcMain.handle("ouvrirBilan", (_, name: unknown, url: unknown) => {
@@ -1306,7 +1232,7 @@ ipcMain.handle("lireFeu", async (_, name: unknown) => {
 // projet et le ticket, l'adresse est celle que la box a rendue (facts.ts) — ou, pour une issue
 // qui n'est pas encore sur le rail, celle que la lecture de l'amont a donnée (upstream.ts). Rend si elle a été ouverte.
 ipcMain.handle("ouvrirIssue", (_, name: unknown, ticket: unknown) => {
-  const address = facts.adresse(name, ticket) ?? upstreams.adresse(name, ticket) ?? (typeof ticket === "number" ? (adressesOfFire.get(String(name))?.get(ticket) ?? addressesLooked.get(String(name))?.get(ticket)) : undefined);
+  const address = facts.adresse(name, ticket) ?? upstreams.adresse(name, ticket) ?? (typeof ticket === "number" ? (adressesOfFire.get(String(name))?.get(ticket)) : undefined);
   return address === undefined ? false : shell.openExternal(address).then(
     () => true,
     () => false,

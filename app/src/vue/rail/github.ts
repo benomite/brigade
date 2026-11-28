@@ -1,5 +1,5 @@
 // Les tickets servis d'un projet, lus de GitHub (ticket 2220, épique 2209) : les PR fermées de son dépôt, page après page —
-// ce que les chiffres d'autonomie comptent (vue/autonomy/autonomy-github.ts). Le kanban, lui, est lu de ses labels
+// ce que les chiffres d'autonomie comptent (scripts/autonomy-page/autonomy-github.ts). Le kanban, lui, est lu de ses labels
 // (board/kitchen-board.ts).
 import { ticketOfThePR } from "../../board/rail-github.ts";
 

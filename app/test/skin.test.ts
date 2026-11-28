@@ -95,7 +95,7 @@ describe("la palette : un seul jeu de variables, écrit à un seul endroit", () 
     assert.deepEqual([...new Set([...pill.matchAll(/(--[a-z0-9-]+)\s*:/g)].map(([, name = ""]) => name))], ["--ton"]);
     for (const [, value] of pill.matchAll(/--ton\s*:\s*([^;]+);/g)) assert.match(value ?? "", /^var\(--(vert|jaune|rouge|bleu|gris|orange)\)$/);
 
-    const slipAndCard = withoutComments(read("components/slip/slip.css")) + withoutComments(read("components/card-wait/card-wait.css")) + withoutComments(read("autonomy/figures.css"));
+    const slipAndCard = withoutComments(read("components/slip/slip.css")) + withoutComments(read("components/card-wait/card-wait.css"));
     const named = [...css.matchAll(/var\((--[a-z0-9-]+)\)/g), ...slipAndCard.matchAll(/var\((--[a-z0-9-]+)\)/g), ...pill.matchAll(/var\((--[a-z0-9-]+)\)/g), ...read("vue.js").matchAll(/jeton\("(--[a-z0-9-]+)"\)/g)].map(([, name = ""]) => name);
     assert.ok(named.length > 100, "vue.css ne nomme presque aucune variable");
     for (const name of new Set(named)) assert.ok(tokens.has(name) || name === "--ton", `« ${name} » n'est pas dans tokens.css`);
@@ -176,7 +176,7 @@ describe("les polices : Archivo pour l'interface, JetBrains Mono pour ce qui se 
     // Ce que la page charge est à côté d'elle, ou dans les dépendances de l'app.
     for (const [, target = ""] of html.matchAll(/(?:href|src)="([^"]+)"/g)) assert.ok(existsSync(join(VUE, target)), `index.html charge « ${target} », qui n'est pas dans l'app`);
     const [, politique = ""] = /http-equiv="Content-Security-Policy" content="([^"]+)"/.exec(html) ?? [];
-    // Une image ne vient que du process principal, en `data:` : les captures d'une livraison (captures.ts). Aucune demande
+    // Une image ne vient que du process principal, en `data:`. Aucune demande
     // ne part de la page : l'onglet Agents passe par le pont (ticket 4569).
     assert.deepEqual(politique.split("; "), ["default-src 'none'", "script-src 'self' 'unsafe-inline'", "style-src 'self' 'unsafe-inline'", "font-src 'self'", "img-src data:"]);
     // Et le module de la vue ne va rien chercher lui-même.
@@ -324,7 +324,6 @@ const FACTS: Drawable = {
     mot: "open",
     ton: "vert",
     arretee: false,
-    apprentissage: { lecons: [], profils: [] },
     tick: "dernier tick il y a 12 s",
     compteurs: [
       { libelle: "rail", nombre: 9 },
@@ -533,7 +532,6 @@ const facts = (state: string, your: string | undefined, stopped = false, station
     ...(your === undefined ? {} : { ton: your }),
     ...(stations === null ? {} : { stations }),
     arretee: stopped,
-    apprentissage: { lecons: [], profils: [] },
     tick: "dernier tick il y a 12 s",
     compteurs: [{ libelle: "rail", nombre: 1 }],
     cooks: { enCours: [], vide: "aucun cook en cours" },

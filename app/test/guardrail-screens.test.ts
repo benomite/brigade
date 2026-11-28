@@ -17,7 +17,7 @@ import { TABS, HEADINGS } from "../src/tabs.ts";
 import { lineOfProject, holdHome, type Home, type ProjectOfTheHome } from "../src/home.ts";
 import { holdBands, type Alert } from "../src/alerts.ts";
 import type { Terminal } from "../src/terminals.ts";
-import { Fake, type Played, playTheVue, type Answers, openRead, openTheCosts, repos } from "./helpers/false-vue.ts";
+import { Fake, type Played, playTheVue, type Answers, openRead, repos } from "./helpers/false-vue.ts";
 
 const PARADE: Project = { nom: "parade", dossier: "/tmp/parade" };
 const A = "2026-10-16T10:00:00.000Z";
@@ -160,14 +160,6 @@ async function settings(): Promise<Plays> {
   return { vue, racine: screen(vue, ...READING) };
 }
 
-// La page des chiffres d'autonomie de tous les projets (#3222), que GitHub ne rend pas : elle le dit en une ligne.
-async function costs(): Promise<Plays> {
-  const vue = await open({ lireAutonomie: (_projects, days) => ({ jours: days, sans: "Autonomy figures not reached.", detail: RAW }) }, false);
-  const page = await openTheCosts(vue);
-  await repos();
-  return { vue, racine: page };
-}
-
 // Ce que pose une page ouverte par-dessus le rail : la lecture relayée, et Settings.
 const READING = ["lu-onglet", "lecture-onglet", "etat"];
 
@@ -184,7 +176,6 @@ const SCREENS: Screen[] = [
   { nom: "accueil", echec: home, lectures: 0 },
   { nom: "bande d'alertes", echec: alerts, lectures: 0 },
   { nom: "fiche d'une carte", echec: failedCard, lectures: 1 },
-  { nom: "Autonomy, au niveau de l'app", echec: costs, lectures: 1 },
   { nom: "Settings", echec: settings, lectures: 0 },
   { nom: "bandeau du second", echec: second, lectures: 0 },
 ];

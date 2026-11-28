@@ -327,7 +327,8 @@ test("les lectures du pont sont posées à côté de la vue, sans types ni modul
     }
   }
   // Ce que les modules d'app/src/ importent de Node pour le desktop est inerte : rien ne l'appelle sur le téléphone.
-  assert.match(readFileSync(join(www, "android", "node", "child_process.js"), "utf8"), /export const execFile = inerte;/);
+  // Le téléphone n'importe plus child_process : si un module le ramène, son remplaçant est inerte.
+  if (poses.includes("android/node/child_process.js")) assert.match(readFileSync(join(www, "android", "node", "child_process.js"), "utf8"), /export const execFile = inerte;/);
 });
 
 // La WebView n'a rien de Node : ni `process`, ni ses modules. La lecture posée, et tout ce qu'elle importe d'app/src/,

@@ -1,4 +1,4 @@
-// La page de « parade », Settings et sa section « Caps, closer and all projects » (#2490, #2921, #3013, #3014) : les
+// La page de « parade », Settings et sa section « Caps and closer » (#2490, #2921, #3013, #3014) : les
 // plafonds de durée que le chef y règle — Rail n'a plus que la bande des chiffres. Le dépôt déclare deux seuils
 // (`drift.gatesSeconds` et `drift.tests`) ; les autres n'y sont pas.
 import { CAPS, type ReadOfCaps } from "../../../app/src/caps-duration.ts";

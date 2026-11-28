@@ -30,6 +30,6 @@ export const ecran: Ecran = {
   dit: "L'espace de « parade », Settings : le temps de la pass des 7 derniers jours, la part qui pèse le plus et chaque phase (#3512)",
   largeur: 1440,
   hauteur: 900,
-  etapes: [OUVRIR, SETTINGS, { defiler: '#bandeau-sante [data-bloc="chiffres-autonomie"]' }],
+  etapes: [OUVRIR, SETTINGS, { defiler: '#bandeau-sante [data-bloc="post-mortems"]' }],
   donnees: () => donnees({ ...SUR_LA_BOX, temps: { ...TEMPS, passe: PASSE } }),
 };

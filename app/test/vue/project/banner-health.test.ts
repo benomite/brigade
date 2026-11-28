@@ -350,22 +350,21 @@ async function play(): Promise<{ vue: Played; ecrits: [string, string, string][]
 const block = (vue: Played) => vue.element("bandeau-sante").dessous("section").find(({ dataset }) => dataset.bloc === "plafonds-duree") ?? assert.fail("pas de plafonds");
 
 describe("le bandeau de santé, dans la vue", () => {
-  test("ni chiffre : une section de Settings, sous son titre, montre les plafonds, le closer et les lignes de tous les projets, sans rien à déplier", async () => {
+  test("ni chiffre : une section de Settings, sous son titre, montre les plafonds et le closer, sans rien à déplier", async () => {
     const { vue } = await play();
     await repos();
-    // Les chiffres sont dans la bande du rail (#3013) : la section n'a que son titre et ses quatre blocs (#3014) —
-    // les chiffres d'autonomie du projet compris (#3222).
+    // Les chiffres sont dans la bande du rail (#3013) : la section n'a que son titre et ses quatre blocs (#3014)
     // La fausse vue ne rejoue pas la place des éléments de index.html : la section se lit dans le fichier, groupe de Settings.
     const html = readFileSync(join(import.meta.dirname, "../../../src/vue/index.html"), "utf8");
     const settings = html.slice(html.indexOf('<section id="etat"'), html.indexOf('<div id="reglages-machine"'));
-    assert.match(settings, /<section id="reglages-sante" class="groupe"[^>]*>\s*<h2 [^>]*class="niveau-du-groupe">Caps, closer and all projects<\/h2>\s*<div id="bandeau-sante"><\/div>/);
+    assert.match(settings, /<section id="reglages-sante" class="groupe"[^>]*>\s*<h2 [^>]*class="niveau-du-groupe">Caps and closer<\/h2>\s*<div id="bandeau-sante"><\/div>/);
     assert.equal(vue.element("etat").hidden, false);
     const section = vue.element("bandeau-sante");
-    assert.deepEqual(section.children.map(({ dataset }) => dataset.bloc), ["plafonds-duree", "closer", "temps-de-la-passe", "chiffres-autonomie", "post-mortems", "de-tous-les-projets"]);
+    assert.deepEqual(section.children.map(({ dataset }) => dataset.bloc), ["plafonds-duree", "closer", "temps-de-la-passe", "post-mortems"]);
     assert.deepEqual(section.children.filter(({ balise }) => balise === "details"), [], "rien à déplier pour les voir");
   });
 
-  test("tout ce que la ligne repliée montrait est dans Settings : chaque plafond, les parties du closer, Autonomy de tous les projets", async () => {
+  test("tout ce que la ligne repliée montrait est dans Settings : chaque plafond, les parties du closer", async () => {
     const { vue } = await play();
     await repos();
     for (const { cle: key } of CAPS) assert.ok(lineOf(block(vue), key), key);
@@ -373,7 +372,6 @@ describe("le bandeau de santé, dans la vue", () => {
     assert.match(text(partOf(ofCloser, "passes")), /#2477Oct 8its PR merged/);
     assert.ok(partOf(ofCloser, "en-plus"));
     assert.ok(lineOf(ofCloser, "maxRemovedLines"));
-    assert.deepEqual(vue.element("de-tous-les-projets").dessous("button").map(({ ariaLabel }) => ariaLabel), ["the autonomy of all projects"]);
   });
 
   test("ni sur Rail, ni sur Stations : la section n'est posée que Settings ouvert, et se repose à sa réouverture", async () => {
@@ -382,11 +380,11 @@ describe("le bandeau de santé, dans la vue", () => {
       await openTab(vue, tab);
       assert.equal(vue.element("etat").hidden, true, tab);
       assert.deepEqual(vue.element("bandeau-sante").children, [], tab);
-      assert.doesNotMatch(vue.element("rail").textContent, /Caps, closer and all projects/, tab);
+      assert.doesNotMatch(vue.element("rail").textContent, /Caps and closer/, tab);
     }
     await openRead(vue, "Settings");
     assert.equal(vue.element("etat").hidden, false);
-    assert.deepEqual(vue.element("bandeau-sante").children.map(({ dataset }) => dataset.bloc), ["plafonds-duree", "closer", "temps-de-la-passe", "chiffres-autonomie", "post-mortems", "de-tous-les-projets"]);
+    assert.deepEqual(vue.element("bandeau-sante").children.map(({ dataset }) => dataset.bloc), ["plafonds-duree", "closer", "temps-de-la-passe", "post-mortems"]);
   });
 
   test("un plafond changé dans le bandeau part au process principal à son `change`, et la rangée dit la PR ouverte, qui s'ouvre", async () => {

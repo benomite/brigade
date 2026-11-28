@@ -79,22 +79,14 @@ export type Bridge = {
   // ou le réécrit avec ses changements —, et rien n'est créé ; sur le « oui » seul, l'issue est créée avec ses labels, `fire` compris.
   redigerLePremierTicket(project: string, request: import("../first-ticket.ts").Request): Promise<import("../first-ticket.ts").Redaction>;
   creerLePremierTicket(project: string, draft: import("../first-ticket.ts").Draft): Promise<import("../first-ticket.ts").Creation>;
-  // Les chiffres d'autonomie des projets nommés, ensemble, sur les `jours` derniers jours, lus de GitHub
-  // (vue/autonomy/autonomy-github.ts) ; puis l'issue d'un ticket qu'ils nomment, ouverte dans le navigateur.
-  lireAutonomie(projects: string[], days: number): Promise<import("./autonomy/autonomy-github.ts").ReadOfAutonomy>;
-  ouvrirTicketDAutonomie(url: string): Promise<boolean>;
   demanderAuSecond(project: string, ticket: number): Promise<Terminal | { refus: string }>;
   // Passe une carte de TODO au second (handover-second.ts, ticket 3133) : son numéro, sa question — nulle, « no
   // question found » —, et ce que son issue dit, écrits dans le second du projet sans Entrée.
   passerAuSecond(project: string, ticket: number, question: string | null): Promise<Terminal | { refus: string }>;
-  // Ouvre dans le navigateur une adresse que la dernière discussion lue de ce ticket montre — et
-  // aucune autre. Rend si elle a été ouverte.
-  ouvrirLien(project: string, ticket: number, url: string): Promise<boolean>;
+  // Ouvre dans le navigateur le lien de la PR d'une carte. Absent, la page l'ouvre elle-même.
+  ouvrirLien?(project: string, ticket: number, url: string): Promise<boolean>;
   // Le titre d'une issue que la box ne donne pas, lu par le `gh` du poste à l'adresse que la box a rendue.
   lireTitre(project: string, ticket: number): Promise<import("../question.ts").Title | undefined>;
-  // Une capture d'un ticket d'interface, par son écran et son moment : l'image, lue par le `gh` du
-  // poste à l'adresse que la box a rendue, en `data:` — ou pourquoi elle ne l'est pas.
-  lireCapture(project: string, ticket: number, screen: string, moment: "avant" | "apres"): Promise<import("../captures.ts").Image | undefined>;
   // Les tickets `fire` du projet, lus sur GitHub par le `gh` du poste (fire.ts) : ce que le rail sait encore quand la box ne répond pas.
   lireFeu(project: string): Promise<import("../fire.ts").Fire | undefined>;
   // « réessayer maintenant » : les lectures de la box repartent tout de suite, au lieu d'attendre leur tour.
@@ -273,12 +265,6 @@ export type Bridge = {
   telephoneConnecte?(): Promise<{ connecte: boolean } | { illisible: string }>;
   // Les agents au travail d'un projet (ticket 4569, agents/source.js) : lus sur GitHub et sur sa station.
   agentsAtWork?(project: string): Promise<unknown>;
-  // What changed since the chef last opened the project (ticket 4649, since-last-looked/), read from GitHub: this opening
-  // becomes the last look.
-  sinceYouLastLooked?(project: string): Promise<import("../since-last-looked.ts").SinceLastLooked>;
-  // Le niveau d'autonomie d'un agent, réglé ; un geste en attente, approuvé. Le côté runtime vient d'un autre ticket.
-  reglerLAutonomie?(project: string, agent: string, level: import("./autonomy/source.js").Level): Promise<void>;
-  approuverLeGeste?(project: string, agent: string, id: string): Promise<void>;
   // La cuisine que la visite montre (ticket 4087, visit.ts) : son rail, lu sur GitHub en lectures seules — rien n'est
   // cloné ni ajouté —, ou pourquoi il ne se lit pas. Seule benomite/brigade se visite.
   lireLaCuisineVisitee?(repository: string): Promise<import("../visit.ts").KitchenVisited>;
@@ -291,10 +277,6 @@ export type Bridge = {
   choisirLesProjets?(id: string, repositories: string[]): Promise<Choice>;
   // La réponse du chef à la carte de TODO d'un ticket (card-todo.ts) : un choix par son rang, ou son texte. Rien pour un projet sans box.
   repondreCarte(project: string, ticket: number, answer: import("../card-todo.ts").Answer): Promise<import("../card-todo.ts").Rendered | undefined>;
-  // Un geste du chef sur la carte « Validate its screen » d'un ticket (validation-design/, ticket 3185) : valider, ou renvoyer
-  // en cuisine avec un commentaire — la commande `design` du runtime, jouée par le process principal ; sur le téléphone, écrit
-  // sur GitHub (actions-github-phone.ts). Rien pour un projet inconnu.
-  gesteDeValidation(project: string, ticket: number, action: import("./validation-design/validation-design-github.ts").ActionOfValidation): Promise<import("./validation-design/validation-design-github.ts").RenderedOfValidation | undefined>;
   ouvrirBilan(project: string, url: string): Promise<boolean>;
   // Un lien de la ligne d'un projet en lecture seule (ticket 3163, vue/read-only/) : comment obtenir l'écriture sur son
   // dépôt, ou le forker — ouvert pour le seul dépôt que la dernière lecture dit en lecture seule (read-only.ts).
