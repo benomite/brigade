@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { readFileSync } from "node:fs";
 import { applyAgentActions, parseAgentActions, type AgentAction } from "../../src/kitchen/agents.ts";
 import { closeFinishedEpics } from "../../src/epics.ts";
-import type { Gestures } from "../../src/kitchen/github.ts";
+import { dependsOn, type Gestures } from "../../src/kitchen/github.ts";
 
 test("the supervisor's open gesture carries its labels, minus the locked ones (#4600)", async () => {
   const opened: Array<{ title: string; labels: string[] }> = [];
@@ -18,6 +19,22 @@ test("a manager split opens its children fired, at the parent's priority (#4672)
   const issues = new Map([[5, { number: 5, title: "t", labels: ["fire", "prio:2"], trusted: true, dependsOn: [] }]]);
   await applyAgentActions([{ split: 5, tickets: [{ title: "a", body: "b" }, { title: "c", body: "d" }] }], { act, issues, log: () => {}, who: "manager" });
   assert.deepEqual(opened.map((one) => one.labels), [["fire", "prio:2"], ["fire", "prio:2"]]);
+});
+
+test("a split whose tickets have no `Depends on` puts them all on the rail at once (#4811)", async () => {
+  const bodies: string[] = [];
+  const act = { open: async (_title: string, body: string) => (bodies.push(body), 100 + bodies.length), labels: async () => {}, createBranch: async () => {}, comment: async () => {} } as unknown as Gestures;
+  const issues = new Map([[5, { number: 5, title: "t", labels: ["fire", "prio:2"], trusted: true, dependsOn: [] }]]);
+  const tickets = ["screen A", "screen B", "screen C", "screen D"].map((title) => ({ title, body: `Do ${title}.` }));
+  await applyAgentActions([{ split: 5, tickets }], { act, issues, log: () => {}, who: "manager" });
+  assert.equal(bodies.length, 4);
+  for (const body of bodies) assert.deepEqual(dependsOn(body), []);
+});
+
+test("the manager's prompt asks for independent tickets and a reason for a chain (#4811)", () => {
+  const prompt = readFileSync(new URL("../../../agents/kitchen/manager.md", import.meta.url), "utf8");
+  assert.match(prompt, /en même temps/);
+  assert.match(prompt, /chaîne/);
 });
 
 test("an epic whose children are all closed is closed; one with an open child stays (#4672)", async () => {
